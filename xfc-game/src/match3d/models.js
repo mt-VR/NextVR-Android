@@ -721,7 +721,8 @@ export function createGltfPlayer(options = {}) {
       if (!target || !bones.head) return;
       const dx = target.x - root.position.x;
       const dz = target.z - root.position.z;
-      const angle = Math.atan2(dx, dz) - root.rotation.y;
+      const delta = Math.atan2(dx, dz) - root.rotation.y;
+      const angle = Math.atan2(Math.sin(delta),Math.cos(delta));
       const yaw = Math.max(-0.9, Math.min(0.9, angle));
       bones.neck.rotation.y += yaw * 0.35;
       bones.head.rotation.y += yaw * 0.5;

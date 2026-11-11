@@ -163,3 +163,9 @@ em [`assets/players/CREDITS.md`](assets/players/CREDITS.md) e
 mesmo corpo Micah, materiais/relva/gestos aprimorados e replay visual na pausa.
 Os painéis enviados são as próprias telas UT, com hotspots e dados salvos.
 Há retratos ainda ausentes; sem testes em aparelho físico ou promessa de nível AAA.
+
+### v0.5.26 — direção, corrida e menu UT
+
+[Diagnóstico e validação](docs/v0.5.26.md): orientação em baixa velocidade,
+correção do gesto que desligava CORRER, assistência de passe sem frenagem
+artificial, ajuste de rolamento/recepção e textos nítidos nos mesmos painéis UT.

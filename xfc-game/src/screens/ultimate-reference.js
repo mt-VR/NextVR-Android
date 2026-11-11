@@ -7,10 +7,17 @@ const num=n=>Number(n||0).toLocaleString('pt-BR');
 export function ultimateReference({section,u,profile,go,tools,start,card,claimSeason,claimMode,settings,exit,notice}){
   const art=section==='squad'?'squad-field':section;
   const root=el('section',{class:`ut-ref ut-ref--${section}`,'aria-label':labels[section]});
-  root.style.backgroundImage=`url("assets/ultimate/reference/${art}.jpg")`;
+  root.style.backgroundImage=`url("assets/ultimate/reference/${art}.${section==='squad'?'jpg':'png'}")`;
   root.append(el('h1',{class:'ut-ref-sr',text:labels[section]}));
   function place(node,x,y,w,h){node.style.cssText+=`;left:${x/7}%;top:${y/3.94}%;width:${w/7}%;height:${h/3.94}%;`;root.append(node);return node;}
   function hit(label,x,y,w,h,fn){return place(el('button',{type:'button',class:'ut-ref-hit','aria-label':label,title:label,onClick:fn}),x,y,w,h);}
+  function tab(id,label,x,y,w,h){
+    const button=hit(label,x,y,w,h,()=>go(id));
+    button.classList.add('ut-ref-tab');
+    button.textContent=({home:'Início',squad:'Elenco',club:'Clube',market:'Mercado',dme:'Desafios',store:'Loja',events:'Eventos',battles:'Squad Battles'})[id];
+    if(id===section)button.setAttribute('aria-current','page');
+    return button;
+  }
   function data(txt,x,y,w,h,cls=''){return place(el('div',{class:`ut-ref-data ${cls}`,text:txt}),x,y,w,h);}
   function action(txt,x,y,w,h,fn){return place(el('button',{type:'button',class:'ut-ref-action',text:txt,onClick:fn}),x,y,w,h);}
   if(section==='home'){const wallet=data('',230,367,220,21,'ut-ref-wallet');wallet.append(el('span',{class:'ultimate__coin-value',text:`◉ ${num(profile.coins)}`}),el('span',{text:`${num(u.season.xp)} XP`}));}
@@ -19,8 +26,8 @@ export function ultimateReference({section,u,profile,go,tools,start,card,claimSe
     const wallet=data('',478,14,220,40,'ut-ref-wallet');
     wallet.append(el('span',{class:'ultimate__coin-value',text:`◉ ${num(profile.coins)}`}),el('span',{text:`${num(u.season.xp)} XP`}));
     const links=section==='events'||section==='season'?[['home','Início'],['squad','Elenco'],['club','Meu Clube'],['market','Mercado de Transferências'],['store','Loja'],['events','Eventos especiais']]:[['squad','Elenco'],['club','Meu Clube'],['market','Mercado de Transferências'],['dme','DME'],['store','Loja']];
-    if(section==='battles'){[['home','Início',232,35],['squad','Elenco',267,35],['battles','Squad Battles',302,80],['market','Mercado de Transferências',382,47],['events','Eventos especiais',429,45]].forEach(([id,name,x,w])=>hit(name,x,18,w,34,()=>go(id)));}
-    else links.forEach(([id,name],i)=>hit(name,212+i*49,18,49,34,()=>go(id)));
+    if(section==='battles'){[['home','Início',232,35],['squad','Elenco',267,35],['battles','Squad Battles',302,80],['market','Mercado de Transferências',382,47],['events','Eventos especiais',429,45]].forEach(([id,name,x,w])=>tab(id,name,x,18,w,34));}
+    else links.forEach(([id,name],i)=>tab(id,name,212+i*49,18,49,34));
   }
   // Menu completo preserva todas as funções sem redesenhar a tela da imagem.
   const more=el('details',{class:'ut-ref-more'},el('summary',{text:'Mais opções',role:'button','aria-label':'Mais opções'}),
@@ -30,7 +37,11 @@ export function ultimateReference({section,u,profile,go,tools,start,card,claimSe
   switch(section){
     case 'home': {
       const links=[['battles','Jogar UT'],['squad','Meu Clube'],['market','Mercado de Transferências'],['dme','Desafios de Montagem de Elenco'],['season','Temporadas'],['objectives','Objetivos'],['store','Loja'],['settings','Configurações']];
-      links.forEach(([id,name],i)=>hit(name,28,108+i*27,223,27,()=>id==='settings'?settings():go(id)));
+      links.forEach(([id,name],i)=>{
+        const button=hit(name,28,108+i*27,223,27,()=>id==='settings'?settings():go(id));
+        button.classList.add('ut-ref-home-link');button.append(el('span',{text:name}));
+        if(i===0){button.classList.add('is-primary');button.append(el('span',{'aria-hidden':'true',text:'›'}));}
+      });
       hit('Selecionar · Jogar UT',25,350,80,40,()=>go('battles'));
       if(u.pending)action('Retomar confronto',470,348,210,34,()=>start('battles'));
       break;

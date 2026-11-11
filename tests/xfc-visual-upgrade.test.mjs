@@ -61,7 +61,7 @@ test('replay grava no máximo 61 poses e restaura câmera, ossos, bola e pausa',
 test('UT usa o painel inteiro, retratos existentes, hotspots e qualidade persistida',{timeout:90000},async t=>{
   const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
   try{const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.evaluate(async()=>{(await import('/src/main.js')).go('ultimate');});
-    assert.match(await p.locator('.ut-ref--home').evaluate(n=>getComputedStyle(n).backgroundImage),/\/home\.jpg/);
+    assert.match(await p.locator('.ut-ref--home').evaluate(n=>getComputedStyle(n).backgroundImage),/\/home\.png/);
     const play=await p.getByRole('button',{name:'Jogar UT',exact:true}).boundingBox();assert.ok(play.x<60&&play.y>180&&play.y<210);
     await p.getByRole('button',{name:'Meu Clube',exact:true}).click();assert.equal(await p.locator('.ut-ref-slot').count(),11);assert.equal(await p.locator('.ut-ref-slot .avatar img').count(),11);
     await p.getByRole('button',{name:'Entrar · gerenciar elenco',exact:true}).click();assert.equal(await p.locator('.ut-slot').count(),11);await p.keyboard.press('Escape');await p.keyboard.press('Escape');

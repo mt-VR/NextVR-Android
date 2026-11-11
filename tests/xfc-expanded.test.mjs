@@ -60,7 +60,7 @@ test('UI: 211 seleções pesquisáveis, elenco fictício identificado e 8 artes 
     await p.getByRole('searchbox').fill('Escocia');assert.equal(await p.locator('.comp__team-card').count(),1);assert.match(await p.locator('.comp__team-card').innerText(),/Fictício/);
     await p.locator('.comp__team-card').click();await p.locator('.comp__selection-preview .comp__cta').click();await p.waitForSelector('.comp__match');
     await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.coins=7777;m.go('ultimate');});assert.match(await p.locator('.ultimate__coin-value').innerText(),/7.777/);
-    assert.match(await p.locator('.ut-ref--home').evaluate(n=>getComputedStyle(n).backgroundImage),/home\.jpg/);
+    assert.match(await p.locator('.ut-ref--home').evaluate(n=>getComputedStyle(n).backgroundImage),/home\.png/);
     for(const section of ['market','store','events','season','battles','squad']){await p.evaluate(async s=>(await import('/src/main.js')).go('ultimate',{section:s}),section);assert.ok(await p.locator('.ut-main h1').isVisible());}
     assert.equal(await p.locator('.ut-ref-slot').count(),11);assert.match(await p.locator('.ut-ref--squad').evaluate(n=>getComputedStyle(n).backgroundImage),/squad-field/);
     await p.setViewportSize({width:844,height:390});await p.evaluate(async()=>{(await import('/src/main.js')).go('ultimate');});assert.ok(await p.getByRole('button',{name:'Jogar UT',exact:true}).isVisible());assert.deepEqual(errors,[]);

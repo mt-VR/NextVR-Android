@@ -28,3 +28,11 @@ licenciamento de imagem. Aplicados somente às cartas correspondentes. Os demais
 retratos vêm do cadastro anterior e mantêm os créditos existentes de jogadores.
 Não usar a cara de um atleta em outro ou em um atleta fictício para preencher
 lacunas. Cartas sem imagem dizem “Sem retrato” ou “Fictício”.
+
+## v0.5.26 — painéis sem recompressão adicional
+
+`home.png`, `market.png`, `store.png`, `events.png`, `battles.png`, `season.png`:
+crops de 834×469 pixels das mesmas duas fontes, preservados em PNG sem perda.
+Script: `tools/extract-ut-lossless.py`. Não são reconstruções HD, não criam
+pormenores ausentes das fontes e não usam geração de imagem. Texto dos links
+principais/topo é DOM sobre o painel para não depender de letras raster ampliadas.

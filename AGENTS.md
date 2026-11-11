@@ -490,3 +490,15 @@ cd xfc-game/android && ./gradlew assembleDebug
   teto de sombras, replay sintético e na partida real, painéis e persistência.
 - Alterações no fonte exigem regenerar `app.bundle.js` (é rastreado neste repo).
   Sem teste em telefone físico ou aprovação visual implícita em teste automatizado.
+
+## v0.5.26 — continuidade de movimento e UT
+
+- Limiar de orientação por velocidade 0,15 m/s (também no treino); cabeça usa
+  diferença angular normalizada. Não adicionar rotação PI ao Micah: frente é +Z.
+- CORRER só solta em pointerup/cancel/lostcapture, não na prévia do gesto.
+- Assistência da bola gira mantendo módulo; atrito de rolamento em `physics.js`.
+  Não reintroduzir aceleração mínima de bola parada ou meia-volta ao passar alvo.
+- PNGs UT são recortes lossless nativos, não novos assets HD. Texto DOM sobre
+  navegação, mesmos painéis/funções. Raridades das cartas usam variáveis de cor.
+- `tests/xfc-motion-continuity.test.mjs` cobre baixa velocidade, input constante,
+  gesto de sprint, física de rolamento e integração com posse; incluído no CI.

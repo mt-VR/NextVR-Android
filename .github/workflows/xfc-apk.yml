@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -177,24 +177,22 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.25
+          TAG=xfc-gameplay-v0.5.26
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.25 (versionCode 31), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.26 (versionCode 32), commit ${GITHUB_SHA}." \
             "" \
-            "Painéis UT fornecidos usados como telas completas, com hotspots, dados do save e cartas. Mercado, pacotes, escalação, DME e séries locais preservados." \
+            "UT com painéis originais sem recompressão JPEG adicional, textos nítidos sobrepostos, cartões e acabamento refinados. Mesmo desenho e funções locais." \
             "" \
-            "Quatro perfis gráficos, materiais do Micah existente, relva próxima sem faces pretas e sombras por orçamento. Gestos de recepção, voleio, chute/carga e proteção, com replay visual dos últimos seis segundos acessível na pausa." \
+            "Direção do corpo acompanha também movimentos lentos; cabeça vira pelos dois lados sem erro ao cruzar PI. CORRER não desliga por desvio do dedo antes de soltar." \
             "" \
-            "Nenhum corpo/modelo substituído ou remodelado. Não é equivalência AAA/FC27, mocap, tecido físico nem FPS comprovado em aparelho; testes em navegador, sem celular físico." \
+            "Assistência de passe preserva velocidade ao virar, sem meia-volta artificial; rolamento com atrito reduzido e recepção dirigida sem precisar esperar a bola parar. Pausas, faltas e reposições continuam respeitadas." \
             "" \
-            "106 cartas com imagem no catálogo; 38 cartas não marcadas fictícias ainda sem retrato. Fictícios não recebem fotos de terceiros. Neymar/Vini usam recortes das referências, não fotos oficiais verificadas." \
-            "" \
-            "Preservados competições ampliadas, saves, controles, placar/pausa e ajuste de bola de 0,8s. Detalhes e limites: docs/v0.5.25.md; créditos: assets/ultimate/reference/CREDITS.md e CREDITS.md.")
+            "Mesmo corpo Micah, controles, saves, perfis gráficos e replay preservados. Testes em Chromium, sem aparelho físico ou garantia de FPS. Detalhes: docs/v0.5.26.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — painéis UT, materiais e replay v0.5.25" \
+            gh release create "$TAG" --title "XFC 27 — UT nítido, direção e continuidade v0.5.26" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — painéis UT, materiais e replay v0.5.25" \
+            gh release edit "$TAG" --title "XFC 27 — UT nítido, direção e continuidade v0.5.26" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

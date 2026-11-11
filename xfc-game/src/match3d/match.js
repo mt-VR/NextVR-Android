@@ -457,7 +457,7 @@ export function createMatch(options = {}) {
         ? Math.max(10, Math.min(20, distance * 0.7 + 5))
         : Math.max(7, Math.min(19, distance * 0.62 + 4 + power * 0.08));
     const guide = target.active
-      ? { receiver: target, x: aimX, z: aimZ, through }
+      ? { receiver: target, x: aimX, z: aimZ, through, follow:!through&&!targetPoint }
       : null;
     // Enfiada é rasteira e firme; só os cruzamentos/escanteios usam a bola alta.
     const flightLift = lift ?? (lob ? 0.42 : through ? 0.055 : 0.11);
@@ -2407,7 +2407,7 @@ export function createMatch(options = {}) {
         : [18, PITCH.halfLength - 3.5, 28];
     player.x = Math.max(minX, Math.min(maxX, player.x));
     player.z = Math.max(-maxZ, Math.min(maxZ, player.z));
-    if (Math.hypot(player.vx, player.vz) < 1.1) {
+    if (Math.hypot(player.vx, player.vz) < 0.15) {
       faceTowards(player, training.drill==='keeper'?training.player.x:PITCH.halfLength, player.z * 0.2, dt, 8);
     }
 
@@ -2443,11 +2443,12 @@ export function createMatch(options = {}) {
     const position = ball.state.position;
     if (['team','corner','free','dribble','shooting'].includes(training.drill) && !training.shotActive && !ball.state.owner
       && !ball.state.rainbow && elapsedWorldTime >= (ball.state.skillUntil||0)
-      && position.y < 1.8 && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 12) {
+      && position.y < 1.8 && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 18) {
       const receiver = teams.home.players
         .filter(item => item.active)
         .map(item => ({ player: item, distance: Math.hypot(item.x - position.x, item.z - position.z) }))
-        .filter(item => item.distance < 1.18)
+        .filter(item => item.distance < 1.18 && (Math.hypot(ball.state.velocity.x,ball.state.velocity.z)<12
+          || (ball.state.passTarget===item.player&&ball.state.flightTime<2.4&&position.y<.8&&item.distance<.85)))
         .sort((a, b) => a.distance - b.distance)[0]?.player;
       if (receiver) receiveTrainingBall(receiver);
     }
@@ -2879,7 +2880,7 @@ export function createMatch(options = {}) {
     if (position.y > 2.1 || elapsedWorldTime<(ball.state.skillUntil||0)) return;
     // Uma bola rápida não é "dominada": ela voa até parar ou até o gol.
     const speed = Math.hypot(ball.state.velocity.x, ball.state.velocity.z);
-    if (speed > 8) return;
+    if (speed > 18) return;
 
     const human = controlled[userSide];
     const candidates = [];
@@ -2893,6 +2894,11 @@ export function createMatch(options = {}) {
     let bestDistance = Infinity;
     for (const player of candidates) {
       const distance = Math.hypot(player.x - position.x, player.z - position.z);
+      // Primeiro toque no passe dirigido: não precisa esperar a bola quase parar.
+      // Chutes/interceptações continuam com o limite anterior de domínio.
+      const receiving=ball.state.passTarget===player&&ball.state.flightTime<2.4
+        &&position.y<.8&&distance<.85;
+      if(speed>8&&!receiving)continue;
       const recovery=ball.state.recovery;
       const radius=recovery?.player===player && elapsedWorldTime<recovery.until ? recovery.radius : 1;
       if (distance < radius && distance < bestDistance) {

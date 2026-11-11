@@ -185,7 +185,8 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       const scale=button.getBoundingClientRect().height/(button.offsetHeight||1);
       const dy=(event.clientY-sprintGesture.y)/Math.max(.2,scale),dx=(event.clientX-sprintGesture.x)/Math.max(.2,scale);
       sprintGesture.action=Math.abs(dy)>=28&&Math.abs(dy)>Math.abs(dx)?(dy<0?'rainbow':'dribble'):null;
-      if(sprintGesture.action)onSprint(false);
+      // Prévia do gesto não solta CORRER: só pointerup/cancel encerra o sprint.
+      // Caso contrário, um desvio do dedo desligava a corrida até outro toque.
     });
     const release = event => {
       if (actionPointerId === null || (event?.pointerId !== undefined && event.pointerId !== actionPointerId)) return;

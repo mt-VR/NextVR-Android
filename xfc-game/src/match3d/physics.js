@@ -53,3 +53,26 @@ export function applyBallAirForces(velocity, spin, dt) {
   spin.z *= spinDecay;
   return velocity;
 }
+
+/** Atrito de rolamento separado do arrasto: decaimento contínuo, sem freio forte. */
+export const BALL_ROLLING_DECELERATION = 1.35;
+export function applyRollingResistance(velocity,dt){
+  const speed=Math.hypot(velocity.x,velocity.z);
+  if(speed<=0)return;
+  const next=Math.max(0,speed-BALL_ROLLING_DECELERATION*Math.max(0,dt));
+  velocity.x*=next/speed;velocity.z*=next/speed;
+}
+
+/** Assistência gira o vetor sem encurtá-lo nem dar velocidade a bola parada. */
+export function guideBallVelocity(velocity,dx,dz,dt,turnRate=2.9){
+  const speed=Math.hypot(velocity.x,velocity.z),distance=Math.hypot(dx,dz);
+  if(speed<.1||distance<.01)return false;
+  const dot=(velocity.x*dx+velocity.z*dz)/(speed*distance);
+  // Passou do alvo: não dá meia-volta nem fica orbitando o recebedor.
+  if(dot<=0)return false;
+  const angle=Math.atan2(velocity.x,velocity.z);
+  const delta=Math.atan2(Math.sin(Math.atan2(dx,dz)-angle),Math.cos(Math.atan2(dx,dz)-angle));
+  const turn=clamp(delta,-turnRate*Math.max(0,dt),turnRate*Math.max(0,dt));
+  velocity.x=Math.sin(angle+turn)*speed;velocity.z=Math.cos(angle+turn)*speed;
+  return true;
+}
