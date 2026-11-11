@@ -2,17 +2,22 @@
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** IK de duas pernas: o pé percorre o solo e volta pela frente, não chuta atrás. */
-export function runningLegPose(phase, stride = 1) {
+export function runningLegPose(phase, stride = 1, running = 1) {
   const p = ((phase % 1) + 1) % 1;
   stride = clamp(stride, 0, 1);
-  const stance = p < 0.52;
-  const t = stance ? p / 0.52 : (p - 0.52) / 0.48;
+  running=clamp(running,0,1);
+  const support=.62-.12*running;
+  const stance = p < support;
+  const t = stance ? p / support : (p - support) / (1-support);
   // Apoio termina apenas 12 cm atrás do quadril. Na recuperação o joelho
   // sobe à frente, em vez de o calcanhar ser arremessado para trás.
   const smooth = t * t * (3 - 2 * t);
-  const z = (stance ? .30 - .42 * smooth : -.12 + .42 * smooth) * stride;
-  const lift = stance ? 0 : Math.sin(Math.PI * t) ** 2 * .17;
-  const y = -.80 + lift,
+  const front=.25+.05*running,back=.12+.04*running;
+  const z = (stance ? front-(front+back)*smooth : -back+(front+back)*smooth)*stride;
+  const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.10*running);
+  // O pé de apoio quase estende a perna; retirar o encurtamento constante
+  // de 6 cm elimina o agachamento durante toda a passada.
+  const y = -Math.sqrt(.855*.855-z*z)+lift,
     a = 0.44,
     b = 0.42;
   const distance = clamp(Math.hypot(y, z), 0.2, a + b - 0.002);
@@ -26,7 +31,7 @@ export function runningLegPose(phase, stride = 1) {
     Math.acos(
       clamp((a * a + distance * distance - b * b) / (2 * a * distance), -1, 1)
     );
-  return { hip, knee, ankle: -hip - knee, z, lift };
+  return { hip, knee, ankle: -hip - knee, z, lift, y, stance };
 }
 
 /** O joystick horizontal é relativo à câmera atrás do batedor. */

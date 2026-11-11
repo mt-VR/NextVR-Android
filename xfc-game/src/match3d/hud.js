@@ -40,7 +40,7 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
   const homeScore = el('b', { class: 'hud__score', text: '0' });
   const awayScore = el('b', { class: 'hud__score', text: '0' });
   const clock = el('span', { class: 'hud__clock', text: "0'00" });
-  const halfLabel = el('span', { class: 'hud__half', text: '1º TEMPO' });
+  const halfLabel = el('span', { class: 'hud__half', text: '1ºT' });
   // Barra de posse: mandante preenche a partir da esquerda, visitante o resto.
   const possHomePct = el('b', { class: 'hud__poss-pct', text: '50%' });
   const possFill = el('i', { class: 'hud__poss-fill' });
@@ -71,15 +71,14 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
       homeCrest,
       el('span', { class: 'hud__team', text: abbreviationOf(home) }),
       homeScore,
-      el('span', { class: 'hud__dash', text: '×' }),
+      el('span', { class: 'hud__dash', text: '-' }),
       awayScore,
       el('span', { class: 'hud__team', text: abbreviationOf(away) }),
       awayCrest,
-      clock
+      clock, halfLabel
     ),
     el('div', { class: 'hud__sc-foot' },
-      el('span', { class: 'hud__live', text: 'AO VIVO' }),
-      halfLabel
+      el('span', { class: 'hud__live', text: 'AO VIVO' })
     ),
     possessionBar,
     discipline,
@@ -439,8 +438,8 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
     update(snapshot, players, ball, controlled) {
       homeScore.textContent = String(snapshot.score[0]);
       awayScore.textContent = String(snapshot.score[1]);
-      clock.textContent = snapshot.display;
-      const half = snapshot.half === 1 ? '1º TEMPO' : snapshot.half === 2 ? '2º TEMPO' : '';
+      clock.textContent = (snapshot.display||"0'00").replace("'",':');
+      const half = snapshot.half === 1 ? '1ºT' : snapshot.half === 2 ? '2ºT' : '';
       const halfText = snapshot.phase === 'halftime' ? 'INTERVALO' : snapshot.phase === 'fulltime' ? 'FIM DE JOGO' : half;
       if (halfLabel.textContent !== halfText) halfLabel.textContent = halfText;
       const poss = Array.isArray(snapshot.poss) ? snapshot.poss : [50, 50];

@@ -161,6 +161,7 @@ export function createMatch(options = {}) {
   let cameraReady = false;
   // 'play' (transmissão) ou 'cinematic' (volta sobre o estádio).
   let cameraMode = 'cinematic';
+  let cameraZoom=1;
   // Entrada cinematográfica: os 22 jogadores saem do vestiário e a câmera
   // acompanha o time do usuário até o alinhamento no gramado.
   let entrance = null;
@@ -340,6 +341,10 @@ export function createMatch(options = {}) {
     return (gltfPlayersEnabled() && createGltfPlayer(options)) || createPlayer3D(options);
   }
 
+  function validatedPlan(point){
+    if(!Number.isFinite(point?.x)||!Number.isFinite(point?.z))return {};
+    return {x:Math.max(-48,Math.min(43,point.x)),z:Math.max(-29,Math.min(29,point.z))};
+  }
   function buildTeam(team) {
     const lineup = team.info?.players || [];
     assignSlots(lineup).forEach(({ data, index, slot, slotIndex }) => {
@@ -377,6 +382,9 @@ export function createMatch(options = {}) {
         side: team.side,
         index: slotIndex,
         order: index,
+        rosterId:data.id||String(index),
+        tacticalCustom:Number.isFinite(options.gamePlans?.[team.side]?.[data.id||String(index)]?.x)&&Number.isFinite(options.gamePlans?.[team.side]?.[data.id||String(index)]?.z),
+        tacticalBase:{...base,...validatedPlan(options.gamePlans?.[team.side]?.[data.id||String(index)])},
         role,
         isKeeper,
         isGK: isKeeper,
@@ -1317,7 +1325,7 @@ export function createMatch(options = {}) {
     if (!kicker) return;
     const partners = available.filter(player => player !== kicker);
     partners.forEach(player => {
-      const base = FORMATION_433[player.index] || FORMATION_433[1];
+      const base = player.tacticalBase || FORMATION_433[player.index] || FORMATION_433[1];
       // Os companheiros do cobrador ficam no próprio campo durante a saída.
       player.x = sign * Math.min(-1.2, base.x);
       player.z = base.z;
@@ -1327,7 +1335,7 @@ export function createMatch(options = {}) {
     });
     for (const player of members(opponentOf(side))) {
       if (!player.active) continue;
-      const base = FORMATION_433[player.index] || FORMATION_433[1];
+      const base = player.tacticalBase || FORMATION_433[player.index] || FORMATION_433[1];
       // O adversário permanece no próprio campo e fora do círculo central.
       player.x = sign * Math.max(9.5, Math.abs(base.x));
       player.z = base.z;
@@ -1752,6 +1760,17 @@ export function createMatch(options = {}) {
     get trainingStats() {
       return { ...training.stats };
     },
+    getGamePlan(side=userSide){return members(side).filter(p=>p.active).map(p=>({
+      id:p.id,rosterId:p.rosterId,name:p.name,role:p.role,ovr:p.ovr,number:p.number,...p.tacticalBase
+    }));},
+    setGamePlan(playerId,point){
+      if(!paused)return false;
+      const player=members(userSide).find(p=>p.active&&p.id===playerId),base=validatedPlan(point);
+      if(!player||!Number.isFinite(base.x))return false;
+      player.tacticalBase={...player.tacticalBase,...base};player.tacticalCustom=true;return true;
+    },
+    get cameraZoom(){return cameraZoom;},
+    setCameraZoom(value){if(value===1||value===1.2)cameraZoom=value;},
     get cameraMode() {
       return cameraMode;
     },
@@ -3152,8 +3171,8 @@ export function createMatch(options = {}) {
     const position = ball.state.position;
     const pose = broadcastCameraPose(position, cameraSide);
     const desiredX = pose.position.x;
-    const desiredY = pose.position.y;
-    const desiredZ = pose.position.z;
+    const desiredY = pose.position.y*cameraZoom;
+    const desiredZ = pose.target.z+(pose.position.z-pose.target.z)*cameraZoom;
     const desiredFov = pose.fov;
     const camera = engine.camera;
 
@@ -3207,6 +3226,7 @@ export function createMatch(options = {}) {
       kickoff('home');
       engine.start(update);
     },
+    resumeRender(){engine.start(update);},
     stop() {
       engine.stop();
     },

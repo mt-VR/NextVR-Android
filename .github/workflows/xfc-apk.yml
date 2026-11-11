@@ -6,7 +6,7 @@ name: XFC APK
 
 on:
   push:
-    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android" ]
+    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android", "arena/5d087ee3-nextvr-android" ]
   workflow_dispatch:
     inputs:
       publish:
@@ -169,30 +169,30 @@ jobs:
           echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
 
       - name: Publish the release with the direct download links
-        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && github.ref_name == 'arena/1d5a221b-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && github.ref_name == 'arena/5d087ee3-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.20
+          TAG=xfc-gameplay-v0.5.21
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.20 (versionCode 26), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.21 (versionCode 27), commit ${GITHUB_SHA}." \
             "" \
-            "Corrida refeita com apoio assimétrico, retorno curto atrás e contrabalanço dos braços. Goleiro com novo mergulho e poses de pegar/carregar/colocar a bola; mesmo modelo masculino importado." \
+            "Placar escuro no alto à direita com escudos/bandeiras, gols, relógio e período. Nova pausa lateral sobre a partida real congelada, sem recriar o lance ao retomar." \
             "" \
-            "Pênalti: toque tem prioridade sobre o timer do teclado; a mira fica na última direção ao soltar. Chapéu passa sobre o próprio executor; controle de bola altera a distância e o alcance da recuperação, sem posse automática." \
+            "CHUTE com carga completa gera superchute; CORRER para cima faz chapéu e para baixo faz pedalada. Removidos os três botões extras. Cancelar/pausar não dispara ações." \
             "" \
-            "Tiro de meta e escanteio: buscar a bola no local da saída, pegar, carregar nas mãos, colocar no chão, recuar e esperar o comando. Aproximação antes de cobrar. Não usa mais a preparação abreviada de 1,35 s." \
+            "Cartinhas arrastáveis no plano de jogo e elenco, com posição salva por jogador/clube e usada pela IA. Alterar a tática não teletransporta os atletas da partida congelada." \
             "" \
-            "69 camisas identificadas do HTML para 54 clubes; 47 novos clubes com escudos reais, sem duplicar existentes. Elencos novos fictícios sinalizados no menu. 27 fotos incertas omitidas conforme autorizado. Campo mais claro sem passes adicionais de sombra." \
+            "Postura de locomoção revista: perna de apoio quase estendida, sem baixar o quadril durante toda a passada, caminhada/corrida com recuperação distinta. Mesmo modelo masculino importado." \
             "" \
-            "Android mantém resolução fixa, sem MSAA/sombras dinâmicas. Resultado final para de renderizar o estádio ao fundo. Sem promessa de FPS em celular físico ou equivalência ao EA Sports FC. docs/v0.5.20.md e CREDITS.md.")
+            "Preservados os modos, câmera, gestos, clubes, uniformes e o perfil econômico do Android. Sem teste de FPS em celular físico nem promessa de equivalência a FC Mobile. docs/v0.5.21.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — camisas e reposições completas v0.5.20" \
+            gh release create "$TAG" --title "XFC 27 — pausa, controles e plano de jogo v0.5.21" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — camisas e reposições completas v0.5.20" \
+            gh release edit "$TAG" --title "XFC 27 — pausa, controles e plano de jogo v0.5.21" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

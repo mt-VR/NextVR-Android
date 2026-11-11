@@ -395,3 +395,26 @@ cd xfc-game/android && ./gradlew assembleDebug
 - `controls.readKeyboard` não toca no vetor enquanto há pointerId ativo. Mira
   do pênalti retém último vetor fora da zona morta e só reseta na próxima cobrança.
 - Luz/relva clareadas sem subir resolução/sombras/passes no Android.
+
+
+## Atualização v0.5.21 — pausa, gestos e plano de jogo
+
+- Placar único em `hud.js`, topo direito, faixa escura e período inline. Pausa
+  mantém o MESMO HUD/partida por baixo de um gradiente; não usar arte de partida
+  fictícia nem um segundo placar. Novo menu `pause-reference` em `play.js`.
+- `showPause` congela world E renderer; `resumeRender()` retoma sem kickoff/reset.
+  Nunca usar `match.start()` para despausar (ele reinicia a saída!). Inputs são
+  limpos para não ficar correndo após soltar o dedo durante a pausa.
+- CHUTE: força pelo tempo real no release (inclusive dedo imóvel), carga total
+  vira power. CORRER: pointer capturado; swipe ↑ rainbow / ↓ dribble confirmado
+  somente no pointerup. Cancelamento/perda de captura/pausa não geram ação.
+  Botões dribble/rainbow/super e teclas R/C/V foram retirados; K carregado é power.
+- `ui/game-plan.js`: cartas e arrasto pelo bounding rect (palco escalado). Cancelar
+  restaura; setas também movem. Posição em `profile.gamePlans[teamId][rosterId]`.
+- `world.setGamePlan` exige pausa, jogador ativo do usuário e números finitos.
+  Altera tacticalBase, NÃO a posição física. IA usa âncoras personalizadas sem
+  forçar a antiga faixa por função. Papel/GK do atleta não muda pelo arrasto.
+  Dados globais de formação/elenco não são mutados. Partidas novas leem o perfil.
+- Nova locomoção elimina os 6 cm de abaixamento contínuo; apoio quase estendido,
+  balanço distinto de andar/correr e correção de contato dos pés. Preservar todos
+  os gestos anteriores e modelo importado; regressão visual ainda requer usuário.

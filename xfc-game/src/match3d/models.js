@@ -721,14 +721,14 @@ export function createGltfPlayer(options = {}) {
         * (['dive','tackle','fall','place-ball','pick-ball','stepover'].includes(gesture.name)?1-gestureEnvelope():1);
       if(gaitWeight>.001){
         for(const [side,offset]of [['left',0],['right',.5]]){
-          const pose=runningLegPose(gaitPhase+offset,.65+.35*state.locomotionWeights.run);
+          const pose=runningLegPose(gaitPhase+offset,.65+.35*state.locomotionWeights.run,state.locomotionWeights.run);
           for(const [part,angle]of [['UpLeg',pose.hip],['Leg',pose.knee],['Foot',pose.ankle]]){
             const bone=bones[side+part];
             gQuat.setFromEuler(gEuler.set(angle,0,0));
             bone.quaternion.identity().slerp(gQuat,gaitWeight);
           }
         }
-        bones.hips.position.y=bindHipY-.06*gaitWeight;
+        bones.hips.position.y=bindHipY;
         // Cotovelos flexionados e contrabalanço curto, oposto às coxas.
         for(const [side,offset] of [['left',0],['right',.5]]){
           const swing=Math.cos((gaitPhase+offset)*Math.PI*2);
@@ -741,9 +741,17 @@ export function createGltfPlayer(options = {}) {
       if(!['dive','tackle','fall'].includes(gesture.name)){
         const running=state.locomotionWeights.run;
         bones.hips.position.y+=.018*running*(1-Math.cos(gaitPhase*Math.PI*4));
-        addBoneRotation(bones.spine,Math.min(.12,speed*.016)*running,0,0,1);
+        // Tronco ereto no andar; inclinação pequena e única ao correr.
+        bones.spine.rotation.x=.035*running;
+        bones.spine2.rotation.x=0;
       }
       addBoneRotation(bones.spine2, 0, 0, Number(movement.lean) || 0, 1);
+      if(gaitWeight>.5&&!gesture.name){
+        root.updateMatrixWorld(true);
+        const feet=[bones.leftFoot,bones.rightFoot];let min=Infinity;
+        for(const foot of feet)min=Math.min(min,foot.getWorldPosition(floorPoint).y-root.position.y);
+        bones.hips.position.y+=(.13*model.scale.y-min)/model.scale.y;
+      }
       applyGesture(step);
       if (['dive', 'tackle', 'fall'].includes(gesture.name)) {
         // Keep contact landmarks above the turf during low poses.

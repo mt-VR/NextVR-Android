@@ -16,6 +16,7 @@ import {
   recordTournamentResult,
   nextTournamentFixture
 } from '../data/tournament.js';
+import { footballCard,enablePositionDrag,planToPitch,pitchToPlan,positionCard } from '../ui/game-plan.js';
 import { saveProfile } from '../state.js';
 import { flagSvg } from '../ui/flags.js';
 import { createMatch } from '../match3d/match.js';
@@ -296,6 +297,7 @@ export function playScreen(ctx, params = {}) {
       difficulty,
       userSide,
       onEvent: handleEvent,
+      gamePlans:{home:ctx.state.profile.gamePlans?.[home.id],away:ctx.state.profile.gamePlans?.[away.id]},
       stadium: stadiumIndex
     });
     hud = createHud({
@@ -670,175 +672,69 @@ export function playScreen(ctx, params = {}) {
     overlay.classList.add('is-visible');
   }
 
+  let pausePanel=null;
   function showPause() {
-    stage = 'paused';
-    paused = true;
-    setPauseButtonVisible(false);
-    match?.world.setPaused(true);
-    controls?.setEnabled(false);
-    const snapshot = match?.world.snapshot() || lastSnapshot;
-    lastSnapshot = snapshot;
-    const stats = snapshot.stats || {
-      home: { shots: 0, possession: 50, corners: 0, fouls: 0, cards: 0 },
-      away: { shots: 0, possession: 50, corners: 0, fouls: 0, cards: 0 }
+    stage='paused';paused=true;setPauseButtonVisible(false);
+    match?.world.setPaused(true);match?.stop();controls?.setEnabled(false);
+    if(match)Object.assign(match.world.input,{moveX:0,moveZ:0,sprint:false});
+    stageBox.classList.add('is-paused');
+    const snapshot=match?.world.snapshot()||lastSnapshot;
+    const userTeam=userSide==='home'?home:away;
+    const stats=snapshot.stats;
+    const detail=el('section',{class:'pause-reference__detail',hidden:true});
+    const closeDetail=()=>{detail.hidden=true;detail.replaceChildren();pausePanel=null;};
+    const panel=(title,...children)=>{
+      pausePanel=closeDetail;detail.hidden=false;
+      detail.replaceChildren(el('header',{},el('h2',{text:title}),el('button',{type:'button',class:'pause-reference__back',onClick:closeDetail,text:'VOLTAR'})),...children);
     };
-    const userTeam = userSide === 'home' ? home : away;
-    const scoreline = el('div', { class: 'pause__scoreline' },
-      el('div', { class: 'pause__score-team pause__score-team--home' },
-        teamMark(home, 'pause__crest'),
-        el('b', { text: home.shortName || home.name })
-      ),
-      el('div', { class: 'pause__score-value' },
-        el('b', { text: String(snapshot.score?.[0] ?? 0) }),
-        el('span', { text: '–' }),
-        el('b', { text: String(snapshot.score?.[1] ?? 0) })
-      ),
-      el('div', { class: 'pause__score-team pause__score-team--away' },
-        el('b', { text: away.shortName || away.name }),
-        teamMark(away, 'pause__crest')
-      )
-    );
-
-    const positions = [
-      { pos: 'GK', x: 50, y: 89 },
-      { pos: 'LB', x: 15, y: 70 }, { pos: 'CB', x: 39, y: 72 },
-      { pos: 'CB', x: 61, y: 72 }, { pos: 'RB', x: 85, y: 70 },
-      { pos: 'CM', x: 28, y: 51 }, { pos: 'CDM', x: 50, y: 58 }, { pos: 'CAM', x: 72, y: 51 },
-      { pos: 'LW', x: 16, y: 28 }, { pos: 'ST', x: 50, y: 23 }, { pos: 'RW', x: 84, y: 28 }
-    ];
-    const used = new Set();
-    const lineupPlayers = positions.map((slot, index) => {
-      const roster = userTeam.players || [];
-      let playerIndex = roster.findIndex((player, itemIndex) => !used.has(itemIndex) && player.pos === slot.pos);
-      if (playerIndex < 0) playerIndex = roster.findIndex((player, itemIndex) => !used.has(itemIndex));
-      if (playerIndex < 0) return null;
-      used.add(playerIndex);
-      const player = roster[playerIndex];
-      return el('div', {
-        class: 'pause__lineup-player',
-        style: { left: `${slot.x}%`, top: `${slot.y}%` },
-        title: `${player.name} · ${slot.pos}`
-      },
-        el('span', { class: 'pause__lineup-shirt', text: String(player.number || index + 1) }),
-        el('b', { text: player.name }),
-        el('i', { text: String(player.ovr || player.rating || '—') })
-      );
-    });
-    const lineup = el('section', { class: 'pause__lineup' },
-      el('div', { class: 'pause__lineup-head' },
-        el('div', {},
-          el('span', { class: 'pause__eyebrow', text: 'ESCALAÇÃO' }),
-          el('h3', { text: userTeam.name })
-        ),
-        el('b', { class: 'pause__formation', text: userTeam.formation || '4-3-3' })
-      ),
-      el('div', { class: 'pause__lineup-pitch' },
-        el('div', { class: 'pause__pitch-half' }),
-        el('div', { class: 'pause__pitch-circle' }),
-        ...lineupPlayers
-      ),
-      el('div', { class: 'pause__lineup-footer' },
-        el('span', { text: `${userTeam.players?.length || 11} JOGADORES` }),
-        el('span', { text: 'FORMAÇÃO ATIVA' })
-      )
-    );
-
-    const detail = el('div', { class: 'pause__detail' });
-    function setPauseDetail(title, description, rows = []) {
-      detail.replaceChildren(
-        el('div', { class: 'pause__detail-copy' },
-          el('span', { class: 'pause__eyebrow', text: 'CENTRAL DA PARTIDA' }),
-          el('b', { text: title }),
-          el('p', { text: description })
-        ),
-        ...(rows.length > 0 ? [el('div', { class: 'pause__detail-stats' },
-          ...rows.map(([label, left, right]) => el('div', { class: 'pause__detail-row' },
-            el('span', { text: String(left) }),
-            el('b', { text: label }),
-            el('span', { text: String(right) })
-          ))
-        )] : [])
-      );
+    function showPlan(){
+      const pitch=el('div',{class:'game-plan__pitch','aria-label':'Campo do plano de jogo'},el('i',{class:'game-plan__circle'}));
+      for(const entry of match.world.getGamePlan()){
+        const player=userTeam.players.find(p=>p.id===entry.rosterId)||entry;
+        const card=footballCard({...player,role:entry.role},{crest:userTeam.crest});
+        let point=planToPitch(entry);positionCard(card,point);pitch.appendChild(card);
+        card.dataset.playerId=entry.id;
+        enablePositionDrag(card,pitch,{getPosition:()=>point,onChange:next=>{
+          const base=pitchToPlan(next);
+          if(!match.world.setGamePlan(entry.id,base))return;
+          point=next;
+          ctx.state.profile.gamePlans||={};ctx.state.profile.gamePlans[userTeam.id]||={};
+          ctx.state.profile.gamePlans[userTeam.id][entry.rosterId]=base;saveProfile(ctx.state);
+        }});
+      }
+      panel('PLANO DE JOGO',el('p',{text:'Arraste as cartinhas livremente. No teclado, selecione uma carta e use as setas. As novas posições orientam a equipe ao retomar, sem teletransportar o lance.'}),pitch);
     }
-    setPauseDetail('PARTIDA PAUSADA', 'Escolha uma opção ou retome a partida quando estiver pronto.');
-
-    const options = [
-      { id: 'resume', icon: '▶', title: 'RESUMIR PARTIDA', sub: 'Voltar para o jogo', primary: true, action: resumeMatch },
-      { id: 'replay', icon: '▻', title: 'REPETIÇÃO INSTANTÂNEA', sub: 'Rever o último lance', action: () => setPauseDetail('REPETIÇÃO INSTANTÂNEA', 'Os lances continuam registrados na partida. A repetição de vídeo será adicionada em uma atualização futura.') },
-      { id: 'trainer', icon: '△', title: 'TREINADOR', sub: 'Dicas de controle', action: () => setPauseDetail('DICAS DO TREINADOR', 'Segure CHUTE para carregar. Arraste para cima para chutar alto e curvar, para baixo para colocar ou contra o movimento para dar um superchute.') },
-      { id: 'facts', icon: '▦', title: 'FATOS DA PARTIDA', sub: 'Estatísticas ao vivo', action: () => setPauseDetail('FATOS DA PARTIDA', `Relógio ${snapshot.display || "0'00"} · ${snapshot.half === 2 ? '2º tempo' : '1º tempo'}`, [
-        ['FINALIZAÇÕES', stats.home.shots, stats.away.shots],
-        ['POSSE DE BOLA', `${stats.home.possession}%`, `${stats.away.possession}%`],
-        ['ESCANTEIOS', stats.home.corners, stats.away.corners],
-        ['FALTAS', stats.home.fouls, stats.away.fouls],
-        ['CARTÕES', stats.home.cards, stats.away.cards]
-      ]) },
-      { id: 'settings', icon: '⚙', title: 'CONFIGURAÇÕES', sub: 'Controles e câmera', action: () => setPauseDetail('CONFIGURAÇÕES', 'Analógico esquerdo: movimentação · passe: J/Space · chute: K/L · corrida: Shift. No celular, use o analógico e os botões de ação na tela.') },
-      {
-        id: 'end', icon: '↪', title: 'ENCERRAR PARTIDA',
-        sub: params.tournamentMatchId ? 'Voltar ao campeonato' : 'Voltar ao menu principal',
-        danger: true,
-        action: () => params.tournamentMatchId
-          ? ctx.go('competition', {
-            competitionId: params.tournamentCompetitionId,
-            returnTo: params.tournamentReturnTo || 'modes',
-            panel: 'play'
-          })
-          : ctx.go('menu')
-      },
-      { id: 'mode-home', icon: '⌂', title: 'VOLTAR AO INÍCIO', sub: 'Ir direto ao menu principal do XFC', action: () => ctx.go('menu') }
+    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go('menu');
+    const confirm=(title,message,action)=>panel(title,el('p',{text:message}),el('button',{type:'button',class:'pause-reference__confirm',onClick:action,text:'CONFIRMAR'}));
+    const actions=[
+      ['resume','▶','VOLTAR À PARTIDA',resumeMatch],
+      ['restart','↻','REINICIAR PARTIDA',()=>confirm('REINICIAR PARTIDA','Recomeçar este confronto do zero? O placar atual será descartado.',()=>ctx.go('play',{...params,home:home.id,away:away.id,homeKit:params.homeKit||0,awayKit:params.awayKit||0}))],
+      ['settings','⚙','CONFIGURAÇÕES',()=>panel('CONFIGURAÇÕES',
+        el('p',{text:'CHUTE: segure até a carga completa para superchute. CORRER: segure para correr; arraste para cima para chapéu ou para baixo para pedalada.'}),
+        el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
+          el('option',{value:'1',selected:match.world.cameraZoom===1,text:'Padrão'}),el('option',{value:'1.2',selected:match.world.cameraZoom===1.2,text:'Mais aberta'}))),
+        el('p',{text:'Teclado: WASD/setas para mover, Shift para correr, J/E para passar, K para carregar o chute e F para carrinho.'}))],
+      ['facts','▥','ESTATÍSTICAS',()=>panel('ESTATÍSTICAS',el('div',{class:'pause-reference__stats'},
+        ...[['Posse de bola',stats.home.possession+'%',stats.away.possession+'%'],['Finalizações',stats.home.shots,stats.away.shots],['Chutes ao gol',stats.home.shotsOn,stats.away.shotsOn],['Escanteios',stats.home.corners,stats.away.corners],['Faltas',stats.home.fouls,stats.away.fouls],['Cartões',stats.home.cards,stats.away.cards]].map(([label,a,b])=>statLine(label,a??0,b??0))))],
+      ['plan','▣','PLANO DE JOGO',showPlan],
+      ['end','⇥','SAIR DA PARTIDA',()=>confirm('SAIR DA PARTIDA','Sair sem registrar este resultado?',leave)]
     ];
-    const tiles = el('div', { class: 'pause__tiles' }, ...options.map((option, index) => el('button', {
-      class: `pause__tile${option.primary ? ' is-primary' : ''}${option.danger ? ' is-danger' : ''}${index === 0 ? ' is-selected' : ''}`,
-      type: 'button',
-      dataset: { pauseAction: option.id },
-      onClick: option.action
-    },
-      el('span', { class: 'pause__tile-copy' },
-        el('b', { text: option.title }),
-        el('small', { text: option.sub })
-      ),
-      el('span', { class: 'pause__tile-icon', text: option.icon })
-    )));
-
-    const pause = el('div', { class: 'pause pause--fc' },
-      el('header', { class: 'pause__topline' },
-        el('span', { text: `${STADIUMS[stadiumIndex]?.name || 'ESTÁDIO XFC'}  ·  ÁRBITRO OFICIAL` }),
-        el('b', { text: 'PARTIDA CLÁSSICA' }),
-        el('span', { text: `${snapshot.display || "0'00"}  ·  ${snapshot.half === 2 ? '2º TEMPO' : '1º TEMPO'}` })
-      ),
-      scoreline,
-      el('div', { class: 'pause__body' },
-        lineup,
-        el('section', { class: 'pause__menu' },
-          el('div', { class: 'pause__menu-heading' },
-            el('div', {},
-              el('span', { class: 'pause__eyebrow', text: 'XFC 27' }),
-              el('h2', { class: 'pause__title', text: 'PAUSA' })
-            ),
-            teamMark(userTeam, 'pause__menu-crest')
-          ),
-          tiles,
-          detail
-        )
-      ),
-      el('footer', { class: 'pause__footer' },
-        el('span', { class: 'pause__hint' }, padButton('cross', 'Select'), el('span', { text: 'Selecionar' })),
-        el('span', { class: 'pause__hint' }, padButton('circle', 'Resume'), el('span', { text: 'Retomar' }))
-      )
+    const menu=el('nav',{class:'pause-reference__menu','aria-label':'Partida pausada'},...actions.map(([id,icon,title,action],index)=>el('button',{
+      type:'button',class:'pause-reference__item'+(index===0?' is-primary':''),dataset:{pauseAction:id},onClick:action
+    },el('span',{class:'pause-reference__icon','aria-hidden':'true',text:icon}),el('b',{text:title}))));
+    const pause=el('div',{class:'pause-reference'},
+      el('div',{class:'pause-reference__brand'},el('span',{html:xfcWordmark()}),el('b',{text:'27'})),
+      menu,detail,el('footer',{class:'pause-reference__footer',text:'↵ Selecionar     Esc Voltar'})
     );
-    overlay.replaceChildren(pause);
-    overlay.classList.add('is-visible');
+    overlay.replaceChildren(pause);overlay.classList.add('is-visible');
+    menu.querySelector('button')?.focus({preventScroll:true});
   }
 
   function resumeMatch() {
-    stage = 'live';
-    paused = false;
-    setPauseButtonVisible(true);
-    match?.world.setPaused(false);
-    overlay.replaceChildren();
-    overlay.classList.remove('is-visible');
-    controls?.setEnabled(true);
+    pausePanel=null;stage='live';paused=false;stageBox.classList.remove('is-paused');
+    setPauseButtonVisible(true);match?.world.setPaused(false);
+    overlay.replaceChildren();overlay.classList.remove('is-visible');
+    controls?.setEnabled(true);match?.resumeRender();
   }
 
   // ------------------------------------------------------------- montagem --
@@ -921,12 +817,17 @@ export function playScreen(ctx, params = {}) {
       });
     },
     onKey(event) {
+      if(stage==='paused'&&!pausePanel&&['ArrowUp','ArrowDown'].includes(event.key)){
+        const items=[...overlay.querySelectorAll('.pause-reference__item')],index=items.indexOf(document.activeElement);
+        items[(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();return true;
+      }
       if (event.key === 'Escape' || event.key === 'Backspace') {
         if (stage === 'live') {
           showPause();
           return true;
         }
         if (stage === 'paused') {
+          if(pausePanel){pausePanel();return true;}
           resumeMatch();
           return true;
         }

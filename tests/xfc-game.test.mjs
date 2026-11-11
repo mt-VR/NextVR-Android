@@ -947,7 +947,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.click('.showcase__enter');
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
     const boardBox = await page.locator('.hud__scoreboard').boundingBox();
-    assert.ok(boardBox && boardBox.x < 40, 'o placar fica no canto superior esquerdo');
+    assert.ok(boardBox && boardBox.x > 800, 'o placar fica no canto superior direito');
     const stickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(stickBox && stickBox.x < 320 && stickBox.y > 500,
       'o analógico fica fixo no canto inferior esquerdo');
@@ -1037,8 +1037,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       match.world.command = originalCommand;
       return kinds;
     });
-    assert.deepEqual(shotGestures, ['curved', 'placed', 'power'],
-      'arrastar para cima curva, para baixo coloca e para trás gera o superchute');
+    assert.deepEqual(shotGestures, ['curved', 'placed', 'normal'],
+      'arrastar para cima curva, para baixo coloca; superchute agora exige carga completa');
     const controlledBefore = (await page.locator('.hud__player .hud__player-name').textContent()).trim();
     await page.locator('.ctrl-btn--switch').click();
     await page.waitForFunction(name =>
@@ -1164,7 +1164,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.equal(await page.locator('.hud__score').count(), 2, 'o placar mostra os dois placares');
     assert.ok(await page.locator('.hud__clock').isVisible(), 'o placar mostra o relógio');
     assert.ok(await page.locator('.hud__radar').isVisible(), 'o radar aparece no HUD');
-    assert.equal(await page.locator('.ctrl-btn').count(), 9, 'os sete controles originais mais chapéu e superchute');
+    assert.equal(await page.locator('.ctrl-btn').count(), 6, 'seis botões, sem atalhos extras de habilidades');
     assert.ok(await page.locator('.controls__stick-zone').count(), 'há o analógico virtual');
     const quickStickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(quickStickBox && quickStickBox.x < 260 && quickStickBox.y > 460,
@@ -1181,17 +1181,16 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     const pauseButton = page.locator('.play__pause-button');
     assert.ok(await pauseButton.isVisible(), 'o botão de pausa fica visível durante a partida');
     const pauseBox = await pauseButton.boundingBox();
-    assert.ok(pauseBox && pauseBox.x > 1100 && pauseBox.y < 70,
-      'o botão de pausa fica no canto superior direito');
+    assert.ok(pauseBox && pauseBox.x < 100 && pauseBox.y < 70,
+      'pausa à esquerda sem sobrepor o placar');
     await pauseButton.click();
-    await page.waitForSelector('.pause--fc');
-    assert.ok(await page.locator('.pause__scoreline').isVisible(), 'a pausa mantém o placar no topo');
-    assert.equal(await page.locator('.pause__lineup-player').count(), 11, 'a pausa mostra a escalação completa');
-    assert.equal(await page.locator('.pause__tile').count(), 7, 'a pausa mostra as seis opções da partida e o retorno direto aos modos');
-    assert.ok(!(await page.locator('.pause__detail').textContent()).includes('false'),
-      'a pausa não deixa booleanos soltos no painel de detalhes');
-    await page.locator('.pause__tile[data-pause-action="facts"]').click();
-    assert.equal(await page.locator('.pause__detail-row').count(), 5, 'FATOS DA PARTIDA abre as estatísticas ao vivo');
+    await page.waitForSelector('.pause-reference');
+    assert.ok(await page.locator('.hud__scoreboard').isVisible(),'pausa mantém o mesmo placar');
+    assert.equal(await page.locator('.pause-reference__item').count(),6,'menu lateral real, sem painel antigo');
+    assert.equal(await page.locator('.pause__lineup-player').count(),0,'partida congelada no fundo, não uma escalação decorativa');
+    await page.locator('[data-pause-action="facts"]').click();
+    assert.equal(await page.locator('.pause-reference__stats .pause__stat').count(),6);
+    await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.hud.is-visible');
 
@@ -2062,10 +2061,13 @@ test('os menus das competições são próprios e todas as opções abrem telas 
     });
     assert.ok(goalCard.top > goalCard.height * 0.55, 'o cartão de gol fica na parte de baixo da tela');
 
-    // Pausa: o atalho de início leva ao menu principal, nunca à Copa do Mundo.
+    // Sair pela nova pausa retorna ao campeonato correto; o logo leva ao início.
     await page.locator('.play__pause-button').click();
-    await page.waitForSelector('.pause__tile[data-pause-action="mode-home"]', { timeout: 8000 });
-    await page.locator('.pause__tile[data-pause-action="mode-home"]').click();
+    await page.waitForSelector('[data-pause-action="end"]', { timeout: 8000 });
+    await page.locator('[data-pause-action="end"]').click();
+    await page.locator('.pause-reference__confirm').click();
+    await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]', { timeout: 15000 });
+    await page.locator('.comp__home').click();
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
     assert.equal(await page.locator('.screen--worldcup').count(), 0, 'o botão de início respeita o menu principal');
 

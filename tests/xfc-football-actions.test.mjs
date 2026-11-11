@@ -14,10 +14,10 @@ test('passadas: tornozelo segue trajetória limitada, joelho não lança pé par
     const p = runningLegPose(i / 240);
     const y = -0.44 * Math.cos(p.hip) - 0.42 * Math.cos(p.hip + p.knee);
     const z = -0.44 * Math.sin(p.hip) - 0.42 * Math.sin(p.hip + p.knee);
-    assert.ok(z >= -.121 && z <= .301);
+    assert.ok(z >= -.161 && z <= .301);
     assert.ok(Math.abs(z - p.z) < 0.005);
     assert.ok(p.knee >= 0 && p.knee < 1.75);
-    assert.ok(y >= -0.800001 && y <= -0.6);
+    assert.ok(y >= -.856 && y <= -.64);
     assert.ok(Math.abs(p.hip + p.knee + p.ankle) < 1e-8, 'sola nivelada');
     if (last)
       assert.ok(Math.abs(p.hip - last.hip) < 0.06, 'sem salto entre ciclos');
@@ -193,7 +193,7 @@ test(
       assert.equal(result.foundation, true);
       assert.deepEqual(result.names, ['BAR', 'RMA']);
       assert.equal(result.clockInline, 'hud__sc-main');
-      assert.equal(result.clockColor, 'rgb(80, 240, 117)');
+      assert.equal(result.clockColor, 'rgba(0, 0, 0, 0)');
       for (const [type, r] of [
         ['goalkick', result.goalkick],
         ['corner', result.corner]

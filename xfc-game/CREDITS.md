@@ -160,3 +160,12 @@ fidelidade arquitetônica dos modelos 3D.
   em `assets/crests/CREDITS.md`. Não são anunciados como CC0/licenciados pelo clube.
 - Micah CC0 permanece o atleta. As mudanças de corrida/goleiro/reposições são
   adaptações de animação do projeto, não um novo modelo, mocap ou asset EA FC.
+
+## Interface e cartas — v0.5.21
+
+Referência visual de pausa/placar fornecida pelo usuário na conversa
+(`file_0000000082f8820ebe361acb35688e2b.png`). A interface foi implementada em
+DOM/CSS com a marca SVG existente, não como imagem estática. O fundo é a própria
+partida renderizada e congelada. Cartas usam apenas escudos e retratos já
+creditados neste projeto; não usam templates oficiais de cartas EA. Não foram
+adicionados modelos, texturas nem clipes de terceiros nesta revisão.
