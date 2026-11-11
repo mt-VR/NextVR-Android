@@ -1,10 +1,9 @@
 # XFC — o jogo de futebol da XF Esports
 
-**v0.5.31:** carreira com a arte enviada de Neymar, clube inicial livre, OVR 57,
-posição/cabelo/chuteira e prévia do mesmo atleta 3D. Kick Off separado com as
-referências de seleção de times/uniformes; Jogo Rápido antigo preservado.
-Pênalti: espera a **5 metros**, aproximação após confirmar CHUTE.
-[Detalhes e limites](docs/v0.5.31.md).
+**v0.5.32:** Carreira de Jogador na lista principal, junto de Kick Off e Ultimate
+Team, e câmera Pro dos treinos acompanhando o atleta em casa e fora. Arte de
+Neymar, personalização, OVR inicial 57 e pênalti a 5 m mantidos.
+[Detalhes e validação](docs/v0.5.32.md).
 
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de

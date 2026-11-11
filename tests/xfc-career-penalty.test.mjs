@@ -140,3 +140,43 @@ test('Kick Off separado: países, uniformes dos dois lados, retorno e Jogo Rápi
  assert.deepEqual(errors,[]);
  }finally{await b.close();server.close();}
 });
+
+test('carreira no menu principal e câmera Pro atrás do atleta em casa/fora, com analógico e pausa',{timeout:180000},async t=>{
+ const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
+ try{
+  const p=await b.newPage({viewport:{width:1280,height:720}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
+  await p.evaluate(async()=>{(await import('/src/main.js')).go('menu');});
+  assert.equal(await p.locator('.career-entry').count(),0,'sem botão flutuante separado');
+  const entry=p.locator('.hub__menu [data-menu-item="career"]');assert.equal(await entry.count(),1);
+  await entry.focus();assert.equal(await p.locator('.hub__cta-label').textContent(),'Entrar na carreira');
+  await p.keyboard.press('Enter');await p.waitForSelector('.screen--career');
+  for(const round of [0,1]){
+   await p.evaluate(async round=>{const main=await import('/src/main.js'),data=await import('/src/data/career.js');const c=data.createCareer({clubId:'fc-barcelona',position:'CM'});c.round=round;main.state.profile.career=c;main.state.profile.graphicsQuality='low';const fixture=data.careerFixture(c),pending=data.beginCareerMatch(c);main.go('play',{home:fixture.home,away:fixture.away,careerMatchId:pending.id,userSide:fixture.home===c.clubId?'home':'away',returnTo:'career'});},round);
+   await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+   const result=await p.evaluate(()=>{
+    const m=window.__xfcMatch;m.stop();m.world.setPaused(false);m.phase.name='play';m.phase.restart=null;
+    const hero=m.controlled[m.world.userSide],sign=m.world.userSide==='home'?1:-1;
+    // Isola câmera/entrada das colisões e faltas da IA durante os passos manuais.
+    for(const player of [...m.teams.home.players,...m.teams.away.players])if(player!==hero)player.active=false;
+    hero.x=0;hero.z=0;hero.vx=hero.vz=0;m.ball.attachTo(hero);
+    for(let i=0;i<120;i++)m.world.tick(1/60);
+    const resting={behind:(m.engine.camera.position.x-hero.x)*sign,lateral:m.engine.camera.position.z-hero.z,height:m.engine.camera.position.y,fov:m.engine.camera.fov};
+    const startX=hero.x;m.world.input.moveZ=1;for(let i=0;i<45;i++)m.world.tick(1/60);
+    const forward=(hero.x-startX)*sign;m.world.input.moveZ=0;
+    const startZ=hero.z;m.world.input.moveX=1;for(let i=0;i<45;i++)m.world.tick(1/60);
+    const right=(hero.z-startZ)*sign;m.world.input.moveX=0;
+    m.world.setPaused(true);const camera=m.engine.camera.position.toArray();m.world.tick(1);const paused=m.engine.camera.position.toArray();m.world.setPaused(false);
+    // A bola distante não troca o protagonista nem puxa a posição da câmera.
+    const mate=m.teams[m.world.userSide].players.find(x=>x!==hero&&!x.isKeeper);mate.x=sign*28;mate.z=20;m.ball.attachTo(mate);
+    for(let i=0;i<30;i++)m.world.tick(1/60);
+    const distance=Math.hypot(m.engine.camera.position.x-hero.x,m.engine.camera.position.z-hero.z);
+    m.world.setCameraMode('play');m.world.tick(1/60);
+    return{side:m.world.userSide,mode:m.world.cameraMode,id:m.controlled[m.world.userSide].rosterId,resting,forward,right,camera,paused,distance};
+   });
+   assert.equal(result.side,round===0?'away':'home');assert.equal(result.mode,'pro');assert.equal(result.id,'career-player');
+   assert.ok(Math.abs(result.resting.behind+9.2)<.05,JSON.stringify(result));assert.ok(Math.abs(result.resting.lateral)<.05);assert.ok(Math.abs(result.resting.height-4.7)<.05);assert.ok(Math.abs(result.resting.fov-52)<.05);
+   assert.ok(result.forward>1);assert.ok(result.right>1);assert.deepEqual(result.camera,result.paused);assert.ok(result.distance<12);
+  }
+  assert.deepEqual(errors,[]);
+ }finally{await b.close();server.close();}
+});

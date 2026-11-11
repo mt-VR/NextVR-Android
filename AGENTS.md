@@ -584,3 +584,11 @@ cd xfc-game/android && ./gradlew assembleDebug
   O prazo de encerramento por tempo começa no contato, não no comando.
 - Proveniência nas duas pastas de assets; derivação reproduzível em
   `tools/prepare-career-kickoff.py`. Sem novas garantias de FPS/celular.
+
+### v0.5.32 — câmera da carreira
+
+Carreira integra `MENU_ITEMS`, sem `.career-entry` solto. `playerLockId` faz o
+modo `play` retornar à câmera `pro`; a função dos treinos é compartilhada com
+orientação `attackSign(userSide)` e entrada relativa ao mesmo eixo. Não restaurar
+a câmera de transmissão na carreira ao terminar a entrada. Testes em casa/fora
+em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.

@@ -750,7 +750,7 @@ export function playScreen(ctx, params = {}) {
           pausePanel=()=>match.world.replay.stop();
         }}),
         el('p',{text:'CHUTE: segure até a carga completa para superchute. CORRER: segure para correr; arraste para cima para chapéu ou para baixo para pedalada.'}),
-        el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
+        careerClub ? el('p',{text:'Câmera Pro · acompanha seu atleta, como nos treinos.'}) : el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
           el('option',{value:'1',selected:match.world.cameraZoom===1,text:'Padrão'}),el('option',{value:'1.2',selected:match.world.cameraZoom===1.2,text:'Mais aberta'}))),
         el('p',{text:'Teclado: WASD/setas para mover, Shift para correr, J/E para passar, K para carregar o chute e F para carrinho.'}),
         el('button',{type:'button',class:'pause-reference__back',dataset:{pauseAction:'plan'},onClick:showPlan,text:'PLANO DE JOGO'}))],

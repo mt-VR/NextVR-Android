@@ -1533,7 +1533,7 @@ export function createMatch(options = {}) {
     ball.state.position.set(r.ballX,BALL.radius,0);ball.mesh.position.copy(ball.state.position);
     for(const player of allPlayers){if(!player.active)continue;player.root.position.set(player.x,0,player.z);player.model.update(dt,modelMovementState(player));}
     updateMarker(dt);
-    if(training.enabled)updateTrainingCamera(dt);else updateSetPieceCamera(dt);
+    if(training.enabled||cameraMode==='pro')updateTrainingCamera(dt);else updateSetPieceCamera(dt);
     if(t>=1){
       penaltyRunup=null;r.player.vx=r.player.vz=0;
       releasePenalty(r.player,{...r.opts,keeperLane:r.lane});
@@ -1912,9 +1912,9 @@ export function createMatch(options = {}) {
 
     /** Alterna entre a câmera de transmissão e a cinematográfica. */
     setCameraMode(mode) {
-      cameraMode = mode;
-      if (mode === 'play') cameraReady = false;
-      if (mode === 'pro') trainingCameraReady = false;
+      cameraMode = mode === 'play' && options.playerLockId ? 'pro' : mode;
+      if (cameraMode === 'play') cameraReady = false;
+      if (cameraMode === 'pro') trainingCameraReady = false;
     },
 
     /** Congela a câmera num ponto (capturas de tela e testes). */
@@ -2361,14 +2361,16 @@ export function createMatch(options = {}) {
     const player = controlled[userSide] || training.player;
     if (!player) return;
     const camera = engine.camera;
-    const cameraForward = training.cameraForward || { x: 1, z: 0 };
+    // Mesmo enquadramento Pro dos treinos. Na carreira, acompanha o lado
+    // de ataque do atleta, sem girar o analógico quando ele muda de direção.
+    const cameraForward = training.enabled ? (training.cameraForward || { x: 1, z: 0 }) : { x: attackSign(userSide), z: 0 };
     const facingLength = Math.hypot(cameraForward.x, cameraForward.z) || 1;
     const forwardX = cameraForward.x / facingLength;
     const forwardZ = cameraForward.z / facingLength;
     const rightX = -forwardZ;
     const rightZ = forwardX;
     const speed = playerSpeed(player);
-    const isPenalty=training.drill==='penalty';
+    const isPenalty=training.enabled&&training.drill==='penalty';
     const cameraDistance = isPenalty?6.8:9.2 + Math.min(1.2, speed * 0.1);
     const desiredX = player.x - forwardX * cameraDistance;
     // Mantém o eixo Pro; altura suficiente para ver a bola além do atleta a 5 m.
@@ -2611,8 +2613,9 @@ export function createMatch(options = {}) {
     phase.name = 'kickoff';
     phase.side = side;
     phase.timer = 0;
-    cameraMode = 'play';
+    cameraMode = options.playerLockId ? 'pro' : 'play';
     cameraReady = false;
+    trainingCameraReady = false;
     emit({ type: 'entrance-end', side });
   }
 
@@ -2829,6 +2832,7 @@ export function createMatch(options = {}) {
 
     if (phase.name === 'goal') updateGoalCamera(dt);
     else if (refereeDecision) updateRefereeCamera(dt);
+    else if (cameraMode === 'pro') updateTrainingCamera(dt);
     else if(phase.name==='restart'&&phase.restart?.preparation){
       const p=phase.restart.taker,fx=p.facing.x,fz=p.facing.z;
       blendCameraPose(dt,{x:p.x-fx*4.8-fz*3,y:2.8,z:p.z-fz*4.8+fx*3},
@@ -2915,12 +2919,12 @@ export function createMatch(options = {}) {
     const speed = ((input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED)*careerPace;
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
-      const movement = training.enabled
+      const movement = training.enabled || cameraMode === 'pro'
         ? cameraRelativeMovementFromStick(
           input.moveX,
           input.moveZ,
-          training.cameraForward?.x ?? 1,
-          training.cameraForward?.z ?? 0
+          training.enabled ? (training.cameraForward?.x ?? 1) : attackSign(userSide),
+          training.enabled ? (training.cameraForward?.z ?? 0) : 0
         )
         : worldMovementFromStick(input.moveX, input.moveZ);
       const targetX = player.x + movement.x * 6;
@@ -3225,13 +3229,7 @@ export function createMatch(options = {}) {
    * recuo para abarcar mais campo.
    */
   function updateCamera(dt) {
-    let position = ball.state.position;
-    const hero=options.playerLockId?controlled[userSide]:null;
-    if(hero?.active){
-      // Na carreira, nunca perder o protagonista de vista para seguir uma bola distante.
-      const dx=position.x-hero.x,dz=position.z-hero.z,lead=Math.min(.35,4/Math.max(1,Math.hypot(dx,dz)));
-      position={x:hero.x+dx*lead,y:0,z:hero.z+dz*lead};
-    }
+    const position = ball.state.position;
     const pose = broadcastCameraPose(position, cameraSide, ball.state.velocity);
     const desiredX = pose.position.x;
     const desiredY = pose.position.y*cameraZoom;

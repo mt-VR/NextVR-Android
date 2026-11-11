@@ -184,20 +184,20 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.31
+          TAG=xfc-gameplay-v0.5.32
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.31 (versionCode 37), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.32 (versionCode 38), commit ${GITHUB_SHA}." \
             "" \
             "Pênalti com espera a 5 metros e aproximação de 1,35 s após CHUTE. Mira congelada e escolha independente do goleiro." \
             "" \
             "Carreira com arte de Neymar fornecida pelo usuário, clube inicial livre, OVR inicial 57, posição/cabelo/chuteira/pele e prévia do mesmo modelo Micah 3D. Progresso local e controle de um atleta." \
             "" \
-            "Kick Off separado: seleção por país e uniformes dos dois lados conforme as referências enviadas; Jogo Rápido anterior preservado. 116 testes locais passaram, sem testes pulados. Sem teste em telefone físico. Detalhes: docs/v0.5.31.md. Saves anteriores preservados.")
+            "Kick Off separado: seleção por país e uniformes dos dois lados conforme as referências enviadas; Jogo Rápido anterior preservado. Carreira agora integra a lista principal; câmera Pro compartilhada com os treinos, com entrada orientada para o lado de ataque. Sem teste em telefone físico. Detalhes: docs/v0.5.32.md. Saves anteriores preservados.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — carreira Neymar, Kick Off e pênalti 5 m v0.5.31" \
+            gh release create "$TAG" --title "XFC 27 — carreira no menu principal e câmera Pro v0.5.32" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — carreira Neymar, Kick Off e pênalti 5 m v0.5.31" \
+            gh release edit "$TAG" --title "XFC 27 — carreira no menu principal e câmera Pro v0.5.32" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

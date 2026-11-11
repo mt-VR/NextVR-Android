@@ -42,6 +42,14 @@ const MENU_ITEMS = [
     target: 'ultimate'
   },
   {
+    id: 'career',
+    label: 'CARREIRA DE JOGADOR',
+    headline: 'Sua carreira. Seu jogador.',
+    subtitle: 'Escolha seu clube, evolua seu atleta e entre em campo com a câmera Pro.',
+    action: 'Entrar na carreira',
+    target: 'career'
+  },
+  {
     id: 'learn',
     label: 'LEARN TO PLAY',
     headline: 'Make every touch count',
@@ -212,7 +220,6 @@ export function menuScreen(ctx) {
       src: 'assets/bg/menu-hero.jpg',
       alt: 'Jogador em campo diante de um estádio cheio'
     }),
-    el('button',{type:'button',class:'career-entry',text:'CARREIRA DE JOGADOR',onClick:()=>ctx.go('career')}),
     topbar,
     quickRail,
     nav,

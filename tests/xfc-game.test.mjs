@@ -708,7 +708,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await imagesReady();
     const navLabels = await page.locator('.menu__item-label').allTextContents();
     assert.deepEqual(navLabels, [
-      'JOGO RÁPIDO', 'FC NEWS', 'KICK OFF', 'THE GROUNDS', 'ULTIMATE TEAM', 'LEARN TO PLAY',
+      'JOGO RÁPIDO', 'FC NEWS', 'KICK OFF', 'THE GROUNDS', 'ULTIMATE TEAM', 'CARREIRA DE JOGADOR', 'LEARN TO PLAY',
       'SEASONS', 'TOURNAMENTS', 'TIME ALEATÓRIO', 'ONLINE FRIENDLIES'
     ], 'o menu mantém as opções do hub em uma lista vertical');
     assert.equal(await page.locator('.menu__item.is-focused').getAttribute('data-menu-item'), 'kickoff',
@@ -1022,7 +1022,17 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.deepEqual(shotGestures, ['curved', 'placed', 'normal'],
       'arrastar para cima curva, para baixo coloca; superchute agora exige carga completa');
     await page.locator('.ctrl-btn--pass').click();
-    await page.waitForFunction(()=>window.__xfcMatch.phase.name==='play');
+    await page.waitForFunction(()=>{
+      const match=window.__xfcMatch;
+      if(match.phase.name!=='play')return false;
+      // Congela só a simulação: a recepção automática do passe não pode trocar
+      // o atleta entre a leitura da HUD e o clique em TROCAR. A HUD segue viva.
+      match.stop();return true;
+    });
+    await page.waitForFunction(()=>{
+      const match=window.__xfcMatch;
+      return document.querySelector('.hud__player .hud__player-name')?.textContent.trim()===String(match.controlled[match.world.userSide].name).toUpperCase();
+    });
     const controlledBefore = (await page.locator('.hud__player .hud__player-name').textContent()).trim();
     await page.locator('.ctrl-btn--switch').click();
     await page.waitForFunction(name =>
