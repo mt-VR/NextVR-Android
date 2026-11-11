@@ -17,7 +17,8 @@ export function runningLegPose(phase, stride = 1, running = 1) {
   const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.275*running);
   // O pé de apoio quase estende a perna; retirar o encurtamento constante
   // de 6 cm elimina o agachamento durante toda a passada.
-  const y = -Math.sqrt(.855*.855-z*z)+lift,
+  const compression=stance?.018*running*Math.sin(Math.PI*t)**2:0;
+  const y = -Math.sqrt(.855*.855-z*z)+lift+compression,
     a = 0.44,
     b = 0.42;
   const distance = clamp(Math.hypot(y, z), 0.2, a + b - 0.002);
@@ -42,7 +43,7 @@ export function runningArmPose(phase, running=1) {
   const swing=Math.cos(phase*Math.PI*2);
   // Caminhada: braços soltos e quietos. Corrida: balanço contralateral.
   return { shoulder:.80*blend*swing,
-    elbow:-.10-(.58-.30*swing)*blend, twist:.055*blend*Math.sin(phase*Math.PI*2) };
+    elbow:-.08-(.30-.20*Math.sin(phase*Math.PI*2-.35))*blend, twist:.025*blend*Math.sin(phase*Math.PI*2) };
 }
 export function runningFlight(phase,running=1){
   const support=.62-.30*clamp(running,0,1),p=((phase%1)+1)%1,other=(p+.5)%1;
@@ -54,7 +55,10 @@ export function runningFlight(phase,running=1){
 export function runningCycle(running=1,height=1,number=10){
   const r=clamp(running,0,1),style=1+((Math.abs(Number(number)||10)%7)-3)*.012;
   const stride=(.65+.35*r)*style;
-  return {stride,distance:((.25+.13*r)+(.12+.09*r))*stride/(.62-.30*r)*Math.max(.5,height),style};
+  // O cálculo antigo dava ciclos de apenas ~0,4 m ao andar (até 6 ciclos/s),
+  // fazendo as pernas tremerem/parecerem rígidas. Cadência humana por distância.
+  const distance=(1.15+2.05*r)*style*Math.max(.5,height);
+  return {stride,distance,style};
 }
 
 /** O joystick horizontal é relativo à câmera atrás do batedor. */

@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -184,20 +184,20 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.29
+          TAG=xfc-gameplay-v0.5.30
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.29 (versionCode 35), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.30 (versionCode 36), commit ${GITHUB_SHA}." \
             "" \
-            "Abertura com a própria arte enviada. Jogo Rápido e Time Aleatório no layout de referência com clubes, uniformes, duração, dificuldade e sorteio funcionais." \
+            "Times por país (Espanha, Brasil e demais), pênalti com espera a 50 cm e aproximação após CHUTE, mira congelada e goleiro escolhendo canto independentemente." \
             "" \
-            "Mesmo Micah de 1,75 m com ajuste leve autorizado em braços/pernas, andar/correr revisados, marcador vermelho 2D, pênaltis sem invasores e salto do goleiro com impulso/voo/recuperação." \
+            "Corrida com cotovelos mais soltos, amortecimento dos joelhos e cadência por deslocamento revisada. Mesmo modelo e corpo de 1,75 m; impulso do goleiro articulado." \
             "" \
-            "Mantidos logos originais, biblioteca, escolhas salvas, Ultra otimizado, controles, campeonatos e replay. Sem teste em telefone físico. Detalhes: docs/v0.5.29.md; procedência: assets/ui/quick/CREDITS.md.")
+            "Carreira LOCAL de jogador: criação, controle de um atleta, 8 clubes/14 rodadas, calendário, tabela, desempenho, XP/atributos e troca livre de clube entre temporadas. Sem teste em telefone físico. Detalhes: docs/v0.5.30.md. Modos e saves anteriores preservados.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — abertura, seleção e movimentos v0.5.29" \
+            gh release create "$TAG" --title "XFC 27 — carreira de jogador, países e pênaltis v0.5.30" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — abertura, seleção e movimentos v0.5.29" \
+            gh release edit "$TAG" --title "XFC 27 — carreira de jogador, países e pênaltis v0.5.30" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

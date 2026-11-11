@@ -161,7 +161,7 @@ test("corrida tem voo, recuperação do joelho e braços opostos; caminhada não
       a = runningArmPose(phase),
       b = runningArmPose(phase + 0.5);
     assert.ok(Math.abs(a.shoulder + b.shoulder) < 1e-10);
-    assert.ok(a.elbow < -0.37 && a.elbow > -0.99);
+    assert.ok(a.elbow < -0.179 && a.elbow > -0.581);
     if (runningFlight(phase)) flying++;
     assert.equal(runningFlight(phase, 0), false);
   }

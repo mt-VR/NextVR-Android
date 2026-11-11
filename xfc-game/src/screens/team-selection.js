@@ -1,5 +1,6 @@
 import {el} from '../ui/dom.js';
 import {hotspot} from '../ui/reference-menu.js';
+import {TEAM_COUNTRIES,countryTeams} from '../data/team-groups.js';
 import {TEAMS,getTeam} from '../data/teams.js';
 import {kitsOf,kitShirt,kitSvg} from '../data/kits.js';
 
@@ -23,7 +24,7 @@ export function teamSelectionScreen(ctx,params={}){
   if(randomMode||params.competition)node.append(el('h1',{class:'selection-title',text:params.competition?.title||'Time Aleatório'}));
   const panels={};
   const returnParams=()=>({...params,home:state.selection.home,away:state.selection.away,minutes,difficulty,restore:true});
-  function cycle(side,delta){const i=TEAMS.findIndex(t=>t.id===state.selection[side]);state.selection[side]=TEAMS[(i+delta+TEAMS.length)%TEAMS.length].id;paint();}
+  function cycle(side,delta){const pool=countryTeams(getTeam(state.selection[side]).country),i=pool.findIndex(t=>t.id===state.selection[side]);state.selection[side]=pool[(i+delta+pool.length)%pool.length].id;paint();}
   function kitsDialog(side){
     focusSide=side;
     const team=getTeam(state.selection[side]),list=kitsOf(team.id);
@@ -46,7 +47,7 @@ export function teamSelectionScreen(ctx,params={}){
       panels[side].replaceChildren(
         el('div',{class:'selection-crest-row'},arrow(-1),el('img',{class:'team-card__crest quick__crest',src:team.crest,alt:`Escudo do ${team.name}`}),arrow(1)),
         el('button',{type:'button',class:'team-card selection-name','aria-label':`Selecionar ${team.name}`,onClick(){focusSide=side;state.settings.focus=side;}},el('b',{class:'team-card__name quick__name',text:team.name})),
-        el('div',{class:'selection-country',text:`${team.country} · ELENCO FC`}),
+        el('select',{class:'selection-country', 'aria-label':`País do ${side==='home'?'mandante':'visitante'}`,onChange(e){state.selection[side]=countryTeams(e.target.value)[0].id;paint();}},...TEAM_COUNTRIES.map(c=>el('option',{value:c,selected:c===team.country,text:c}))),
         el('button',{type:'button',class:'selection-shirt','aria-label':`Escolher uniforme (${team.name})`,onClick:()=>kitsDialog(side)},
           kitShirt(kit)?el('img',{src:kitShirt(kit),alt:`Blusa ${kit.name}`}):el('span',{html:kitSvg(kit,{width:86})}),el('span',{text:kit?.name||'Principal'})),
         el('div',{class:'selection-uniform',text:`UNIFORME: ${kit?.name||'Principal'}`})
@@ -85,6 +86,7 @@ export function teamSelectionScreen(ctx,params={}){
       if(e.key==='Tab'){const buttons=[...dialog.querySelectorAll('button')],i=buttons.indexOf(document.activeElement);buttons[(i+(e.shiftKey?-1:1)+buttons.length)%buttons.length].focus();return true;}return false;
     }
     if(['Escape','Backspace'].includes(e.key)){back();return true;}
+    if(document.activeElement?.matches('select'))return false;
     if(e.key==='ArrowLeft'||e.key==='ArrowRight'){cycle(focusSide,e.key==='ArrowLeft'?-1:1);return true;}
     if(e.key==='Enter'&&!document.activeElement?.matches('button')){start();return true;}return false;
   }};

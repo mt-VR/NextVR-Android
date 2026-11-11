@@ -211,6 +211,7 @@ export function menuScreen(ctx) {
       src: 'assets/bg/menu-hero.jpg',
       alt: 'Jogador em campo diante de um estádio cheio'
     }),
+    el('button',{type:'button',class:'career-entry',text:'CARREIRA DE JOGADOR',onClick:()=>ctx.go('career')}),
     topbar,
     quickRail,
     nav,

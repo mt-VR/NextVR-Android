@@ -550,3 +550,22 @@ cd xfc-game/android && ./gradlew assembleDebug
 - Marcador plano vermelho orientado pela câmera, inclusive replay; não cone azul.
 - `tests/xfc-reference-motion.test.mjs` incluído no CI. Documentação e procedência
   em `docs/v0.5.29.md` e `assets/ui/quick/CREDITS.md`.
+
+## v0.5.30 — países, carreira e confirmação do pênalti
+
+- `team-groups.js`: só agrupamento da UI, não reordenar `TEAMS` global. Setas
+  agora circulam no país; seletores Espanha/Brasil primeiro.
+- `penaltyRunup` é estado separado de `restart.preparation`. Espera 50 cm;
+  CHUTE snapshot de mira/força/canto independente do GK; .46 s de aproximação,
+  só contato chama `releasePenalty`/conta tentativa. `update` respeita pausa e
+  bloqueia comando duplicado; reset limpa estado. Não mexer nas reposições .8 s.
+- Cadência de caminhada/corrida foi corrigida (ciclo antigo muito curto), mas
+  fase continua baseada em distância real. Cotovelo agora ~10–33°, não ~22–56°.
+- `career.js` é motor puro local; `profile.career` isolado, ID pendente/fixture
+  para liquidação única. Liga customizada 8/14, transferência livre entre anos.
+- `playerLockId` e `selectControlled` preservam protagonista mesmo fora de casa;
+  não usar atribuição direta ao controlado nos fluxos comuns. Modo treino segue
+  seu próprio controle. TROCAR pede passe; sem controle dos onze na carreira.
+- Gol chega no campo `event.scorer`, não `event.player`: contabilizar corretamente
+  o atleta criado. XP do modo não se mistura às moedas/XP gerais ou UT.
+- Novos testes `xfc-career-penalty.test.mjs` no CI; documentação v0.5.30.md.

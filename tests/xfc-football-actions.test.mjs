@@ -258,6 +258,7 @@ test(
           for(let i=0;i<15;i++)m.world.tick(1/120);
           const retained={...marker.userData.target};
           m.world.command('shoot', { strength: 0.8 });
+          for(let i=0;i<56;i++)m.world.tick(1/120);
           const v = m.ball.state.velocity.clone(),
             lane = keeper.penaltyDecision.lane;
           // Atleta/inimigos não redirecionam a mira após o chute.

@@ -540,6 +540,7 @@ export function createGltfPlayer(options = {}) {
         // Arco do quadril acompanha o deslocamento horizontal do goleiro.
         const push=ease(.09,.30), land=ease(.42,.64), recover=ease(.78,1);
         const extension=push*(1-recover), grounded=land*(1-recover);
+        const preload=ease(0,.08)*(1-ease(.12,.28));
         const crouch=Math.sin(Math.PI*Math.min(1,p/.24))*.12;
         const flight=.25*Math.sin(Math.PI*Math.max(0,Math.min(1,(p-.09)/.50)));
         bones.hips.position.y=bindHipY+(flight-crouch-.18*extension-.46*grounded)*w;
@@ -549,8 +550,8 @@ export function createGltfPlayer(options = {}) {
           const leading=sign===dir;
           poseBoneRotation(bones[side+'Arm'],-(leading?3.02:2.92)*extension+.5*grounded,0,-sign*.16*extension,w);
           poseBoneRotation(bones[side+'ForeArm'],-(leading?.05:.12)*extension-.45*grounded,0,0,w);
-          addBoneRotation(bones[side+'UpLeg'],-(leading?.18:.42)*extension,0,sign*.13*extension,w);
-          addBoneRotation(bones[side+'Leg'],(leading?.28:.75)*extension+.20*grounded,0,0,w);
+          addBoneRotation(bones[side+'UpLeg'],-(leading?.18:.42)*extension-.28*preload,0,sign*.13*extension,w);
+          addBoneRotation(bones[side+'Leg'],(leading?.28:.75)*extension+.20*grounded+.55*preload,0,0,w);
         }
         break;
       }
@@ -676,7 +677,9 @@ export function createGltfPlayer(options = {}) {
     const locomotionGain=lowPose?1-gestureEnvelope()*gesture.weight:1;
     // Fase compartilhada evita pernas opostas ao misturar trote e corrida.
     const cycle=runningCycle(state.locomotionWeights.run,model.scale.y,number);
-    gaitStride=cycle.stride;
+    const strideScale=Math.max(.3,Math.min(1,Number(movement.strideScale)||1));
+    gaitStride=cycle.stride*strideScale;
+    cycle.distance*=strideScale;
     let travel=value*dt;
     if(Number.isFinite(movement.x)&&Number.isFinite(movement.z)){
       travel=previousX===null?0:Math.hypot(movement.x-previousX,movement.z-previousZ);
@@ -813,7 +816,7 @@ export function createGltfPlayer(options = {}) {
             gQuat.setFromEuler(gEuler.set(x,0,z));
             bones[side+part].quaternion.identity().slerp(gQuat,gaitWeight);
           }
-          addBoneRotation(bones[side+'Hand'],.04,arm.twist,0,gaitWeight);
+          addBoneRotation(bones[side+'Hand'],0,arm.twist,0,gaitWeight);
         }
       }
       if(!['dive','tackle','fall'].includes(gesture.name)){

@@ -36,3 +36,5 @@
 .selection-country{height:10%}
 .selection-shirt{height:29%}
 .selection-uniform{margin-top:15px}
+
+.selection-reference select.selection-country{background:#081719;color:#def9e9;border:1px solid #47c78c66;border-radius:7px;min-height:28px;height:8%;width:67%;text-align:center;text-transform:uppercase;cursor:pointer;margin-bottom:6px;font-size:14px}.selection-country option{background:#0b1c21;color:white}

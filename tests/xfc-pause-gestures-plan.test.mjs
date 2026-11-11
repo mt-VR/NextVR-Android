@@ -9,7 +9,7 @@ import {planToPitch,pitchToPlan} from '../xfc-game/src/ui/game-plan.js';
 test('postura: apoio quase estendido e recuperação distinta de caminhada/corrida',()=>{
  for(const running of [0,1])for(let i=0;i<240;i++){
    const pose=runningLegPose(i/240,1,running);
-   if(pose.stance)assert.ok(pose.knee<.25,'não agacha a perna de apoio');
+   if(pose.stance)assert.ok(pose.knee<.50,'flexão de amortecimento pequena na perna de apoio');
    assert.ok(Number.isFinite(pose.hip));assert.ok(pose.knee<1.85);
  }
  assert.ok(runningLegPose(.78,1,1).lift>runningLegPose(.78,1,0).lift);

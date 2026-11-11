@@ -161,6 +161,7 @@ export function createMatch(options = {}) {
 
   const input = { moveX: 0, moveZ: 0, sprint: false, shotCharge:0 };
   const controlled = { home: null, away: null };
+  let penaltyRunup=null;
   let refereeDecision = null;
   const cameraTarget = new THREE.Vector3(0, 0, 0);
   let cameraReady = false;
@@ -196,10 +197,15 @@ export function createMatch(options = {}) {
 
   const members = side => teams[side].players.filter(player => player.active);
   const opponentOf = side => (side === 'home' ? 'away' : 'home');
+  function selectControlled(player,side=userSide){
+    const locked=side===userSide&&options.playerLockId?teams[side].players.find(p=>p.rosterId===options.playerLockId):null;
+    controlled[side]=locked||player;
+  }
   const isUserControlled = player => player?.side === userSide && controlled[userSide] === player;
 
   function modelMovementState(player) {
-    const speed = playerSpeed(player);
+    const inRunup=penaltyRunup?.player===player;
+    const speed = inRunup?4.8:playerSpeed(player);
     const ownsBall = player.active && ball.state.owner === player;
     let protecting = false;
     if (ownsBall) {
@@ -218,6 +224,7 @@ export function createMatch(options = {}) {
     return {
       speed,
       moving: speed > 0.25,
+      strideScale:inRunup?.35:1,
       lean: player.turnLean || 0,
       ownsBall,
       shotCharge:ownsBall&&isUserControlled(player)?input.shotCharge:0,
@@ -398,6 +405,7 @@ export function createMatch(options = {}) {
         isKeeper,
         isGK: isKeeper,
         ovr: data.ovr || data.rating || null,
+        pace: data.stats?.pace??70,
         dribbling: data.stats?.dribbling ?? data.dribbling ?? data.ovr ?? 70,
         goalkeeping: data.goalkeeping ?? data.stats?.goalkeeping ?? data.stats?.reflexes ?? data.rating ?? data.ovr ?? 70,
         shooting: data.shotPower ?? data.stats?.shooting ?? data.shooting ?? data.rating ?? data.ovr ?? 68,
@@ -431,6 +439,7 @@ export function createMatch(options = {}) {
 
   buildTeam(teams.home);
   buildTeam(teams.away);
+  if(options.playerLockId)selectControlled(null);
 
   // ------------------------------------------------------------------ ações --
 
@@ -643,7 +652,7 @@ export function createMatch(options = {}) {
               ball.state.lastTouch = player;
               ball.state.lastIntentionalTouch = player;
               player.model.kick('tackle');
-              if (player.side === userSide) controlled[userSide] = player;
+              if (player.side === userSide) selectControlled(player);
               if (bodyDistance < 1.05) owner.model.react?.('bump', 0.55);
               emit({ type: 'tackle', team: player.side, player, kind: 'slide', clean: true });
             } else if (bodyDistance < 0.82) {
@@ -679,7 +688,7 @@ export function createMatch(options = {}) {
               ball.state.lastTouch = player;
               ball.state.lastIntentionalTouch = player;
               player.model.kick('tackle');
-              if (player.side === userSide) controlled[userSide] = player;
+              if (player.side === userSide) selectControlled(player);
               emit({ type: 'tackle', team: player.side, player, kind: 'slide', clean: true });
             } else {
               player.model.react?.('fall', 0.58);
@@ -813,7 +822,7 @@ export function createMatch(options = {}) {
           .sort((a, b) => Math.hypot(a.x - ball.state.position.x, a.z - ball.state.position.z)
             - Math.hypot(b.x - ball.state.position.x, b.z - ball.state.position.z))[0]
           || members(offender.side).find(player => player.active) || null;
-        controlled[offender.side] = replacement;
+        selectControlled(replacement,offender.side);
       }
       if (secondYellow) {
         emit({ type: 'card', team: offender.side, player: offender, color: 'yellow', minute: clock.minutes });
@@ -886,6 +895,7 @@ export function createMatch(options = {}) {
         taker = player;
       }
     }
+    if(side===userSide&&options.playerLockId&&['penalty','freekick'].includes(restart.type))taker=candidates.find(p=>p.rosterId===options.playerLockId)||taker;
     if (!taker) return;
     restart.taker = taker;
 
@@ -980,8 +990,8 @@ export function createMatch(options = {}) {
     } else {
       faceTowards(taker, sign * PITCH.halfLength, 0, 1, 12);
     }
-    if(restart.type==='penalty'){taker.x=placeX-sign*.45;taker.root.position.set(taker.x,0,taker.z);}
-    if (side === userSide) controlled[userSide] = taker;
+    if(restart.type==='penalty'){taker.x=placeX-sign*.50;taker.root.position.set(taker.x,0,taker.z);}
+    if (side === userSide) selectControlled(taker);
     restart.ready = true;
     if(['goalkick','corner'].includes(restart.type)){
       // Reposição curta: já está no ponto, apenas ajeita a bola no chão.
@@ -1193,7 +1203,7 @@ export function createMatch(options = {}) {
         if (mate) kickBall(taker, mate, { power: 14 });
       }
     }
-    if (phase.restart === restart) {
+    if (phase.restart === restart&&!penaltyRunup) {
       phase.name = 'play';
       phase.restart = null;
       phase.timer = 0;
@@ -1282,6 +1292,7 @@ export function createMatch(options = {}) {
 
   /** Saída de bola. */
   function kickoff(side) {
+    penaltyRunup=null;
     ball.state.goalPocket = 0;
     for(const player of allPlayers)player.penaltyDecision=null;
     clearSlideTackles();
@@ -1298,7 +1309,7 @@ export function createMatch(options = {}) {
     refereeSignal(side === 'home' ? 1.4 : 0.9);
     const sign = attackSign(side);
     const available = members(side).filter(player => player.active);
-    const kicker = available.find(player => player.role === 'ST' && !player.isKeeper)
+    const kicker = (side===userSide&&options.playerLockId?available.find(p=>p.rosterId===options.playerLockId):null) || available.find(player => player.role === 'ST' && !player.isKeeper)
       || available.find(player => !player.isKeeper)
       || available[0];
     if (!kicker) return;
@@ -1331,7 +1342,7 @@ export function createMatch(options = {}) {
     ball.attachTo(kicker);
     ball.state.lastTouch = kicker;
     ball.state.lastIntentionalTouch = kicker;
-    if (side === userSide) controlled[userSide] = kicker;
+    if (side === userSide) selectControlled(kicker);
     emit({ type: 'kickoff', team: side });
   }
 
@@ -1347,7 +1358,7 @@ export function createMatch(options = {}) {
     goalCelebrationStyle = GOAL_CELEBRATIONS[goalCelebrationIndex % GOAL_CELEBRATIONS.length];
     goalCelebrationIndex += 1;
     goalCameraReady = false;
-    if (goalScorer?.side === userSide) controlled[userSide] = goalScorer;
+    if (goalScorer?.side === userSide) selectControlled(goalScorer);
     ball.state.goalPocket = side === 'home' ? 1 : -1;
     ball.state.owner = null;
     ball.state.guidance = null;
@@ -1505,6 +1516,32 @@ export function createMatch(options = {}) {
   }
 
   function shootPenalty(player,opts={}){
+    if(penaltyRunup)return false;
+    rememberPenaltyAim();
+    const sign=attackSign(player.side),x=sign*(PITCH.halfLength-11);
+    penaltyRunup={player,elapsed:0,duration:.46,fromX:player.x,fromZ:player.z,ballX:x,
+      lane:choosePenaltyLane(rng),opts:{...opts,aiAim:opts.aiAim??(training.enabled?penaltyAim.x:setPieceOptions.aim),aiHeight:opts.aiHeight??penaltyAim.y}};
+    ball.state.owner=null;ball.state.position.set(x,BALL.radius,0);ball.state.velocity.set(0,0,0);
+    return true;
+  }
+  function updatePenaltyRunup(dt){
+    const r=penaltyRunup;if(!r)return false;
+    r.elapsed+=dt;const t=Math.min(1,r.elapsed/r.duration),travel=t*t*(3-2*t);
+    const sign=attackSign(r.player.side),oldX=r.player.x;
+    r.player.x=r.fromX+(r.ballX-sign*.12-r.fromX)*travel;r.player.z=r.fromZ*(1-travel);
+    r.player.vx=(r.player.x-oldX)/Math.max(dt,.001);r.player.vz=0;
+    ball.state.position.set(r.ballX,BALL.radius,0);ball.mesh.position.copy(ball.state.position);
+    for(const player of allPlayers){if(!player.active)continue;player.root.position.set(player.x,0,player.z);player.model.update(dt,modelMovementState(player));}
+    updateMarker(dt);
+    if(training.enabled)updateTrainingCamera(dt);else updateSetPieceCamera(dt);
+    if(t>=1){
+      penaltyRunup=null;r.player.vx=r.player.vz=0;
+      releasePenalty(r.player,{...r.opts,keeperLane:r.lane});
+      if(!training.enabled){phase.name='play';phase.restart=null;phase.timer=0;startSetPieceShotCamera('penalty',r.player.side,r.player);}
+    }
+    return true;
+  }
+  function releasePenalty(player,opts={}){
     const sign=attackSign(player.side);
     rememberPenaltyAim();
     const aim=opts.aiAim??(training.enabled?penaltyAim.x:setPieceOptions.aim);
@@ -1519,7 +1556,7 @@ export function createMatch(options = {}) {
     ball.state.spin.set(0,0,0);
     const keeper=members(opponentOf(player.side)).find(p=>p.isKeeper&&p.active);
     if(keeper){
-      keeper.penaltyDecision={lane:choosePenaltyLane(rng),flightId:ball.state.flightId,time:0,startZ:keeper.z};
+      keeper.penaltyDecision={lane:opts.keeperLane??choosePenaltyLane(rng),flightId:ball.state.flightId,time:0,startZ:keeper.z};
       keeper.diveCooldown=-Infinity;
     }
     return true;
@@ -1685,7 +1722,7 @@ export function createMatch(options = {}) {
         }
       }
     }
-    if (acted) finishHumanRestart(restart);
+    if (acted&&!penaltyRunup) finishHumanRestart(restart);
     return acted;
   }
 
@@ -1771,13 +1808,14 @@ export function createMatch(options = {}) {
     shootBall,
     diveKeeper: (keeper, dir, flightId) => diveKeeper(keeper, dir, flightId),
     updatePenaltyKeeper,
+    get penaltyApproach(){return penaltyRunup?{elapsed:penaltyRunup.elapsed,duration:penaltyRunup.duration,playerId:penaltyRunup.player.id}:null;},
     tackle,
     slideTackle: startSlideTackle,
     isUserControlled,
 
     /** Nenhum passe/chute é gerado sem um comando explícito do usuário. */
     command(name, opts = {}) {
-      if (paused) return false;
+      if (paused||penaltyRunup) return false;
       const player = controlled[userSide];
       if (!player?.active) return false;
 
@@ -1831,6 +1869,11 @@ export function createMatch(options = {}) {
 
     /** Troca o jogador controlado para o mais próximo da bola. */
     switchPlayer() {
+      if(options.playerLockId){
+        const hero=controlled[userSide],owner=ball.state.owner;
+        if(phase.name==='play'&&hero?.active&&owner?.side===userSide&&owner!==hero){kickBall(owner,hero,{power:16});return true;}
+        return false;
+      }
       const list = members(userSide).filter(player => player.active && player !== controlled[userSide]);
       let best = null;
       let bestDistance = Infinity;
@@ -1843,7 +1886,7 @@ export function createMatch(options = {}) {
         }
       }
       if (best) {
-        controlled[userSide] = best;
+        selectControlled(best);
         if (training.enabled && training.drill === 'team') training.player = best;
       }
     },
@@ -2170,6 +2213,7 @@ export function createMatch(options = {}) {
 
   /** Prepara um exercício com participantes e posições próprias do fundamento. */
   function prepareTraining() {
+    penaltyRunup=null;
     if (!training.enabled) return null;
     const player = teams.home.players.find(item => item.role === 'ST' && !item.isKeeper)
       || teams.home.players.find(item => !item.isKeeper);
@@ -2250,7 +2294,7 @@ export function createMatch(options = {}) {
       place(player,drill==='dribble'?14:0,0,1);
     } else if (drill === 'penalty') {
       // O ponto fica a 11 m da linha do gol; a bola presa ao pé fica à frente.
-      place(player, PITCH.halfLength - 11.45, 0, 1);
+      place(player, PITCH.halfLength - 11.50, 0, 1);
     } else {
       // Pequeno campo de ataque em 4-3-3: os dez jogadores de linha ocupam
       // corredores separados e formam opções curtas, diagonais e em profundidade.
@@ -2506,6 +2550,9 @@ export function createMatch(options = {}) {
       }
     }
 
+    if(training.drill==='penalty'&&!training.shotActive){
+      ball.state.position.set(PITCH.halfLength-11,BALL.radius,0);ball.mesh.position.copy(ball.state.position);
+    }
     updateTrainingActors(dt);
     updateMarker(dt);
     updateTrainingCamera(dt);
@@ -2620,6 +2667,7 @@ export function createMatch(options = {}) {
     // Com o jogo pausado (intervalo, menu de pausa) nada anda no campo.
     if (paused) return;
     stadiumMesh.update(dt);
+    if(updatePenaltyRunup(dt))return;
     if (training.enabled) {
       updateTraining(dt);
       return;
@@ -2676,7 +2724,7 @@ export function createMatch(options = {}) {
     // ficam sob controle do jogador até PASSE ou CHUTE serem pressionados.
     if (phase.name === 'kickoff') {
       phase.timer += dt;
-      if (phase.side !== userSide && phase.timer > 1.15) {
+      if ((phase.side !== userSide || (options.playerLockId&&ball.state.owner?.rosterId!==options.playerLockId)) && phase.timer > 1.15) {
         const kicker = ball.state.owner;
         const mate = kicker && (nearbyTeammateFor(kicker, { min: 7, max: 18 })
           || bestTeammateFor(kicker, true)
@@ -2862,7 +2910,8 @@ export function createMatch(options = {}) {
     }
     const bursting = (player.burst ?? 0) > 0;
     if (bursting) player.burst = Math.max(0, player.burst - dt);
-    const speed = (input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED;
+    const careerPace=options.playerLockId===player.rosterId?.toString()?(.85+Math.max(30,Math.min(95,player.pace))*.0022):1;
+    const speed = ((input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED)*careerPace;
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
       const movement = training.enabled
@@ -2950,7 +2999,7 @@ export function createMatch(options = {}) {
       ball.state.lastTouch = best;
       ball.state.lastIntentionalTouch = best;
       best.model.receive?.();
-      if (best.side === userSide) controlled[userSide] = best;
+      if (best.side === userSide) selectControlled(best);
     }
   }
 
@@ -3175,7 +3224,13 @@ export function createMatch(options = {}) {
    * recuo para abarcar mais campo.
    */
   function updateCamera(dt) {
-    const position = ball.state.position;
+    let position = ball.state.position;
+    const hero=options.playerLockId?controlled[userSide]:null;
+    if(hero?.active){
+      // Na carreira, nunca perder o protagonista de vista para seguir uma bola distante.
+      const dx=position.x-hero.x,dz=position.z-hero.z,lead=Math.min(.35,4/Math.max(1,Math.hypot(dx,dz)));
+      position={x:hero.x+dx*lead,y:0,z:hero.z+dz*lead};
+    }
     const pose = broadcastCameraPose(position, cameraSide, ball.state.velocity);
     const desiredX = pose.position.x;
     const desiredY = pose.position.y*cameraZoom;

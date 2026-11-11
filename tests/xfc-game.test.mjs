@@ -864,38 +864,15 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await imagesReady();
     assert.ok(await page.locator('.team-card__crest').first().isVisible(), 'os escudos aparecem');
 
-    // As setas ao lado do escudo trocam de clube: os clubes brasileiros entram
-    // na escolha de times.
-    const nextClub = '.kickoff__slot[data-slot="home"] .picker-arrow--crest:last-child';
-    const prevClub = '.kickoff__slot[data-slot="home"] .picker-arrow--crest:first-child';
-    const homeName = () => page.locator('.team-card__name').first().textContent();
-    await page.click(nextClub);
-    await page.click(nextClub);
-    assert.ok((await homeName()).includes('Ibis Esporte'), 'Ibis Esporte aparece na escolha de times');
-    await page.click(nextClub);
-    assert.ok((await homeName()).includes('Paraná Clube'), 'Paraná Clube aparece na escolha de times');
-    await page.click(nextClub);
-    assert.ok((await homeName()).includes('Flamengo'), 'Flamengo aparece na escolha de times');
-    await page.click(nextClub);
-    assert.ok((await homeName()).includes('Palmeiras'), 'Palmeiras aparece na escolha de times');
-    await page.click(nextClub);
-    assert.ok((await homeName()).includes('Corinthians'), 'Corinthians aparece na escolha de times');
-    await page.click(nextClub);
-    assert.ok((await homeName()).includes('Santos'), 'Santos entra no carousel com seu próprio escudo');
-    await page.click(nextClub);
-    assert.ok((await homeName()).includes('Aston Villa'), 'os clubes do pacote também entram no carousel');
-    await page.click(prevClub);
-    assert.ok((await homeName()).includes('Santos'), 'a seta anterior volta ao Santos');
-    await page.click(prevClub);
-    assert.ok((await homeName()).includes('Corinthians'), 'a seta anterior volta ao Corinthians');
-    await page.click(prevClub);
-    await page.click(prevClub);
-    await page.click(prevClub);
-    await page.click(prevClub);
-    await page.click(prevClub);
-    await page.click(prevClub);
-    assert.ok((await homeName()).includes('FC Barcelona'),
-      'a troca de clube volta para o Barcelona');
+    // Países são grupos independentes: Espanha primeiro, Brasil segundo.
+    const countries=await page.getByLabel('País do mandante').locator('option').allTextContents();
+    assert.deepEqual(countries.slice(0,2),['Espanha','Brasil']);
+    const nextClub='.kickoff__slot[data-slot="home"] .picker-arrow--crest:last-child';
+    await page.getByLabel('País do mandante').selectOption('Brasil');
+    assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Ibis'));
+    await page.click(nextClub);assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Paraná'));
+    await page.getByLabel('País do mandante').selectOption('Espanha');
+    assert.equal(await page.locator('.team-card__name').first().textContent(),'FC Barcelona');
 
     // Tela de blusas: READY, carrossel com três uniformes e a prévia dos dois
     // jogadores (um de cada lado).
@@ -1706,6 +1683,7 @@ test('Treino de pênaltis: câmera Pro, batedor, goleiro e prática de chute', {
       'o analógico move o atleta sem girar a câmera Pro');
 
     await page.locator('.ctrl-btn--shoot').click();
+    await page.waitForFunction(()=>window.__xfcTrainingMatch.world.trainingStats.shots===1);
     const shot = await page.evaluate(() => ({
       count: window.__xfcTrainingMatch.world.trainingStats.shots,
       ballReleased: window.__xfcTrainingMatch.ball.state.owner === null
