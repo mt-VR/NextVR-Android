@@ -1,5 +1,8 @@
 // Preferências locais: só IDs do catálogo, nunca URLs arbitrárias do save.
-import {ASSET_LIBRARY} from './asset-library-catalog.js';
+import {ASSET_LIBRARY as SOURCE_ASSETS} from './asset-library-catalog.js';
+import {CLEAN_CRESTS} from './asset-library-clean.js';
+// JPEGs continuam intactos como fonte. Só a exibição usa as cópias revisadas.
+const ASSET_LIBRARY=SOURCE_ASSETS.map(a=>CLEAN_CRESTS[a.id]?{...a,sourceFile:a.file,file:CLEAN_CRESTS[a.id],transparent:true}:a);
 import {LIBRARY_KITS} from './asset-library-kits.js';
 export {ASSET_LIBRARY,LIBRARY_KITS};
 const byId=new Map(ASSET_LIBRARY.map(a=>[a.id,a]));
@@ -21,11 +24,12 @@ export const LIBRARY_CRESTS={
 export function crestFor(teamId,fallback){
   const choice=assetChoice('crests',teamId);
   if(choice==='original')return fallback;
-  const asset=libraryAsset(choice??LIBRARY_CRESTS[teamId]);
+  // Sem escolha explícita, manter exatamente o logo que já era do jogo.
+  const asset=libraryAsset(choice);
   return asset?.category==='marks'?asset.file:fallback;
 }
 export function libraryKitFor(teamId){return LIBRARY_KITS.find(k=>k.id===Number(assetChoice('kits',teamId)))||null;}
-export function libraryProfileIcon(){const a=libraryAsset(assetChoice('icons','profile')??1953);return a?.category==='icons'?a.file:null;}
+export function libraryProfileIcon(){const a=libraryAsset(assetChoice('icons','profile'));return a?.category==='icons'?a.file:null;}
 export function setAssetChoice(targetProfile,kind,key,id){
   if(!['faces','crests','kits','icons'].includes(kind)||!key||['__proto__','constructor','prototype'].includes(key))return false;
   if(id!==null&&id!=='original'){

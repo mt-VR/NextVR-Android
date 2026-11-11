@@ -176,3 +176,9 @@ artificial, ajuste de rolamento/recepção e textos nítidos nos mesmos painéis
 1976 recortes locais; retratos por seleção, escudos, ícones e três camisas adaptadas.
 Ultra agora tem orçamento móvel e redução de detalhe sem resize durante a partida.
 Sem promessa de FPS no telefone físico nem conversão de fotos em faces 3D.
+
+### v0.5.28 — logos originais e fundo transparente
+
+[Notas](docs/v0.5.28.md). Escudos anteriores novamente como padrão, sem troca
+automática. 82 escudos revisados da biblioteca têm PNG sem fundo preto externo;
+as escolhas manuais e os arquivos originais continuam preservados.

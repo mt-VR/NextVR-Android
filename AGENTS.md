@@ -518,3 +518,15 @@ cd xfc-game/android && ./gradlew assembleDebug
   framebuffer durante a partida. Replay deve invalidar shadows quando renderiza.
 - `tests/xfc-assets-performance.test.mjs` está no CI; testes desktop precisam
   declarar lowPower:false, caso contrário hardware do CI pode ser econômico.
+
+## v0.5.28 — logos originais são o padrão
+
+- Correção expressa do usuário: NÃO substituir automaticamente logos existentes
+  pelos da biblioteca. `crestFor` só usa ID escolhido; fallback é o logo anterior.
+  Ícone de perfil também mantém o original sem escolha explícita. Não apagar
+  escolhas manuais do save para fazer essa reversão.
+- `asset-library-clean.js` lista 82 derivados PNG transparentes revisados; o
+  catálogo de exibição usa `sourceFile` para preservar acesso ao JPEG intacto.
+  Script `clean-library-crests.py` remove só preto periférico; não chroma key
+  global, nem remover preto das bandeiras/escudos sem revisar. Fontes originais
+  em `assets/crests` não foram regravadas nem substituídas.

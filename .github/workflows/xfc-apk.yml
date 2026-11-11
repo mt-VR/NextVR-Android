@@ -177,22 +177,20 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.27
+          TAG=xfc-gameplay-v0.5.28
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.27 (versionCode 33), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.28 (versionCode 34), commit ${GITHUB_SHA}." \
             "" \
-            "1976 recortes da biblioteca enviada integrados offline, com filtros, seleção e salvamento de retratos, escudos, ícones e três atlas de camisa adaptados ao modelo existente." \
+            "Logos anteriores restaurados como padrão, sem alterar os arquivos originais. A biblioteca não substitui escudos ou ícone de perfil automaticamente; trocas somente por escolha explícita." \
             "" \
-            "Personalização > Biblioteca de faces, escudos e camisas. Faces 2D numeradas: associação escolhida pelo usuário, sem inventar identidades nem substituir o rosto/corpo 3D. Demais atlas/fragmentos disponíveis para consulta." \
+            "82 escudos revisados da biblioteca com PNG transparente, remoção de fundo preto externo e suavização das bordas, preservando preto do desenho. JPEGs de fonte preservados; não se trata de detalhe HD inventado." \
             "" \
-            "Ultra móvel: ratio 1,0, shadow map 1024, até seis casters a 20 Hz e 12000 lâminas. Ajuste de detalhe com histerese sem resize do framebuffer, preservando materiais e corpos." \
-            "" \
-            "Não houve teste em celular físico nem garantia de FPS/zero travamentos. Procedência/limites em assets/library/CREDITS.md e docs/v0.5.27.md. Controles, UT, competições, saves e replay preservados.")
+            "Mantidos biblioteca, escolhas salvas, Ultra otimizado, corpos, controles, campeonatos e replay. Detalhes: docs/v0.5.28.md; procedência: assets/library/CREDITS.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — biblioteca enviada e Ultra otimizado v0.5.27" \
+            gh release create "$TAG" --title "XFC 27 — logos originais e escudos sem fundo v0.5.28" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — biblioteca enviada e Ultra otimizado v0.5.27" \
+            gh release edit "$TAG" --title "XFC 27 — logos originais e escudos sem fundo v0.5.28" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
