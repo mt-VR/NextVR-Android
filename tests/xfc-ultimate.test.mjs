@@ -228,8 +228,12 @@ test(
         .first()
         .click();
       await p.getByRole("button", { name: "Confirmar", exact: true }).click();
-      await p.getByRole("button", { name: "Pular revelação" }).click();
-      await p.getByRole("button", { name: "Continuar para o clube" }).click();
+      // Sob carga, os 3,75s da revelação podem terminar antes do próximo click.
+      // Aceita o mesmo fluxo humano: pular se ainda animando, ou continuar se já terminou.
+      await p.getByRole("button", { name: /^(Pular revelação|Continuar para o clube)$/ }).click();
+      if(await p.locator('.ut-modal').isVisible())
+        await p.getByRole("button", { name: "Continuar para o clube" }).click();
+      await p.waitForSelector('.ut-modal',{state:'hidden'});
       assert.equal(
         await p.evaluate(
           () =>

@@ -1505,14 +1505,16 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.equal(finished.phase, 'fulltime', 'a partida termina');
     assert.equal(await page.evaluate(()=>window.__xfcMatch.engine.running),false,'resultado não redesenha estádio desnecessariamente');
     assert.ok(finished.display.startsWith('9'), `o relógio marca o fim do tempo: ${finished.display}`);
-    const resultShown = await page.waitForSelector('.result__title', { timeout: 6000 }).then(() => true).catch(() => false);
+    // O placar final é publicado por timer após o apito. Sob carga WebGL,
+    // aguardar o estado visível, não assumir que o timer cumpriu 6s de parede.
+    const resultShown = await page.waitForSelector('.result__title', { timeout: 30000 }).then(() => true).catch(() => false);
     if (!resultShown) {
       const diagnostic = await page.evaluate(() => ({
         phase: window.__xfcMatch?.phase?.name,
         score: window.__xfcMatch?.world?.snapshot()?.score,
         overlay: document.querySelector('.play__overlay')?.innerText,
         screen: document.querySelector('.screen--play')?.className,
-        profile: localStorage.getItem('xfc-profile')
+        profile: localStorage.getItem('xfc.profile.v1')
       }));
       throw new Error(`resultado não apareceu: ${JSON.stringify({ diagnostic, errors })}`);
     }

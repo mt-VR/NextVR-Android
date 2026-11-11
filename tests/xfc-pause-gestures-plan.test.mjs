@@ -100,7 +100,11 @@ test('referências: placar ao vivo branco/lima, pausa preta com cinco ações e 
   const paused=await p.locator('.hud__scoreboard').boundingBox();assert.ok(paused.x>800);
   await p.getByRole('button',{name:'ESTATÍSTICAS',exact:true}).click();assert.equal(await p.locator('.pause-reference__stats .pause__stat').count(),6);
   await p.locator('.pause-reference__footer').getByRole('button',{name:'Voltar',exact:true}).click();assert.equal(await p.locator('.pause-reference__detail').isVisible(),false);
-  await p.setViewportSize({width:960,height:540});const row=await p.locator('[data-pause-action="resume"]').boundingBox();assert.ok(Math.abs(row.width-379*.75)<1);assert.ok(Math.abs(row.y-157*.75)<1);
+  await p.setViewportSize({width:960,height:540});
+  // setViewportSize confirma o viewport, não o listener resize de fitStage.
+  // Esperar a escala aplicada antes de medir mantém a mesma tolerância geométrica.
+  await p.waitForFunction(()=>Math.abs(document.querySelector('[data-pause-action="resume"]').getBoundingClientRect().width-379*.75)<1);
+  const row=await p.locator('[data-pause-action="resume"]').boundingBox();assert.ok(Math.abs(row.width-379*.75)<1);assert.ok(Math.abs(row.y-157*.75)<1);
   await p.locator('.pause-reference__footer').getByRole('button',{name:'Voltar',exact:true}).click();assert.equal(await p.evaluate(()=>__xfcMatch.world.isPaused()),false);
   assert.equal(await p.locator('.hud__scoreboard').getAttribute('data-same-board'),'original');assert.ok((await p.locator('.hud__scoreboard').boundingBox()).x<100);
   assert.deepEqual(errors,[]);
