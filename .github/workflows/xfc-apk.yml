@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -77,6 +77,8 @@ jobs:
             echo '### XFC — resultado dos testes'
             echo ''
             echo '```'
+            # Inclua a falha, mesmo quando ela ocorre antes dos últimos testes.
+            grep -B 2 -A 48 '^not ok' /tmp/xfc-tests.log || true
             tail -n 120 /tmp/xfc-tests.log || true
             echo '```'
           } > /tmp/xfc-summary.md
