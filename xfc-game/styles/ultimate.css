@@ -889,3 +889,50 @@
 @media(max-width:560px){.ut-reference-menu{width:65%;}.ut-reference-home{min-height:310px;}}
 .ut-reveal>.ut-button{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);margin:0;min-width:210px;}
 .ut-reveal{padding-bottom:65px;box-sizing:border-box;}
+
+/* Painéis INTEIROS da referência. Sem banners, grade nova ou menu redesenhado. */
+.ut.ut--reference{display:block;background:#02050b;}
+.ut--reference>.ut-header,.ut--reference>.ut-nav,.ut--reference>.ut-footer{display:none;}
+.ut--reference>.ut-main{position:absolute;inset:0;padding:0;overflow:hidden;}
+.ut-ref{position:absolute;inset:0;background-size:100% 100%;background-repeat:no-repeat;}
+.ut-ref>*{position:absolute;box-sizing:border-box;}
+.ut-ref-sr{width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+.ut-ref-hit{border:1px solid transparent;background:transparent;color:transparent;cursor:pointer;border-radius:5px;}
+.ut-ref-hit:hover,.ut-ref-hit:focus-visible{background:#8b20fa20;border:2px solid #be91ff;outline:none;box-shadow:0 0 16px #6000cc77;}
+.ut-ref-data{display:flex;align-items:center;justify-content:center;background:#070912f5;color:white;font-size:19px;line-height:1.35;white-space:pre-line;padding:3px 9px;}
+.ut-ref-wallet{font-size:16px;gap:23px;background:linear-gradient(90deg,#050810,#050810fa);}
+.ut-ref-wallet .ultimate__coin-value{color:#f0d06a;}
+.ut-ref-action{color:white;background:linear-gradient(100deg,#9800fa,#4d00c7);font-size:17px;border:1px solid #8a3bea;border-radius:5px;cursor:pointer;}
+.ut-ref-disclaimer{font-size:12px;background:#060911df;color:#dad5e4;}
+.ut-ref-club-info{font-size:22px;justify-content:flex-start;}
+.ut-ref-pitch{background:none;}
+.ut-ref-slot{position:absolute!important;transform:translate(-50%,-50%)!important;width:95px!important;min-width:0!important;height:125px!important;z-index:2;cursor:pointer;}
+.ut-ref-slot .avatar{height:72px!important;}
+.ut-ref-slot.ut-card--small{font-size:12px;}
+.ut-ref-slot .ut-card__rating{font-size:24px;}
+.ut-ref-slot .ut-card__rating span{font-size:12px;}
+.ut-ref-rank-number{background:#1d1042;font-size:64px;font-weight:800;}
+.ut-ref-score{font-size:22px;text-align:center;}
+.ut-ref-level{background:#21103e;font-size:40px;font-weight:800;text-align:center;line-height:1.1;}
+.ut-ref-season-title{font-size:38px;justify-content:flex-start;font-weight:800;}
+.ut-ref-track{display:flex;gap:4px;overflow-x:auto;background:#070911;border:1px solid #775b93;border-radius:5px;padding:10px;}
+.ut-ref-reward{flex:0 0 19%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:linear-gradient(#171023,#090a10);color:white;border:1px solid #5f4877;font:inherit;border-radius:4px;cursor:pointer;}
+.ut-ref-reward b{color:#e8cb73;font-size:23px;}.ut-ref-reward small{font-size:11px;}
+.ut-ref-more{z-index:8;right:1.5%;bottom:1%;font-size:13px;}
+.ut-ref-more summary{padding:8px 18px;color:white;background:#100b22d9;border:1px solid #67438d;border-radius:5px;cursor:pointer;}
+.ut-ref-more[open] nav{display:grid;grid-template-columns:1fr 1fr;position:absolute;bottom:38px;right:0;width:440px;padding:12px;background:#070711fa;box-shadow:0 12px 50px black;border:1px solid #8c52d2;}
+.ut-ref-more nav button{background:transparent;color:white;text-align:left;border:0;border-bottom:1px solid #ffffff18;padding:12px;font:inherit;cursor:pointer;}
+.ut-ref-more nav button:hover{background:#6c00db;}
+.ut--reference .ut-toast{left:20%;right:20%;bottom:12%;z-index:25;}
+.ut-ref-data{background:#070912;}.ut-ref-wallet{background:#050810;}.ut-ref-rank-number{background:#1d1042;}.ut-ref-level{background:#21103e;}
+.ut-ref-slot .avatar{left:30px;right:5px;top:9px;height:73px!important;}
+.ut-ref-slot .ut-card__rating{left:7px;top:15px;}.ut-ref-slot .ut-card__rating b{font-size:23px;}
+.ut-ref-slot .ut-card__name{top:83px;font-size:11px;line-height:14px;color:#211b0e;}
+.ut-ref-slot .ut-card__marks{top:99px;height:13px;gap:6px;}
+.ut-ref-slot .ut-card__marks img,.ut-ref-slot .ut-card__marks svg{height:13px;width:16px;}
+.ut-ref-slot .avatar img{mix-blend-mode:normal;object-position:center 25%;}
+.ut-ref progress{appearance:none;border:2px solid #9a70e0;border-radius:12px;background:#0b0716;overflow:hidden;}
+.ut-ref progress::-webkit-progress-bar{background:#0b0716;}.ut-ref progress::-webkit-progress-value{background:linear-gradient(90deg,#5300cc,#a72bff);}
+.ut-card .avatar img{mix-blend-mode:normal;}
+.ut-no-photo{position:absolute;top:115px;left:48px;right:5px;font-size:10px;}.ut-card--small .ut-no-photo{top:43px;left:25px;font-size:6px;}.ut-ref-slot .ut-no-photo{top:67px;left:30px;font-size:9px;}
+.ut-reveal{background:linear-gradient(#100a001a,#100a0038),url('../assets/ultimate/reference/walkout-stage.jpg') center/cover;}

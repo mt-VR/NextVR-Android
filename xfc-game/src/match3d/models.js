@@ -13,7 +13,8 @@
 // `animation` (`speed`, `blend`, `trigger`, `applyMask`, `state`). Assim o
 // motor (`match.js`) não sabe — nem precisa saber — qual modelo está em campo.
 
-import { runningLegPose, runningArmPose, runningFlight, runningCycle } from './football-actions.js';
+import { runningLegPose, runningArmPose, runningFlight, runningCycle, kickPose } from './football-actions.js';
+import {refinePlayerMaterial} from './player-surface.js';
 import { THREE, softShadowTexture } from './engine.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
@@ -212,6 +213,7 @@ export function createGltfPlayer(options = {}) {
   model.traverse(object => {
     if (!object.isMesh) return;
     object.castShadow = true;
+    object.receiveShadow=Boolean(options.graphics?.shadows);
     object.frustumCulled = false;
     shadowMeshes.push(object);
     if (object.name === 'short01') object.geometry = hairstyleGeometry(object, hairStyle);
@@ -231,7 +233,7 @@ export function createGltfPlayer(options = {}) {
       if(name === 'Micah | anatomical body.short01') clone.map=recolorSurface(material.map,hairColor,.08);
       if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
-      clone.metalness = 0;
+      refinePlayerMaterial(clone,{surface:options.graphics?.surface??!simplified});
       materials.push(clone);
       return clone;
     });
@@ -243,6 +245,7 @@ export function createGltfPlayer(options = {}) {
     new THREE.PlaneGeometry(0.92, 0.72),
     new THREE.MeshBasicMaterial({
       map: softShadowTexture(),
+      color:0x07110a,
       transparent: true,
       opacity: 0.78,
       depthWrite: false,
@@ -351,6 +354,8 @@ export function createGltfPlayer(options = {}) {
 
   const GESTURES = {
     kick: 0.46,
+    receive:.46,
+    volley:.6,
     header: 0.5,
     celebrate: 2.2,
     dive: 0.95,
@@ -447,17 +452,32 @@ export function createGltfPlayer(options = {}) {
         addBoneRotation(bones.leftUpLeg,.15*wave,0,0,w);
         break;
       }
+      case 'receive': {
+        const side=preferredFoot==='Left'?'left':'right',sign=side==='left'?1:-1;
+        poseBoneRotation(bones[side+'UpLeg'],-.22*wave,sign*.28*wave,0,w);
+        poseBoneRotation(bones[side+'Leg'],.38*wave,0,0,w);
+        poseBoneRotation(bones[side+'Foot'],-.1*wave,sign*.24*wave,0,w);
+        addBoneRotation(bones.spine2,.07*wave,-sign*.06*wave,0,w);
+        break;
+      }
+      case 'volley': {
+        const side=preferredFoot==='Left'?'left':'right';
+        poseBoneRotation(bones[side+'UpLeg'],-1.15*wave,0,.08*wave,w);
+        poseBoneRotation(bones[side+'Leg'],.6*(1-wave),0,0,w);
+        addBoneRotation(bones.spine2,-.13*wave,.14*wave,0,w);
+        addBoneRotation(bones.leftArm,-.3*wave,0,.55*wave,w);
+        addBoneRotation(bones.rightArm,-.2*wave,0,-.55*wave,w);
+        break;
+      }
       case 'kick': {
-        // Pernada: recua, chuta e volta. Joelho abre antes do contato.
-        const swing = p < 0.3 ? -0.9 * (p / 0.3) : 1.3 * Math.sin(((p - 0.3) / 0.7) * Math.PI);
-        const knee = p < 0.45 ? 1.0 * Math.sin(Math.PI * Math.min(1, p / 0.45)) : 0.15;
-        addBoneRotation(bones.rightUpLeg, -swing, 0, 0, w);
-        addBoneRotation(bones.rightLeg, knee, 0, 0, w);
-        addBoneRotation(bones.rightFoot, knee * 0.4, 0, 0, w);
-        addBoneRotation(bones.leftUpLeg, swing * 0.18, 0, 0, w);
-        addBoneRotation(bones.spine2, -0.22 * wave, 0.12 * wave, 0, w);
-        addBoneRotation(bones.leftArm, 0, 0, 0.55 * wave, w);
-        addBoneRotation(bones.rightArm, 0, 0, -0.35 * wave, w);
+        const pose=kickPose(p,gesture.kind),side=preferredFoot==='Left'?'left':'right',other=side==='left'?'right':'left',sign=side==='left'?1:-1;
+        poseBoneRotation(bones[side+'UpLeg'],pose.hip,sign*pose.opening,0,w);
+        poseBoneRotation(bones[side+'Leg'],pose.knee,0,0,w);
+        poseBoneRotation(bones[side+'Foot'],-.12,sign*pose.opening,0,w);
+        addBoneRotation(bones[other+'Leg'],.12*wave,0,0,w);
+        addBoneRotation(bones.spine2,pose.torso,-sign*.16*wave,0,w);
+        addBoneRotation(bones.leftArm,-.15*wave,0,.45*wave,w);
+        addBoneRotation(bones.rightArm,-.1*wave,0,-.45*wave,w);
         break;
       }
       case 'header': {
@@ -469,14 +489,13 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'celebrate': {
-        const lift = Math.sin(Math.PI * Math.min(1, p * 1.4));
-        addBoneRotation(bones.leftArm, -2.2 * lift, 0, 0, w);
-        addBoneRotation(bones.rightArm, -2.2 * lift, 0, 0, w);
-        addBoneRotation(bones.leftForeArm, -0.3 * lift, 0, 0, w);
-        addBoneRotation(bones.rightForeArm, -0.3 * lift, 0, 0, w);
-        addBoneRotation(bones.spine2, -0.12 * lift, 0, 0, w);
-        addBoneRotation(bones.head, -0.2 * lift, 0, 0, w);
-        break;
+        const lift=Math.sin(Math.PI*Math.min(1,p*1.25)),style=Number(number)%3;
+        addBoneRotation(bones.leftArm,style===1?-.5*lift:-1.9*lift,0,style===2?.85*lift:0,w);
+        addBoneRotation(bones.rightArm,-1.9*lift,0,style===2?-.85*lift:0,w);
+        addBoneRotation(bones.leftForeArm,-.45*lift,0,0,w);
+        addBoneRotation(bones.rightForeArm,style===1?-1.0*lift:-.3*lift,0,0,w);
+        addBoneRotation(bones.spine2,-.07*lift,.05*Math.sin(p*Math.PI*2),0,w);
+        addBoneRotation(bones.head,-.13*lift,0,0,w);break;
       }
       case 'dive': {
         const push=ease(.08,.32), land=ease(.40,.60), recover=ease(.76,1);
@@ -593,7 +612,7 @@ export function createGltfPlayer(options = {}) {
   /** Locomoção: mistura idle/jog/run pela velocidade (blend tree). */
   let gaitPhase=0;
   let gaitGroundOffset=0,previousX=null,previousZ=null,previousSpeed=0,gaitAcceleration=0;
-  let gaitStride=.65;
+  let gaitStride=.65,shieldWeight=0,breathing=0,effort=0;
   function updateLocomotion(speed, dt, movement) {
     const value = Math.max(0, Number(speed) || 0);
     let idle = 0;
@@ -664,10 +683,14 @@ export function createGltfPlayer(options = {}) {
     placeBall(duration=.9){return startGesture('place-ball',duration);},
     skill(name='stepover'){return startGesture(name==='rainbow'?'rainbow':'stepover');},
     kick(type = 'shot') {
-      return startGesture('kick');
+      gesture.kind=type;
+      const result=startGesture(type==='volley'?'volley':'kick');
+      // A física solta a bola no comando: o contato visual começa aqui também.
+      if(type!=='volley')gesture.time=gesture.duration*.32;
+      return result;
     },
     pass(kind = 'pass') {
-      return startGesture('kick', 0.34);
+      return api.kick(kind);
     },
     header(duration = 0.4) {
       return startGesture('header', duration);
@@ -676,7 +699,7 @@ export function createGltfPlayer(options = {}) {
       return startGesture('celebrate', duration);
     },
     receive() {
-      return startGesture('signal', 0.6);
+      return startGesture('receive', .46);
     },
     dive(dir = 1) {
       gesture.dir = dir;
@@ -748,6 +771,7 @@ export function createGltfPlayer(options = {}) {
             gQuat.setFromEuler(gEuler.set(x,0,z));
             bones[side+part].quaternion.identity().slerp(gQuat,gaitWeight);
           }
+          addBoneRotation(bones[side+'Hand'],.04,arm.twist,0,gaitWeight);
         }
       }
       if(!['dive','tackle','fall'].includes(gesture.name)){
@@ -773,6 +797,20 @@ export function createGltfPlayer(options = {}) {
         // Não prender os pés ao chão na fase aérea: isso transformava corrida
         // em caminhada acelerada mesmo com joelhos e braços animados.
         bones.hips.position.y+=gaitGroundOffset;
+      }
+      // Proteção e preparação são camadas contextuais, sem mexer no controle.
+      shieldWeight+=((movement.protecting?.7:0)-shieldWeight)*(1-Math.exp(-step*8));
+      effort+=((speed>5?1:0)-effort)*(1-Math.exp(-step*.18));breathing+=step*(1.3+effort*.6);
+      if(!gesture.name){
+        addBoneRotation(bones.spine2,.035*effort*Math.sin(breathing*Math.PI*2),shieldWeight*.1,0,1);
+        addBoneRotation(bones.leftArm,-.16,0,.32,shieldWeight);
+        addBoneRotation(bones.rightArm,-.12,0,-.32,shieldWeight);
+        if(movement.shotCharge>0){
+          const side=preferredFoot==='Left'?'left':'right',w=Math.min(.8,movement.shotCharge);
+          addBoneRotation(bones[side+'UpLeg'],.34,0,0,w);
+          addBoneRotation(bones[side+'Leg'],.7,0,0,w);
+          addBoneRotation(bones.spine2,.06,0,0,w);
+        }
       }
       applyGesture(step);
       if (['dive', 'tackle', 'fall'].includes(gesture.name)) {

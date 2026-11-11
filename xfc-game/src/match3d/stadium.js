@@ -7,6 +7,7 @@
 import { THREE, canvasTexture, disposeObject } from './engine.js';
 import { PITCH, GOAL } from './constants.js';
 import { STADIUMS } from './stadiums.js';
+import {graphicsPreset} from './quality.js';
 import { addGrassBlades } from './grass.js';
 import { createGoalNet } from './goal-net.js';
 
@@ -55,9 +56,9 @@ const LIGHTING_PRESETS = Object.freeze({
     stars: 260,
     fog: 0x0a1a26,
     hemisphereSky: 0xc5dff4,
-    hemisphereGround: 0x3c6340,
+    hemisphereGround: 0x536b46,
     hemisphereIntensity: 0.98,
-    keyColor: 0xfff4de,
+    keyColor: 0xf3f6ff,
     keyIntensity: 1.3,
     fillColor: 0xbdd8ff,
     fillIntensity: 0.72,
@@ -916,6 +917,7 @@ export function buildStadium(scene, options = {}) {
   const standHeight = model.height || 17;
   const timeOfDay = options.timeOfDay || model.timeOfDay || 'night';
   const lighting = lightingProfileFor(timeOfDay);
+  const graphics=options.graphics||graphicsPreset(null,lowPower);
   scene.fog?.color.setHex(lighting.fog);
   if (scene.background?.isColor) scene.background.setHex(lighting.fog);
 
@@ -941,19 +943,19 @@ export function buildStadium(scene, options = {}) {
   drawPitch(pitchContext, pitchWidth, pitchHeight, lowPower);
   const pitchTexture = new THREE.CanvasTexture(pitchCanvas);
   pitchTexture.colorSpace = THREE.SRGBColorSpace;
-  pitchTexture.anisotropy = lowPower ? 1 : 2;
+  pitchTexture.anisotropy = graphics.anisotropy;
   const pitchMaterial = lowPower
     ? new THREE.MeshLambertMaterial({ map: pitchTexture })
-    : new THREE.MeshPhongMaterial({
-      map: pitchTexture,
-      specular: 0x142a18,
-      shininess: 5
-    });
+    : new THREE.MeshStandardMaterial({map:pitchTexture,roughness:.94,metalness:0});
   // Detalhe real licenciado (CREDITS), uma amostra extra no MESMO draw.
   // Mipmaps/aniso filtram as folhas ao longe; sem displacement, bloom ou passe extra.
   const turfDetail=new THREE.TextureLoader().load('assets/textures/turf-detail.jpg');
   turfDetail.wrapS=turfDetail.wrapT=THREE.RepeatWrapping;
-  turfDetail.anisotropy=lowPower?2:4;
+  turfDetail.anisotropy=graphics.anisotropy;
+  if(graphics.surface){
+    const relief=turfDetail.clone();relief.repeat.set(26.25,17);relief.needsUpdate=true;
+    pitchMaterial.bumpMap=relief;pitchMaterial.bumpScale=.018;
+  }
   pitchMaterial.onBeforeCompile=shader=>{
     shader.uniforms.turfDetail={value:turfDetail};
     shader.fragmentShader='uniform sampler2D turfDetail;\n'+shader.fragmentShader;
@@ -976,7 +978,7 @@ export function buildStadium(scene, options = {}) {
   group.add(pitch);
   // No perfil Android, a relva procedural já está na textura do campo. As
   // lâminas subpixel piscavam como pontos escuros na câmera de transmissão.
-  if (!lowPower) addGrassBlades(group, 7600);
+  if(graphics.grass) addGrassBlades(group,graphics.grass);
 
   // Piso contínuo sob TODAS as arquibancadas e cantos, sem ver o vazio.
   const foundation=new THREE.Mesh(new THREE.BoxGeometry(240,.7,190),new THREE.MeshLambertMaterial({color:0x384b3b}));
@@ -1143,9 +1145,10 @@ export function buildStadium(scene, options = {}) {
   );
   group.add(hemisphere);
   const key = new THREE.DirectionalLight(lighting.keyColor, lighting.keyIntensity);
-  key.position.set(-42, 72, 34);
-  key.castShadow = !lowPower;
-  key.shadow.mapSize.set(lowPower ? 512 : 1024, lowPower ? 512 : 1024);
+  key.position.set(...(timeOfDay==='dusk'?[-65,35,20]:timeOfDay==='day'?[-42,72,34]:[-32,58,28]));
+  key.castShadow = graphics.shadows;
+  key.shadow.mapSize.set(graphics.shadowSize,graphics.shadowSize);
+  key.shadow.radius=2;
   key.shadow.camera.left = -75;
   key.shadow.camera.right = 75;
   key.shadow.camera.top = 60;

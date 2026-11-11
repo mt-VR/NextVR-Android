@@ -195,6 +195,7 @@ function trainingSessionScreen(ctx, params, drill) {
     userSide: 'home',
     stadium: 0,
     training: true,
+    graphicsQuality:ctx.state.profile.graphicsQuality,
     trainingDrill: drill.id,
     onEvent: showTrainingEvent
   });

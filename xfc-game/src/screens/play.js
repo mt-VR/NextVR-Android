@@ -1,3 +1,4 @@
+import {graphicsSettings} from '../ui/graphics-settings.js';
 // Tela da partida: a apresentação pré-jogo (cinematográfica), o jogo 3D em
 // si e o resultado final.
 //
@@ -289,6 +290,7 @@ export function playScreen(ctx, params = {}) {
 
   function buildMatch() {
     match = createMatch({
+      graphicsQuality:ctx.state.profile.graphicsQuality,
       canvas,
       home,
       away,
@@ -310,6 +312,7 @@ export function playScreen(ctx, params = {}) {
     });
     controls = createControls({
       root: stageBox,
+      onCharge:value=>match?.world.setShotCharge(value),
       onCommand: (name, payload) => {
         if (paused || stage !== 'live') return;
         if (name === 'pass') kickSound(0.5);
@@ -722,6 +725,15 @@ export function playScreen(ctx, params = {}) {
       ['resume','▶','CONTINUAR PARTIDA',resumeMatch],
       ['restart','↻','REINICIAR PARTIDA',()=>confirm('REINICIAR PARTIDA','Recomeçar este confronto do zero? O placar atual será descartado.',()=>ctx.go('play',{...params,home:home.id,away:away.id,homeKit:params.homeKit||0,awayKit:params.awayKit||0}))],
       ['settings','⚙','CONFIGURAÇÕES',()=>panel('CONFIGURAÇÕES',
+        graphicsSettings(ctx.state),
+        el('button',{type:'button',class:'pause-reference__back',text:'REVER ÚLTIMO LANCE',onClick:()=>{
+          if(!match.world.replay.available){panel('REPLAY',el('p',{text:'Jogue alguns segundos para gravar um lance.'}));return;}
+          const replayOverlay=el('div',{class:'play-replay'},el('span',{text:'REPLAY · último lance · câmera lenta'}),el('button',{type:'button',text:'Voltar à pausa',onClick:()=>match.world.replay.stop()}));
+          const finish=()=>{replayOverlay.remove();overlay.style.visibility='';stageBox.classList.remove('is-replay');pausePanel=closeDetail;};
+          overlay.style.visibility='hidden';stageBox.classList.add('is-replay');stageBox.append(replayOverlay);
+          if(!match.world.replay.start(finish)){finish();return;}
+          pausePanel=()=>match.world.replay.stop();
+        }}),
         el('p',{text:'CHUTE: segure até a carga completa para superchute. CORRER: segure para correr; arraste para cima para chapéu ou para baixo para pedalada.'}),
         el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
           el('option',{value:'1',selected:match.world.cameraZoom===1,text:'Padrão'}),el('option',{value:'1.2',selected:match.world.cameraZoom===1.2,text:'Mais aberta'}))),

@@ -1,3 +1,5 @@
+import {createVisualReplay} from './replay.js';
+import {selectShadowCasters} from './quality.js';
 // O mundo da partida: monta o estádio, os dois times, a bola e o relógio;
 // roda as regras (falta, cartão, escanteio, lateral, impedimento, pênalti,
 // tiro de meta, intervalo, acréscimos e fim de jogo) e comanda a câmera.
@@ -71,10 +73,11 @@ export function createMatch(options = {}) {
     stadium = 0
   } = options;
 
-  const engine = createEngine(canvas);
+  const engine = createEngine(canvas,{graphicsQuality:options.graphicsQuality});
   const stadiumMesh = buildStadium(engine.scene, {
     stadium,
     lowPower: engine.lowPower,
+    graphics:engine.graphics,
     timeOfDay: options.timeOfDay
   });
   const ball = createBall(engine.scene, { lowPower: engine.lowPower, onNetImpact: event => stadiumMesh.hitNet(event) });
@@ -112,6 +115,7 @@ export function createMatch(options = {}) {
   };
 
   const allPlayers = [];
+  const replay=createVisualReplay(engine,allPlayers,ball);
   const stats = {
     home: { shots: 0, corners: 0, fouls: 0, cards: 0, passes: 0, passesOn: 0, shotsOn: 0, saves: 0 },
     away: { shots: 0, corners: 0, fouls: 0, cards: 0, passes: 0, passesOn: 0, shotsOn: 0, saves: 0 }
@@ -154,7 +158,7 @@ export function createMatch(options = {}) {
     conceding: 'away'
   };
 
-  const input = { moveX: 0, moveZ: 0, sprint: false };
+  const input = { moveX: 0, moveZ: 0, sprint: false, shotCharge:0 };
   const controlled = { home: null, away: null };
   let refereeDecision = null;
   const cameraTarget = new THREE.Vector3(0, 0, 0);
@@ -215,6 +219,7 @@ export function createMatch(options = {}) {
       moving: speed > 0.25,
       lean: player.turnLean || 0,
       ownsBall,
+      shotCharge:ownsBall&&isUserControlled(player)?input.shotCharge:0,
       protecting,
       distance,
       x: player.x,
@@ -362,6 +367,7 @@ export function createMatch(options = {}) {
         brand: team.kit?.brand || '',
         preferredFoot: data.foot || 'Right',
         isKeeper,
+        graphics:engine.graphics,
         simplified: options.simplifiedPlayers ?? engine.lowPower,
         skinTone: look.skinTone,
         hairColor: look.hairColor,
@@ -494,6 +500,7 @@ export function createMatch(options = {}) {
    *    no ângulo — o clássico chute colocado.
    */
   function shootBall(player, { power = 22, spread = 0, target = null, kind = 'normal', lift = null, curve = 0 } = {}) {
+    const contactHeight=ball.state.position.y;
     const sign = attackSign(player.side);
     const goalTarget = target || { x: sign * PITCH.halfLength, z: (rng() - 0.5) * 4 };
     const dx = goalTarget.x - player.x;
@@ -529,7 +536,7 @@ export function createMatch(options = {}) {
       training.shotActive = true;
       training.shotElapsed = 0;
     }
-    player.model.kick();
+    if(contactHeight>1.5)player.model.header();else player.model.kick(contactHeight>.7?'volley':kind);
     emit({ type: 'shot', team: player.side, player, kind });
   }
 
@@ -1684,6 +1691,7 @@ export function createMatch(options = {}) {
   // ------------------------------------------------------------------ mundo --
 
   const world = {
+    replay,
     ball,
     teams,
     clock,
@@ -1722,6 +1730,7 @@ export function createMatch(options = {}) {
       if(!player||!Number.isFinite(base.x))return false;
       player.tacticalBase={...player.tacticalBase,...base};player.tacticalCustom=true;return true;
     },
+    setShotCharge(value){input.shotCharge=Math.max(0,Math.min(1,Number(value)||0));},
     get cameraZoom(){return cameraZoom;},
     setCameraZoom(value){if(value===1||value===1.2)cameraZoom=value;},
     get cameraMode() {
@@ -2258,10 +2267,11 @@ export function createMatch(options = {}) {
 
   function updateTrainingActors(dt) {
     const hero = controlled[userSide];
+    const shadowCasters=selectShadowCasters(allPlayers,hero,ball.state.position,engine.graphics);
     for (const player of allPlayers) {
       if (!player.active) continue;
       player.root.position.set(player.x, 0, player.z);
-      player.model.setDynamicShadow?.(player === hero);
+      player.model.setDynamicShadow?.(shadowCasters.has(player));
       player.model.update(dt, modelMovementState(player));
       if (player === training.player || player.isKeeper || training.wallPlayers.includes(player)) {
         player.model.lookAt(ball.state.position);
@@ -2682,10 +2692,10 @@ export function createMatch(options = {}) {
           const dz = b.z - a.z;
           const distance = Math.hypot(dx, dz);
           if (distance > 0.001 && distance < 0.78 && detectIllegalBodyContact(a, b, distance)) break;
-          if (distance > 0.001 && distance < 0.66) {
+          if (distance < 0.66) {
             const overlap = (0.66 - distance) * 0.5;
-            const nx = dx / distance;
-            const nz = dz / distance;
+            const nx = distance>.001?dx/distance:1;
+            const nz = distance>.001?dz/distance:0;
             a.x -= nx * overlap;
             a.z -= nz * overlap;
             b.x += nx * overlap;
@@ -2711,12 +2721,13 @@ export function createMatch(options = {}) {
     // Sincroniza os modelos 3D e mantém o expulso visível enquanto sai do campo.
     updateDismissals(dt);
     const hero = controlled[userSide];
+    const shadowCasters=selectShadowCasters(allPlayers,hero,ball.state.position,engine.graphics);
     for (const player of allPlayers) {
       player.root.position.set(player.x, 0, player.z);
       player.root.visible = player.active || Boolean(player.dismissal);
-      // Sombra dinâmica só no protagonista: o resto usa a sombra de contato,
-      // o que mantém um único personagem pagando o custo do shadow map.
-      player.model.setDynamicShadow?.(player === hero);
+      // Sombras por orçamento: até seis próximos na Alta; elenco na Ultra.
+      // Baixa/Média mantêm contato leve, sem passe de shadow map.
+      player.model.setDynamicShadow?.(shadowCasters.has(player));
       player.model.update(dt, modelMovementState(player));
       player.model.lookAt(ball.state.position);
     }
@@ -2746,6 +2757,7 @@ export function createMatch(options = {}) {
       engine.camera.position.set(...manualCamera.position);
       engine.camera.lookAt(...manualCamera.target);
     } else updateCamera(dt);
+    if(phase.name==='play')replay.capture(dt);
   }
 
   /** Câmera cinematográfica: uma volta sobre o estádio. */
@@ -3122,7 +3134,7 @@ export function createMatch(options = {}) {
    */
   function updateCamera(dt) {
     const position = ball.state.position;
-    const pose = broadcastCameraPose(position, cameraSide);
+    const pose = broadcastCameraPose(position, cameraSide, ball.state.velocity);
     const desiredX = pose.position.x;
     const desiredY = pose.position.y*cameraZoom;
     const desiredZ = pose.target.z+(pose.position.z-pose.target.z)*cameraZoom;
@@ -3184,6 +3196,7 @@ export function createMatch(options = {}) {
       engine.stop();
     },
     dispose() {
+      replay.dispose();
       world.dispose?.();
       if(trainingCones.length){trainingCones[0].geometry.dispose();trainingCones[0].material.dispose();}
       trainingCones.forEach(cone=>engine.scene.remove(cone));

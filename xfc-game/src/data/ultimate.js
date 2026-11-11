@@ -103,6 +103,7 @@ for (const team of TEAMS) {
     const rarity = p.ovr < 65 ? "bronze" : p.ovr < 80 ? "silver" : "gold";
     UT_CATALOG.push({
       ...p,
+      photo:p.id==='san-neymar'?'assets/ultimate/reference/neymar-portrait.jpg':p.id==='madrid-vinicius'?'assets/ultimate/reference/vinicius-portrait.jpg':p.photo,
       baseId: p.id,
       id: p.id,
       rarity,

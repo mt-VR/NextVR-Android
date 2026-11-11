@@ -1,3 +1,4 @@
+import {graphicsSettings} from '../ui/graphics-settings.js';
 // Menu Customise do XFC 27: grade 4 × 2 de configurações, perfil, equipes,
 // elenco, criação de jogador e trilha sonora, no visual azul das referências.
 
@@ -110,6 +111,7 @@ export function customiseScreen(ctx, params = {}) {
       const brightness = el('input', { type: 'range', min: '50', max: '130', value: String(ctx.state.settings.brightness ?? 100), 'aria-label': 'Brilho' });
       brightness.addEventListener('input', () => { ctx.state.settings.brightness = Number(brightness.value); });
       body.append(
+        graphicsSettings(ctx.state),
         el('label', { class: 'customise__setting-row' }, el('span', { text: 'Volume geral' }), volume),
         el('label', { class: 'customise__setting-row' }, el('span', { text: 'Brilho da tela' }), brightness),
         el('p', { class: 'customise__note', text: 'Idioma: Português (Brasil)  •  Controles: Clássico' })

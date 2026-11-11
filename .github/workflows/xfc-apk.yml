@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -177,22 +177,24 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.24
+          TAG=xfc-gameplay-v0.5.25
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.24 (versionCode 30), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.25 (versionCode 31), commit ${GITHUB_SHA}." \
             "" \
-            "Corrida por deslocamento real, aceleração progressiva, rolagem dos pés, quadril/ombros e cabeça. Modelo masculino Micah e identidades preservados; sem alegação de qualidade AAA equivalente ou FPS no aparelho." \
+            "Painéis UT fornecidos usados como telas completas, com hotspots, dados do save e cartas. Mercado, pacotes, escalação, DME e séries locais preservados." \
             "" \
-            "Copa do Brasil e Brasileirão com 16 clubes; Champions com 40; Libertadores personalizada com 56 brasileiros/europeus; Copa América só as 10 CONMEBOL; Copa mundial XFC com 211 associações (mata-mata, 45 passes na preliminar)." \
+            "Quatro perfis gráficos, materiais do Micah existente, relva próxima sem faces pretas e sombras por orçamento. Gestos de recepção, voleio, chute/carga e proteção, com replay visual dos últimos seis segundos acessível na pausa." \
             "" \
-            "Elencos adicionados são fictícios identificados. Saves antigos e Copa clássica de 32 preservados. Artes das oito telas UT fornecidas integradas a dados, botões e economia reais locais." \
+            "Nenhum corpo/modelo substituído ou remodelado. Não é equivalência AAA/FC27, mocap, tecido físico nem FPS comprovado em aparelho; testes em navegador, sem celular físico." \
             "" \
-            "Mantidos placar/pausa, ajuste de bola de 0,8s, joystick, gestos, uniformes e coleção. Créditos em assets/ultimate/reference/CREDITS.md e assets/flags/CREDITS.md. docs/v0.5.24.md.")
+            "106 cartas com imagem no catálogo; 38 cartas não marcadas fictícias ainda sem retrato. Fictícios não recebem fotos de terceiros. Neymar/Vini usam recortes das referências, não fotos oficiais verificadas." \
+            "" \
+            "Preservados competições ampliadas, saves, controles, placar/pausa e ajuste de bola de 0,8s. Detalhes e limites: docs/v0.5.25.md; créditos: assets/ultimate/reference/CREDITS.md e CREDITS.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — UT das referências e Copa mundial ampliada v0.5.24" \
+            gh release create "$TAG" --title "XFC 27 — painéis UT, materiais e replay v0.5.25" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — UT das referências e Copa mundial ampliada v0.5.24" \
+            gh release edit "$TAG" --title "XFC 27 — painéis UT, materiais e replay v0.5.25" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

@@ -2402,3 +2402,6 @@
   .hud__goal-name { font-size: 13px; }
   .hud__goal-score { font-size: 14px; }
 }
+.play-replay{position:absolute;inset:0;z-index:45;display:flex;justify-content:space-between;align-items:flex-start;padding:26px;pointer-events:none;background:linear-gradient(#0005,transparent 20%);color:white;font:600 18px Inter,Arial;}
+.play-replay button{pointer-events:auto;background:#101421e6;color:white;border:1px solid #c2cee0;padding:13px 24px;border-radius:5px;font:inherit;cursor:pointer;}
+.play__stage.is-replay .play__canvas{filter:none;}.play__stage.is-replay .hud{visibility:hidden;}

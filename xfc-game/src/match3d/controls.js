@@ -22,7 +22,7 @@ const BUTTONS = [
   { id: 'sprint', label: 'CORRER', className: 'ctrl-btn--sprint' }
 ];
 
-export function createControls({ onCommand, onMove, onSprint, root }) {
+export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, root }) {
   const stick = el('div', { class: 'controls__stick' },
     el('span', { class: 'controls__stick-base' }),
     el('span', { class: 'controls__stick-knob' })
@@ -42,6 +42,7 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   let enabled = true;
 
   function shootUi(button, strength, kind, charging) {
+    onCharge(charging?Math.max(.15,strength):0);
     button.style.setProperty('--charge', String(charging ? 0.25 + strength * 0.75 : 0));
     button.classList.toggle('is-charging', Boolean(charging));
     for (const shotKind of ['placed', 'curved', 'power']) {

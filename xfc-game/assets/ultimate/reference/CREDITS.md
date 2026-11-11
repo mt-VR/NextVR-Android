@@ -13,3 +13,18 @@ nas cópias de uso dinâmico; valores, jogadores, botões e recompensas são DOM
 Mercado/eventos usam ilustração promocional identificada, não oferta garantida.
 Os oito JPGs originais recortados são referências-fonte para reproduzir os crops.
 Não há pontos pagos, leilões nem partidas online nesta implementação local.
+
+## Uso integral e retratos (v0.5.25)
+
+`home`, `market`, `store`, `events`, `battles` e `season` agora são fundos das
+próprias telas inteiras, não banners de um menu redesenhado. `squad-field` mantém
+o painel com área das cartas limpa para renderizar o elenco salvo; walkout usa
+a cópia limpa com a carta realmente sorteada. Hotspots acessíveis fazem as ações.
+
+`tools/extract-ut-portraits.py` recorta `neymar-portrait.jpg` do painel `market`
+e `vinicius-portrait.jpg` do painel `walkout`. São **ilustrações/retratos das
+referências fornecidas**, não fotografias oficiais verificadas nem prova de
+licenciamento de imagem. Aplicados somente às cartas correspondentes. Os demais
+retratos vêm do cadastro anterior e mantêm os créditos existentes de jogadores.
+Não usar a cara de um atleta em outro ou em um atleta fictício para preencher
+lacunas. Cartas sem imagem dizem “Sem retrato” ou “Fictício”.

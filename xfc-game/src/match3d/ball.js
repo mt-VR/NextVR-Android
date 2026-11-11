@@ -144,6 +144,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     new THREE.PlaneGeometry(BALL.radius * 7.2, BALL.radius * 5.2),
     new THREE.MeshBasicMaterial({
       map: softShadowTexture(),
+      color:0x07110a,
       transparent: true,
       opacity: 0.82,
       depthWrite: false,
@@ -377,7 +378,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
       mesh.position.copy(position);
       shadow.position.set(position.x, 0.02, position.z);
       const shadowScale = Math.max(0.55, 1 - position.y * 0.25);
-      shadow.scale.setScalar(shadowScale);
+      shadow.scale.setScalar(1+Math.min(1.5,position.y*.16));
       shadow.material.opacity = 0.9 * shadowScale;
 
       // A bola gira conforme anda.

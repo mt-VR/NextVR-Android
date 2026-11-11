@@ -112,10 +112,10 @@ match.phase.name
 
 ### Hoje
 
-* Personagens são **gerados por código** (`player.js`): tronco, membros
-  segmentados, mãos, shorts, meias, chuteiras, cabelo, rosto por textura e
-  uniforme com escudo. Não há arquivos `.glb/.gltf/.fbx` no repositório — e o
-  sandbox não alcança Mixamo/Sketchfab/Kenney/Poly Pizza (ver §4).
+* O padrão é **Micah masculino importado CC0** em
+  `assets/players/models/footballer.glb`, conforme o pipeline abaixo.
+  `player.js` é somente reserva se o glTF falhar. Não trocar/recriar/remodelar
+  corpos para melhorar gráficos: materiais, iluminação e poses apenas.
 * Toda a animação é **procedural por osso**, em duas etapas por quadro:
   1. `updateBase()` escreve a **pose base** a partir do estado (parado,
      correndo, chutando, comemorando, defendendo, carrinho, cartão...). Ela
@@ -123,9 +123,10 @@ match.phase.name
      entre quadros.
   2. `animation.update()` (em `animation.js`) aplica **camadas** por cima:
      máscaras, pesos, clipes de evento e IK.
-* Iluminação em `stadium.js`: hemisférica + uma direcional com shadow map
-  512/1024 (cascata limitada ao campo), dois preenchimentos e refletores sem
-  sombra. Sombras dinâmicas só no protagonista e na bola (`setDynamicShadow`).
+* Iluminação em `stadium.js`: hemisférica, direcional, preenchimentos e
+  refletores. Baixa/Média só contato; Alta shadow map 1024, até seis atletas
+  incluindo o controlado; Ultra 2048 e elenco ativo. `quality.js` centraliza
+  os orçamentos; `profile.graphicsQuality` aplica na próxima partida/treino.
 
 ### `match3d/animation.js` — camadas, máscaras e IK
 
@@ -472,3 +473,20 @@ cd xfc-game/android && ./gradlew assembleDebug
 - Corrida: fase pelo deslocamento real (`movement.x/z`), distância do ciclo pela
   escala/alcance/apoio. Não reintroduzir tempo fixo que anime corrida parado.
   Preview sem coordenadas usa integração de velocidade. Teleporte não é passada.
+
+## v0.5.25 — painéis UT, materiais e replay
+
+- Os painéis enviados são as próprias telas, não banners internos. Hotspots em
+  `screens/ultimate-reference.js`; dados salvos sobrepostos. `tools:true` mantém
+  as ferramentas detalhadas de elenco/mercado/pacotes sem perder funções.
+- Fotos só quando há imagem correspondente. Neymar/Vini são recortes da arte
+  fornecida, com procedência; fictícios não recebem retratos de outras pessoas.
+- `quality.js` / `graphics-settings.js`: baixa/média/alta/ultra, mais automática.
+  Perfis explícitos mantêm resolução fixa durante o jogo. Nenhum FPS garantido.
+- `replay.js`: buffer circular limitado a 61 poses/10 Hz. Só pode começar com
+  motor parado; registra poses/bola, não física/placar. Encerramento restaura
+  pose/câmera pausadas com Float64, não retoma a partida sozinho. Não exporta vídeo.
+- `tests/xfc-visual-upgrade.test.mjs` cobre quatro shaders/perfis, corpo inalterado,
+  teto de sombras, replay sintético e na partida real, painéis e persistência.
+- Alterações no fonte exigem regenerar `app.bundle.js` (é rastreado neste repo).
+  Sem teste em telefone físico ou aprovação visual implícita em teste automatizado.

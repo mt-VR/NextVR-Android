@@ -660,6 +660,7 @@ for (const club of EXTRA_CLUBS) {
   const squad = generatedSquad(club.id, club.pool, club.offset, club.ratings.ovr);
   TEAMS.push({
     id: club.id,
+    squadSource:'generated',
     name: club.name,
     shortName: club.shortName,
     nickname: club.nickname,

@@ -1,3 +1,5 @@
+import {ultimateReference} from './ultimate-reference.js';
+import {graphicsSettings} from '../ui/graphics-settings.js';
 import { el, avatar } from "../ui/dom.js";
 import { flagSvg } from "../ui/flags.js";
 import { saveProfile } from "../state.js";
@@ -56,6 +58,7 @@ export function utCard(c, { small = false, action = null } = {}) {
       text("span", c.position),
     ),
     avatar(c),
+    !c.photo?text('span',c.fictional?'Fictício':'Sem retrato','ut-no-photo'):null,
     text("b", c.name, "ut-card__name"),
     el(
       "div",
@@ -93,6 +96,7 @@ export function utCard(c, { small = false, action = null } = {}) {
 export function ultimateTeamScreen(ctx, params = {}) {
   const profile = ctx.state.profile,
     u = UT.ensureUltimate(profile);
+  let toolsOpen=Boolean(params.tools);
   let section = params.section || "home",
     selected = null,
     slot = 9,
@@ -139,11 +143,14 @@ export function ultimateTeamScreen(ctx, params = {}) {
   }
   function go(id) {
     section = id;
+    toolsOpen=false;
     page = 0;
     selected = null;
     main.scrollTop = 0;
     paint();
   }
+  function tools(id=section,index){section=id;toolsOpen=true;if(index!==undefined)slot=index;paint();}
+  function settings(){modal.hidden=false;modal.replaceChildren(el('div',{class:'ut-dialog'},text('h2','Configurações'),graphicsSettings(ctx.state),button('Voltar',()=>{modal.hidden=true;})));}
   function heading(title, description) {
     const artwork={market:'market',store:'store',events:'events'}[section];
     if(artwork)main.append(el('div',{class:`ut-reference-banner ut-reference-banner--${artwork}`},
@@ -206,7 +213,15 @@ export function ultimateTeamScreen(ctx, params = {}) {
       ),
     );
     main.replaceChildren();
-    (
+    const reference=!toolsOpen&&['home','squad','market','store','events','season','battles'].includes(section);
+    root.classList.toggle('ut--reference',reference);
+    if(reference){
+      header.replaceChildren();nav.replaceChildren();
+      main.append(ultimateReference({section,u,profile,go,tools,start,card:utCard,
+        claimSeason:level=>act(UT.claimSeason(profile,level)),claimMode:id=>act(UT.claimModeReward(profile,id)),settings,
+        exit:()=>ctx.go(params.returnTo||'menu'),notice:message=>{notice.textContent=message;}}));
+    }else (
+
       ({
         home: home,
         club: club,
@@ -1031,7 +1046,8 @@ export function ultimateTeamScreen(ctx, params = {}) {
             persist();
           }
           modal.hidden = true;
-        } else if (section !== "home") go("home");
+        } else if(toolsOpen&&["squad","market","store","season","events","battles"].includes(section)){toolsOpen=false;paint();}
+        else if (section !== "home") go("home");
         else ctx.go(params.returnTo || "menu");
         return true;
       }

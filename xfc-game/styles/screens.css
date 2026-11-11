@@ -2532,3 +2532,4 @@
   .worldcup__selection-aside { grid-template-columns: 1fr; }
   .worldcup__draw-note,.worldcup__start-campaign { grid-column: 1; grid-row: auto; }
 }
+.graphics-settings{padding:12px 0;color:inherit;}.graphics-settings label{display:flex;gap:18px;align-items:center;justify-content:space-between;}.graphics-settings select{font:inherit;padding:10px;color:white;background:#10182b;border:1px solid #969fbb;border-radius:4px;}.graphics-settings p{font-size:13px;line-height:1.45;max-width:640px;color:#bdc8d9;}

@@ -192,6 +192,12 @@ test(
         m.go("ultimate");
       });
       await p.waitForSelector(".ut-main");
+      async function navigate(name){
+        if(await p.locator('.ut-ref-more').count()){
+          await p.getByRole('button',{name:'Mais opções',exact:true}).click();
+          await p.locator('.ut-ref-more nav').getByRole('button',{name,exact:true}).click();
+        }else await p.locator('.ut-nav').getByRole('button',{name,exact:true}).click();
+      }
       for (const name of [
         "Meu Clube",
         "Elenco",
@@ -206,12 +212,11 @@ test(
         "Eventos especiais",
         "Temporada",
       ]) {
-        await p.getByRole("button", { name, exact: true }).click();
+        await navigate(name);
         assert.ok(await p.locator(".ut-main h1").isVisible());
       }
-      await p
-        .getByRole("button", { name: "Mercado de Transferências", exact: true })
-        .click();
+      await navigate("Mercado de Transferências");
+      await p.getByRole("button",{name:"Pesquisar jogadores",exact:true}).click();
       await p.locator(".ultimate-card__buy").first().click();
       await p.getByRole("button", { name: "Confirmar", exact: true }).click();
       assert.equal(
@@ -222,7 +227,8 @@ test(
         ),
         19,
       );
-      await p.getByRole("button", { name: "Loja", exact: true }).click();
+      await navigate("Loja");
+      await p.getByRole("button",{name:"Pacotes",exact:true}).click();
       await p
         .getByRole("button", { name: "Comprar e abrir", exact: true })
         .first()
@@ -244,7 +250,7 @@ test(
       );
       await p.reload();
       await p.evaluate(async () => {
-        (await import("/src/main.js")).go("ultimate", { section: "squad" });
+        (await import("/src/main.js")).go("ultimate", { section: "squad", tools:true });
       });
       assert.equal(await p.locator(".ut-slot").count(), 11);
       const slot = p.locator(".ut-slot").nth(8),
@@ -262,11 +268,9 @@ test(
             ).length,
         ),
       );
+      await navigate("Squad Battles");
       await p
-        .getByRole("button", { name: "Squad Battles", exact: true })
-        .click();
-      await p
-        .getByRole("button", { name: "Jogar agora →", exact: true })
+        .getByRole("button", { name: "Jogar Agora", exact: true })
         .click();
       await p.waitForSelector(".showcase__enter");
       await p.click(".showcase__enter");

@@ -39,9 +39,9 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
 }
 
 /** Enquadramento de transmissão que acompanha a bola sem cruzar para o outro lado. */
-export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE) {
-  const ballX = clamp(Number(position?.x) || 0, -PITCH.halfLength - 6, PITCH.halfLength + 6);
-  const ballZ = clamp(Number(position?.z) || 0, -PITCH.halfWidth - 6, PITCH.halfWidth + 6);
+export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velocity = null) {
+  const ballX = clamp((Number(position?.x) || 0)+clamp((Number(velocity?.x)||0)*.1,-2.2,2.2), -PITCH.halfLength - 6, PITCH.halfLength + 6);
+  const ballZ = clamp((Number(position?.z) || 0)+clamp((Number(velocity?.z)||0)*.08,-1.5,1.5), -PITCH.halfWidth - 6, PITCH.halfWidth + 6);
   const fixedSide = side < 0 ? -1 : 1;
   const nearT = Math.min(1, Math.abs(ballZ) / PITCH.halfWidth);
   const endT = Math.min(1, Math.abs(ballX) / PITCH.halfLength);

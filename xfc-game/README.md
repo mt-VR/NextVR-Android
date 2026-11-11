@@ -156,3 +156,10 @@ continuam valendo.
 Retratos, escudos e fotos de uniforme têm origem externa e estão creditados
 em [`assets/players/CREDITS.md`](assets/players/CREDITS.md) e
 [`assets/crests/CREDITS.md`](assets/crests/CREDITS.md).
+
+### v0.5.25 — painéis UT, materiais e replay
+
+[Notas e limites da versão](docs/v0.5.25.md). Quatro perfis gráficos persistidos,
+mesmo corpo Micah, materiais/relva/gestos aprimorados e replay visual na pausa.
+Os painéis enviados são as próprias telas UT, com hotspots e dados salvos.
+Há retratos ainda ausentes; sem testes em aparelho físico ou promessa de nível AAA.

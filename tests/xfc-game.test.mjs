@@ -679,6 +679,9 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     };
 
     await page.goto(url, { waitUntil: 'domcontentloaded' });
+    // Este teste longo valida navegação/save no orçamento móvel; os quatro
+    // perfis e shaders completos são exercitados em xfc-visual-upgrade.
+    await page.evaluate(async()=>{(await import('/src/main.js')).state.profile.graphicsQuality='low';});
 
     // Intro: selo da XF Esports e o logotipo XFC. A intro avança sozinha depois de
     // alguns segundos, então o teste aceita os dois desfechos: pular a intro com o
@@ -727,12 +730,14 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.locator('.menu__item[data-menu-item="ultimate"]').click();
     await page.waitForSelector('.screen--ultimate');
     await page.getByRole('button',{name:'Mercado de Transferências',exact:true}).click();
+    await page.getByRole('button',{name:'Pesquisar jogadores',exact:true}).click();
     assert.ok(await page.locator('.ultimate-card__buy').count() >= 6, 'mercado tem cartas contratáveis');
     await page.locator('.ultimate-card__buy').nth(3).click(); // Cubarsí cabe no saldo inicial.
     await page.getByRole('button',{name:'Confirmar',exact:true}).click();
     const afterPurchase=await page.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')));
     assert.ok(afterPurchase.coins<coinsBeforePurchase);
     assert.equal(afterPurchase.ut.inventory.length,19,'18 iniciais mais uma compra');
+    await page.keyboard.press('Escape'); // ferramenta → painel do mercado
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
@@ -1024,7 +1029,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       const kinds = [];
       match.world.command = (name, payload) => {
         if (name === 'shoot') kinds.push(payload.kind);
-        originalCommand(name, payload);
+        // Aqui verificamos o mapeamento, sem disparar três chutes que
+        // podem iniciar outra reposição antes do teste de TROCAR.
       };
       const gesture = (dx, dy) => {
         const base = { pointerId: 17, pointerType: 'touch', bubbles: true, cancelable: true };
@@ -1040,6 +1046,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     });
     assert.deepEqual(shotGestures, ['curved', 'placed', 'normal'],
       'arrastar para cima curva, para baixo coloca; superchute agora exige carga completa');
+    await page.locator('.ctrl-btn--pass').click();
+    await page.waitForFunction(()=>window.__xfcMatch.phase.name==='play');
     const controlledBefore = (await page.locator('.hud__player .hud__player-name').textContent()).trim();
     await page.locator('.ctrl-btn--switch').click();
     await page.waitForFunction(name =>

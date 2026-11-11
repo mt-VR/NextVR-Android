@@ -78,3 +78,13 @@ export function rainbowPoint(progress, profile) {
   return { forward: -.55 + (profile.distance + .55) * t * t,
     height: .11 + 4 * profile.height * t * (1 - t) };
 }
+
+/** Preparação, contato e acompanhamento, usados apenas na pose (não mudam física). */
+export function kickPose(progress,kind='shot'){
+  const p=clamp(progress,0,1),smooth=x=>x*x*(3-2*x);
+  const pass=['pass','through','placed'].includes(kind),power=kind==='power';
+  const amplitude=pass?.65:power?1.24:1;
+  const swing=p<.32?.48*Math.sin(Math.PI*p/.32)**2:-.85*Math.sin(Math.PI*(p-.32)/.68);
+  return {hip:swing*amplitude,knee:p<.32?.9*smooth(p/.32):.12+.78*(1-smooth(clamp((p-.32)/.2,0,1))),
+    opening:pass?.22:0,torso:(power?.16:.09)*Math.sin(p*Math.PI),contact:.32};
+}
