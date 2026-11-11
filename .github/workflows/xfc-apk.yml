@@ -175,24 +175,24 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.19
+          TAG=xfc-gameplay-v0.5.20
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.19 (versionCode 25), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.20 (versionCode 26), commit ${GITHUB_SHA}." \
             "" \
-            "Corrida corrigida com trajetória limitada dos pés e joelhos por IK; mesmo modelo masculino importado. Luvas presas às mãos do goleiro e bola XFC Orbit com arte própria." \
+            "Corrida refeita com apoio assimétrico, retorno curto atrás e contrabalanço dos braços. Goleiro com novo mergulho e poses de pegar/carregar/colocar a bola; mesmo modelo masculino importado." \
             "" \
-            "Pênalti com câmera baixa atrás do batedor, analógico controlando direção/altura em vez de andar, seta de mira e goleiro escolhendo esquerda/meio/direita uma vez por cobrança." \
+            "Pênalti: toque tem prioridade sobre o timer do teclado; a mira fica na última direção ao soltar. Chapéu passa sobre o próprio executor; controle de bola altera a distância e o alcance da recuperação, sem posse automática." \
             "" \
-            "Superchute potente e baixo; botões próprios para superchute, chapéu e pedalada. Preparação curta de tiro de meta e escanteio com transporte e colocação da bola." \
+            "Tiro de meta e escanteio: buscar a bola no local da saída, pegar, carregar nas mãos, colocar no chão, recuar e esperar o comando. Aproximação antes de cobrar. Não usa mais a preparação abreviada de 1,35 s." \
             "" \
-            "Placar horizontal claro com escudos/siglas dos times e relógio verde. Arquibancadas ligadas ao muro e fundação contínua fechando o vão; iluminação ajustada sem novos passes de sombra." \
+            "69 camisas identificadas do HTML para 54 clubes; 47 novos clubes com escudos reais, sem duplicar existentes. Elencos novos fictícios sinalizados no menu. 27 fotos incertas omitidas conforme autorizado. Campo mais claro sem passes adicionais de sombra." \
             "" \
-            "Android mantém resolução fixa, sem MSAA/sombras dinâmicas. Resultado final para de renderizar o estádio ao fundo. Sem promessa de FPS em celular físico ou equivalência ao EA Sports FC. docs/v0.5.19.md e CREDITS.md.")
+            "Android mantém resolução fixa, sem MSAA/sombras dinâmicas. Resultado final para de renderizar o estádio ao fundo. Sem promessa de FPS em celular físico ou equivalência ao EA Sports FC. docs/v0.5.20.md e CREDITS.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — corrida, pênaltis e habilidades v0.5.19" \
+            gh release create "$TAG" --title "XFC 27 — camisas e reposições completas v0.5.20" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — corrida, pênaltis e habilidades v0.5.19" \
+            gh release edit "$TAG" --title "XFC 27 — camisas e reposições completas v0.5.20" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

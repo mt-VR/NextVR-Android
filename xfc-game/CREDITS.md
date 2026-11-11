@@ -145,3 +145,18 @@ fidelidade arquitetônica dos modelos 3D.
   pênalti e do placar horizontal. Não foram redistribuídos nem usados como
   texturas do jogo. Uma das capturas do XFC chegou parcialmente truncada;
   foi lida com recuperação local de JPEG apenas para diagnóstico.
+
+
+## Coleção de camisas do HTML — v0.5.20
+
+- Origem: `camisas_separadas.html`, fornecido pelo usuário nesta conversa.
+- 69 PNGs associados a 54 clubes; identificação incerta excluída conforme autorização.
+  Inventário completo, números originais e omitidos: `docs/shirt-collection.md`.
+- Tratamento: remoção conservadora do fundo preto conectado (1–6%), fragmentos
+  externos e margens. Mantida a resolução da origem, sem geração de logotipos.
+- Fotos/escudos/marcas dos uniformes pertencem aos respectivos titulares; o envio
+  não transfere direitos comerciais. Uso referencial no protótipo, sem afiliação.
+- Escudos reais novos: fontes públicas fixadas por commit e páginas registradas
+  em `assets/crests/CREDITS.md`. Não são anunciados como CC0/licenciados pelo clube.
+- Micah CC0 permanece o atleta. As mudanças de corrida/goleiro/reposições são
+  adaptações de animação do projeto, não um novo modelo, mocap ou asset EA FC.

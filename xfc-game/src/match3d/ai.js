@@ -290,6 +290,7 @@ export function createTeamAI({ side, world }) {
       // O jogador humano fica sob controle direto e nunca recebe movimento
       // ofensivo automático; carrinhos também são reservados ao comando humano.
       if (player.slideTackle || world.isUserControlled(player)) continue;
+      if(world.ball.state.rainbow?.player===player&&world.ball.state.rainbow.time<.62)continue;
       if (player === owner) {
         // Com a bola no pé, o atleta olha para frente (a condução) e só
         // encara a bola quando está praticamente parado.

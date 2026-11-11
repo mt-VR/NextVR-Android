@@ -371,3 +371,27 @@ cd xfc-game/android && ./gradlew assembleDebug
   capa de látex no shader e punhos locais; nunca alterar a geometria compartilhada.
 - `fulltime` para renderização 3D; o painel de resultado é DOM, não precisa
   ficar gastando GPU nem atrasar em aparelho lento.
+
+
+## Atualização v0.5.20 — coleção, reposições completas e controle
+
+- `data/shirt-collection.js`: 69 camisas identificadas, 54 clubes; `teams.js`
+  acrescenta somente IDs inexistentes (47). Total 69 clubes. Novos elencos são
+  fictícios, sinalizados no seletor; não inventar rosters reais.
+- `kits.js` acrescenta fotos sem mudar índices anteriores de saves. Seletores
+  usam `shirt`; 3D continua reconstrução de cores/padrões. Origem, transformações
+  e 27 omitidas em `docs/shirt-collection.md`, fontes dos escudos em CREDITS.
+- Locomoção: apoio assimétrico (pé até 12 cm atrás / 30 cm à frente), recuperação
+  suave, braços substituem as curvas antigas; Micah e todos os gestos preservados.
+- `restart.preparation.stage`: seek → pickup → carry → place → retreat; posição
+  inicial real do cobrador e ponto de saída da bola. Bola acompanha landmarks
+  Hand após atualizar o modelo. Cobrança humana aguarda comando, depois runup.
+  Ao acabar runup, a fase pode mudar dentro de updateRestartActors: não chamar
+  setupRestart com restart nulo. IA também passa pela aproximação.
+- `ball.state.rainbow`: arco de 1,18 s sobre o executor, origem fixa e distância
+  por dribbling. Primeiros 0,62 s seguram o atleta durante o gesto; depois ele
+  pode perseguir a bola. Não dar posse por distância remota; disputas continuam
+  após o arco. Limpar trajetória em reset/kick/restart.
+- `controls.readKeyboard` não toca no vetor enquanto há pointerId ativo. Mira
+  do pênalti retém último vetor fora da zona morta e só reseta na próxima cobrança.
+- Luz/relva clareadas sem subir resolução/sombras/passes no Android.

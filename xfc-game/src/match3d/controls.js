@@ -323,6 +323,8 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
   }
 
   function readKeyboard() {
+    // Toque tem prioridade: o timer do teclado não pode zerar o analógico.
+    if (pointerId !== null) return;
     if (!enabled) {
       movementVector = { x: 0, z: 0 };
       onMove(0, 0);

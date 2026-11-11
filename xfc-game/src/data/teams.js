@@ -1,8 +1,10 @@
-// Elenco e dados dos dois clubes que existem no XFC por enquanto.
+// Clubes do XFC; elencos novos da coleção são sinalizados como fictícios.
 //
 // Os retratos são gerados para o projeto (sem material de terceiros) e ficam em
 // `assets/players/`. As médias seguem o formato do menu de FC: overall, forma
 // recente e os seis atributos principais usados na tela de elenco.
+
+import { COLLECTION_CLUBS } from './shirt-collection.js';
 
 export const POSITION_LABELS = {
   GK: 'Goleiro',
@@ -675,6 +677,16 @@ for (const club of EXTRA_CLUBS) {
     players: squad.players,
     substitutes: squad.substitutes
   });
+}
+
+// Não duplica clubes que já existiam; os novos elencos são explicitamente fictícios.
+for (const club of COLLECTION_CLUBS) {
+  if (TEAMS.some(team => team.id === club.id)) continue;
+  const squad = generatedSquad(club.id, FIRST_NAMES[club.flag] ? club.flag : 'en', 0, 75);
+  TEAMS.push({ ...club, shortName: club.name, nickname: club.name,
+    city: '', league: club.country, stadium: 'Elenco fictício', squadSource: 'generated',
+    crest: `assets/crests/${club.id}.png`, formation: '4-3-3', stars: 3.5,
+    ratings: { att: 75, mid: 75, def: 75, ovr: 75 }, ...squad });
 }
 
 /** Times disponíveis no carousel da tela de escolha. */

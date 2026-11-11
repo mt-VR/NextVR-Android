@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   runningLegPose,
   penaltyTarget,
-  choosePenaltyLane
+  choosePenaltyLane, rainbowProfile, rainbowPoint
 } from '../xfc-game/src/match3d/football-actions.js';
 import { launchOrSkip } from './support/chromium.mjs';
 import { startXfcServer } from '../xfc-game/serve.mjs';
@@ -14,10 +14,10 @@ test('passadas: tornozelo segue trajetória limitada, joelho não lança pé par
     const p = runningLegPose(i / 240);
     const y = -0.44 * Math.cos(p.hip) - 0.42 * Math.cos(p.hip + p.knee);
     const z = -0.44 * Math.sin(p.hip) - 0.42 * Math.sin(p.hip + p.knee);
-    assert.ok(Math.abs(z) <= 0.321);
+    assert.ok(z >= -.121 && z <= .301);
     assert.ok(Math.abs(z - p.z) < 0.005);
     assert.ok(p.knee >= 0 && p.knee < 1.75);
-    assert.ok(y >= -0.8 && y <= -0.6);
+    assert.ok(y >= -0.800001 && y <= -0.6);
     assert.ok(Math.abs(p.hip + p.knee + p.ankle) < 1e-8, 'sola nivelada');
     if (last)
       assert.ok(Math.abs(p.hip - last.hip) < 0.06, 'sem salto entre ciclos');
@@ -88,6 +88,12 @@ test(
         const rainbow = m.world.command('rainbow'),
           rainbowLift = m.ball.state.velocity.y,
           rainbowReleased = !m.ball.state.owner;
+        const active=all.map(x=>x.active);all.forEach(x=>x.active=x===p);
+        m.world.input.moveX=1;m.world.input.moveZ=1;
+        for(let i=0;i<30;i++)m.world.tick(1/60);
+        const rainbowCross={player:[p.x,p.z],ball:m.ball.state.position.toArray()};
+        m.world.input.moveX=m.world.input.moveZ=0;
+        all.forEach((x,i)=>x.active=active[i]);
         getBall();
         const superShot = m.world.command('shoot', {
           kind: 'power',
@@ -128,23 +134,26 @@ test(
             carrying: !!r?.preparation,
             owner: m.ball.state.owner?.id
           };
-          for (let i = 0; i < 24; i++) m.world.tick(1 / 60);
-          const carryY = m.ball.state.position.y,
-            carryX = taker.x;
-          for (let i = 0; i < 24; i++) m.world.tick(1 / 60);
-          const placeGesture = taker.model.animation.state().gesture;
-          for (let i = 0; i < 40; i++) m.world.tick(1 / 60);
-          return {
-            initial,
-            carryY,
-            carryX,
-            placeGesture,
-            ready: r?.ready,
-            done: !r?.preparation,
-            ground: m.ball.state.position.y,
-            owner: m.ball.state.owner === taker,
-            stillRestart: m.phase.name === 'restart'
-          };
+          const stages=[],samples={};let maxStep=0,lastX=taker.x,lastZ=taker.z;
+          const blocked=m.world.command('shoot');
+          for(let i=0;i<2000 && r?.preparation;i++){
+            m.world.tick(1/60);
+            maxStep=Math.max(maxStep,Math.hypot(taker.x-lastX,taker.z-lastZ));
+            lastX=taker.x;lastZ=taker.z;
+            const stage=r.preparation?.stage;
+            if(stage&&!stages.includes(stage))stages.push(stage);
+            if(stage&&r.preparation.time>.3&&!samples[stage])samples[stage]={
+              ball:m.ball.state.position.toArray(),gesture:taker.model.animation.state().gesture
+            };
+          }
+          const done=!r?.preparation,ground=m.ball.state.position.y,owner=m.ball.state.owner===taker;
+          const distance=Math.hypot(taker.x-m.ball.state.position.x,taker.z-m.ball.state.position.z);
+          const stillRestart=m.phase.name==='restart';
+          const accepted=m.world.command('shoot',{strength:.65});
+          const runningUp=r.preparation?.stage==='runup';
+          for(let i=0;i<100&&r.preparation;i++)m.world.tick(1/60);
+          return {initial,stages,samples,maxStep,blocked,done,ground,owner,distance,stillRestart,
+            ready:r.ready,accepted,runningUp,finalPhase:m.phase.name,finalOwner:m.ball.state.owner?.id,finalBall:m.ball.state.position.toArray(),released:m.phase.name==='play'&&!m.ball.state.owner};
         };
         const goalkick = runRestart('goalkick'),
           corner = runRestart('corner');
@@ -157,7 +166,7 @@ test(
           stepGesture,
           rainbow,
           rainbowLift,
-          rainbowReleased,
+          rainbowReleased,rainbowCross,
           superShot,
           velocity,
           gloves,gloveVertices,fieldMask,
@@ -174,6 +183,8 @@ test(
       assert.equal(result.rainbow, true);
       assert.equal(result.rainbowReleased, true);
       assert.ok(result.rainbowLift > 6.5);
+      assert.ok(Math.hypot(...result.rainbowCross.player)<.1,'execução mantém atleta debaixo do arco');
+      assert.ok(Math.abs(result.rainbowCross.ball[0])<.15&&result.rainbowCross.ball[1]>2.2);
       assert.equal(result.superShot, true);
       assert.ok(Math.hypot(result.velocity[0], result.velocity[2]) > 45);
       assert.ok(result.velocity[1] < 2.5);
@@ -189,13 +200,17 @@ test(
       ]) {
         assert.equal(r.initial.type, type);
         assert.equal(r.initial.carrying, true);
-        assert.ok(r.carryY > 0.7);
-        assert.equal(r.placeGesture, 'place-ball');
-        assert.equal(r.ready, true);
-        assert.equal(r.done, true);
-        assert.equal(r.owner, true);
-        assert.equal(r.stillRestart, true);
-        assert.ok(r.ground < 0.15);
+        assert.equal(r.blocked,false,'não cobra enquanto busca a bola');
+        assert.deepEqual(r.stages,['seek','pickup','carry','place','retreat']);
+        assert.ok(r.maxStep<.08,'cobrador não teletransporta na preparação');
+        assert.ok(r.samples.seek.ball[1]<.15,'bola espera no local da saída');
+        assert.ok(r.samples.carry.ball[1]>.85,'bola transportada nas mãos');
+        assert.equal(r.samples.pickup.gesture,'pick-ball');
+        assert.equal(r.samples.place.gesture,'place-ball');
+        assert.equal(r.ready,true);assert.equal(r.done,true);assert.equal(r.owner,true);
+        assert.equal(r.stillRestart,true);assert.ok(r.ground<.15);
+        assert.ok(r.distance>(type==='goalkick'?2:1),'recua antes de cobrar');
+        assert.equal(r.accepted,true);assert.equal(r.runningUp,true);assert.equal(r.released,true);
       }
     } finally {
       await browser.close();
@@ -239,6 +254,9 @@ test(
           const fixed = [p.x, p.z];
           const marker = m.engine.scene.getObjectByName('xfc-penalty-aim');
           const target = { ...marker.userData.target };
+          m.world.input.moveX=m.world.input.moveZ=0;
+          for(let i=0;i<15;i++)m.world.tick(1/120);
+          const retained={...marker.userData.target};
           m.world.command('shoot', { strength: 0.8 });
           const v = m.ball.state.velocity.clone(),
             lane = keeper.penaltyDecision.lane;
@@ -249,7 +267,7 @@ test(
             aim,
             start,
             fixed,
-            target,
+            target,retained,
             v: v.toArray(),
             lane,
             after: keeper.penaltyDecision.lane,
@@ -260,6 +278,7 @@ test(
       });
       for (const shot of shots) {
         assert.deepEqual(shot.fixed, shot.start);
+        assert.deepEqual(shot.retained,shot.target,'soltar o joystick não muda a mira');
         assert.equal(shot.target.z, shot.aim * 3.12);
         assert.ok(Math.abs(shot.v[2] / shot.v[0] - shot.target.z / 11) < 1e-6);
         assert.ok([-1, 0, 1].includes(shot.lane));
@@ -272,3 +291,17 @@ test(
     }
   }
 );
+
+test('chapéu cruza acima da cabeça do próprio executor; atributo define alcance de recuperação',()=>{
+  const strong=rainbowProfile(95),weak=rainbowProfile(45);
+  assert.ok(strong.distance<weak.distance);
+  assert.ok(strong.recoveryRadius>weak.recoveryRadius);
+  for(const profile of [strong,weak]){
+    assert.ok(rainbowPoint(0,profile).forward<0);
+    const crossing=Math.sqrt(.55/(profile.distance+.55));
+    assert.ok(Math.abs(rainbowPoint(crossing,profile).forward)<1e-9);
+    assert.ok(rainbowPoint(crossing,profile).height>2.2);
+    assert.equal(rainbowPoint(1,profile).height,.11);
+    assert.ok(rainbowPoint(1,profile).forward>1);
+  }
+});

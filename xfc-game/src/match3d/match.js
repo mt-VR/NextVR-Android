@@ -5,7 +5,7 @@
 // O módulo é agnóstico da interface: avisa o que aconteceu por `onEvent` e
 // recebe os comandos do jogador por `world.command`.
 
-import { penaltyTarget, choosePenaltyLane } from './football-actions.js';
+import { penaltyTarget, choosePenaltyLane, rainbowProfile, rainbowPoint } from './football-actions.js';
 import { createEngine, THREE } from './engine.js';
 import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
@@ -82,12 +82,20 @@ export function createMatch(options = {}) {
   aimGeometry.setAttribute('position',new THREE.Float32BufferAttribute([0,0,-.5, 2.8,0,0, 0,0,.5],3));
   const penaltyArrow=new THREE.Mesh(aimGeometry,new THREE.MeshBasicMaterial({color:0xc6ffb3,transparent:true,opacity:.4,side:THREE.DoubleSide,depthWrite:false}));
   penaltyArrow.name='xfc-penalty-aim';penaltyArrow.visible=false;engine.scene.add(penaltyArrow);
+  const penaltyAim={x:0,y:0};
+  function rememberPenaltyAim(){
+    if(Math.hypot(input.moveX,input.moveZ)>.16){
+      penaltyAim.x=input.moveX;penaltyAim.y=input.moveZ;
+      if(!training.enabled)setPieceOptions.aim=penaltyAim.x;
+    }
+    return penaltyAim;
+  }
   function updatePenaltyAim(){
     const ready=training.enabled?training.drill==='penalty'&&!training.shotActive&&phase.name==='play':phase.name==='restart'&&phase.restart?.type==='penalty'&&phase.restart.ready;
     penaltyArrow.visible=ready;if(!ready)return;
     const player=training.enabled?training.player:phase.restart.taker;
-    if(!training.enabled&&Math.hypot(input.moveX,input.moveZ)>.12)setPieceOptions.aim=input.moveX;
-    const target=penaltyTarget(training.enabled?input.moveX:setPieceOptions.aim,input.moveZ,attackSign(player.side));
+    rememberPenaltyAim();
+    const target=penaltyTarget(training.enabled?penaltyAim.x:setPieceOptions.aim,penaltyAim.y,attackSign(player.side));
     penaltyArrow.position.set(ball.state.position.x,.025,ball.state.position.z);
     penaltyArrow.rotation.y=-Math.atan2(target.z-ball.state.position.z,target.x-ball.state.position.x);
     penaltyArrow.userData.target=target;
@@ -373,6 +381,7 @@ export function createMatch(options = {}) {
         isKeeper,
         isGK: isKeeper,
         ovr: data.ovr || data.rating || null,
+        dribbling: data.stats?.dribbling ?? data.dribbling ?? data.ovr ?? 70,
         goalkeeping: data.goalkeeping ?? data.stats?.goalkeeping ?? data.stats?.reflexes ?? data.rating ?? data.ovr ?? 70,
         shooting: data.shotPower ?? data.stats?.shooting ?? data.shooting ?? data.rating ?? data.ovr ?? 68,
         shotPower: data.shotPower ?? data.stats?.shooting ?? data.shooting ?? data.rating ?? data.ovr ?? 68,
@@ -805,9 +814,12 @@ export function createMatch(options = {}) {
   /** Prepara uma retomada de jogo. */
   function setRestart(type, side, x, z, options = {}) {
     ball.state.goalPocket = 0;
+    ball.state.rainbow = ball.state.recovery = null;
+    const pickup={x:ball.state.position.x,z:ball.state.position.z};
     if (phase.name === 'fulltime' || phase.name === 'halftime') return;
     clearSlideTackles();
     shotCamera = null;
+    penaltyAim.x=penaltyAim.y=0;
     setPieceOptions.aim = 0;
     setPieceOptions.power = 0.72;
     setPieceOptions.impactX = 0;
@@ -822,6 +834,7 @@ export function createMatch(options = {}) {
       x,
       z,
       taker: null,
+      pickup,
       ready: false,
       waitForReferee: Boolean(options.waitForReferee),
       foulKind: options.foulKind || null
@@ -859,6 +872,7 @@ export function createMatch(options = {}) {
     }
     if (!taker) return;
     restart.taker = taker;
+    const original={x:taker.x,z:taker.z};
 
     let placeX = restart.x;
     let placeZ = restart.z;
@@ -868,8 +882,8 @@ export function createMatch(options = {}) {
       placeX = -sign * (PITCH.halfLength - 5.5);
       placeZ = Math.sign(restart.z || 1) * 6;
     } else if (restart.type === 'corner') {
-      placeX = Math.sign(restart.x) * (PITCH.halfLength - 0.8);
-      placeZ = Math.sign(restart.z || 1) * (PITCH.halfWidth - 0.8);
+      placeX = Math.sign(restart.x) * (PITCH.halfLength - 0.4);
+      placeZ = Math.sign(restart.z || 1) * (PITCH.halfWidth - 0.4);
     } else if (restart.type === 'freekick') {
       placeX = Math.max(-PITCH.halfLength + 3, Math.min(PITCH.halfLength - 3, restart.x));
       placeZ = Math.max(-PITCH.halfWidth + 3, Math.min(PITCH.halfWidth - 3, restart.z));
@@ -939,10 +953,13 @@ export function createMatch(options = {}) {
     if (side === userSide) controlled[userSide] = taker;
     restart.ready = true;
     if(['goalkick','corner'].includes(restart.type)){
-      restart.preparation={time:0,x:placeX-taker.facing.x*.45,z:placeZ-taker.facing.z*.45,
-        ballX:placeX,ballZ:placeZ,startX:placeX-taker.facing.x*2.05,startZ:placeZ-taker.facing.z*2.05};
-      taker.x=restart.preparation.startX;taker.z=restart.preparation.startZ;
-      ball.state.owner=null;taker.model.carryBall?.(.7);
+      restart.preparation={stage:'seek',time:0,ballX:placeX,ballZ:placeZ,
+        pickupX:Math.max(-54,Math.min(54,restart.pickup.x)),
+        pickupZ:Math.max(-35.5,Math.min(35.5,restart.pickup.z)),
+        fx:taker.facing.x,fz:taker.facing.z};
+      taker.x=original.x;taker.z=original.z;
+      ball.state.owner=null;
+      ball.state.position.set(restart.preparation.pickupX,BALL.radius,restart.preparation.pickupZ);
     }
   }
 
@@ -1047,18 +1064,69 @@ export function createMatch(options = {}) {
     shotCamera = { type, side, taker, timer: 0, duration: type === 'penalty' ? 2.7 : 2.25 };
   }
 
+  const carryLeft=new THREE.Vector3(),carryRight=new THREE.Vector3();
+  function syncRestartBall() {
+    const restart=phase.restart,p=restart?.preparation;
+    if(!p)return;
+    const taker=restart.taker,bones=taker.model.bones;
+    const held=p.stage==='carry'||(p.stage==='pickup'&&p.time>=.45)||(p.stage==='place'&&p.time<.45);
+    if(held&&bones?.leftHand&&bones?.rightHand){
+      taker.root.updateMatrixWorld(true);
+      bones.leftHand.getWorldPosition(carryLeft);bones.rightHand.getWorldPosition(carryRight);
+      ball.state.position.copy(carryLeft).add(carryRight).multiplyScalar(.5);
+      ball.state.position.y=Math.max(BALL.radius,ball.state.position.y);
+    }else if(p.stage==='seek'||p.stage==='pickup'){
+      ball.state.position.set(p.pickupX,BALL.radius,p.pickupZ);
+    }else ball.state.position.set(p.ballX,BALL.radius,p.ballZ);
+    ball.mesh.position.copy(ball.state.position);
+    ball.shadow.position.set(ball.state.position.x,.02,ball.state.position.z);
+  }
+
+  function beginRestartRunup(restart,command=null){
+    if(!restart.runup)return false;
+    restart.preparation={stage:'runup',time:0,ballX:ball.state.position.x,ballZ:ball.state.position.z,command};
+    return true;
+  }
+
   function updateRestartActors(dt) {
     const restart = phase.restart;
     if(restart?.preparation){
       const p=restart.preparation,taker=restart.taker;p.time+=dt;
-      const walking=Math.min(1,p.time/.7);
-      taker.x=p.startX+(p.x-p.startX)*walking;taker.z=p.startZ+(p.z-p.startZ)*walking;
-      taker.vx=p.time<.7?(p.x-p.startX)/.7:0;taker.vz=p.time<.7?(p.z-p.startZ)/.7:0;
-      if(p.time>=.7&&!p.placing){p.placing=true;taker.model.placeBall?.(.65);}
-      const lower=Math.min(1,Math.max(0,(p.time-.7)/.36));
-      ball.state.position.set(taker.x+taker.facing.x*.45,1.23*(1-lower)+BALL.radius*lower,taker.z+taker.facing.z*.45);
-      ball.mesh.position.copy(ball.state.position);ball.shadow.position.set(ball.state.position.x,.02,ball.state.position.z);
-      if(p.time>=1.35){ball.attachTo(taker);ball.state.position.set(p.ballX,BALL.radius,p.ballZ);restart.preparation=null;}
+      const move=(x,z,speed,backward=false)=>{
+        const dx=x-taker.x,dz=z-taker.z,d=Math.hypot(dx,dz),step=Math.min(d,speed*dt);
+        taker.vx=d>.01?dx/d*speed:0;taker.vz=d>.01?dz/d*speed:0;
+        if(d>.01){taker.x+=dx/d*step;taker.z+=dz/d*step;}
+        if(!backward)faceTowards(taker,x,z,dt,10);
+        return d<=speed*dt+.03;
+      };
+      const next=(stage)=>{p.stage=stage;p.time=0;taker.vx=taker.vz=0;};
+      if(p.stage==='seek'){
+        const dx=p.pickupX-taker.x,dz=p.pickupZ-taker.z,d=Math.hypot(dx,dz)||1;
+        if(move(p.pickupX-dx/d*.46,p.pickupZ-dz/d*.46,4.3)){
+          next('pickup');taker.model.pickBall?.(.9);
+        }
+      }else if(p.stage==='pickup'){
+        if(p.time>=.9){next('carry');taker.model.carryBall?.(60);}
+      }else if(p.stage==='carry'){
+        if(move(p.ballX-p.fx*.46,p.ballZ-p.fz*.46,2.15)){
+          next('place');faceTowards(taker,p.ballX,p.ballZ,1,12);taker.model.placeBall?.(.9);
+        }
+      }else if(p.stage==='place'){
+        if(p.time>=.9){next('retreat');}
+      }else if(p.stage==='retreat'){
+        const back=restart.type==='goalkick'?2.1:1.1;
+        if(move(p.ballX-p.fx*back,p.ballZ-p.fz*back,1.25,true)){
+          restart.runup={x:p.ballX-p.fx*.46,z:p.ballZ-p.fz*.46};
+          restart.preparation=null;phase.timer=0;taker.vx=taker.vz=0;
+          ball.attachTo(taker);ball.state.position.set(p.ballX,BALL.radius,p.ballZ);
+        }
+      }else if(p.stage==='runup'){
+        if(move(restart.runup.x,restart.runup.z,3.2)){
+          const command=p.command;restart.preparation=null;restart.runup=null;
+          if(command)performHumanRestart(command.name,command.opts,restart);
+          else playRestart(1.2);
+        }
+      }
       return;
     }
     if (!restart?.ready || !['freekick', 'penalty', 'corner'].includes(restart.type)) return;
@@ -1089,6 +1157,7 @@ export function createMatch(options = {}) {
     const taker = restart.taker;
     const humanTakes = taker.side === userSide && controlled[userSide] === taker;
     if (humanTakes || phase.timer < 1.1) return;
+    if(beginRestartRunup(restart))return;
 
     if (restart.type === 'penalty') {
       const sign = attackSign(taker.side);
@@ -1442,8 +1511,9 @@ export function createMatch(options = {}) {
 
   function shootPenalty(player,opts={}){
     const sign=attackSign(player.side);
-    const aim=opts.aiAim??(training.enabled?input.moveX:Math.abs(input.moveX)>.12?input.moveX:setPieceOptions.aim);
-    const target=penaltyTarget(aim,opts.aiHeight??input.moveZ,sign);
+    rememberPenaltyAim();
+    const aim=opts.aiAim??(training.enabled?penaltyAim.x:setPieceOptions.aim);
+    const target=penaltyTarget(aim,opts.aiHeight??penaltyAim.y,sign);
     const power=22+Math.max(0,Math.min(1,opts.strength??.65))*7;
     ball.state.position.set(sign*(PITCH.halfLength-11),BALL.radius,0);
     shootBall(player,{power,spread:0,target,kind:opts.kind==='power'?'power':'placed',lift:.1});
@@ -1563,6 +1633,7 @@ export function createMatch(options = {}) {
   function performHumanRestart(name, opts, restart) {
     const taker = restart?.taker;
     if (!restart?.ready || restart.preparation || restart.side !== userSide || !taker || controlled[userSide] !== taker) return false;
+    if(['pass','shoot','lob'].includes(name)&&beginRestartRunup(restart,{name,opts}))return true;
     let acted = false;
     if (name === 'shoot') {
       const hasSetPieceTechnique = ['freekick', 'penalty', 'corner'].includes(restart.type);
@@ -1732,9 +1803,12 @@ export function createMatch(options = {}) {
         if(owner!==player||elapsedWorldTime<(player.skillUntil||0))return false;
         player.skillUntil=elapsedWorldTime+.75;
         if(name==='rainbow'){
-          ball.state.position.set(player.x+player.facing.x*.72,BALL.radius,player.z+player.facing.z*.72);
-          ball.kick(player.facing,5.5,1.35);ball.state.lastTouch=player;ball.state.lastIntentionalTouch=player;
-          ball.state.skillUntil=elapsedWorldTime+.55;
+          const profile=rainbowProfile(player.dribbling);
+          ball.kick(player.facing,2,4);ball.state.lastTouch=player;ball.state.lastIntentionalTouch=player;
+          ball.state.rainbow={player,profile,time:0,x:player.x,z:player.z,fx:player.facing.x,fz:player.facing.z};
+          ball.state.position.set(player.x-player.facing.x*.55,BALL.radius,player.z-player.facing.z*.55);
+          ball.state.skillUntil=elapsedWorldTime+profile.duration;
+          player.skillUntil=elapsedWorldTime+profile.duration+.4;
           player.model.skill?.('rainbow');
         }else{
           player.model.skill?.('stepover');player.burst=Math.max(player.burst||0,.65);
@@ -2179,6 +2253,7 @@ export function createMatch(options = {}) {
     training.keeperDelay=0;training.dribbleGate=0;
     input.moveX = 0;
     input.moveZ = 0;
+    penaltyAim.x=penaltyAim.y=0;
     input.sprint = false;
     training.cameraForward = { x: drill==='keeper'?-1:1, z: 0 };
     phase.name = 'play';
@@ -2382,9 +2457,10 @@ export function createMatch(options = {}) {
       }
     }
     const actors = allPlayers.filter(item => item.active);
-    ball.update(dt, actors);
+    if(!updateRainbow(dt))ball.update(dt, actors);
     const position = ball.state.position;
     if (['team','corner','free','dribble','shooting'].includes(training.drill) && !training.shotActive && !ball.state.owner
+      && !ball.state.rainbow && elapsedWorldTime >= (ball.state.skillUntil||0)
       && position.y < 1.8 && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 12) {
       const receiver = teams.home.players
         .filter(item => item.active)
@@ -2596,7 +2672,9 @@ export function createMatch(options = {}) {
       }
     } else if (phase.name === 'restart') {
       updateRestartActors(dt);
-      if (!phase.restart?.ready) {
+      if (phase.name !== 'restart') {
+        // A corrida de aproximação pode ter acabado de executar a cobrança.
+      } else if (!phase.restart?.ready) {
         phase.timer += dt;
         if (!phase.restart?.waitForReferee || !refereeDecision) {
           setupRestart(phase.restart);
@@ -2646,7 +2724,7 @@ export function createMatch(options = {}) {
 
       // Só a fase em jogo atualiza física, domínio e limites do campo.
       if (phase.name === 'play') {
-        ball.update(dt, allPlayers);
+        if(!updateRainbow(dt))ball.update(dt, allPlayers);
         handlePossession();
         handleBoundaries();
       }
@@ -2670,6 +2748,8 @@ export function createMatch(options = {}) {
       player.model.update(dt, modelMovementState(player));
       player.model.lookAt(ball.state.position);
     }
+
+    syncRestartBall();
 
     // Árbitro acompanha a jogada, mas sai do quadro da comemoração.
     if (phase.name !== 'goal') updateReferee(dt);
@@ -2756,6 +2836,9 @@ export function createMatch(options = {}) {
   function updateHuman(dt) {
     const player = controlled[userSide];
     if (!player?.active || player.slideTackle) return;
+    if(ball.state.rainbow?.player===player&&ball.state.rainbow.time<.62){
+      player.vx=player.vz=0;player.sprint=false;return;
+    }
     const bursting = (player.burst ?? 0) > 0;
     if (bursting) player.burst = Math.max(0, player.burst - dt);
     const speed = (input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED;
@@ -2785,6 +2868,23 @@ export function createMatch(options = {}) {
     if (!player.gkDiving && !faceVelocity(player, dt, 11)) faceTowards(player, ball.state.position.x, ball.state.position.z, dt, 10);
   }
 
+  function updateRainbow(dt) {
+    const flight=ball.state.rainbow;
+    if(!flight)return false;
+    flight.time=Math.min(flight.profile.duration,flight.time+dt);
+    const p=rainbowPoint(flight.time/flight.profile.duration,flight.profile);
+    ball.state.position.set(flight.x+flight.fx*p.forward,p.height,flight.z+flight.fz*p.forward);
+    ball.mesh.position.copy(ball.state.position);
+    ball.mesh.rotation.z+=dt*8;
+    ball.shadow.position.set(ball.state.position.x,.02,ball.state.position.z);
+    if(flight.time>=flight.profile.duration){
+      ball.state.rainbow=null;
+      ball.state.velocity.set(flight.fx*2,0,flight.fz*2);
+      ball.state.recovery={player:flight.player,radius:flight.profile.recoveryRadius,until:elapsedWorldTime+.65};
+    }
+    return true;
+  }
+
   /** Quem está perto da bola assume o domínio. */
   function handlePossession() {
     if (ball.state.owner) {
@@ -2806,10 +2906,12 @@ export function createMatch(options = {}) {
     }
 
     let best = null;
-    let bestDistance = 1.0;
+    let bestDistance = Infinity;
     for (const player of candidates) {
       const distance = Math.hypot(player.x - position.x, player.z - position.z);
-      if (distance < bestDistance) {
+      const recovery=ball.state.recovery;
+      const radius=recovery?.player===player && elapsedWorldTime<recovery.until ? recovery.radius : 1;
+      if (distance < radius && distance < bestDistance) {
         bestDistance = distance;
         best = player;
       }

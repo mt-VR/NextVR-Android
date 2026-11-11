@@ -1,9 +1,7 @@
-// Blusas (kits) dos times do XFC.
-//
-// Cada clube tem três uniformes — principal, reserva e terceiro — desenhados em
-// SVG a partir das cores do escudo. Por serem vetores, a blusa fica nítida em
-// qualquer tela (inclusive no celular deitado) e o jogo não carrega nenhum
-// arquivo de imagem a mais.
+// Uniformes do XFC: kits anteriores preservados e fotos identificadas do HTML.
+// Fotos são usadas nos menus; cores/padrões alimentam a reconstrução em campo.
+
+import { SHIRT_COLLECTION } from './shirt-collection.js';
 
 export const KITS = {
   'fc-barcelona': [
@@ -205,6 +203,8 @@ function shirtMarkup(kit, clipId) {
   const { primary, secondary, trim } = kit.colors;
   const stripes = [];
 
+  if(kit.pattern==='halves')stripes.push(`<rect x="110" y="0" width="110" height="240" fill="${secondary}"/>`);
+  if(kit.pattern==='hoops')for(let y=40;y<240;y+=40)stripes.push(`<rect x="0" y="${y}" width="220" height="20" fill="${secondary}"/>`);
   if (kit.pattern === 'stripes') {
     // Seis faixas verticais do ombro à barra, alternando as duas cores.
     const bodyLeft = 54;
@@ -269,6 +269,13 @@ for(const [club,details] of Object.entries(CLUB_KIT_DETAILS)){
 KITS.corinthians[0].colors.primary='#f4f4f2';
 KITS.corinthians[0].colors.secondary='#141414';
 if(KITS['river-plate']){KITS['river-plate'][0].colors.primary='#ffffff';KITS['river-plate'][0].colors.secondary='#d71920';}
+
+// Preserva os índices antigos dos saves e acrescenta cada foto ao clube certo.
+for (const shirt of SHIRT_COLLECTION) {
+  const list = KITS[shirt.teamId] ||= [];
+  list.push({ ...shirt, id: `collection-${shirt.number}`, shorts: shirt.colors.primary,
+    socks: shirt.colors.primary, print: shirt.colors.trim });
+}
 
 export function kitSvg(kit, { className = '', width = 220, id = '' } = {}) {
   if (!kit) return '';

@@ -31,9 +31,10 @@ import { startXfcServer } from '../xfc-game/serve.mjs';
 
 const GAME_ROOT = new URL('../xfc-game/', import.meta.url);
 
-test('XFC tem vinte e dois clubes, com onze em campo e sete reservas em cada um', () => {
-  assert.equal(TEAMS.length, 22, 'o jogo oferece vinte e dois clubes');
-  assert.deepEqual(TEAMS.map(team => team.id), [
+test('XFC preserva os clubes antigos e acrescenta os clubes identificados da coleção', () => {
+  assert.equal(TEAMS.length, 69, '22 clubes anteriores + 47 novos, sem duplicar');
+  assert.equal(new Set(TEAMS.map(t=>t.id)).size,TEAMS.length);
+  assert.deepEqual(TEAMS.slice(0,22).map(team => team.id), [
     'fc-barcelona', 'real-madrid', 'ibis-esporte', 'parana-clube',
     'flamengo', 'palmeiras', 'corinthians', 'santos',
     'aston-villa', 'brentford', 'panathinaikos', 'river-plate', 'levante', 'huddersfield-town',
@@ -570,14 +571,15 @@ test('os escudos enviados dos clubes brasileiros e o visual low-poly do Neymar e
   assert.deepEqual(neymar.appearance, {
     skinTone: '#bd8868', hairColor: '#241b15', hairStyle: 'neymar', heightScale: 1.01
   }, 'Neymar tem um visual low-poly próprio com crista espetada');
-  assert.equal(kitsOf('santos').length, 3, 'Santos tem uniforme principal, reserva e terceiro');
+  assert.equal(kitsOf('santos').length, 4, 'Santos mantém três kits e recebe a foto da coleção');
 });
 
-test('todo clube tem escudo e três blusas no pacote', () => {
+test('todo clube tem escudo e uniformes no pacote', () => {
   for (const team of TEAMS) {
     assert.ok(existsSync(new URL(team.crest, GAME_ROOT)), `escudo existe: ${team.crest}`);
     const kits = kitsOf(team.id);
-    assert.equal(kits.length, 3, `${team.name} tem três blusas`);
+    assert.ok(kits.length >= 1, `${team.name} tem uniforme`);
+    if(team.squadSource!=='generated')assert.ok(kits.length>=3,'preserva os kits antigos');
     for (const kit of kits) {
       assert.ok(kit.colors.primary && kit.colors.secondary, `${team.name}: blusa com cores`);
       assert.ok(kitSvg(kit).includes('<svg'), `${team.name}: blusa desenhada em SVG`);
@@ -1310,12 +1312,14 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       match.world.tick(1 / 60);
       const restart = match.phase.restart;
       const shotsBeforeRestartInput = match.world.snapshot().stats.home.shots;
-      for (let index = 0; index < 90; index += 1) match.world.tick(1 / 60);
+      for (let index = 0; index < 2000 && restart?.preparation; index += 1) match.world.tick(1 / 60);
+      for(let i=0;i<90;i++)match.world.tick(1/60);
       const restartWaitsForInput = match.phase.restart === restart
         && match.phase.restart?.ready
         && match.ball.state.owner === homeKeeper
         && match.world.snapshot().stats.home.shots === shotsBeforeRestartInput;
       const explicitShotAccepted = match.world.command('shoot', { strength: 0.7 });
+      for(let i=0;i<60;i++)match.world.tick(1/60);
       const result = {
         scored,
         noTouch,

@@ -178,6 +178,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     state.owner = null;
     state.goalPocket = 0;
     state.skillUntil = 0;
+    state.rainbow = state.recovery = null;
     state.lastTouch = null;
     state.lastIntentionalTouch = null;
     state.guidance = null;
@@ -195,6 +196,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
       const dx = Number(direction?.x) || 0;
       const dz = Number(direction?.z) || 0;
       state.goalPocket = 0;
+      state.rainbow = state.recovery = null;
       state.flightId += 1;
       state.velocity.set(dx * speed, speed * lift, dz * speed);
       // X/Z representam a rotação de rolamento; Y guarda apenas o efeito lateral.

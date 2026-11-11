@@ -53,6 +53,7 @@ export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=fa
     for(let face=0;face<2;face++){
       const offset=face*512;c.save();c.translate(offset,0);
       if(kit.pattern==='stripes') {c.fillStyle=secondary;for(let x=0;x<512;x+=120)c.fillRect(x,0,56,512);}
+      if(kit.pattern==='halves'){c.fillStyle=secondary;c.fillRect(256,0,256,512);}
       if(kit.pattern==='hoops') {c.fillStyle=secondary;for(let y=0;y<512;y+=100)c.fillRect(0,y,512,48);}
       if(kit.pattern==='sash'){c.strokeStyle=secondary;c.lineWidth=65;c.beginPath();c.moveTo(70,0);c.lineTo(420,512);c.stroke();}
       // Atlas is in glTF's top-left image convention: v=0 is the hem.

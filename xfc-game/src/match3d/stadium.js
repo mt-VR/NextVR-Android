@@ -20,7 +20,7 @@ const LIGHTING_PRESETS = Object.freeze({
     fog: 0x8eafbd,
     hemisphereSky: 0xe8f5ff,
     hemisphereGround: 0x68834d,
-    hemisphereIntensity: 0.72,
+    hemisphereIntensity: 0.92,
     keyColor: 0xfff1dc,
     keyIntensity: 1.22,
     fillColor: 0xd8eaff,
@@ -38,7 +38,7 @@ const LIGHTING_PRESETS = Object.freeze({
     fog: 0x392f40,
     hemisphereSky: 0xd0d8f0,
     hemisphereGround: 0x64543f,
-    hemisphereIntensity: 0.64,
+    hemisphereIntensity: 0.85,
     keyColor: 0xffd3a0,
     keyIntensity: 1.23,
     fillColor: 0xb6d7ff,
@@ -56,13 +56,13 @@ const LIGHTING_PRESETS = Object.freeze({
     fog: 0x0a1a26,
     hemisphereSky: 0xc5dff4,
     hemisphereGround: 0x3c6340,
-    hemisphereIntensity: 0.78,
+    hemisphereIntensity: 0.98,
     keyColor: 0xfff4de,
     keyIntensity: 1.3,
     fillColor: 0xbdd8ff,
-    fillIntensity: 0.58,
+    fillIntensity: 0.72,
     crossIntensity: 0.23,
-    ambientIntensity: 0.16,
+    ambientIntensity: 0.24,
     floodlightIntensity: 0.38,
     rimColor: 0xc7e2ff,
     rimIntensity: 0.43,
@@ -151,7 +151,7 @@ function drawPitchBase(context, width, height, lowPower = false) {
   const bands = 14;
   const bandWidth = width / bands;
   for (let band = 0; band < bands; band += 1) {
-    const shade = band % 2 === 0 ? '#438847' : '#37743e';
+    const shade = band % 2 === 0 ? '#56a750' : '#469245';
     context.fillStyle = shade;
     context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
     const edge = context.createLinearGradient(band * bandWidth, 0, (band + 1) * bandWidth, 0);
