@@ -1700,13 +1700,22 @@ test('Treino de pênaltis: câmera Pro, batedor, goleiro e prática de chute', {
     const outcome = await page.evaluate(() => {
       const match = window.__xfcTrainingMatch;
       match.engine.stop();
-      match.world.command('shoot', { strength: 1 });
-      for (let index = 0; index < 240; index += 1) match.world.tick(1 / 60);
+      const before = { ...match.world.trainingStats };
+      const completed = stats => stats.goals + stats.saves + stats.misses;
+      const accepted = match.world.command('shoot', { strength: 1 });
+      // A aproximação leva 0,46 s ANTES dos até 3,8 s de voo/rebote.
+      // Quatro segundos cortavam a tentativa antes do encerramento por tempo.
+      // Avançar tempo simulado, sem depender do FPS ou esperar indefinidamente.
+      for (let frame = 0; frame < 300 && completed(match.world.trainingStats) === completed(before); frame += 1) {
+        match.world.tick(1 / 60);
+      }
       const stats = match.world.trainingStats;
-      return { goals: stats.goals, saves: stats.saves, misses: stats.misses };
+      return { accepted, shots: stats.shots - before.shots, results: completed(stats) - completed(before) };
     });
-    assert.ok(outcome.goals + outcome.saves + outcome.misses > 0,
-      'o chute conclui o exercício com gol, defesa do goleiro ou tentativa para fora');
+    assert.equal(outcome.accepted, true, 'a cobrança após reiniciar aceita CHUTE');
+    assert.equal(outcome.shots, 1, 'a aproximação registra exatamente um chute');
+    assert.equal(outcome.results, 1,
+      'o chute conclui exatamente uma tentativa dentro de cinco segundos simulados');
 
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `o Centro de Treino não deve gerar erro: ${realErrors.join(' | ')}`);

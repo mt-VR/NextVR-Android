@@ -49,6 +49,32 @@ test('pênalti: 50 cm, espera a confirmação, aproximação sem mover bola, pau
  m.world.setPaused(true);m.world.tick(.1);const paused=hero.x===before;m.world.setPaused(false);m.world.input.moveX=-1;
  for(let i=0;i<44;i++)m.world.tick(1/120);return{waiting,accepted,duplicate,moving,stillBall,paused,shots:m.world.trainingStats.shots,v:m.ball.state.velocity.toArray(),approach:m.world.penaltyApproach,keeper:m.world.members('away')[0].penaltyDecision?.lane};});
  assert.ok(Math.abs(r.waiting.distance-.5)<.001,JSON.stringify(r));assert.equal(r.waiting.shots,0);assert.ok(r.accepted&&r.moving&&r.paused);assert.equal(r.duplicate,false);assert.ok(r.stillBall<1e-7);assert.equal(r.shots,1);assert.equal(r.approach,null);assert.ok(r.v[2]>0);assert.ok([-1,0,1].includes(r.keeper));
+ // Reproduz deterministicamente o caminho longo (rebote/bola sem cruzar a linha).
+ // O prazo de 3,8 s da tentativa só começa DEPOIS da aproximação de 0,46 s.
+ const timeout = await p.evaluate(() => {
+   const m = window.__xfcTrainingMatch;
+   m.world.prepareTraining();
+   const before = { ...m.world.trainingStats };
+   const accepted = m.world.command('shoot', { strength: 1 });
+   for (let frame = 0; frame < 28; frame++) m.world.tick(1 / 60);
+   const released = m.world.penaltyApproach === null && m.world.trainingStats.shots === before.shots + 1;
+   // Isola o encerramento por tempo da escolha aleatória do goleiro e da física do rebote.
+   m.ball.reset(0, 15);
+   for (let frame = 28; frame < 240; frame++) m.world.tick(1 / 60);
+   const atFour = { ...m.world.trainingStats };
+   for (let frame = 240; frame < 300; frame++) m.world.tick(1 / 60);
+   const atFive = { ...m.world.trainingStats };
+   for (let frame = 0; frame < 120; frame++) m.world.tick(1 / 60);
+   return { accepted, released, before, atFour, atFive, afterReset: { ...m.world.trainingStats } };
+ });
+ assert.equal(timeout.accepted, true);
+ assert.equal(timeout.released, true);
+ assert.equal(timeout.atFour.misses, timeout.before.misses, '4 s totais ainda não completam o prazo pós-contato');
+ assert.equal(timeout.atFive.misses, timeout.before.misses + 1, 'a tentativa termina até 5 s totais');
+ assert.equal(timeout.atFive.shots, timeout.before.shots + 1);
+ assert.equal(timeout.atFive.goals, timeout.before.goals);
+ assert.equal(timeout.atFive.saves, timeout.before.saves);
+ assert.deepEqual(timeout.afterReset, timeout.atFive, 'reinício automático não duplica o resultado');
  }finally{await b.close();server.close();}
 });
 
