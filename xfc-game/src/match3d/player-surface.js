@@ -20,11 +20,11 @@ const hairShapes=new Map();
 export function hairstyleGeometry(mesh,style='short') {
   const key=`${mesh.geometry.uuid}:${style}`;if(hairShapes.has(key))return hairShapes.get(key);
   const g=mesh.geometry.clone();const pos=g.attributes.position;
-  const height={short:1,curly:1.25,afro:1.55,neymar:1.2,side:1.05,bald:.5}[style]||1;
+  const height={short:1,curly:1.25,afro:1.55,mohawk:1.65,neymar:1.2,side:1.05,bald:.5}[style]||1;
   for(let i=0;i<pos.count;i++){
     const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);
     const rise=Math.max(0,y-1.70);
-    pos.setXYZ(i,x*(style==='afro'?1.22:1),y+Math.min(.075,rise*(height-1)),z*(style==='afro'?1.1:1));
+    pos.setXYZ(i,x*(style==='afro'?1.22:style==='mohawk'?.4:1),y+Math.min(.075,rise*(height-1)),z*(style==='afro'?1.1:1));
   }
   pos.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();hairShapes.set(key,g);return g;
 }

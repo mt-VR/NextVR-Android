@@ -184,20 +184,20 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.30
+          TAG=xfc-gameplay-v0.5.31
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.30 (versionCode 36), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.31 (versionCode 37), commit ${GITHUB_SHA}." \
             "" \
-            "Times por país (Espanha, Brasil e demais), pênalti com espera a 50 cm e aproximação após CHUTE, mira congelada e goleiro escolhendo canto independentemente." \
+            "Pênalti com espera a 5 metros e aproximação de 1,35 s após CHUTE. Mira congelada e escolha independente do goleiro." \
             "" \
-            "Corrida com cotovelos mais soltos, amortecimento dos joelhos e cadência por deslocamento revisada. Mesmo modelo e corpo de 1,75 m; impulso do goleiro articulado." \
+            "Carreira com arte de Neymar fornecida pelo usuário, clube inicial livre, OVR inicial 57, posição/cabelo/chuteira/pele e prévia do mesmo modelo Micah 3D. Progresso local e controle de um atleta." \
             "" \
-            "Carreira LOCAL de jogador: criação, controle de um atleta, 8 clubes/14 rodadas, calendário, tabela, desempenho, XP/atributos e troca livre de clube entre temporadas. Sem teste em telefone físico. Detalhes: docs/v0.5.30.md. Modos e saves anteriores preservados.")
+            "Kick Off separado: seleção por país e uniformes dos dois lados conforme as referências enviadas; Jogo Rápido anterior preservado. 116 testes locais passaram, sem testes pulados. Sem teste em telefone físico. Detalhes: docs/v0.5.31.md. Saves anteriores preservados.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — carreira de jogador, países e pênaltis v0.5.30" \
+            gh release create "$TAG" --title "XFC 27 — carreira Neymar, Kick Off e pênalti 5 m v0.5.31" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — carreira de jogador, países e pênaltis v0.5.30" \
+            gh release edit "$TAG" --title "XFC 27 — carreira Neymar, Kick Off e pênalti 5 m v0.5.31" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

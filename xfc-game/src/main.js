@@ -10,6 +10,7 @@ import { el, clear } from './ui/dom.js';
 import { introScreen } from './screens/intro.js';
 import { launchScreen } from './screens/launch.js';
 import { menuScreen } from './screens/menu.js';
+import { teamSelectionScreen } from './screens/team-selection.js';
 import { kickoffScreen } from './screens/kickoff.js';
 import { kitsScreen } from './screens/kits.js';
 import { squadScreen } from './screens/squad.js';
@@ -49,6 +50,7 @@ const registry = {
   launch: launchScreen,
   menu: menuScreen,
   kickoff: kickoffScreen,
+  friendly: (ctx,params={})=>teamSelectionScreen(ctx,{...params,selectionRoute:'friendly'}),
   kits: kitsScreen,
   squad: squadScreen,
   match: matchScreen,

@@ -204,8 +204,7 @@ export function createMatch(options = {}) {
   const isUserControlled = player => player?.side === userSide && controlled[userSide] === player;
 
   function modelMovementState(player) {
-    const inRunup=penaltyRunup?.player===player;
-    const speed = inRunup?4.8:playerSpeed(player);
+    const speed = playerSpeed(player);
     const ownsBall = player.active && ball.state.owner === player;
     let protecting = false;
     if (ownsBall) {
@@ -224,7 +223,7 @@ export function createMatch(options = {}) {
     return {
       speed,
       moving: speed > 0.25,
-      strideScale:inRunup?.35:1,
+      strideScale:1,
       lean: player.turnLean || 0,
       ownsBall,
       shotCharge:ownsBall&&isUserControlled(player)?input.shotCharge:0,
@@ -381,6 +380,7 @@ export function createMatch(options = {}) {
         skinTone: look.skinTone,
         hairColor: look.hairColor,
         hairStyle: look.hairStyle,
+        bootColor: look.bootColor,
         heightScale: look.heightScale,
         // O retrato pode enriquecer o rosto 3D; corpo e uniforme continuam em 3D.
         photo: portraitFor(data) || null
@@ -990,7 +990,7 @@ export function createMatch(options = {}) {
     } else {
       faceTowards(taker, sign * PITCH.halfLength, 0, 1, 12);
     }
-    if(restart.type==='penalty'){taker.x=placeX-sign*.50;taker.root.position.set(taker.x,0,taker.z);}
+    if(restart.type==='penalty'){taker.x=placeX-sign*5;taker.root.position.set(taker.x,0,taker.z);}
     if (side === userSide) selectControlled(taker);
     restart.ready = true;
     if(['goalkick','corner'].includes(restart.type)){
@@ -1519,7 +1519,7 @@ export function createMatch(options = {}) {
     if(penaltyRunup)return false;
     rememberPenaltyAim();
     const sign=attackSign(player.side),x=sign*(PITCH.halfLength-11);
-    penaltyRunup={player,elapsed:0,duration:.46,fromX:player.x,fromZ:player.z,ballX:x,
+    penaltyRunup={player,elapsed:0,duration:1.35,fromX:player.x,fromZ:player.z,ballX:x,
       lane:choosePenaltyLane(rng),opts:{...opts,aiAim:opts.aiAim??(training.enabled?penaltyAim.x:setPieceOptions.aim),aiHeight:opts.aiHeight??penaltyAim.y}};
     ball.state.owner=null;ball.state.position.set(x,BALL.radius,0);ball.state.velocity.set(0,0,0);
     return true;
@@ -2293,8 +2293,8 @@ export function createMatch(options = {}) {
     } else if(drill==='free'||drill==='dribble'){
       place(player,drill==='dribble'?14:0,0,1);
     } else if (drill === 'penalty') {
-      // O ponto fica a 11 m da linha do gol; a bola presa ao pé fica à frente.
-      place(player, PITCH.halfLength - 11.50, 0, 1);
+      // Bola na marca de 11 m; cobrador espera 5 m atrás até confirmar CHUTE.
+      place(player, PITCH.halfLength - 16, 0, 1);
     } else {
       // Pequeno campo de ataque em 4-3-3: os dez jogadores de linha ocupam
       // corredores separados e formam opções curtas, diagonais e em profundidade.
@@ -2371,7 +2371,8 @@ export function createMatch(options = {}) {
     const isPenalty=training.drill==='penalty';
     const cameraDistance = isPenalty?6.8:9.2 + Math.min(1.2, speed * 0.1);
     const desiredX = player.x - forwardX * cameraDistance;
-    const desiredY = isPenalty?2.75:4.7 + Math.min(0.3, speed * 0.035);
+    // Mantém o eixo Pro; altura suficiente para ver a bola além do atleta a 5 m.
+    const desiredY = isPenalty?4.8:4.7 + Math.min(0.3, speed * 0.035);
     const desiredZ = player.z - forwardZ * cameraDistance;
 
     const ballDx = ball.state.position.x - player.x;
@@ -2381,7 +2382,7 @@ export function createMatch(options = {}) {
     const lead = Math.max(7.5, Math.min(13, 8.8 + ballAhead * 0.2));
     const lateral = Math.max(-1.4, Math.min(1.4, ballLateral * 0.12));
     const targetX = player.x + forwardX * lead + rightX * lateral;
-    const targetY = 1.2 + Math.min(0.45, Math.max(0, ball.state.position.y - 0.7) * 0.08);
+    const targetY = (isPenalty ? .25 : 1.2) + Math.min(0.45, Math.max(0, ball.state.position.y - 0.7) * 0.08);
     const targetZ = player.z + forwardZ * lead + rightZ * lateral;
     const targetFov = isPenalty?46:training.shotActive ? 56 : 52;
 
@@ -3150,7 +3151,7 @@ export function createMatch(options = {}) {
 
     if (restart.type === 'penalty') {
       // Eixo central atrás do batedor: batedor, goleiro e gol ficam alinhados.
-      position = { x: taker.x - sign * 8.2, y: 3.05, z: taker.z };
+      position = { x: taker.x - sign * 8.2, y: 4.8, z: taker.z };
       target = { x: sign * (PITCH.halfLength - 1.1), y: 1.08, z: 0 };
       fov = 43;
     } else if (restart.type === 'corner') {
@@ -3188,7 +3189,7 @@ export function createMatch(options = {}) {
     if (shotCamera.type === 'penalty' && shotCamera.taker) {
       const sign = attackSign(shotCamera.side);
       blendCameraPose(dt,
-        { x: shotCamera.taker.x - sign * 8.2, y: 3.05, z: shotCamera.taker.z },
+        { x: shotCamera.taker.x - sign * 8.2, y: 4.8, z: shotCamera.taker.z },
         {
           x: position.x + dirX * 2.6,
           y: Math.max(0.95, position.y * 0.55),

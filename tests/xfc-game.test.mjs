@@ -708,7 +708,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await imagesReady();
     const navLabels = await page.locator('.menu__item-label').allTextContents();
     assert.deepEqual(navLabels, [
-      'FC NEWS', 'JOGO RÁPIDO', 'THE GROUNDS', 'ULTIMATE TEAM', 'LEARN TO PLAY',
+      'JOGO RÁPIDO', 'FC NEWS', 'KICK OFF', 'THE GROUNDS', 'ULTIMATE TEAM', 'LEARN TO PLAY',
       'SEASONS', 'TOURNAMENTS', 'TIME ALEATÓRIO', 'ONLINE FRIENDLIES'
     ], 'o menu mantém as opções do hub em uma lista vertical');
     assert.equal(await page.locator('.menu__item.is-focused').getAttribute('data-menu-item'), 'kickoff',
@@ -860,38 +860,33 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     const teamNames = await page.locator('.team-card__name').allTextContents();
     assert.ok(teamNames.includes('FC Barcelona'), 'Barcelona aparece na escolha de times');
     assert.ok(teamNames.includes('Real Madrid'), 'Real Madrid aparece na escolha de times');
-    assert.equal(await page.locator('.selection-shirt').count(), 2, 'a referência mostra um uniforme selecionado por time');
+    assert.equal(await page.locator('.kickoff-card').count(), 2, 'a referência mostra um cartão por time');
     await imagesReady();
     assert.ok(await page.locator('.team-card__crest').first().isVisible(), 'os escudos aparecem');
 
     // Países são grupos independentes: Espanha primeiro, Brasil segundo.
     const countries=await page.getByLabel('País do mandante').locator('option').allTextContents();
     assert.deepEqual(countries.slice(0,2),['Espanha','Brasil']);
-    const nextClub='.kickoff__slot[data-slot="home"] .picker-arrow--crest:last-child';
+    const nextClub='.kickoff-column[data-slot="home"] .kickoff-crest-row button:last-child';
     await page.getByLabel('País do mandante').selectOption('Brasil');
     assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Ibis'));
     await page.click(nextClub);assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Paraná'));
     await page.getByLabel('País do mandante').selectOption('Espanha');
     assert.equal(await page.locator('.team-card__name').first().textContent(),'FC Barcelona');
 
-    // Tela de blusas: READY, carrossel com três uniformes e a prévia dos dois
-    // jogadores (um de cada lado).
-    await page.click('.btn:has-text("Blusas")');
+    // Kick Off: uniformes reais, dois carrosséis e confirmação independente.
+    await page.click('.continue-btn');
     await page.waitForSelector('.screen--kits');
-    assert.ok((await page.locator('.kits__ready').textContent()).includes('READY'), 'a tela de blusas tem READY');
-    assert.equal(await page.locator('.kits__row .kits__tile').count(), 3, 'o carrossel mostra três blusas');
-    assert.equal(await page.locator('.kits__preview-figure svg').count(), 2, 'os dois jogadores vestem o uniforme');
-    assert.equal(await page.locator('.kits__preview-figure img').count(), 0,
-      'sem foto de pacote, a prévia usa o desenho em SVG');
-    await page.click('.kits__arrow:last-child');
-    assert.ok((await page.locator('.kits__tile-name').nth(1).textContent()).length > 0, 'a blusa escolhida tem nome');
+    await page.waitForFunction(()=>document.querySelector('.kickoff-models')?.dataset.ready==='true');
+    assert.equal(await page.locator('.kickoff-kit-shirt').count(),6);
+    await page.getByLabel('Próximo uniforme (mandante)',{exact:true}).click();
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--kickoff');
 
     // Escolha do confronto e ida para o elenco.
-    await page.click('.team-card:has-text("FC Barcelona")');
-    await page.click('.team-card:has-text("Real Madrid")');
-    await page.click('.btn:has-text("Ver elenco")');
+    await page.getByLabel('Selecionar FC Barcelona',{exact:true}).click();
+    await page.getByLabel('Selecionar Real Madrid',{exact:true}).click();
+    await page.locator('.kickoff-column--away').getByRole('button',{name:'Ver elenco',exact:true}).click();
     await page.waitForSelector('.screen--squad');
     await imagesReady();
     assert.equal(await page.locator('.pitch-player').count(), 11, 'o campo mostra onze jogadores');
@@ -901,7 +896,10 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // CONTINUAR leva à escolha de estádios (galeria dos seis estádios).
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--kickoff');
-    await page.click('.screen--kickoff .continue-btn', { noWaitAfter: true });
+    await page.click('.screen--kickoff .continue-btn');
+    await page.getByLabel('Confirmar uniforme (mandante)',{exact:true}).click();
+    await page.getByLabel('Confirmar uniforme (visitante)',{exact:true}).click();
+    await page.getByRole('button',{name:'Continuar →',exact:true}).click();
     await page.waitForSelector('.screen--stadiums', { timeout: 15000 });
     assert.equal(await page.locator('.stadiums__card').count(), 6, 'a galeria mostra os seis estádios');
     await page.click('.stadiums__card:first-child', { noWaitAfter: true });
@@ -1703,10 +1701,10 @@ test('Treino de pênaltis: câmera Pro, batedor, goleiro e prática de chute', {
       const before = { ...match.world.trainingStats };
       const completed = stats => stats.goals + stats.saves + stats.misses;
       const accepted = match.world.command('shoot', { strength: 1 });
-      // A aproximação leva 0,46 s ANTES dos até 3,8 s de voo/rebote.
+      // A aproximação leva 1,35 s ANTES dos até 3,8 s de voo/rebote.
       // Quatro segundos cortavam a tentativa antes do encerramento por tempo.
       // Avançar tempo simulado, sem depender do FPS ou esperar indefinidamente.
-      for (let frame = 0; frame < 300 && completed(match.world.trainingStats) === completed(before); frame += 1) {
+      for (let frame = 0; frame < 360 && completed(match.world.trainingStats) === completed(before); frame += 1) {
         match.world.tick(1 / 60);
       }
       const stats = match.world.trainingStats;
@@ -1715,7 +1713,7 @@ test('Treino de pênaltis: câmera Pro, batedor, goleiro e prática de chute', {
     assert.equal(outcome.accepted, true, 'a cobrança após reiniciar aceita CHUTE');
     assert.equal(outcome.shots, 1, 'a aproximação registra exatamente um chute');
     assert.equal(outcome.results, 1,
-      'o chute conclui exatamente uma tentativa dentro de cinco segundos simulados');
+      'o chute conclui exatamente uma tentativa dentro de seis segundos simulados');
 
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `o Centro de Treino não deve gerar erro: ${realErrors.join(' | ')}`);

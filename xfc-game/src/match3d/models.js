@@ -206,7 +206,7 @@ export function createGltfPlayer(options = {}) {
     isKeeper = false,
     simplified = false,
     preferredFoot = 'Right',
-    skinTone, hairColor = '#251a12', hairStyle = 'short'
+    skinTone, hairColor = '#251a12', hairStyle = 'short', bootColor = null
   } = options;
 
   const root = new THREE.Group();
@@ -244,7 +244,7 @@ export function createGltfPlayer(options = {}) {
 
   const primary = new THREE.Color(isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary);
   const secondary = new THREE.Color(isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary);
-  root.userData.appearance = { skinTone, hairColor, hairStyle, source: options.appearanceSource };
+  root.userData.appearance = { skinTone, hairColor, hairStyle, bootColor, source: options.appearanceSource };
   const ownedTextures = [];
   const shadowMeshes = [];
   const materials = [];
@@ -269,6 +269,7 @@ export function createGltfPlayer(options = {}) {
       }
       if(name === 'Micah | anatomical body.body' && skinTone) clone.map=recolorSurface(material.map,skinTone);
       if(name === 'Micah | anatomical body.short01') clone.map=recolorSurface(material.map,hairColor,.08);
+      if(name === 'Micah | anatomical body.shoes06' && bootColor) clone.map=recolorSurface(material.map,bootColor,.08);
       if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
       refinePlayerMaterial(clone,{surface:options.graphics?.surface??!simplified});

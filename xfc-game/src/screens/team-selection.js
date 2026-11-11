@@ -5,7 +5,7 @@ import {TEAMS,getTeam} from '../data/teams.js';
 import {kitsOf,kitShirt,kitSvg} from '../data/kits.js';
 
 export function teamSelectionScreen(ctx,params={}){
-  const {state}=ctx, randomMode=!!params.randomMode, route=randomMode?'quick':'kickoff';
+  const {state}=ctx, randomMode=!!params.randomMode, route=params.selectionRoute||(randomMode?'quick':'kickoff');
   const back=()=>ctx.go(params.returnTo||'menu');
   let focusSide=state.settings.focus||'home';
   let minutes=params.minutes??state.settings.matchMinutes??6;

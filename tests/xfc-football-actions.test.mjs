@@ -258,7 +258,7 @@ test(
           for(let i=0;i<15;i++)m.world.tick(1/120);
           const retained={...marker.userData.target};
           m.world.command('shoot', { strength: 0.8 });
-          for(let i=0;i<56;i++)m.world.tick(1/120);
+          for(let i=0;i<240&&m.world.penaltyApproach;i++)m.world.tick(1/120);
           const v = m.ball.state.velocity.clone(),
             lane = keeper.penaltyDecision.lane;
           // Atleta/inimigos não redirecionam a mira após o chute.
@@ -284,7 +284,7 @@ test(
         assert.ok(Math.abs(shot.v[2] / shot.v[0] - shot.target.z / 11) < 1e-6);
         assert.ok([-1, 0, 1].includes(shot.lane));
         assert.equal(shot.after, shot.lane);
-        assert.ok(shot.cameraY < 3.1);
+        assert.ok(shot.cameraY >= 4.5 && shot.cameraY <= 5.1, 'câmera central elevada deixa a bola visível além do cobrador a 5 m');
       }
     } finally {
       await browser.close();

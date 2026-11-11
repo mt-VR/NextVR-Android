@@ -1023,6 +1023,7 @@ export function createPlayer3D(options = {}) {
     skinTone = SKIN_TONES[0],
     hairColor = HAIR_COLORS[0],
     hairStyle = 'short',
+    bootColor = '#171b20',
     heightScale = 1,
     photo = null,
     simplified = false,
@@ -1080,8 +1081,8 @@ export function createPlayer3D(options = {}) {
   const socksMaterial = new THREE.MeshLambertMaterial({ color: accent });
   const sockBandMaterial = new THREE.MeshLambertMaterial({ color: 0xf4f6f8 });
   const bootMaterial = lowDetail
-    ? new THREE.MeshLambertMaterial({ color: 0x171b20 })
-    : new THREE.MeshPhongMaterial({ color: 0x171b20, specular: 0x50545a, shininess: 28 });
+    ? new THREE.MeshLambertMaterial({ color: bootColor })
+    : new THREE.MeshPhongMaterial({ color: bootColor, specular: 0x50545a, shininess: 28 });
   const soleMaterial = lowDetail
     ? new THREE.MeshLambertMaterial({ color: 0x2a2f36 })
     : new THREE.MeshPhongMaterial({ color: 0x2a2f36, specular: 0x585d63, shininess: 22 });

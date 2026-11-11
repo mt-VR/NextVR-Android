@@ -1,9 +1,10 @@
 # XFC — o jogo de futebol da XF Esports
 
-**v0.5.30:** clubes agrupados por país (Espanha/Brasil primeiro), cobrança de
-pênalti com espera de 50 cm e aproximação confirmada, corrida mais solta e
-**carreira local de jogador** com calendário, evolução e save.
-[Detalhes e limites](docs/v0.5.30.md).
+**v0.5.31:** carreira com a arte enviada de Neymar, clube inicial livre, OVR 57,
+posição/cabelo/chuteira e prévia do mesmo atleta 3D. Kick Off separado com as
+referências de seleção de times/uniformes; Jogo Rápido antigo preservado.
+Pênalti: espera a **5 metros**, aproximação após confirmar CHUTE.
+[Detalhes e limites](docs/v0.5.31.md).
 
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de
@@ -23,7 +24,7 @@ O XFC já reúne as telas principais e a partida de futebol em 3D:
 3. **Personalização** — grade de oito opções para perfil, configurações, online, tempo de jogo, criação de atleta, elenco e trilha sonora; preferências de perfil ficam salvas localmente.
 4. **Modos e torneios** — carrossel com Copa do Mundo, UEFA Champions League, CONMEBOL Libertadores, final de copa, Home & Away, Best of Series, Copa América e partidas rápidas.
 5. **Copa do Mundo jogável** — escolha uma das 32 seleções de 2022; o jogo sorteia aleatoriamente o grupo. Dispute os três jogos da fase de grupos; os dois primeiros de cada grupo avançam às oitavas, quartas, semifinais e final. A campanha termina se a seleção não se classificar.
-6. **Kick Off / Classic Match** — escolha entre 22 clubes, incluindo Corinthians e Santos, selecione estádio e uniforme e consulte os elencos.
+6. **Kick Off / Classic Match** — 69 clubes por país, seleção e confirmação independente dos uniformes dos dois lados, estádio e elencos. **Jogo Rápido** mantém o menu anterior.
 7. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados). Faltas fora da área geram tiros livres no ponto do incidente; dentro da área defensora, geram pênalti na marca penal. Antes de uma falta direta, o quadrado de contato ajusta curva e altura, e mostra a trajetória prevista e a chance de gol. Barreiras, goleiro e bola são posicionados antes da cobrança. Saídas e reposições humanas aguardam **PASSE**, **ENFIADA** ou **CHUTE**, sem comandos ofensivos automáticos.
 8. **Comemoração de gol** — cinco estilos alternados; o autor e até dois companheiros próximos comemoram, enquanto a câmera acompanha a jogada e a HUD destaca o autor.
 

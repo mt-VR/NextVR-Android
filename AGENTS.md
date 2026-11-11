@@ -569,3 +569,18 @@ cd xfc-game/android && ./gradlew assembleDebug
 - Gol chega no campo `event.scorer`, não `event.player`: contabilizar corretamente
   o atleta criado. XP do modo não se mistura às moedas/XP gerais ou UT.
 - Novos testes `xfc-career-penalty.test.mjs` no CI; documentação v0.5.30.md.
+
+### v0.5.31 — referências da carreira e Kick Off
+
+- `screens/career.js`: arte original em `assets/ui/career/reference.png`, Neymar
+  fixo; dados e controles DOM por cima. Novas carreiras OVR 57, customização
+  validada em `data/career.js`; saves anteriores conservam atributos/XP.
+- `ui/player-preview.js` reaproveita Micah GLB em canvas transparente; não
+  substituir o corpo nem confundir a arte de Neymar com a prévia 3D editável.
+- `kickoff.js` e `kickoff-kits.js`: referência verde enviada, seleções reais,
+  confirmação por lado. `friendly` mantém Jogo Rápido com `team-selection.js`;
+  `quick` continua Time Aleatório. Não unificar novamente os dois visuais.
+- Pênaltis em treino/partida/IA: 5 m, 1,35 s de aproximação depois de CHUTE.
+  O prazo de encerramento por tempo começa no contato, não no comando.
+- Proveniência nas duas pastas de assets; derivação reproduzível em
+  `tools/prepare-career-kickoff.py`. Sem novas garantias de FPS/celular.
