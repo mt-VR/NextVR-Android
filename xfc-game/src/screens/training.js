@@ -142,9 +142,9 @@ function trainingSessionScreen(ctx, params, drill) {
   );
   const instructions = el('div', { class: 'training__instructions' },
     el('span', { class: 'training__camera-badge', text: 'CÂMERA PRO' }),
-    el('span', { text: 'ANALÓGICO: MOVIMENTAR' }),
+    el('span', { text: drill.id==='penalty'?'BATEDOR FIXO NA MARCA':'ANALÓGICO: MOVIMENTAR' }),
     el('span', { text: drill.instruction }),
-    drill.id === 'team' ? el('span', { text: 'DRIBLE: ARRANCADA' }) : null
+    drill.id === 'team' ? el('span', { text: 'PEDALADA / CHAPÉU: FINTAS' }) : null
   );
   const roster = drill.id === 'team'
     ? el('div', { class: 'training__roster', text: '10 JOGADORES DE LINHA · PASSE · RECEPÇÃO · TABELA · FINALIZAÇÃO' })
@@ -202,7 +202,7 @@ function trainingSessionScreen(ctx, params, drill) {
   controls = createControls({
     root: stageBox,
     onCommand: (name, payload) => {
-      if (name === 'dribble') status.textContent = 'PIQUE & FINTA · USE O ANALÓGICO PARA CRIAR ESPAÇO.';
+      if (name === 'dribble') status.textContent = 'PEDALADA · CONTORNE O ADVERSÁRIO.';
       if (name === 'shoot') status.textContent = 'CHUTE! ESCOLHA UM CANTO E FINALIZE.';
       if (name === 'pass' && drill.id === 'team') status.textContent = 'PASSE · MOVIMENTE-SE PARA ABRIR UMA NOVA LINHA.';
       if(drill.id==='keeper' && ['shoot','dribble','tackle'].includes(name)){

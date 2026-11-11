@@ -964,8 +964,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       'PASSE e CORRER trocaram de lado e ficaram próximos');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
-    assert.ok(await page.locator('.hud__poss').isVisible(),
-      'o HUD mostra a barra de posse de bola');
+    assert.equal(await page.locator('.hud__poss').isVisible(),false,
+      'placar compacto da referência: posse continua disponível em FATOS DA PARTIDA na pausa');
     assert.equal(await page.locator('.hud__poss-fill').count(), 1,
       'a barra de posse tem o preenchimento do mandante');
     assert.equal(await page.locator('.hud__tag').count(), 1,
@@ -1162,7 +1162,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.equal(await page.locator('.hud__score').count(), 2, 'o placar mostra os dois placares');
     assert.ok(await page.locator('.hud__clock').isVisible(), 'o placar mostra o relógio');
     assert.ok(await page.locator('.hud__radar').isVisible(), 'o radar aparece no HUD');
-    assert.equal(await page.locator('.ctrl-btn').count(), 7, 'há os sete botões de ação');
+    assert.equal(await page.locator('.ctrl-btn').count(), 9, 'os sete controles originais mais chapéu e superchute');
     assert.ok(await page.locator('.controls__stick-zone').count(), 'há o analógico virtual');
     const quickStickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(quickStickBox && quickStickBox.x < 260 && quickStickBox.y > 460,
@@ -1171,8 +1171,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       'o cartão mostra o nome do atleta controlado');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
-    assert.ok(await page.locator('.hud__poss').isVisible(),
-      'o HUD mostra a barra de posse de bola');
+    assert.equal(await page.locator('.hud__poss').isVisible(),false,
+      'placar compacto da referência: posse continua disponível em FATOS DA PARTIDA na pausa');
 
     // O painel de pausa segue a referência: botão visível no topo direito,
     // placar, formação e blocos de opções.
@@ -1499,6 +1499,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       return match.world.snapshot();
     });
     assert.equal(finished.phase, 'fulltime', 'a partida termina');
+    assert.equal(await page.evaluate(()=>window.__xfcMatch.engine.running),false,'resultado não redesenha estádio desnecessariamente');
     assert.ok(finished.display.startsWith('9'), `o relógio marca o fim do tempo: ${finished.display}`);
     const resultShown = await page.waitForSelector('.result__title', { timeout: 6000 }).then(() => true).catch(() => false);
     if (!resultShown) {
@@ -1634,18 +1635,18 @@ test('Treino de pênaltis: câmera Pro, batedor, goleiro e prática de chute', {
         lateral: dx * -forwardZ + dz * forwardX
       };
     });
-    assert.ok(cameraPose.behind < -7.5, 'a câmera fica atrás da direção em que o jogador está olhando');
+    assert.ok(cameraPose.behind < -5.5 && cameraPose.behind > -8, 'a câmera fica atrás da direção em que o jogador está olhando');
     assert.ok(Math.abs(cameraPose.lateral) < 1, 'a câmera não fica deslocada para a lateral');
     assert.ok(await page.locator('.training__stats').isVisible(), 'o treino mostra chutes, gols e defesas');
     assert.ok((await page.locator('.training__instructions').textContent()).includes('CÂMERA PRO'),
       'as instruções identificam a câmera Pro');
-    for (const selector of ['.ctrl-btn--dribble', '.ctrl-btn--shoot', '.ctrl-btn--sprint']) {
+    for (const selector of ['.ctrl-btn--shoot']) {
       assert.ok(await page.locator(selector).isVisible(), `${selector} fica disponível no treino`);
     }
     assert.equal(await page.locator('.ctrl-btn--pass').isVisible(), false,
       'o treino não mostra um passe sem companheiros ativos');
 
-    await page.locator('.ctrl-btn--dribble').click();
+    assert.equal(await page.locator('.ctrl-btn--dribble').isVisible(),false,'pênalti separa mira de dribles');
     const movement = await page.evaluate(() => {
       const match = window.__xfcTrainingMatch;
       const player = match.controlled.home;
@@ -1680,10 +1681,10 @@ test('Treino de pênaltis: câmera Pro, batedor, goleiro e prática de chute', {
         cameraYawChange: yawChange
       };
     });
-    assert.ok(movement.burst > 0, 'DRIBLE ativa a arrancada');
-    assert.equal(movement.forwardMoved, true, 'cima no analógico avança na direção do gol');
-    assert.equal(movement.rightMoved, true, 'direita no analógico acompanha a tela');
-    assert.equal(movement.turned, true, 'o jogador pode virar quando o analógico muda de direção');
+    assert.ok(!movement.burst, 'pênalti não ativa arrancada enquanto mira');
+    assert.equal(movement.forwardMoved, false, 'no pênalti cima mira a altura sem tirar o batedor da marca');
+    assert.equal(movement.rightMoved, false, 'no pênalti direita mira o canto sem movimentar o batedor');
+    assert.equal(movement.turned, false, 'batedor permanece orientado para o gol durante a mira');
     assert.ok(Math.abs(movement.cameraYawChange) < 0.01,
       'o analógico move o atleta sem girar a câmera Pro');
 

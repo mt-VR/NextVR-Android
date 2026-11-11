@@ -17,9 +17,11 @@ const BUTTONS = [
   { id: 'pass', label: 'PASSE', className: 'ctrl-btn--pass' },
   { id: 'shoot', label: 'CHUTE', className: 'ctrl-btn--shoot' },
   { id: 'lob', label: 'ENFIADA', className: 'ctrl-btn--lob' },
-  { id: 'dribble', label: 'DRIBLE', className: 'ctrl-btn--dribble' },
+  { id: 'dribble', label: 'PEDALADA', className: 'ctrl-btn--dribble' },
   { id: 'tackle', label: 'CARRINHO', className: 'ctrl-btn--tackle' },
   { id: 'switch', label: 'TROCAR', className: 'ctrl-btn--switch' },
+  { id: 'rainbow', label: 'CHAPÉU', className: 'ctrl-btn--rainbow' },
+  { id: 'super', label: 'SUPERCHUTE', className: 'ctrl-btn--super' },
   { id: 'sprint', label: 'CORRER', className: 'ctrl-btn--sprint' }
 ];
 
@@ -180,7 +182,8 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
         onSprint(true);
         button.classList.add('is-active');
       } else {
-        onCommand(item.id);
+        if(item.id==='super')onCommand('shoot',{kind:'power',strength:1});
+        else onCommand(item.id);
       }
     });
     const release = event => {
@@ -281,6 +284,8 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     Space: 'pass',
     KeyE: 'lob',
     KeyR: 'dribble',
+    KeyC: 'rainbow',
+    KeyV: 'super',
     KeyF: 'tackle',
     Tab: 'switch',
     KeyQ: 'switch'
@@ -298,7 +303,8 @@ export function createControls({ onCommand, onMove, onSprint, root }) {
     }
     const command = KEY_COMMANDS[event.code];
     if (command) {
-      onCommand(command);
+      if(command==='super')onCommand('shoot',{kind:'power',strength:1});
+      else onCommand(command);
       event.preventDefault();
     }
   }

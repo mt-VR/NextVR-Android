@@ -352,3 +352,22 @@ cd xfc-game/android && ./gradlew assembleDebug
 - Locomoção tem fase compartilhada de trote/corrida, blend exponencial e
   cadência limitada; gestos de chão atenuam o mixer para não correr deitado.
   Mergulho converte lado mundial para lateral local e trava giro durante ação.
+
+## Atualização v0.5.19 — correções solicitadas em aparelho
+
+- `football-actions.js`: passada usa IK de duas articulações, com pé até 32 cm
+  à frente/atrás e sola nivelada; não restaurar o clipe que dobrava o joelho
+  com a coxa estendida atrás. Micah importado continua sendo a malha do atleta.
+- Treino `penalty`: joystick MIRA, não desloca batedor; câmera baixa fixa,
+  `penaltyTarget` contínuo, direção/altura determinísticas. `penaltyDecision`
+  escolhe um dos três lados por voo; IA não muda de lado seguindo a bola.
+- CHAPÉU (`rainbow`, C), PEDALADA (`dribble`, R), SUPERCHUTE (V ou swipe antigo).
+  Habilidades têm posse/recarga; pênalti mostra só mira/chute, não dribles.
+- Reposição: `restart.preparation` transporta bola e baixa até o chão em 1,35 s;
+  aceita comando humano só após concluir. A animação não cobra automaticamente.
+- Placar compacto: estatísticas continuam na pausa → FATOS DA PARTIDA.
+- Sustentação da arquibancada acompanha a inclinação, não uma caixa que atravessa
+  as cadeiras; piso contínuo sob o estádio. Luvas usam máscara dos pesos Hand na geometria CLONADA do goleiro,
+  capa de látex no shader e punhos locais; nunca alterar a geometria compartilhada.
+- `fulltime` para renderização 3D; o painel de resultado é DOM, não precisa
+  ficar gastando GPU nem atrasar em aparelho lento.

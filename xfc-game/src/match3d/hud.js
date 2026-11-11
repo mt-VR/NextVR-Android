@@ -71,14 +71,14 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
       homeCrest,
       el('span', { class: 'hud__team', text: abbreviationOf(home) }),
       homeScore,
-      el('span', { class: 'hud__dash', text: '–' }),
+      el('span', { class: 'hud__dash', text: '×' }),
       awayScore,
       el('span', { class: 'hud__team', text: abbreviationOf(away) }),
-      awayCrest
+      awayCrest,
+      clock
     ),
     el('div', { class: 'hud__sc-foot' },
       el('span', { class: 'hud__live', text: 'AO VIVO' }),
-      clock,
       halfLabel
     ),
     possessionBar,

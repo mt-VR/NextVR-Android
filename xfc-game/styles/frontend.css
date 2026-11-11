@@ -887,3 +887,21 @@
   .hub__objective { bottom: 14%; font-size: 13px; }
   .hub__footer { bottom: 7px; }
 }
+
+/* Placar horizontal da referência: escudos reais, siglas e relógio verde. */
+.hud__scoreboard { top: 13px; left: 18px; gap: 0; filter: drop-shadow(0 3px 6px #0006); }
+.hud__sc-main { padding: 0 0 0 8px; height: 38px; gap: 10px; background: #f3f4f1; color: #161d22; border: 0; border-radius: 0; box-shadow: none; }
+.hud__sc-main .hud__crest { width: 28px; height: 28px; filter: none; }
+.hud__sc-main .hud__team { color: #22282d; font-size: 15px; letter-spacing: .02em; }
+.hud__sc-main .hud__score { background: none; color: #151b20; font-size: 24px; min-width: 19px; }
+.hud__sc-main .hud__dash { color: #242c32; font-size: 14px; }
+.hud__sc-main .hud__clock { display: flex; align-items: center; height: 38px; padding: 0 11px; margin-left: 1px; background: #50f075; color: #071d0c; font-size: 17px; text-shadow: none; }
+.hud__scoreboard .hud__sc-foot,.hud__scoreboard .hud__poss,.hud__scoreboard .hud__cards,.hud__scoreboard .hud__sc-bar { display: none; }
+.ctrl-btn--rainbow { right: 286px; bottom: 175px; width: 70px; height: 70px; font-size: 9px; background: #163b48d9; }
+.ctrl-btn--super { right: 108px; bottom: 268px; width: 88px; height: 56px; border-radius: 18px; font-size: 9px; background: #624221dc; border-color: #f2ce70; }
+.training__stage .ctrl-btn--rainbow { right: 206px; bottom: 211px; }
+.training__stage .ctrl-btn--super { right: 112px; bottom: 286px; }
+.training__stage[data-drill="penalty"] .ctrl-btn--super { display: none; }
+.training__stage[data-drill="penalty"] .ctrl-btn--dribble,
+.training__stage[data-drill="penalty"] .ctrl-btn--rainbow,
+.training__stage[data-drill="penalty"] .ctrl-btn--sprint { display: none; }

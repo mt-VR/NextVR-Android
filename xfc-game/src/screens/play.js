@@ -457,6 +457,9 @@ export function playScreen(ctx, params = {}) {
         }, 1200);
         break;
       case 'fulltime':
+        // Resultado é DOM estático: não gastar GPU redesenhando o estádio
+        // por baixo do painel (também evita atrasar o painel em WebViews lentos).
+        match?.stop();
         whistle('long');
         creditMatch(event);
         match?.world.setPaused(true);

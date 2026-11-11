@@ -70,40 +70,19 @@ function drawBall(context, width, height) {
     }
   }
 
-  // Painéis pentagonais escuros característicos, sobrepostos ao encontro dos
-  // hexágonos. Repetição horizontal para que a emenda U=0/1 continue limpa.
-  const pentagons = [
-    [0.5, 0.17], [0.15, 0.34], [0.85, 0.34], [0.32, 0.54], [0.68, 0.54],
-    [0.5, 0.82], [0.04, 0.72], [0.96, 0.72], [0.25, 0.94], [0.75, 0.94],
-    [0.05, 0.08], [0.95, 0.08]
-  ];
-  for (const [u, v] of pentagons) {
-    const cx = u * width;
-    const cy = v * height;
-    for (const wrap of [-width, 0, width]) {
-      context.beginPath();
-      for (let corner = 0; corner < 5; corner += 1) {
-        const angle = -Math.PI / 2 + (corner / 5) * Math.PI * 2;
-        const px = cx + wrap + Math.cos(angle) * width * 0.032;
-        const py = cy + Math.sin(angle) * height * 0.055;
-        if (corner === 0) context.moveTo(px, py);
-        else context.lineTo(px, py);
-      }
-      context.closePath();
-      const panel = context.createLinearGradient(cx - width * 0.03, cy - height * 0.05,
-        cx + width * 0.03, cy + height * 0.05);
-      panel.addColorStop(0, '#303b40');
-      panel.addColorStop(0.52, '#10171b');
-      panel.addColorStop(1, '#20292d');
-      context.fillStyle = panel;
-      context.fill();
-      context.strokeStyle = 'rgba(4,11,15,.82)';
-      context.lineWidth = Math.max(1.5, width * 0.0021);
-      context.stroke();
-      context.strokeStyle = 'rgba(255,255,255,.44)';
-      context.lineWidth = Math.max(0.8, width * 0.0009);
-      context.stroke();
+  // Arte original XFC: painéis largos em hélice, azul/noite, ciano e coral.
+  // Sem logo/marca de fabricante licenciado; leitura nítida na câmera baixa.
+  for(let row=0;row<3;row++)for(let col=-1;col<5;col++){
+    const x=(col+(row%2)*.5)*width/4,y=(row+.5)*height/3;
+    context.save();context.translate(x,y);context.rotate((row%2?.35:-.35));
+    for(const [color,offset,size]of [['#102c50',0,1],['#11cfd4',.02,.67],['#ff5967',.045,.28]]){
+      context.fillStyle=color;context.beginPath();
+      context.moveTo(-width*.09,height*(offset-.065));
+      context.quadraticCurveTo(0,-height*.14*size,width*.1,height*offset);
+      context.lineTo(width*.055,height*(offset+.035));
+      context.quadraticCurveTo(0,-height*.03,-width*.09,height*(offset-.065));context.fill();
     }
+    context.restore();
   }
 
   // Discreet colored speed arcs and a tiny XFC mark add a current match-ball
@@ -156,6 +135,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
   mesh.userData.spherical = true;
   mesh.userData.radius = BALL.radius;
   mesh.userData.panelTexture = 'xfc-pro-match-ball-v2';
+  mesh.userData.design='xfc-orbit-cyan-coral-v3';
   mesh.castShadow = true;
   scene.add(mesh);
   const rollAxis = new THREE.Vector3();
@@ -197,6 +177,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     state.spin.set(0, 0, 0);
     state.owner = null;
     state.goalPocket = 0;
+    state.skillUntil = 0;
     state.lastTouch = null;
     state.lastIntentionalTouch = null;
     state.guidance = null;
@@ -308,12 +289,22 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
         if (!player.active) continue;
         const dx = position.x - player.root.position.x;
         const dz = position.z - player.root.position.z;
-        const distance = Math.hypot(dx, dz);
+        let distance = Math.hypot(dx, dz);
+        // Segmento varrido: superchutes não atravessam o goleiro entre frames.
+        const sx=position.x-previousX,sz=position.z-previousZ;
+        const length2=sx*sx+sz*sz;
+        if(length2>.01){
+          const t=Math.max(0,Math.min(1,((player.root.position.x-previousX)*sx+(player.root.position.z-previousZ)*sz)/length2));
+          const sweepY=previousY+(position.y-previousY)*t;
+          const sweptDistance=Math.hypot(previousX+sx*t-player.root.position.x,previousZ+sz*t-player.root.position.z);
+          if(sweepY<(player.reachHeight||1.8))distance=Math.min(distance,sweptDistance);
+        }
         const reach = (player.reach || 0.52) + BALL.radius;
         const reachHeight = player.reachHeight || 1.8;
         if (distance < reach && position.y < reachHeight) {
-          const nx = distance > 0.001 ? dx / distance : 1;
-          const nz = distance > 0.001 ? dz / distance : 0;
+          const normalLength=Math.hypot(dx,dz);
+          const nx = normalLength > 0.001 ? dx / normalLength : 1;
+          const nz = normalLength > 0.001 ? dz / normalLength : 0;
           const push = reach - distance;
           position.x += nx * push;
           position.z += nz * push;

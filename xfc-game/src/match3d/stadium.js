@@ -56,13 +56,13 @@ const LIGHTING_PRESETS = Object.freeze({
     fog: 0x0a1a26,
     hemisphereSky: 0xc5dff4,
     hemisphereGround: 0x3c6340,
-    hemisphereIntensity: 0.61,
+    hemisphereIntensity: 0.78,
     keyColor: 0xfff4de,
     keyIntensity: 1.3,
     fillColor: 0xbdd8ff,
-    fillIntensity: 0.46,
+    fillIntensity: 0.58,
     crossIntensity: 0.23,
-    ambientIntensity: 0.12,
+    ambientIntensity: 0.16,
     floodlightIntensity: 0.38,
     rimColor: 0xc7e2ff,
     rimIntensity: 0.43,
@@ -574,7 +574,7 @@ function addStandCrowd(group, width, depth, height, lowPower = false) {
   const slopeAngle = 0.46;
   const wallHeight = 2.4;
   const seatHeight = height - wallHeight;
-  const slopeCenterY = wallHeight + seatHeight / 2;
+  const slopeCenterY = wallHeight + Math.hypot(depth,seatHeight*Math.tan(slopeAngle))*Math.sin(slopeAngle)/2 + .55/Math.cos(slopeAngle);
   const slopeCenterZ = -0.6;
   let instance = 0;
   let seed = (Math.round(width * 23) ^ Math.round(depth * 89)) >>> 0;
@@ -734,10 +734,26 @@ function buildStand(width, depth, height, texture, options = {}) {
 
   // Arquibancada inclinada com a torcida.
   const slope = new THREE.Mesh(new THREE.BoxGeometry(width, 1.1, slopeLength), seatMaterial);
-  slope.position.set(0, wallHeight + seatHeight / 2, -0.6);
+  const slopeCenterY=wallHeight+slopeLength*Math.sin(angle)/2+.55/Math.cos(angle);
+  slope.position.set(0, slopeCenterY, -0.6);
   slope.rotation.x = angle;
   group.add(slope);
   addStandCrowd(group, width, depth, height, simple);
+  // Fecha o vão entre a borda inferior inclinada e o muro: antes aparecia
+  // o céu/void por baixo das cadeiras, especialmente na câmera de pênalti.
+  const supportGeometry=new THREE.BufferGeometry();
+  const extent=slopeLength*Math.cos(angle)/2;
+  const zs=[-.6-extent,-.6+extent];
+  const supportVertices=[];
+  for(const x of [-width/2,width/2])for(const z of zs){
+    const top=slopeCenterY-.55/Math.cos(angle)-Math.tan(angle)*(z+.6)-.06;
+    supportVertices.push(x,0,z,x,top,z);
+  }
+  supportGeometry.setAttribute('position',new THREE.Float32BufferAttribute(supportVertices,3));
+  supportGeometry.setIndex([0,2,3,0,3,1,4,5,7,4,7,6,0,1,5,0,5,4,2,6,7,2,7,3,1,3,7,1,7,5,0,4,6,0,6,2]);
+  supportGeometry.computeVertexNormals();
+  const fascia=new THREE.Mesh(supportGeometry,new THREE.MeshLambertMaterial({color:0x293a43}));
+  fascia.name='xfc-stand-foundation';group.add(fascia);
 
   // Fundo da arquibancada. No celular, um atlas pequeno com nervuras mantém
   // leitura arquitetônica sem adicionar malhas ou custo de iluminação.
@@ -962,9 +978,12 @@ export function buildStadium(scene, options = {}) {
   // lâminas subpixel piscavam como pontos escuros na câmera de transmissão.
   if (!lowPower) addGrassBlades(group, 7600);
 
+  // Piso contínuo sob TODAS as arquibancadas e cantos, sem ver o vazio.
+  const foundation=new THREE.Mesh(new THREE.BoxGeometry(240,.7,190),new THREE.MeshLambertMaterial({color:0x384b3b}));
+  foundation.name='xfc-stadium-foundation';foundation.position.y=-.42;group.add(foundation);
   // Faixa de grama fora das linhas.
   const surround = new THREE.Mesh(
-    new THREE.PlaneGeometry(PITCH.length + 8, PITCH.width + 8),
+    new THREE.PlaneGeometry(PITCH.length + 22, PITCH.width + 22),
     new THREE.MeshLambertMaterial({ color: 0x1f5c28 })
   );
   surround.rotation.x = -Math.PI / 2;

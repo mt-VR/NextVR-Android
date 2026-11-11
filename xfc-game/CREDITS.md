@@ -130,3 +130,18 @@ fidelidade arquitetônica dos modelos 3D.
 - Rede elástica e ajustes de animação/iluminação são código próprio. Nenhum
   asset ou código de EA Sports FC foi extraído ou incluído. A referência é
   visual, não uma reprodução do motor, captura de movimento ou física do FC.
+
+## v0.5.19 — correções da partida
+
+- Mantido o mesmo futebolista masculino Micah CC0 e sua malha/roupa importada.
+  Trajetória dos pés por IK de duas articulações, pedalada, chapéu e poses de
+  transportar/colocar a bola são adaptações próprias; não são mocap externo.
+- Luvas: capa de látex própria no shader dos vértices das mãos (com 6 mm de
+  espessura visual), mais punho geométrico ciano. Preserva dedos e esqueleto
+  importados, sem esferas soltas atravessando as mãos.
+- Arte da bola **XFC Orbit** (branco, azul, ciano e coral), placar e geometria de
+  sustentação do estádio: autoria própria, sem logos/texturas do EA Sports FC.
+- Prints de referência fornecidos pelo usuário: composição da câmera do
+  pênalti e do placar horizontal. Não foram redistribuídos nem usados como
+  texturas do jogo. Uma das capturas do XFC chegou parcialmente truncada;
+  foi lida com recuperação local de JPEG apenas para diagnóstico.

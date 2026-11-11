@@ -13,6 +13,7 @@
 // `animation` (`speed`, `blend`, `trigger`, `applyMask`, `state`). Assim o
 // motor (`match.js`) não sabe — nem precisa saber — qual modelo está em campo.
 
+import { runningLegPose } from './football-actions.js';
 import { THREE, softShadowTexture } from './engine.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
@@ -272,6 +273,40 @@ export function createGltfPlayer(options = {}) {
     rightFoot: findBone(model, 'RightFoot')
   };
 
+  const gloveGeometries=[];
+  if(isKeeper){
+    // Luva acompanha os dedos da MALHA importada: capa de látex no shader,
+    // com espessura pequena. Evita uma esfera solta deixando dedos de fora.
+    model.traverse(mesh=>{
+      if(!mesh.isSkinnedMesh||!materialList(mesh).some(m=>m.name==='Micah | anatomical body.body'))return;
+      const geometry=mesh.geometry.clone(),indices=geometry.attributes.skinIndex,weights=geometry.attributes.skinWeight;
+      const mask=new Float32Array(indices.count);
+      for(let i=0;i<indices.count;i++){
+        let influence=0;
+        for(let j=0;j<4;j++)if(/Hand$/.test(mesh.skeleton.bones[indices.getComponent(i,j)]?.name||''))influence+=weights.getComponent(i,j);
+        mask[i]=influence>.5?1:0;
+      }
+      geometry.setAttribute('gloveMask',new THREE.BufferAttribute(mask,1));mesh.geometry=geometry;gloveGeometries.push(geometry);
+      for(const material of materialList(mesh)){
+        if(material.name!=='Micah | anatomical body.body')continue;
+        material.onBeforeCompile=shader=>{
+          shader.vertexShader='attribute float gloveMask; varying float vGloveMask;\n'+shader.vertexShader;
+          shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvGloveMask=gloveMask; transformed+=normal*.006*gloveMask;');
+          shader.fragmentShader='varying float vGloveMask;\n'+shader.fragmentShader;
+          shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\ndiffuseColor.rgb=mix(diffuseColor.rgb,vec3(.88,.93,.94),vGloveMask);');
+        };
+        material.customProgramCacheKey=()=> 'xfc-keeper-latex-v1';
+      }
+    });
+    const cuffMaterial=new THREE.MeshLambertMaterial({color:0x16bdb6});
+    const cuffGeometry=new THREE.BoxGeometry(.085,.04,.07);
+    materials.push(cuffMaterial);gloveGeometries.push(cuffGeometry);
+    for(const side of ['Left','Right']){
+      const hand=findBone(model,side+'Hand');if(!hand)continue;
+      const cuff=new THREE.Mesh(cuffGeometry,cuffMaterial);cuff.name='xfc-keeper-glove-'+side;
+      cuff.position.set(0,.04,.018);hand.add(cuff);
+    }
+  }
   const mixer = new THREE.AnimationMixer(model);
   mixer.timeScale = 1;
 
@@ -315,7 +350,12 @@ export function createGltfPlayer(options = {}) {
     react: 0.55,
     fall: 0.95,
     signal: 0.9,
-    'throw-in': 1.0
+    'throw-in': 1.0,
+    'carry-ball': .8,
+    'place-ball': .65,
+    stepover: .6,
+    rainbow: .55,
+    catch: .8
   };
 
   function startGesture(name, duration, opts = {}) {
@@ -355,6 +395,47 @@ export function createGltfPlayer(options = {}) {
     const wave = Math.sin(Math.PI * p);
     const ease=(a,b)=>{const t=Math.max(0,Math.min(1,(p-a)/(b-a)));return t*t*(3-2*t);};
     switch (gesture.name) {
+      case 'catch': {
+        for(const side of ['left','right']){
+          addBoneRotation(bones[side+'Arm'],-.95*wave,0,0,w);
+          addBoneRotation(bones[side+'ForeArm'],-.8*wave,0,0,w);
+          addBoneRotation(bones[side+'UpLeg'],-.18*wave,0,0,w);
+          addBoneRotation(bones[side+'Leg'],.3*wave,0,0,w);
+        }
+        break;
+      }
+      case 'carry-ball': {
+        addBoneRotation(bones.leftArm,-1.05,0,-.18,w);
+        addBoneRotation(bones.rightArm,-1.05,0,.18,w);
+        addBoneRotation(bones.leftForeArm,-.45,0,0,w);
+        addBoneRotation(bones.rightForeArm,-.45,0,0,w);
+        break;
+      }
+      case 'place-ball': {
+        const bend=Math.sin(Math.PI*p);
+        bones.hips.position.y-=.3*bend*w;
+        addBoneRotation(bones.spine,.65*bend,0,0,w);
+        addBoneRotation(bones.spine2,.6*bend,0,0,w);
+        for(const side of ['left','right']){
+          addBoneRotation(bones[side+'UpLeg'],-.55*bend,0,0,w);
+          addBoneRotation(bones[side+'Leg'],.95*bend,0,0,w);
+          addBoneRotation(bones[side+'Arm'],-.55*bend,0,0,w);
+        }
+        break;
+      }
+      case 'stepover': {
+        const circle=p*Math.PI*4;
+        addBoneRotation(bones.rightUpLeg,-.48*Math.sin(Math.PI*p),.36*Math.sin(circle),.32*Math.cos(circle)*wave,w);
+        addBoneRotation(bones.rightLeg,.48*wave,0,0,w);
+        addBoneRotation(bones.spine2,0,.12*Math.sin(circle),-.12*Math.sin(circle),w);
+        break;
+      }
+      case 'rainbow': {
+        addBoneRotation(bones.rightUpLeg,-.8*wave,0,.12*wave,w);
+        addBoneRotation(bones.rightLeg,.7*wave,0,0,w);
+        addBoneRotation(bones.leftUpLeg,.15*wave,0,0,w);
+        break;
+      }
       case 'kick': {
         // Pernada: recua, chuta e volta. Joelho abre antes do contato.
         const swing = p < 0.3 ? -0.9 * (p / 0.3) : 1.3 * Math.sin(((p - 0.3) / 0.7) * Math.PI);
@@ -558,6 +639,10 @@ export function createGltfPlayer(options = {}) {
     mixer,
     isGltf: true,
 
+    catchBall(){return startGesture('catch');},
+    carryBall(duration=.8){return startGesture('carry-ball',duration,{mask:'upper'});},
+    placeBall(duration=.65){return startGesture('place-ball',duration);},
+    skill(name='stepover'){return startGesture(name==='rainbow'?'rainbow':'stepover');},
     kick(type = 'shot') {
       return startGesture('kick');
     },
@@ -622,6 +707,21 @@ export function createGltfPlayer(options = {}) {
       for (const bone of rigBones) bone.quaternion.identity();
       updateLocomotion(speed, step);
       mixer.update(step);
+      // Substitui as curvas ruins dos joelhos do clipe antigo por trajetórias
+      // de pés com apoio no solo. Gestos continuam sobre essa base.
+      const gaitWeight=(state.locomotionWeights.jog+state.locomotionWeights.run)
+        * (['dive','tackle','fall','place-ball','stepover'].includes(gesture.name)?1-gestureEnvelope():1);
+      if(gaitWeight>.001){
+        for(const [side,offset]of [['left',0],['right',.5]]){
+          const pose=runningLegPose(gaitPhase+offset,.65+.35*state.locomotionWeights.run);
+          for(const [part,angle]of [['UpLeg',pose.hip],['Leg',pose.knee],['Foot',pose.ankle]]){
+            const bone=bones[side+part];
+            gQuat.setFromEuler(gEuler.set(angle,0,0));
+            bone.quaternion.slerp(gQuat,gaitWeight);
+          }
+        }
+        bones.hips.position.y-=.065*gaitWeight;
+      }
       if(!['dive','tackle','fall'].includes(gesture.name)){
         const running=state.locomotionWeights.run;
         bones.hips.position.y+=.018*running*(1-Math.cos(gaitPhase*Math.PI*4));
@@ -651,6 +751,7 @@ export function createGltfPlayer(options = {}) {
     dispose() {
       mixer.stopAllAction();
       mixer.uncacheRoot(model);
+      for(const geometry of gloveGeometries)geometry.dispose();
       for (const material of materials) material.dispose();
       for (const texture of ownedTextures) texture.dispose();
       shadow.geometry.dispose();

@@ -302,6 +302,7 @@ export function createTeamAI({ side, world }) {
       let targetZ = shape.z;
       let speed = player.sprint ? SPRINT_SPEED : RUN_SPEED;
 
+      if (player.isGK && world.updatePenaltyKeeper?.(player,dt)) continue;
       if (player.isGK) {
         const inBox = Math.abs(ball.position.x - myGoal) < 17 && Math.abs(ball.position.z) < 22;
         const prediction = owner ? null : predictGoalkeeperIntercept(ball, myGoal);
