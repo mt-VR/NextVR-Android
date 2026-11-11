@@ -187,3 +187,12 @@ adicionados modelos, texturas nem clipes de terceiros nesta revisão.
   Ídolo/Herói/Especial/TOTW são edições conceituais de jogo XFC.
 - Placar: referência `IMG_20261111_001747.jpg`, refeito em DOM/CSS.
 - Animações modificam o rig do mesmo Micah CC0. Sem modelo novo, mocap ou clipes EA.
+
+## Pausa e placar — v0.5.23
+
+Por solicitação de manter exatamente a arte da pausa enviada, marca, textos e
+ícones foram recortados da referência em `assets/ui/pause/`, com transparência
+sobre botões DOM. Origem e processo em `assets/ui/pause/CREDITS.md`. Campo e
+placar não são imagens estáticas: preservam a partida/dados reais. O placar ao
+vivo segue `IMG_20261111_001747.jpg` em DOM/CSS (escudos existentes e siglas
+variáveis); na pausa usa a faixa preta da segunda referência.

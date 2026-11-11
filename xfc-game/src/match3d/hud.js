@@ -65,16 +65,12 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
     teamCards(away, awayYellowCards, awayRedCards, 'away')
   );
 
-  // Placar estilo transmissão: SIGLA gols – gols SIGLA, com o relógio embaixo.
+  // Mesmos dados nas duas apresentações: transmissão e faixa escura da pausa.
   const scoreboard = el('div', { class: 'hud__scoreboard' },
     el('div', { class: 'hud__sc-main' },
-      homeCrest,
-      el('span', { class: 'hud__team', text: abbreviationOf(home) }),
-      homeScore,
-      el('span', { class: 'hud__dash', text: '-' }),
-      awayScore,
-      el('span', { class: 'hud__team', text: abbreviationOf(away) }),
-      awayCrest,
+      el('div',{class:'hud__sc-wing hud__sc-wing--home'},homeCrest,el('span',{class:'hud__team',text:abbreviationOf(home)})),
+      el('div',{class:'hud__sc-score'},homeScore,el('span',{class:'hud__dash',text:'-'}),awayScore),
+      el('div',{class:'hud__sc-wing hud__sc-wing--away'},el('span',{class:'hud__team',text:abbreviationOf(away)}),awayCrest),
       clock, halfLabel
     ),
     el('div', { class: 'hud__sc-foot' },
@@ -84,6 +80,9 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
     discipline,
     el('div', { class: 'hud__sc-bar' })
   );
+
+  scoreboard.style.setProperty('--home-band',home?.colors?.primary||'#005b40');
+  scoreboard.style.setProperty('--away-band',away?.colors?.primary||'#eeeeee');
 
   // Cartão do jogador controlado (número, nome, OVR e condição).
   // Adversário mais próximo da bola (o segundo nome dos prints).

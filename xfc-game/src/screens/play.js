@@ -719,24 +719,28 @@ export function playScreen(ctx, params = {}) {
     const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go(params.ultimateMatchId?'ultimate':'menu');
     const confirm=(title,message,action)=>panel(title,el('p',{text:message}),el('button',{type:'button',class:'pause-reference__confirm',onClick:action,text:'CONFIRMAR'}));
     const actions=[
-      ['resume','▶','VOLTAR À PARTIDA',resumeMatch],
+      ['resume','▶','CONTINUAR PARTIDA',resumeMatch],
       ['restart','↻','REINICIAR PARTIDA',()=>confirm('REINICIAR PARTIDA','Recomeçar este confronto do zero? O placar atual será descartado.',()=>ctx.go('play',{...params,home:home.id,away:away.id,homeKit:params.homeKit||0,awayKit:params.awayKit||0}))],
       ['settings','⚙','CONFIGURAÇÕES',()=>panel('CONFIGURAÇÕES',
         el('p',{text:'CHUTE: segure até a carga completa para superchute. CORRER: segure para correr; arraste para cima para chapéu ou para baixo para pedalada.'}),
         el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
           el('option',{value:'1',selected:match.world.cameraZoom===1,text:'Padrão'}),el('option',{value:'1.2',selected:match.world.cameraZoom===1.2,text:'Mais aberta'}))),
-        el('p',{text:'Teclado: WASD/setas para mover, Shift para correr, J/E para passar, K para carregar o chute e F para carrinho.'}))],
+        el('p',{text:'Teclado: WASD/setas para mover, Shift para correr, J/E para passar, K para carregar o chute e F para carrinho.'}),
+        el('button',{type:'button',class:'pause-reference__back',dataset:{pauseAction:'plan'},onClick:showPlan,text:'PLANO DE JOGO'}))],
       ['facts','▥','ESTATÍSTICAS',()=>panel('ESTATÍSTICAS',el('div',{class:'pause-reference__stats'},
         ...[['Posse de bola',stats.home.possession+'%',stats.away.possession+'%'],['Finalizações',stats.home.shots,stats.away.shots],['Chutes ao gol',stats.home.shotsOn,stats.away.shotsOn],['Escanteios',stats.home.corners,stats.away.corners],['Faltas',stats.home.fouls,stats.away.fouls],['Cartões',stats.home.cards,stats.away.cards]].map(([label,a,b])=>statLine(label,a??0,b??0))))],
-      ['plan','▣','PLANO DE JOGO',showPlan],
       ['end','⇥','SAIR DA PARTIDA',()=>confirm('SAIR DA PARTIDA','Sair sem registrar este resultado?',leave)]
     ];
+    let selectedAction=resumeMatch;
     const menu=el('nav',{class:'pause-reference__menu','aria-label':'Partida pausada'},...actions.map(([id,icon,title,action],index)=>el('button',{
-      type:'button',class:'pause-reference__item'+(index===0?' is-primary':''),dataset:{pauseAction:id},onClick:action
-    },el('span',{class:'pause-reference__icon','aria-hidden':'true',text:icon}),el('b',{text:title}))));
+      type:'button',class:'pause-reference__item'+(index===0?' is-primary':''),dataset:{pauseAction:id},
+      'aria-label':title,onClick:action,onFocus:()=>{selectedAction=action;}
+    },el('img',{class:'pause-reference__row-art',src:`assets/ui/pause/${id}.png`,alt:'',draggable:'false'}))));
     const pause=el('div',{class:'pause-reference'},
-      el('div',{class:'pause-reference__brand'},el('span',{html:xfcWordmark()}),el('b',{text:'27'})),
-      menu,detail,el('footer',{class:'pause-reference__footer',text:'↵ Selecionar     Esc Voltar'})
+      el('div',{class:'pause-reference__brand'},el('img',{src:'assets/ui/pause/brand.png',alt:'XFC 27',draggable:'false'})),
+      menu,detail,el('footer',{class:'pause-reference__footer'},
+        el('button',{type:'button','aria-label':'Selecionar',onClick:()=>selectedAction()},el('img',{src:'assets/ui/pause/select.png',alt:'',draggable:'false'})),
+        el('button',{type:'button','aria-label':'Voltar',onClick:()=>pausePanel?pausePanel():resumeMatch()},el('img',{src:'assets/ui/pause/back.png',alt:'',draggable:'false'})))
     );
     overlay.replaceChildren(pause);overlay.classList.add('is-visible');
     menu.querySelector('button')?.focus({preventScroll:true});

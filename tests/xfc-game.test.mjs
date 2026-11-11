@@ -946,7 +946,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.click('.showcase__enter');
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
     const boardBox = await page.locator('.hud__scoreboard').boundingBox();
-    assert.ok(boardBox && boardBox.x > 800, 'o placar fica no canto superior direito');
+    assert.ok(boardBox && boardBox.x < 100, 'o placar ao vivo fica no canto superior esquerdo da referência');
     const stickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(stickBox && stickBox.x < 320 && stickBox.y > 500,
       'o analógico fica fixo no canto inferior esquerdo');
@@ -1180,12 +1180,12 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     const pauseButton = page.locator('.play__pause-button');
     assert.ok(await pauseButton.isVisible(), 'o botão de pausa fica visível durante a partida');
     const pauseBox = await pauseButton.boundingBox();
-    assert.ok(pauseBox && pauseBox.x < 100 && pauseBox.y < 70,
-      'pausa à esquerda sem sobrepor o placar');
+    assert.ok(pauseBox && pauseBox.x > 1000 && pauseBox.y < 70,
+      'botão de pausa à direita, separado do placar branco à esquerda');
     await pauseButton.click();
     await page.waitForSelector('.pause-reference');
     assert.ok(await page.locator('.hud__scoreboard').isVisible(),'pausa mantém o mesmo placar');
-    assert.equal(await page.locator('.pause-reference__item').count(),6,'menu lateral real, sem painel antigo');
+    assert.equal(await page.locator('.pause-reference__item').count(),5,'cinco ações da referência; tática preservada em configurações');
     assert.equal(await page.locator('.pause__lineup-player').count(),0,'partida congelada no fundo, não uma escalação decorativa');
     await page.locator('[data-pause-action="facts"]').click();
     assert.equal(await page.locator('.pause-reference__stats .pause__stat').count(),6);

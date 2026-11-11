@@ -51,8 +51,11 @@ test('pausa real: congela simulação/render; plano arrasta sem teleporte, persi
    const capture=()=>p.evaluate(()=>{const m=__xfcMatch;return{clock:{...m.clock},ball:m.ball.state.position.toArray(),velocity:m.ball.state.velocity.toArray(),players:[...m.teams.home.players,...m.teams.away.players].map(x=>[x.x,x.z,x.vx,x.vz]),frames:m.engine.state.frames,camera:m.engine.camera.position.toArray(),phase:m.phase.name};});
    const before=await capture();await p.waitForTimeout(300);await p.evaluate(()=>{for(let i=0;i<60;i++)__xfcMatch.world.tick(1/60);});assert.deepEqual(await capture(),before);
    assert.equal(await p.evaluate(()=>__xfcMatch.engine.running),false);
-   const board=await p.locator('.hud__scoreboard').boundingBox();assert.ok(board.x>800);assert.equal(await p.locator('.hud__half').isVisible(),false);
-   const clock=await p.locator('.hud__clock').boundingBox();const mainBoard=await p.locator('.hud__sc-main').boundingBox();assert.ok(clock.y>=mainBoard.y+mainBoard.height-1,'relógio verde fica abaixo');
+   const board=await p.locator('.hud__scoreboard').boundingBox();assert.ok(board.x>800);assert.equal(await p.locator('.hud__half').isVisible(),true);
+   const clock=await p.locator('.hud__clock').boundingBox();const mainBoard=await p.locator('.hud__sc-main').boundingBox();assert.ok(clock.y>=mainBoard.y&&clock.y<mainBoard.y+mainBoard.height,'na pausa, relógio inline na faixa preta');
+   assert.equal(await p.locator('.pause-reference__item').count(),5);
+   assert.equal(await p.locator('[data-pause-action="resume"]').getAttribute('aria-label'),'CONTINUAR PARTIDA');
+   await p.click('[data-pause-action="settings"]');
    await p.click('[data-pause-action="plan"]');assert.equal(await p.locator('.game-plan__pitch .football-card').count(),11);
    const card=p.locator('.game-plan__pitch .football-card').nth(8),id=await card.getAttribute('data-player-id');
    const old=await p.evaluate(id=>__xfcMatch.world.getGamePlan().find(x=>x.id===id),id);
@@ -76,4 +79,30 @@ test('IA respeita a posição personalizada em vez de recolocar a ponta no corre
  const world={ball:{state:{position:{x:0,y:.11,z:0},velocity:{x:0,y:0,z:0},owner}},members:side=>side==='home'?[owner,wing]:[],isUserControlled:p=>p===owner,isPlayable:()=>true,rng:()=>1};
  const ai=createTeamAI({side:'home',world});for(let i=0;i<480;i++)ai.update(1/60);
  assert.ok(wing.z<-8,'a ponta permanece no lado escolhido');assert.ok(Math.abs(wing.x+10)<2);
+});
+
+test('referências: placar ao vivo branco/lima, pausa preta com cinco ações e retorno móvel',{timeout:120000},async t=>{
+ const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
+ try{
+  const p=await b.newPage({viewport:{width:1280,height:720}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
+  await p.evaluate(async()=>(await import('/src/main.js')).go('play',{home:'palmeiras',away:'santos'}));await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+  await p.evaluate(()=>{const m=__xfcMatch;m.teams.home.score=3;m.teams.away.score=0;m.clock.minutes=61+7.1/60;m.clock.half=2;m.world.setPaused(true);m.stop();document.querySelector('.hud__scoreboard').dataset.sameBoard='original';});
+  await p.waitForFunction(()=>document.querySelector('.hud__clock').textContent==='61:07');
+  assert.deepEqual(await p.locator('.hud__team').allTextContents(),['PAL','SAN']);assert.deepEqual(await p.locator('.hud__score').allTextContents(),['3','0']);
+  const live=await p.locator('.hud__scoreboard').boundingBox();assert.ok(live.x<100);
+  assert.equal(await p.locator('.hud__clock').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(186, 255, 0)');
+  assert.ok(await p.locator('.hud__scoreboard').evaluate(n=>getComputedStyle(n).getPropertyValue('--home-band').trim().startsWith('#')));
+  await p.click('.play__pause-button');
+  assert.deepEqual(await p.locator('.pause-reference__item').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))),['CONTINUAR PARTIDA','REINICIAR PARTIDA','CONFIGURAÇÕES','ESTATÍSTICAS','SAIR DA PARTIDA']);
+  await p.waitForFunction(()=>[...document.querySelectorAll('.pause-reference img')].every(i=>i.complete&&i.naturalWidth>0));
+  assert.equal(await p.locator('.hud__scoreboard').getAttribute('data-same-board'),'original');assert.equal(await p.locator('.hud__clock').textContent(),'61:07');assert.equal(await p.locator('.hud__half').textContent(),'2ºT');
+  assert.equal(await p.locator('.hud__clock').evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(0, 0, 0, 0)');
+  const paused=await p.locator('.hud__scoreboard').boundingBox();assert.ok(paused.x>800);
+  await p.getByRole('button',{name:'ESTATÍSTICAS',exact:true}).click();assert.equal(await p.locator('.pause-reference__stats .pause__stat').count(),6);
+  await p.locator('.pause-reference__footer').getByRole('button',{name:'Voltar',exact:true}).click();assert.equal(await p.locator('.pause-reference__detail').isVisible(),false);
+  await p.setViewportSize({width:960,height:540});const row=await p.locator('[data-pause-action="resume"]').boundingBox();assert.ok(Math.abs(row.width-379*.75)<1);assert.ok(Math.abs(row.y-157*.75)<1);
+  await p.locator('.pause-reference__footer').getByRole('button',{name:'Voltar',exact:true}).click();assert.equal(await p.evaluate(()=>__xfcMatch.world.isPaused()),false);
+  assert.equal(await p.locator('.hud__scoreboard').getAttribute('data-same-board'),'original');assert.ok((await p.locator('.hud__scoreboard').boundingBox()).x<100);
+  assert.deepEqual(errors,[]);
+ }finally{await b.close();server.close();}
 });

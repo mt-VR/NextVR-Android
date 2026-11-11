@@ -439,3 +439,15 @@ cd xfc-game/android && ./gradlew assembleDebug
   por cima. Manter as competições compactas reais, saída e retorno corretos.
 - Documentação e limitações em `xfc-game/docs/v0.5.22.md`. Testes de UI/modelo
   não substituem aprovação visual no aparelho. CI inclui UT e pausa/gestos.
+
+### v0.5.23 — pedido de referência exata e reposição curta
+
+- CSS final do HUD/pausa em `styles/reference-broadcast.css`: ao vivo branco/lima
+  à esquerda; pausado faixa preta à direita. Mesmo DOM/dados, nunca placar fixo.
+- `assets/ui/pause` contém apenas marca/letras/ícones recortados da referência
+  fornecida. Campo continua sendo o renderer real congelado. Botões têm aria-label
+  (não busque texto no PNG); menu principal tem CINCO linhas. Plano de jogo agora
+  dentro de Configurações, não removido. Rodapé A/B é clicável.
+- Pedido novo SUPERA o passeio físico da v0.5.20: escanteio/tiro de meta começam
+  no ponto e só ajeitam a bola por 0,8 s. Não restaurar seek/pickup/carry/retreat
+  nem corrida preparatória. Bola fica no solo; comandos bloqueados só no ajuste.

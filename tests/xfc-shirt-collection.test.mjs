@@ -34,7 +34,11 @@ test('joystick mantido: teclado não zera toque; soltar preserva mira do pênalt
     await page.waitForFunction(()=>window.__xfcTrainingMatch);
     const stick=await page.locator('.controls__stick').boundingBox();
     await page.mouse.move(stick.x+stick.width/2+35,stick.y+stick.height/2);
-    await page.mouse.down();await page.waitForTimeout(240);
+    await page.mouse.down();
+    // Espera a simulação processar o toque: sob carga, 240 ms de parede
+    // podem decorrer sem um único frame WebGL. Depois testa a retenção.
+    await page.waitForFunction(()=>__xfcTrainingMatch.world.input.moveX>.4&&__xfcTrainingMatch.engine.scene.getObjectByName('xfc-penalty-aim')?.userData.target?.z>1.2,null,{timeout:10000});
+    await page.waitForTimeout(240);
     const before=await page.evaluate(()=>({input:__xfcTrainingMatch.world.input.moveX,
       target:{...__xfcTrainingMatch.engine.scene.getObjectByName('xfc-penalty-aim').userData.target}}));
     assert.ok(before.input>.4,'seis ciclos do timer não apagam o toque');

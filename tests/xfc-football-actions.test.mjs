@@ -134,10 +134,10 @@ test(
             carrying: !!r?.preparation,
             owner: m.ball.state.owner?.id
           };
-          const stages=[],samples={};let maxStep=0,lastX=taker.x,lastZ=taker.z;
+          const stages=[],samples={};let maxStep=0,preparationTime=0,lastX=taker.x,lastZ=taker.z;
           const blocked=m.world.command('shoot');
           for(let i=0;i<2000 && r?.preparation;i++){
-            m.world.tick(1/60);
+            m.world.tick(1/60);preparationTime+=1/60;
             maxStep=Math.max(maxStep,Math.hypot(taker.x-lastX,taker.z-lastZ));
             lastX=taker.x;lastZ=taker.z;
             const stage=r.preparation?.stage;
@@ -152,7 +152,7 @@ test(
           const accepted=m.world.command('shoot',{strength:.65});
           const runningUp=r.preparation?.stage==='runup';
           for(let i=0;i<100&&r.preparation;i++)m.world.tick(1/60);
-          return {initial,stages,samples,maxStep,blocked,done,ground,owner,distance,stillRestart,
+          return {initial,stages,samples,maxStep,preparationTime,blocked,done,ground,owner,distance,stillRestart,
             ready:r.ready,accepted,runningUp,finalPhase:m.phase.name,finalOwner:m.ball.state.owner?.id,finalBall:m.ball.state.position.toArray(),released:m.phase.name==='play'&&!m.ball.state.owner};
         };
         const goalkick = runRestart('goalkick'),
@@ -193,24 +193,23 @@ test(
       assert.equal(result.foundation, true);
       assert.deepEqual(result.names, ['BAR', 'RMA']);
       assert.equal(result.clockInline, 'hud__sc-main');
-      assert.equal(result.clockColor, 'rgb(186, 255, 32)');
+      assert.equal(result.clockColor, 'rgb(186, 255, 0)');
       for (const [type, r] of [
         ['goalkick', result.goalkick],
         ['corner', result.corner]
       ]) {
         assert.equal(r.initial.type, type);
         assert.equal(r.initial.carrying, true);
-        assert.equal(r.blocked,false,'não cobra enquanto busca a bola');
-        assert.deepEqual(r.stages,['seek','pickup','carry','place','retreat']);
-        assert.ok(r.maxStep<.08,'cobrador não teletransporta na preparação');
-        assert.ok(r.samples.seek.ball[1]<.15,'bola espera no local da saída');
-        assert.ok(r.samples.carry.ball[1]>.85,'bola transportada nas mãos');
-        assert.equal(r.samples.pickup.gesture,'pick-ball');
+        assert.equal(r.blocked,false,'não cobra enquanto ajeita a bola');
+        assert.deepEqual(r.stages,['place'],'sem busca, transporte, recuo ou corrida preparatória');
+        assert.ok(r.maxStep<.001,'cobrador fica no ponto durante o ajuste');
+        assert.ok(r.preparationTime>=.7&&r.preparationTime<.9,'ajuste curto de 0,8 s');
+        assert.ok(r.samples.place.ball[1]<.15,'bola fica no chão, não sobe para o peito');
         assert.equal(r.samples.place.gesture,'place-ball');
         assert.equal(r.ready,true);assert.equal(r.done,true);assert.equal(r.owner,true);
         assert.equal(r.stillRestart,true);assert.ok(r.ground<.15);
-        assert.ok(r.distance>(type==='goalkick'?2:1),'recua antes de cobrar');
-        assert.equal(r.accepted,true);assert.equal(r.runningUp,true);assert.equal(r.released,true);
+        assert.ok(r.distance<.6,'já está junto da bola para cobrar');
+        assert.equal(r.accepted,true);assert.equal(r.runningUp,false);assert.equal(r.released,true);
       }
     } finally {
       await browser.close();

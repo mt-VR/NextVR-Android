@@ -824,7 +824,6 @@ export function createMatch(options = {}) {
   function setRestart(type, side, x, z, options = {}) {
     ball.state.goalPocket = 0;
     ball.state.rainbow = ball.state.recovery = null;
-    const pickup={x:ball.state.position.x,z:ball.state.position.z};
     if (phase.name === 'fulltime' || phase.name === 'halftime') return;
     clearSlideTackles();
     shotCamera = null;
@@ -843,7 +842,6 @@ export function createMatch(options = {}) {
       x,
       z,
       taker: null,
-      pickup,
       ready: false,
       waitForReferee: Boolean(options.waitForReferee),
       foulKind: options.foulKind || null
@@ -881,7 +879,6 @@ export function createMatch(options = {}) {
     }
     if (!taker) return;
     restart.taker = taker;
-    const original={x:taker.x,z:taker.z};
 
     let placeX = restart.x;
     let placeZ = restart.z;
@@ -962,13 +959,15 @@ export function createMatch(options = {}) {
     if (side === userSide) controlled[userSide] = taker;
     restart.ready = true;
     if(['goalkick','corner'].includes(restart.type)){
-      restart.preparation={stage:'seek',time:0,ballX:placeX,ballZ:placeZ,
-        pickupX:Math.max(-54,Math.min(54,restart.pickup.x)),
-        pickupZ:Math.max(-35.5,Math.min(35.5,restart.pickup.z)),
-        fx:taker.facing.x,fz:taker.facing.z};
-      taker.x=original.x;taker.z=original.z;
+      // Reposição curta: já está no ponto, apenas ajeita a bola no chão.
+      // A caminhada até a bola, transporte, recuo e corrida preparatória foram
+      // retirados a pedido do usuário. A cobrança em si continua normal.
+      restart.preparation={stage:'place',time:0,ballX:placeX,ballZ:placeZ,duration:.8};
+      taker.x=placeX-taker.facing.x*.46;taker.z=placeZ-taker.facing.z*.46;
+      taker.root.position.set(taker.x,0,taker.z);
       ball.state.owner=null;
-      ball.state.position.set(restart.preparation.pickupX,BALL.radius,restart.preparation.pickupZ);
+      ball.state.position.set(placeX,BALL.radius,placeZ);
+      taker.model.placeBall?.(.8);
     }
   }
 
@@ -1073,68 +1072,23 @@ export function createMatch(options = {}) {
     shotCamera = { type, side, taker, timer: 0, duration: type === 'penalty' ? 2.7 : 2.25 };
   }
 
-  const carryLeft=new THREE.Vector3(),carryRight=new THREE.Vector3();
   function syncRestartBall() {
-    const restart=phase.restart,p=restart?.preparation;
+    const p=phase.restart?.preparation;
     if(!p)return;
-    const taker=restart.taker,bones=taker.model.bones;
-    const held=p.stage==='carry'||(p.stage==='pickup'&&p.time>=.45)||(p.stage==='place'&&p.time<.45);
-    if(held&&bones?.leftHand&&bones?.rightHand){
-      taker.root.updateMatrixWorld(true);
-      bones.leftHand.getWorldPosition(carryLeft);bones.rightHand.getWorldPosition(carryRight);
-      ball.state.position.copy(carryLeft).add(carryRight).multiplyScalar(.5);
-      ball.state.position.y=Math.max(BALL.radius,ball.state.position.y);
-    }else if(p.stage==='seek'||p.stage==='pickup'){
-      ball.state.position.set(p.pickupX,BALL.radius,p.pickupZ);
-    }else ball.state.position.set(p.ballX,BALL.radius,p.ballZ);
+    // Não levantar a bola para o peito: a animação é só de ajuste no ponto.
+    ball.state.position.set(p.ballX,BALL.radius,p.ballZ);
     ball.mesh.position.copy(ball.state.position);
-    ball.shadow.position.set(ball.state.position.x,.02,ball.state.position.z);
-  }
-
-  function beginRestartRunup(restart,command=null){
-    if(!restart.runup)return false;
-    restart.preparation={stage:'runup',time:0,ballX:ball.state.position.x,ballZ:ball.state.position.z,command};
-    return true;
+    ball.shadow.position.set(p.ballX,.02,p.ballZ);
   }
 
   function updateRestartActors(dt) {
     const restart = phase.restart;
     if(restart?.preparation){
-      const p=restart.preparation,taker=restart.taker;p.time+=dt;
-      const move=(x,z,speed,backward=false)=>{
-        const dx=x-taker.x,dz=z-taker.z,d=Math.hypot(dx,dz),step=Math.min(d,speed*dt);
-        taker.vx=d>.01?dx/d*speed:0;taker.vz=d>.01?dz/d*speed:0;
-        if(d>.01){taker.x+=dx/d*step;taker.z+=dz/d*step;}
-        if(!backward)faceTowards(taker,x,z,dt,10);
-        return d<=speed*dt+.03;
-      };
-      const next=(stage)=>{p.stage=stage;p.time=0;taker.vx=taker.vz=0;};
-      if(p.stage==='seek'){
-        const dx=p.pickupX-taker.x,dz=p.pickupZ-taker.z,d=Math.hypot(dx,dz)||1;
-        if(move(p.pickupX-dx/d*.46,p.pickupZ-dz/d*.46,4.3)){
-          next('pickup');taker.model.pickBall?.(.9);
-        }
-      }else if(p.stage==='pickup'){
-        if(p.time>=.9){next('carry');taker.model.carryBall?.(60);}
-      }else if(p.stage==='carry'){
-        if(move(p.ballX-p.fx*.46,p.ballZ-p.fz*.46,2.15)){
-          next('place');faceTowards(taker,p.ballX,p.ballZ,1,12);taker.model.placeBall?.(.9);
-        }
-      }else if(p.stage==='place'){
-        if(p.time>=.9){next('retreat');}
-      }else if(p.stage==='retreat'){
-        const back=restart.type==='goalkick'?2.1:1.1;
-        if(move(p.ballX-p.fx*back,p.ballZ-p.fz*back,1.25,true)){
-          restart.runup={x:p.ballX-p.fx*.46,z:p.ballZ-p.fz*.46};
-          restart.preparation=null;phase.timer=0;taker.vx=taker.vz=0;
-          ball.attachTo(taker);ball.state.position.set(p.ballX,BALL.radius,p.ballZ);
-        }
-      }else if(p.stage==='runup'){
-        if(move(restart.runup.x,restart.runup.z,3.2)){
-          const command=p.command;restart.preparation=null;restart.runup=null;
-          if(command)performHumanRestart(command.name,command.opts,restart);
-          else playRestart(1.2);
-        }
+      const p=restart.preparation,taker=restart.taker;
+      p.time+=dt;taker.vx=taker.vz=0;
+      if(p.time>=p.duration){
+        restart.preparation=null;phase.timer=0;
+        ball.attachTo(taker);ball.state.position.set(p.ballX,BALL.radius,p.ballZ);
       }
       return;
     }
@@ -1166,7 +1120,6 @@ export function createMatch(options = {}) {
     const taker = restart.taker;
     const humanTakes = taker.side === userSide && controlled[userSide] === taker;
     if (humanTakes || phase.timer < 1.1) return;
-    if(beginRestartRunup(restart))return;
 
     if (restart.type === 'penalty') {
       const sign = attackSign(taker.side);
@@ -1642,7 +1595,6 @@ export function createMatch(options = {}) {
   function performHumanRestart(name, opts, restart) {
     const taker = restart?.taker;
     if (!restart?.ready || restart.preparation || restart.side !== userSide || !taker || controlled[userSide] !== taker) return false;
-    if(['pass','shoot','lob'].includes(name)&&beginRestartRunup(restart,{name,opts}))return true;
     let acted = false;
     if (name === 'shoot') {
       const hasSetPieceTechnique = ['freekick', 'penalty', 'corner'].includes(restart.type);

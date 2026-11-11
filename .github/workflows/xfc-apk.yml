@@ -175,24 +175,22 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.22
+          TAG=xfc-gameplay-v0.5.23
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.22 (versionCode 28), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.23 (versionCode 29), commit ${GITHUB_SHA}." \
             "" \
-            "Placar branco no alto à direita, relógio verde abaixo e pausa sobre o jogo real congelado. Menus brasileiros com as artes fornecidas e navegação para competições funcionais." \
+            "Placar ao vivo branco com alas, escudos, gols centrais e relógio verde abaixo; na pausa usa a faixa preta à direita com período, conforme as duas referências." \
             "" \
-            "Ultimate Team local: cartas, compra/venda, pacotes, elenco titular na partida 3D, cinco elencos salvos, formações, entrosamento, capitão, objetivos, temporadas, evoluções e DME." \
+            "Menu de pausa com marca, textos e ícones recortados da arte fornecida, cinco opções e rodapé A/B clicável. Plano de jogo preservado em Configurações. Fundo continua sendo a partida real congelada." \
             "" \
-            "Squad Battles, Division Rivals, FUT Champions e eventos são séries LOCAIS contra IA. Mercado de preços fixos, moedas virtuais, sem multiplayer, leilões online ou dinheiro real. Edições especiais/Ídolos/Heróis são conceituais XFC, não cartas oficiais." \
+            "Escanteios e tiros de meta: cobrador já no ponto, somente 0,8 segundo ajeitando a bola no chão. Sem buscar, carregar, recuar ou correr antes de cobrar." \
             "" \
-            "Corrida com fases aéreas, recuperação de joelho e braços alternados frente/trás; cotovelo abre atrás. Mesmo Micah masculino importado. Avaliação visual no aparelho continua necessária." \
-            "" \
-            "Preservados os modos, câmera, gestos, clubes, uniformes e o perfil econômico do Android. Sem teste de FPS em celular físico nem promessa de equivalência a FC Mobile. docs/v0.5.22.md.")
+            "Preservados Ultimate Team local/IA, perfil, elencos, corrida, controles, gestos e campeonatos. Sem avaliação de FPS em aparelho físico. docs/v0.5.23.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — Ultimate Team local e corrida v0.5.22" \
+            gh release create "$TAG" --title "XFC 27 — placar, pausa e reposições curtas v0.5.23" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — Ultimate Team local e corrida v0.5.22" \
+            gh release edit "$TAG" --title "XFC 27 — placar, pausa e reposições curtas v0.5.23" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
