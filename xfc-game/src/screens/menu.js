@@ -17,7 +17,7 @@ const MENU_ITEMS = [
   },
   {
     id: 'kickoff',
-    label: 'KICK OFF',
+    label: 'JOGO RÁPIDO',
     headline: 'Dive straight into the action',
     subtitle: 'Quick matches  ·  Couch Co-op  ·  Customise settings',
     action: 'Enter Kick Off',
@@ -68,10 +68,10 @@ const MENU_ITEMS = [
   },
   {
     id: 'quick',
-    label: 'CO-OP SEASONS',
-    headline: 'Take on the season together',
-    subtitle: 'Pick your sides and get straight into a match.',
-    action: 'Play Co-op',
+    label: 'TIME ALEATÓRIO',
+    headline: 'Um novo confronto a cada sorteio',
+    subtitle: 'Sorteie dois clubes, escolha o uniforme e entre em campo.',
+    action: 'Sortear times',
     target: 'quick'
   },
   {

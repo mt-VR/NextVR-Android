@@ -194,7 +194,7 @@ export function squadScreen(ctx, params = {}) {
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go('kickoff');
+        ctx.go(params.returnTo||'kickoff',params.returnParams||{});
         return true;
       }
       return false;

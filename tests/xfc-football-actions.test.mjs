@@ -16,8 +16,8 @@ test('passadas: tornozelo segue trajetória limitada, joelho não lança pé par
     const z = -0.44 * Math.sin(p.hip) - 0.42 * Math.sin(p.hip + p.knee);
     assert.ok(z >= -.211 && z <= .381);
     assert.ok(Math.abs(z - p.z) < 0.005);
-    assert.ok(p.knee >= 0 && p.knee < 1.75);
-    assert.ok(y >= -.856 && y <= -.56);
+    assert.ok(p.knee >= 0 && p.knee < 1.85);
+    assert.ok(y >= -.856 && y <= -.51);
     assert.ok(Math.abs(p.hip + p.knee + p.ankle) <= .221, 'rolagem do tornozelo limitada ao contato');
     if (last)
       assert.ok(Math.abs(p.hip - last.hip) < 0.06, 'sem salto entre ciclos');
@@ -57,6 +57,7 @@ test(
       await page.keyboard.press('Enter');
       await page.click('.launch__enter');
       await page.click('[data-menu-item="quick"]');
+      await page.evaluate(async()=>{(await import('/src/main.js')).go('quick',{home:'fc-barcelona',away:'real-madrid'});});
       await page.click('.quick__actions .continue-btn');
       await page.click('.stadiums__card:first-child');
       await page.click('.showcase__enter');

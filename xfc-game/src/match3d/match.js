@@ -876,7 +876,7 @@ export function createMatch(options = {}) {
     const keepers = members(side).filter(player => player.active && player.isKeeper);
     const candidates = restart.type === 'goalkick' && keepers.length
       ? keepers
-      : members(side).filter(player => player.active && (!player.isKeeper || restart.type === 'penalty'));
+      : members(side).filter(player => player.active && !player.isKeeper);
     let taker = null;
     let best = Infinity;
     for (const player of candidates) {
@@ -946,6 +946,21 @@ export function createMatch(options = {}) {
       });
     } else if (restart.type === 'penalty') {
       const keeper = members(opponentOf(side)).find(player => player.active && player.isKeeper);
+      // Ninguém além do cobrador e goleiro dentro da área/arco. Os demais
+      // continuam ativos e voltam ao jogo após o chute (sem apagar jogadores).
+      let waiting=0;
+      for(const player of allPlayers){
+        if(!player.active||player===taker||player===keeper)continue;
+        if(player.isKeeper){
+          player.x=-sign*(PITCH.halfLength-1.2);player.z=0;player.vx=player.vz=0;
+          player.root.position.set(player.x,0,player.z);continue;
+        }
+        player.x=sign*(PITCH.halfLength-22-(Math.floor(waiting/10)*2.2));
+        player.z=((waiting%10)-4.5)*2.2;waiting++;
+        player.vx=player.vz=0;player.root.position.set(player.x,0,player.z);
+      }
+      referee.x=sign*(PITCH.halfLength-17);referee.z=23;
+      referee.vx=referee.vz=0;referee.root.position.set(referee.x,0,referee.z);
       if (keeper) {
         keeper.x = sign * (PITCH.halfLength - 0.55);
         keeper.z = 0;
@@ -965,6 +980,7 @@ export function createMatch(options = {}) {
     } else {
       faceTowards(taker, sign * PITCH.halfLength, 0, 1, 12);
     }
+    if(restart.type==='penalty'){taker.x=placeX-sign*.45;taker.root.position.set(taker.x,0,taker.z);}
     if (side === userSide) controlled[userSide] = taker;
     restart.ready = true;
     if(['goalkick','corner'].includes(restart.type)){
@@ -1359,6 +1375,7 @@ export function createMatch(options = {}) {
     hairStyle: 'short',
     heightScale: 1.03
   });
+  refereeModel.root.name='xfc-referee';
   engine.scene.add(refereeModel.root);
   const referee = {
     x: 2.4,
@@ -1459,6 +1476,13 @@ export function createMatch(options = {}) {
       return;
     }
 
+    // Pênalti: árbitro fora da área, nunca parado entre cobrador e goleiro.
+    if((phase.name==='restart'&&phase.restart?.type==='penalty')||shotCamera?.type==='penalty'){
+      const sign=attackSign(phase.restart?.side||shotCamera.side);
+      referee.x=sign*(PITCH.halfLength-17);referee.z=23;referee.vx=referee.vz=0;
+      referee.root.position.set(referee.x,0,referee.z);refereeModel.update(dt,{speed:0});
+      faceTowards(referee,ball.state.position.x,ball.state.position.z,dt,8);return;
+    }
     // No apito inicial e no fim ele fica junto ao círculo central.
     if (phase.name === 'kickoff' || phase.name === 'fulltime') {
       const targetX = phase.name === 'kickoff' ? 2.4 : -1.8;
@@ -1511,9 +1535,9 @@ export function createMatch(options = {}) {
       if(decision.lane)diveKeeper(keeper,decision.lane,decision.flightId);
       else keeper.model.catchBall?.();
     }
-    const progress=Math.min(1,Math.max(0,(decision.time-.07)/.42));
+    const progress=Math.min(1,Math.max(0,(decision.time-.10)/.52));
     const old=keeper.z;
-    keeper.z=decision.startZ+decision.lane*2.15*Math.sin(progress*Math.PI/2);
+    keeper.z=decision.startZ+decision.lane*2.15*(progress*progress*(3-2*progress));
     keeper.vz=(keeper.z-old)/Math.max(dt,.001);keeper.vx=0;
     keeper.root.position.set(keeper.x,0,keeper.z);
     return true;
@@ -1938,23 +1962,31 @@ export function createMatch(options = {}) {
   // ganha um anel dourado. Trocar de jogador dispara um pulso de destaque.
   const markerRing = new THREE.Mesh(
     new THREE.RingGeometry(0.38, 0.55, 30),
-    new THREE.MeshBasicMaterial({ color: 0x19c8ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xef2538, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
   );
   markerRing.rotation.x = -Math.PI / 2;
   markerRing.position.y = 0.035;
   const markerDisc = new THREE.Mesh(
     new THREE.CircleGeometry(0.38, 26),
-    new THREE.MeshBasicMaterial({ color: 0x19c8ff, transparent: true, opacity: 0.22, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xef2538, transparent: true, opacity: 0.22, depthWrite: false })
   );
   markerDisc.rotation.x = -Math.PI / 2;
   markerDisc.position.y = 0.032;
 
-  // Seta (cone) apontando para baixo, flutuando sobre o controlado.
-  const markerChevron = new THREE.Mesh(
-    new THREE.ConeGeometry(0.17, 0.38, 4),
-    new THREE.MeshBasicMaterial({ color: 0x2ad4ff, transparent: true, opacity: 0.96, depthWrite: false })
-  );
-  markerChevron.rotation.x = Math.PI;
+  // Triângulo plano vermelho, sempre de frente para a tela (sem cone/giro 3D).
+  const markerGeometry=new THREE.BufferGeometry();
+  markerGeometry.setAttribute('position',new THREE.Float32BufferAttribute([-.16,.12,0,.16,.12,0,0,-.15,0],3));
+  const markerChevron=new THREE.Mesh(markerGeometry,new THREE.MeshBasicMaterial({
+    color:0xf02338,side:THREE.DoubleSide,depthTest:false,depthWrite:false,toneMapped:false
+  }));
+  markerChevron.name='xfc-controlled-marker-2d';markerChevron.renderOrder=1000;
+  markerChevron.onBeforeRender=(_renderer,_scene,camera)=>{
+    markerChevron.quaternion.copy(camera.quaternion);
+    const depth=markerChevron.position.distanceTo(camera.position);
+    const size=2*depth*Math.tan(camera.fov*Math.PI/360)*14/720/.27;
+    markerChevron.scale.setScalar(Math.max(.25,Math.min(2.2,size)));
+    markerChevron.updateMatrixWorld();
+  };
 
   // Anel dourado: quem está com a posse da bola.
   const carrierRing = new THREE.Mesh(
@@ -2016,9 +2048,9 @@ export function createMatch(options = {}) {
       markerRing.position.set(player.x, 0.035, player.z);
       markerDisc.position.set(player.x, 0.032, player.z);
       // Seta flutuante com balanço suave.
-      markerChevron.position.set(player.x, 2.62 + Math.sin(markerTime * 2.7) * 0.1 + switchFlash * 0.35, player.z);
-      markerChevron.rotation.y = markerTime * 1.5;
-      markerChevron.scale.setScalar(1 + switchFlash * 0.6);
+      markerChevron.position.set(player.x, 2.12, player.z);
+      markerChevron.quaternion.copy(engine.camera.quaternion);
+      markerChevron.scale.setScalar(1);
       markerRing.visible = markerDisc.visible = markerChevron.visible = true;
     }
     // O anel dourado segue o dono da bola (de qualquer time).
@@ -2477,6 +2509,7 @@ export function createMatch(options = {}) {
     updateTrainingActors(dt);
     updateMarker(dt);
     updateTrainingCamera(dt);
+    markerChevron.quaternion.copy(engine.camera.quaternion);
   }
 
   // ---------------------------------------------------------------- entrada --
@@ -2740,7 +2773,7 @@ export function createMatch(options = {}) {
     // Árbitro acompanha a jogada, mas sai do quadro da comemoração.
     if (phase.name !== 'goal') updateReferee(dt);
 
-    // Marcador azul acompanha o atleta controlado; bola parada ganha prévia.
+    // Marcador vermelho 2D acompanha o atleta controlado; bola parada ganha prévia.
     updateMarker(dt);
     updateSetPiecePreview();
     updatePenaltyAim();
@@ -2760,6 +2793,7 @@ export function createMatch(options = {}) {
       engine.camera.position.set(...manualCamera.position);
       engine.camera.lookAt(...manualCamera.target);
     } else updateCamera(dt);
+    markerChevron.quaternion.copy(engine.camera.quaternion);
     if(phase.name==='play')replay.capture(dt);
   }
 
@@ -2970,7 +3004,7 @@ export function createMatch(options = {}) {
   function diveKeeper(keeper, dir = 1, flightId = ball.state.flightId ?? 0) {
     if (!keeper?.model) return false;
     const now = state_time();
-    if (Number.isFinite(keeper.diveCooldown) && now - keeper.diveCooldown < 0.75) return false;
+    if (Number.isFinite(keeper.diveCooldown) && now - keeper.diveCooldown < 1.35) return false;
     const direction = dir >= 0 ? 1 : -1;
     keeper.diveCooldown = now;
     keeper.gkDiving = true;

@@ -1,5 +1,10 @@
 # XFC — o jogo de futebol da XF Esports
 
+**v0.5.29:** abertura com a arte original enviada, Jogo Rápido/Time Aleatório
+com seleção funcional na referência, Micah de 1,75 m com ajuste moderado de
+braços/pernas, caminhada/corrida revisadas, indicador vermelho 2D e pênalti
+sem invasores antes do chute. [Detalhes e limites](docs/v0.5.29.md).
+
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de
 realidade virtual — é uma pasta à parte, com os seus próprios assets, estilos e

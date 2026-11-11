@@ -134,7 +134,7 @@ test('movimentos: transição suave, cadência sincronizada, carrinho baixo e me
         model.animation.stop();model.update(1/60,{speed:0});
         if(name==='slide')model.slideTackle();else model.dive(dir);
         let minY=Infinity,peak;
-        for(let i=0;i<125;i++){
+        for(let i=0;i<180;i++){
           model.update(1/120,{speed:7});model.root.updateMatrixWorld(true);
           for(const key of ['leftFoot','rightFoot','leftLeg','rightLeg'])minY=Math.min(minY,model.bones[key].getWorldPosition(new T.Vector3()).y);
           if(i===44)peak={hips:model.bones.hips.getWorldPosition(new T.Vector3()).toArray(),head:model.head.getWorldPosition(new T.Vector3()).toArray()};

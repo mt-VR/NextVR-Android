@@ -14,7 +14,7 @@ export function runningLegPose(phase, stride = 1, running = 1) {
   const smooth = t * t * (3 - 2 * t);
   const front=.25+.13*running,back=.12+.09*running;
   const z = (stance ? front-(front+back)*t : -back+(front+back)*smooth)*stride;
-  const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.225*running);
+  const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.275*running);
   // O pé de apoio quase estende a perna; retirar o encurtamento constante
   // de 6 cm elimina o agachamento durante toda a passada.
   const y = -Math.sqrt(.855*.855-z*z)+lift,
@@ -38,9 +38,11 @@ export function runningLegPose(phase, stride = 1, running = 1) {
 
 /** Contrabalanço sagital: braço oposto à perna; cotovelo abre atrás do corpo. */
 export function runningArmPose(phase, running=1) {
+  const r=clamp(running,0,1),blend=r*r*(3-2*r);
   const swing=Math.cos(phase*Math.PI*2);
-  return { shoulder:(.32+.48*clamp(running,0,1))*swing,
-    elbow:-(.68-.30*swing), twist:.055*Math.sin(phase*Math.PI*2) };
+  // Caminhada: braços soltos e quietos. Corrida: balanço contralateral.
+  return { shoulder:.80*blend*swing,
+    elbow:-.10-(.58-.30*swing)*blend, twist:.055*blend*Math.sin(phase*Math.PI*2) };
 }
 export function runningFlight(phase,running=1){
   const support=.62-.30*clamp(running,0,1),p=((phase%1)+1)%1,other=(p+.5)%1;

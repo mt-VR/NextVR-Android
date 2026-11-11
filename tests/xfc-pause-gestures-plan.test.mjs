@@ -10,7 +10,7 @@ test('postura: apoio quase estendido e recuperação distinta de caminhada/corri
  for(const running of [0,1])for(let i=0;i<240;i++){
    const pose=runningLegPose(i/240,1,running);
    if(pose.stance)assert.ok(pose.knee<.25,'não agacha a perna de apoio');
-   assert.ok(Number.isFinite(pose.hip));assert.ok(pose.knee<1.75);
+   assert.ok(Number.isFinite(pose.hip));assert.ok(pose.knee<1.85);
  }
  assert.ok(runningLegPose(.78,1,1).lift>runningLegPose(.78,1,0).lift);
  for(const point of [{x:0,z:0},{x:20,z:-12},{x:-35,z:25}]){
@@ -61,7 +61,7 @@ test('pausa real: congela simulação/render; plano arrasta sem teleporte, persi
    const old=await p.evaluate(id=>__xfcMatch.world.getGamePlan().find(x=>x.id===id),id);
    const box=await card.boundingBox();await p.mouse.move(box.x+box.width/2,box.y+box.height/2);await p.mouse.down();await p.mouse.move(box.x+box.width/2-90,box.y+box.height/2-65,{steps:6});await p.mouse.up();
    const edited=await p.evaluate(id=>__xfcMatch.world.getGamePlan().find(x=>x.id===id),id);assert.notEqual(edited.x,old.x);assert.notEqual(edited.z,old.z);assert.deepEqual(await capture(),before,'editar tática não altera posições físicas do lance congelado');
-   const stored=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).gamePlans);assert.equal(stored['fc-barcelona'][edited.rosterId].x,edited.x);
+   const stored=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).gamePlans);const teamId=await p.evaluate(()=>__xfcMatch.teams.home.info.id);assert.equal(stored[teamId][edited.rosterId].x,edited.x);
    await card.focus();await p.keyboard.press('ArrowUp');const keyEdited=await p.evaluate(id=>__xfcMatch.world.getGamePlan().find(x=>x.id===id),id);assert.ok(keyEdited.x>edited.x);
    await p.keyboard.press('Escape');await p.click('[data-pause-action="settings"]');await p.selectOption('[aria-label="Distância da câmera"]','1.2');assert.equal(await p.evaluate(()=>__xfcMatch.world.cameraZoom),1.2);
    await p.click('[data-pause-action="resume"]');assert.equal(await p.evaluate(()=>__xfcMatch.world.isPaused()),false);await p.waitForFunction(frames=>__xfcMatch.engine.running&&__xfcMatch.engine.state.frames>frames,before.frames,{timeout:10000});

@@ -691,8 +691,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       .then(() => true)
       .catch(() => false);
     if (intro) {
-      assert.ok(await page.locator('.intro__badge svg').isVisible(), 'o selo XF Esports aparece na intro');
-      assert.ok(await page.locator('.intro__wordmark svg').isVisible(), 'o logotipo XFC aparece na intro');
+      assert.ok(await page.locator('.intro-reference__art').isVisible(), 'a própria arte XF Esportes/XFC aparece na intro');
+      assert.match(await page.locator('.intro-reference__art').getAttribute('src'), /loading.png$/);
       await page.keyboard.press('Enter');
     }
 
@@ -708,8 +708,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await imagesReady();
     const navLabels = await page.locator('.menu__item-label').allTextContents();
     assert.deepEqual(navLabels, [
-      'FC NEWS', 'KICK OFF', 'THE GROUNDS', 'ULTIMATE TEAM', 'LEARN TO PLAY',
-      'SEASONS', 'TOURNAMENTS', 'CO-OP SEASONS', 'ONLINE FRIENDLIES'
+      'FC NEWS', 'JOGO RÁPIDO', 'THE GROUNDS', 'ULTIMATE TEAM', 'LEARN TO PLAY',
+      'SEASONS', 'TOURNAMENTS', 'TIME ALEATÓRIO', 'ONLINE FRIENDLIES'
     ], 'o menu mantém as opções do hub em uma lista vertical');
     assert.equal(await page.locator('.menu__item.is-focused').getAttribute('data-menu-item'), 'kickoff',
       'KICK OFF aparece selecionado por padrão');
@@ -860,7 +860,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     const teamNames = await page.locator('.team-card__name').allTextContents();
     assert.ok(teamNames.includes('FC Barcelona'), 'Barcelona aparece na escolha de times');
     assert.ok(teamNames.includes('Real Madrid'), 'Real Madrid aparece na escolha de times');
-    assert.equal(await page.locator('.team-card__rating b').count(), 6, 'cada time mostra ATT, MID e DEF');
+    assert.equal(await page.locator('.selection-shirt').count(), 2, 'a referência mostra um uniforme selecionado por time');
     await imagesReady();
     assert.ok(await page.locator('.team-card__crest').first().isVisible(), 'os escudos aparecem');
 
@@ -1098,7 +1098,10 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.waitForSelector('.screen--quick', { timeout: 15000 });
     assert.equal(await page.locator('.quick__panel').count(), 2, 'a tela tem HOME e AWAY');
     assert.equal(await page.locator('.quick__panel--home .quick__crest').count(), 1, 'o mandante mostra o escudo');
-    assert.ok(await page.locator('.quick__kit').count() >= 6, 'cada lado oferece as blusas do clube');
+    assert.equal(await page.locator('.selection-shirt').count(), 2, 'dois seletores de uniforme');
+    await page.locator('.selection-shirt').first().click();
+    assert.ok(await page.locator('.selection-dialog .quick__kit').count() >= 1, 'uniformes disponíveis no seletor');
+    await page.getByRole('button',{name:'Fechar',exact:true}).click();
     assert.ok(await page.locator('.continue-btn').count(), 'a tela oferece o CONTINUAR');
 
     // Duração e dificuldade são ajustáveis antes de começar.

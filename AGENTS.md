@@ -530,3 +530,23 @@ cd xfc-game/android && ./gradlew assembleDebug
   Script `clean-library-crests.py` remove só preto periférico; não chroma key
   global, nem remover preto das bandeiras/escudos sem revisar. Fontes originais
   em `assets/crests` não foram regravadas nem substituídas.
+
+## v0.5.29 — referências de abertura/seleção e ajuste corporal autorizado
+
+- `assets/ui/quick/loading.png` é o PNG INTACTO enviado; intro e pré-bootstrap
+  usam a própria arte, sem redesenhar logo/adicionar texto. A resolução é
+  1672×941, não 1568×882 (esta última é apenas a base de coordenadas dos hotspots).
+- `team-selection.js` atende kickoff/quick. Quick agora sorteia clubes distintos;
+  testes que exigem clubes específicos precisam passá-los. Kits/elenco retornam
+  pela origem. Uniformes disponíveis ficam no modal da camisa, não todos no painel.
+- Pedido explícito novo autoriza APENAS altura de 1,75 m e braços/pernas levemente
+  grossos. `athleticLimbs` deriva/cacheia geometria radial (+7%/+9%) sem mudar
+  topologia, UV, rig ou arquivo GLB. Não substituir Micah nem alterar rosto/tronco.
+- Braços quietos ao andar, contralaterais na corrida. Recuperação de joelho até
+  1,83 rad; dive dura 1,35 s, não mais 0,95. Alcance físico de defesa continua
+  limitado ao voo; cooldown impede reinício visual antes da recuperação.
+- Pênalti reposiciona todos os outros atletas fora da área/arco e árbitro na
+  lateral; goleiro atacante retorna ao próprio gol. Ninguém é desativado.
+- Marcador plano vermelho orientado pela câmera, inclusive replay; não cone azul.
+- `tests/xfc-reference-motion.test.mjs` incluído no CI. Documentação e procedência
+  em `docs/v0.5.29.md` e `assets/ui/quick/CREDITS.md`.

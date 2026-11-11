@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -177,20 +177,20 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.28
+          TAG=xfc-gameplay-v0.5.29
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.28 (versionCode 34), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.29 (versionCode 35), commit ${GITHUB_SHA}." \
             "" \
-            "Logos anteriores restaurados como padrão, sem alterar os arquivos originais. A biblioteca não substitui escudos ou ícone de perfil automaticamente; trocas somente por escolha explícita." \
+            "Abertura com a própria arte enviada. Jogo Rápido e Time Aleatório no layout de referência com clubes, uniformes, duração, dificuldade e sorteio funcionais." \
             "" \
-            "82 escudos revisados da biblioteca com PNG transparente, remoção de fundo preto externo e suavização das bordas, preservando preto do desenho. JPEGs de fonte preservados; não se trata de detalhe HD inventado." \
+            "Mesmo Micah de 1,75 m com ajuste leve autorizado em braços/pernas, andar/correr revisados, marcador vermelho 2D, pênaltis sem invasores e salto do goleiro com impulso/voo/recuperação." \
             "" \
-            "Mantidos biblioteca, escolhas salvas, Ultra otimizado, corpos, controles, campeonatos e replay. Detalhes: docs/v0.5.28.md; procedência: assets/library/CREDITS.md.")
+            "Mantidos logos originais, biblioteca, escolhas salvas, Ultra otimizado, controles, campeonatos e replay. Sem teste em telefone físico. Detalhes: docs/v0.5.29.md; procedência: assets/ui/quick/CREDITS.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — logos originais e escudos sem fundo v0.5.28" \
+            gh release create "$TAG" --title "XFC 27 — abertura, seleção e movimentos v0.5.29" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — logos originais e escudos sem fundo v0.5.28" \
+            gh release edit "$TAG" --title "XFC 27 — abertura, seleção e movimentos v0.5.29" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

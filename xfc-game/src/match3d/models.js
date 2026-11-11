@@ -162,13 +162,48 @@ function findBone(root, name) {
   return found;
 }
 
+// Ajuste pedido em v0.5.29: mesmo Micah, rig/topologia/UV intactos.
+// Dilatação radial moderada por influência de osso, calculada UMA vez por malha.
+// Não escala o comprimento dos ossos, nem infla cabeça, mãos ou tronco.
+const athleticGeometryCache=new WeakMap();
+function athleticLimbs(model){
+  model.updateMatrixWorld(true);
+  model.traverse(mesh=>{
+    if(!mesh.isSkinnedMesh)return;
+    const source=mesh.geometry;
+    if(athleticGeometryCache.has(source)){mesh.geometry=athleticGeometryCache.get(source);return;}
+    const geometry=source.clone(),position=geometry.attributes.position;
+    const indices=geometry.attributes.skinIndex,weights=geometry.attributes.skinWeight;
+    const inverse=mesh.matrixWorld.clone().invert();
+    const axes=mesh.skeleton.bones.map(bone=>{
+      const name=bareBone(bone.name);
+      if(!/^(Left|Right)(Arm|ForeArm|UpLeg|Leg)$/.test(name))return null;
+      const child=bone.children.find(b=>b.isBone);if(!child)return null;
+      const origin=bone.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
+      const end=child.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
+      return {origin,axis:end.sub(origin).normalize(),gain:/Leg$/.test(name)?.09:.07};
+    });
+    const v=new THREE.Vector3(),radial=new THREE.Vector3(),delta=new THREE.Vector3();
+    for(let i=0;i<position.count;i++){
+      v.fromBufferAttribute(position,i);delta.set(0,0,0);
+      for(let j=0;j<4;j++){
+        const a=axes[indices.getComponent(i,j)],w=weights.getComponent(i,j);if(!a||!w)continue;
+        radial.copy(v).sub(a.origin);radial.addScaledVector(a.axis,-radial.dot(a.axis));
+        delta.addScaledVector(radial,a.gain*w);
+      }
+      v.add(delta);position.setXYZ(i,v.x,v.y,v.z);
+    }
+    geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();
+    athleticGeometryCache.set(source,geometry);mesh.geometry=geometry;
+  });
+}
+
 export function createGltfPlayer(options = {}) {
   if (!pack) return null;
   const {
     kit = { primary: '#2ef0a8', secondary: '#0b2b3a', accent: '#ffffff' },
     number = 10,
     isKeeper = false,
-    heightScale = 1,
     simplified = false,
     preferredFoot = 'Right',
     skinTone, hairColor = '#251a12', hairStyle = 'short'
@@ -186,9 +221,10 @@ export function createGltfPlayer(options = {}) {
   model.rotation.y = 0;
   root.userData.frontAxis = '+Z';
   root.add(model);
+  athleticLimbs(model);
 
   // Normaliza a altura: o arquivo importado usa metros, mas cada arquivo pode
-  // variar. A escala final precisa ser 1,8 m para o campo continuar correto.
+  // variar. A escala final precisa ser 1,75 m para o campo continuar correto.
   // Alguns exports vêm com Z para cima (3ds Max/Mixamo antigos). Detecta pela
   // caixa da pose de bind e gira para o Y do jogo antes de medir a altura.
   let box = bindPoseBounds(model);
@@ -199,7 +235,9 @@ export function createGltfPlayer(options = {}) {
     box = bindPoseBounds(model);
     size = box.getSize(new THREE.Vector3());
   }
-  const targetHeight = 1.82 * (Number(heightScale) || 1);
+  const targetHeight = 1.75;
+  root.userData.targetHeight=targetHeight;
+  root.userData.limbRadialGain={arms:1.07,legs:1.09};
   const scale = size.y > 0.01 ? targetHeight / size.y : 1;
   model.scale.setScalar(scale);
   model.position.y = -box.min.y * scale;
@@ -358,7 +396,7 @@ export function createGltfPlayer(options = {}) {
     volley:.6,
     header: 0.5,
     celebrate: 2.2,
-    dive: 0.95,
+    dive: 1.35,
     tackle: 0.8,
     react: 0.55,
     fall: 0.95,
@@ -498,18 +536,21 @@ export function createGltfPlayer(options = {}) {
         addBoneRotation(bones.head,-.13*lift,0,0,w);break;
       }
       case 'dive': {
-        const push=ease(.08,.32), land=ease(.40,.60), recover=ease(.76,1);
+        // Carrega a perna de apoio → impulsão → voo → contato lateral → levanta.
+        // Arco do quadril acompanha o deslocamento horizontal do goleiro.
+        const push=ease(.09,.30), land=ease(.42,.64), recover=ease(.78,1);
         const extension=push*(1-recover), grounded=land*(1-recover);
-        const crouch=Math.sin(Math.PI*Math.min(1,p/.25))*.14;
-        bones.hips.position.y=bindHipY-(crouch+.22*extension+.43*grounded)*w;
-        addBoneRotation(bones.hips,.10*extension,0,-1.4*extension*dir,w);
-        addBoneRotation(bones.spine2,.12*grounded,0,.12*grounded*dir,w);
+        const crouch=Math.sin(Math.PI*Math.min(1,p/.24))*.12;
+        const flight=.25*Math.sin(Math.PI*Math.max(0,Math.min(1,(p-.09)/.50)));
+        bones.hips.position.y=bindHipY+(flight-crouch-.18*extension-.46*grounded)*w;
+        addBoneRotation(bones.hips,.08*extension,0,-1.35*extension*dir,w);
+        addBoneRotation(bones.spine2,.16*grounded,0,.10*grounded*dir,w);
         for(const [side,sign] of [['left',1],['right',-1]]){
           const leading=sign===dir;
-          poseBoneRotation(bones[side+'Arm'],-2.55*extension+.35*grounded,0,-sign*.12*extension,w);
-          poseBoneRotation(bones[side+'ForeArm'],-.18*extension-.3*grounded,0,0,w);
-          addBoneRotation(bones[side+'UpLeg'],-(leading?.28:.52)*extension,0,sign*.12*extension,w);
-          addBoneRotation(bones[side+'Leg'],(leading?.4:.85)*extension,0,0,w);
+          poseBoneRotation(bones[side+'Arm'],-(leading?3.02:2.92)*extension+.5*grounded,0,-sign*.16*extension,w);
+          poseBoneRotation(bones[side+'ForeArm'],-(leading?.05:.12)*extension-.45*grounded,0,0,w);
+          addBoneRotation(bones[side+'UpLeg'],-(leading?.18:.42)*extension,0,sign*.13*extension,w);
+          addBoneRotation(bones[side+'Leg'],(leading?.28:.75)*extension+.20*grounded,0,0,w);
         }
         break;
       }
@@ -793,7 +834,8 @@ export function createGltfPlayer(options = {}) {
         const feet=[bones.leftFoot,bones.rightFoot];let min=Infinity;
         for(const foot of feet)min=Math.min(min,foot.getWorldPosition(floorPoint).y-root.position.y);
         if(!runningFlight(gaitPhase,state.locomotionWeights.run)){
-          gaitGroundOffset=(.13*model.scale.y-min)/model.scale.y;
+          const targetOffset=(.13*model.scale.y-min)/model.scale.y;
+          gaitGroundOffset+=(targetOffset-gaitGroundOffset)*(1-Math.exp(-step*22));
         }
         // Não prender os pés ao chão na fase aérea: isso transformava corrida
         // em caminhada acelerada mesmo com joelhos e braços animados.

@@ -108,7 +108,7 @@ export function kitsScreen(ctx, params = {}) {
   const ready = el('button', {
     class: 'kits__ready', type: 'button',
     onClick() {
-      ctx.go('kickoff');
+      ctx.go(params.returnTo||'kickoff',params.returnParams||{});
     }
   }, 'READY');
 
@@ -180,11 +180,11 @@ export function kitsScreen(ctx, params = {}) {
         return true;
       }
       if (event.key === 'Enter' || event.key === ' ') {
-        ctx.go('kickoff');
+        ctx.go(params.returnTo||'kickoff',params.returnParams||{});
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go('kickoff');
+        ctx.go(params.returnTo||'kickoff',params.returnParams||{});
         return true;
       }
       return false;
