@@ -357,6 +357,7 @@ export function competitionScreen(ctx, params = {}) {
 
   artboard.append(art, brand, wallet, menu, stage, deck, hints);
   root.append(artboard);
+  if(competition.id==='world-cup')artboard.append(el('button',{type:'button',class:'comp__classic',text:ctx.state.profile.worldCupCampaign?'Retomar Copa clássica (32)':'Copa clássica (32 seleções)',onClick:()=>ctx.go('worldcup',{classic:true,returnTo})}));
   if(competition.theme==='brasil'){
     root.classList.add('comp--domestic');
     const reference=el('nav',{class:'comp__domestic-reference','aria-label':`Início da ${competition.name}`});
@@ -373,7 +374,7 @@ export function competitionScreen(ctx, params = {}) {
       }
     },el('span',{class:'ref-sr',text:label}))));
     for(const [label,left,action]of [['Selecionar','2.8%',()=>show('play')],['Voltar','14.2%',()=>ctx.go(returnTo)]])reference.append(el('button',{type:'button',class:'comp__reference-button','aria-label':label,style:{left,top:'92%',width:'11%',height:'7%'},onClick:action}));
-    reference.append(el('small',{class:'comp__edition-note',text:competition.tagline+' · edição local compacta'}));
+    reference.append(el('small',{class:'comp__edition-note',text:competition.tagline+' · edição XFC'}));
     artboard.append(reference);
   }
 
@@ -567,6 +568,7 @@ export function competitionScreen(ctx, params = {}) {
   }
 
   function paintDeck() {
+    if(['groups','standings'].includes(panel)&&(tournament?.rules?.format==='knockout'||!tournament&&competition.format==='knockout')){stage.replaceChildren(sectionTitle('Mata-mata','Esta edição não tem fase de grupos.'),tournament?knockoutPanel():selectionPanel());return;}
     const builders = { match: matchCard, phase: phaseCard, rank: rankCard, news: newsCard, scorer: scorerCard };
     deck.replaceChildren(...layout.deck.map(slot => {
       const card = builders[slot.kind]();
@@ -613,6 +615,7 @@ export function competitionScreen(ctx, params = {}) {
       stage.replaceChildren(panel === 'entity' && tournament ? entitiesPanel() : playPanel());
       return;
     }
+    if(['groups','standings'].includes(panel)&&(tournament?.rules?.format==='knockout'||!tournament&&competition.format==='knockout')){stage.replaceChildren(sectionTitle('Mata-mata','Esta edição não tem fase de grupos.'),tournament?knockoutPanel():selectionPanel());return;}
     const builders = {
       calendar: calendarPanel,
       standings: standingsPanel,
@@ -795,7 +798,9 @@ export function competitionScreen(ctx, params = {}) {
   function selectionPanel() {
     const teams = competitionTeams(competition.id);
     let selectedId = competition.pool.includes(ctx.state.selection.home) ? ctx.state.selection.home : teams[0].id;
+    let search='';
     const grid = el('div', { class: 'comp__team-grid' });
+    const searchField=el('input',{class:'comp__team-search',type:'search',placeholder:'Buscar clube ou seleção','aria-label':'Buscar clube ou seleção',onInput:e=>{search=e.target.value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();paintGrid();}});
     const preview = el('div', { class: 'comp__selection-preview' });
 
     function paintPreview() {
@@ -817,7 +822,7 @@ export function competitionScreen(ctx, params = {}) {
     }
 
     function paintGrid() {
-      grid.replaceChildren(...teams.map(team => el('button', {
+      grid.replaceChildren(...teams.filter(team=>team.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(search)).map(team => el('button', {
         class: `comp__team-card${team.id === selectedId ? ' is-selected' : ''}`,
         type: 'button',
         dataset: { teamId: team.id },
@@ -830,7 +835,7 @@ export function competitionScreen(ctx, params = {}) {
       },
         teamBadge(team, 'comp__team-crest'),
         el('b', { class: 'comp__team-name', text: team.shortName || team.name }),
-        el('span', { class: 'comp__team-meta', text: `OVR ${team.ratings.ovr}` })
+        el('span', { class: 'comp__team-meta', text: `OVR ${team.ratings.ovr}${team.squadSource==='fictional'?' · Fictício':''}` })
       )));
     }
 
@@ -842,9 +847,10 @@ export function competitionScreen(ctx, params = {}) {
         el('div', null,
           el('span', { class: 'comp__panel-eyebrow', text: `${competition.name.toUpperCase()} · ${competition.year}` }),
           el('h1', { class: 'comp__panel-title', text: `Escolha o seu ${competition.entitySingular}` }),
-          el('p', { class: 'comp__panel-copy', text: `São ${teams.length} ${competition.entityLabel.toLowerCase()} no sorteio. Os grupos e o calendário são gerados na hora.` })
+          el('p', { class: 'comp__panel-copy', text: `São ${teams.length} ${competition.entityLabel.toLowerCase()} no sorteio. Edição XFC; calendário gerado na hora. Seleções sem elenco real usam atletas fictícios identificados.` })
         )
       ),
+      searchField,
       el('div', { class: 'comp__selection' }, grid, preview)
     );
   }
@@ -852,7 +858,7 @@ export function competitionScreen(ctx, params = {}) {
   /* ---------------------------------------------------------- participantes --- */
 
   function entitiesPanel() {
-    const teams = competitionTeams(competition.id);
+    const teams = tournament?tournament.teams.map(competitionTeam):competitionTeams(competition.id);
     const userTeam = competitionTeam(tournament.userTeamId);
     return el('section', { class: 'comp__panel comp__panel--entities' },
       sectionTitle(`${competition.entityLabel} do torneio`, `${teams.length} participantes · ${competition.year}`),
@@ -1026,6 +1032,7 @@ export function competitionScreen(ctx, params = {}) {
       el('div', { class: 'comp__bracket' },
         ...bracket.map(round => el('div', { class: 'comp__round', dataset: { stage: round.stage } },
           el('h3', { class: 'comp__round-title', text: round.label }),
+          round.byes?.length?el('p',{class:'comp__byes',text:`${round.byes.length} seleções avançam direto: ${round.byes.map(shortName).join(', ')}`}):null,
           ...round.fixtures.map(fixture => el('div', {
             class: `comp__tie${fixture.winner === tournament.userTeamId ? ' is-win' : ''}`
               + `${fixture.played ? ' is-played' : ''}`

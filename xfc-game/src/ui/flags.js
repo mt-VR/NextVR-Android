@@ -1,3 +1,5 @@
+import { FIFA_MEMBERS } from '../data/fifa-members.js';
+const availableFlags=new Set(FIFA_MEMBERS.map(m=>m.flagCode));
 // Bandeiras dos países desenhadas em SVG.
 //
 // Emoji não funciona bem em WebView (vira quadradinho) e arquivo de imagem
@@ -174,11 +176,18 @@ const MARKS = {
 };
 
 /**
- * Bandeira de um país como elemento SVG. Países sem desenho pronto caem no
- * desenho genérico do Brasil.
+ * Bandeira de um país como elemento SVG. Código desconhecido usa marcador neutro,
+ * nunca a bandeira de outro país.
  */
 export function flagSvg(code) {
-  const markup = MARKS[code] || MARKS.br;
+  if(availableFlags.has(code)){
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),image=document.createElementNS(ns,'image');
+    svg.setAttribute('class',`flag flag--${code}`);svg.setAttribute('viewBox','0 0 24 18');
+    svg.setAttribute('role','img');svg.setAttribute('aria-label','Bandeira');
+    image.setAttribute('href',`assets/flags/${code}.svg`);image.setAttribute('width','24');image.setAttribute('height','18');
+    svg.append(image);return svg;
+  }
+  const markup = MARKS[code] || '<rect width="24" height="16" fill="#56616b"/><text x="12" y="12" text-anchor="middle" fill="white" font-size="12">?</text>';
   const wrapper = document.createElement('div');
   wrapper.innerHTML = `<svg class="flag flag--${code}" viewBox="0 0 24 16" role="img" aria-label="Bandeira">${markup}</svg>`;
   return wrapper.firstElementChild;

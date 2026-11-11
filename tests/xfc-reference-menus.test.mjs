@@ -14,19 +14,19 @@ test('aparência acompanha a identidade, não o índice no elenco; uniformes tê
   assert.equal(KITS['fc-barcelona'][0].pattern,'stripes');assert.equal(KITS.flamengo[0].pattern,'hoops');
 });
 
-test('Brasileirão termina por pontos em turno/returno; Copa do Brasil tem semifinal e final',()=>{
+test('Brasileirão termina por pontos em turno/returno; Copa do Brasil ampliada tem oitavas até final',()=>{
   for(const id of ['brasileirao','copa-do-brasil']){
     const t=createTournament(id,{random:()=>.31});
-    assert.equal(t.fixtures.length,id==='brasileirao'?30:2);
+    assert.equal(t.fixtures.length,id==='brasileirao'?240:8);
     for(let guard=0;guard<40;guard++){
       simulateRound(t,{random:()=>.31});const f=nextTournamentFixture(t);if(!f)break;
       recordTournamentResult(t,f.id,2,1,{random:()=>.31});
     }
     assert.ok(t.champion);assert.equal(t.stage,'champion');assert.equal(t.fixtures.filter(f=>!f.played).length,0);
     if(id==='brasileirao'){
-      assert.ok(t.fixtures.every(f=>f.stage==='group'));assert.ok(allGroupTables(t)[0].table.every(r=>r.played===10));
+      assert.ok(t.fixtures.every(f=>f.stage==='group'));assert.ok(allGroupTables(t)[0].table.every(r=>r.played===30));
       assert.equal(t.champion,allGroupTables(t)[0].table[0].id);
-    }else assert.deepEqual(t.fixtures.map(f=>f.stage),['sf','sf','final']);
+    }else assert.deepEqual([...new Set(t.fixtures.map(f=>f.stage))],['r16','qf','sf','final']);
   }
 });
 

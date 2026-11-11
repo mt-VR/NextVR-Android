@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -175,22 +175,22 @@ jobs:
         run: |
           set -e
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.23
+          TAG=xfc-gameplay-v0.5.24
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.23 (versionCode 29), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.24 (versionCode 30), commit ${GITHUB_SHA}." \
             "" \
-            "Placar ao vivo branco com alas, escudos, gols centrais e relógio verde abaixo; na pausa usa a faixa preta à direita com período, conforme as duas referências." \
+            "Corrida por deslocamento real, aceleração progressiva, rolagem dos pés, quadril/ombros e cabeça. Modelo masculino Micah e identidades preservados; sem alegação de qualidade AAA equivalente ou FPS no aparelho." \
             "" \
-            "Menu de pausa com marca, textos e ícones recortados da arte fornecida, cinco opções e rodapé A/B clicável. Plano de jogo preservado em Configurações. Fundo continua sendo a partida real congelada." \
+            "Copa do Brasil e Brasileirão com 16 clubes; Champions com 40; Libertadores personalizada com 56 brasileiros/europeus; Copa América só as 10 CONMEBOL; Copa mundial XFC com 211 associações (mata-mata, 45 passes na preliminar)." \
             "" \
-            "Escanteios e tiros de meta: cobrador já no ponto, somente 0,8 segundo ajeitando a bola no chão. Sem buscar, carregar, recuar ou correr antes de cobrar." \
+            "Elencos adicionados são fictícios identificados. Saves antigos e Copa clássica de 32 preservados. Artes das oito telas UT fornecidas integradas a dados, botões e economia reais locais." \
             "" \
-            "Preservados Ultimate Team local/IA, perfil, elencos, corrida, controles, gestos e campeonatos. Sem avaliação de FPS em aparelho físico. docs/v0.5.23.md.")
+            "Mantidos placar/pausa, ajuste de bola de 0,8s, joystick, gestos, uniformes e coleção. Créditos em assets/ultimate/reference/CREDITS.md e assets/flags/CREDITS.md. docs/v0.5.24.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — placar, pausa e reposições curtas v0.5.23" \
+            gh release create "$TAG" --title "XFC 27 — UT das referências e Copa mundial ampliada v0.5.24" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — placar, pausa e reposições curtas v0.5.23" \
+            gh release edit "$TAG" --title "XFC 27 — UT das referências e Copa mundial ampliada v0.5.24" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é

@@ -1,3 +1,4 @@
+import { FIFA_MEMBERS } from './fifa-members.js';
 // Seleções da Copa do Mundo de 2022 e campanhas jogáveis no XFC.
 // Cada seleção traz um XI de época; o sorteio distribui 32 países em oito
 // grupos e a campanha acompanha os resultados até a decisão.
@@ -221,6 +222,16 @@ export const NATIONAL_TEAMS = [
   ])
 ];
 
+// A campanha clássica mantém seus 32 elencos e sorteios antigos. O catálogo
+// mundial ampliado é separado para não invalidar campanhas já salvas.
+const NATIONAL_ROLES=['GK','RB','CB','CB','LB','CDM','CM','CM','RW','ST','LW'];
+export const FIFA_NATIONAL_TEAMS = FIFA_MEMBERS.map(member=>{
+  const existing=NATIONAL_TEAMS.find(team=>team.id===member.id);
+  if(existing)return {...existing,confederation:member.confederation,squadSource:'existing'};
+  const generated=nation(member.id,member.name,member.flagCode,3,{ATT:70,MID:70,DEF:70},['#f0f1f4','#182947','#d4bd69'],NATIONAL_ROLES.map((pos,i)=>[`Atleta ${i+1} · ${member.name}`,i+1,pos,70]));
+  return {...generated,confederation:member.confederation,squadSource:'fictional',squadNote:'Elenco fictício XFC · atributos de jogo, não ranking FIFA'};
+});
+
 export const GROUP_NAMES = Object.freeze(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
 export const USER_NATIONAL_TEAM_ID = 'brazil';
 const KNOCKOUT_STAGES = ['round-of-16', 'quarterfinals', 'semifinals', 'final'];
@@ -311,7 +322,7 @@ function mulberry32(seed) {
 }
 
 export function getNationalTeam(teamId) {
-  return NATIONAL_TEAMS.find(team => team.id === teamId) || null;
+  return FIFA_NATIONAL_TEAMS.find(team => team.id === teamId) || null;
 }
 
 export function getTeamFlag(teamId) {
@@ -384,7 +395,7 @@ export function createWorldCupCampaign({
   teamId = USER_NATIONAL_TEAM_ID,
   userTeamId = teamId
 } = {}) {
-  const selectedTeamId = getNationalTeam(userTeamId) ? userTeamId : USER_NATIONAL_TEAM_ID;
+  const selectedTeamId = NATIONAL_TEAMS.some(team=>team.id===userTeamId) ? userTeamId : USER_NATIONAL_TEAM_ID;
   let campaignSeed = seed >>> 0;
   let groups;
   for (let attempt = 0; attempt < 12; attempt += 1) {

@@ -1,6 +1,7 @@
 // Tela da Copa do Mundo: escolha da seleção, sorteio aleatório dos grupos,
 // classificação e chave jogável das oitavas até a final.
 
+import { competitionScreen } from './competition.js';
 import { el, starRow } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { flagSvg } from '../ui/flags.js';
@@ -26,6 +27,7 @@ const STAGE_LABELS = {
 };
 
 export function worldCupScreen(ctx, params = {}) {
+  if(!params.classic&&!isCampaignValid(ctx.state.profile.worldCupCampaign))return competitionScreen(ctx,{competitionId:'world-cup',returnTo:params.returnTo||'modes'});
   const mode = params.mode || '2027';
   const returnTo = params.returnTo || 'modes';
   const profile = ctx.state.profile;
@@ -49,7 +51,8 @@ function header(ctx, returnTo, subtitle) {
     el('span', { class: 'topbar__mark', html: xfcWordmark() }),
     el('span', { class: 'topbar__title', text: 'Copa do Mundo' }),
     el('span', { class: 'topbar__sep', text: '|' }),
-    el('span', { class: 'topbar__subtitle', text: subtitle })
+    el('span', { class: 'topbar__subtitle', text: 'Copa clássica · '+subtitle }),
+    el('button',{type:'button',class:'worldcup__expanded',text:'Nova Copa · 211 seleções',onClick:()=>ctx.go('competition',{competitionId:'world-cup',returnTo})})
   );
 }
 

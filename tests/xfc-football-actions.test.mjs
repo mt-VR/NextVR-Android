@@ -18,7 +18,7 @@ test('passadas: tornozelo segue trajetória limitada, joelho não lança pé par
     assert.ok(Math.abs(z - p.z) < 0.005);
     assert.ok(p.knee >= 0 && p.knee < 1.75);
     assert.ok(y >= -.856 && y <= -.56);
-    assert.ok(Math.abs(p.hip + p.knee + p.ankle) < 1e-8, 'sola nivelada');
+    assert.ok(Math.abs(p.hip + p.knee + p.ankle) <= .221, 'rolagem do tornozelo limitada ao contato');
     if (last)
       assert.ok(Math.abs(p.hip - last.hip) < 0.06, 'sem salto entre ciclos');
     last = p;

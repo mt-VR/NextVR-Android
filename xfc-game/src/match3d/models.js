@@ -13,7 +13,7 @@
 // `animation` (`speed`, `blend`, `trigger`, `applyMask`, `state`). Assim o
 // motor (`match.js`) não sabe — nem precisa saber — qual modelo está em campo.
 
-import { runningLegPose, runningArmPose, runningFlight } from './football-actions.js';
+import { runningLegPose, runningArmPose, runningFlight, runningCycle } from './football-actions.js';
 import { THREE, softShadowTexture } from './engine.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
@@ -592,8 +592,9 @@ export function createGltfPlayer(options = {}) {
 
   /** Locomoção: mistura idle/jog/run pela velocidade (blend tree). */
   let gaitPhase=0;
-  let gaitGroundOffset=0;
-  function updateLocomotion(speed, dt) {
+  let gaitGroundOffset=0,previousX=null,previousZ=null,previousSpeed=0,gaitAcceleration=0;
+  let gaitStride=.65;
+  function updateLocomotion(speed, dt, movement) {
     const value = Math.max(0, Number(speed) || 0);
     let idle = 0;
     let jog = 0;
@@ -614,8 +615,18 @@ export function createGltfPlayer(options = {}) {
     const lowPose=['dive','tackle','fall'].includes(gesture.name) && gesture.maskName==='full';
     const locomotionGain=lowPose?1-gestureEnvelope()*gesture.weight:1;
     // Fase compartilhada evita pernas opostas ao misturar trote e corrida.
-    const cadence=Math.max(.7,Math.min(2.15,.7+value*.18));
-    gaitPhase=(gaitPhase+dt*cadence*state.speed)%1;
+    const cycle=runningCycle(state.locomotionWeights.run,model.scale.y,number);
+    gaitStride=cycle.stride;
+    let travel=value*dt;
+    if(Number.isFinite(movement.x)&&Number.isFinite(movement.z)){
+      travel=previousX===null?0:Math.hypot(movement.x-previousX,movement.z-previousZ);
+      previousX=movement.x;previousZ=movement.z;
+      if(travel>Math.max(1.5,value*dt*3))travel=0; // reposições/teleportes não animam passos
+    }
+    gaitPhase=(gaitPhase+travel/cycle.distance*state.speed)%1;
+    const acceleration=dt>0?(value-previousSpeed)/dt:0;
+    gaitAcceleration+=(Math.max(-4,Math.min(8,acceleration))-gaitAcceleration)*(1-Math.exp(-dt*6));
+    previousSpeed=value;
     for(const name of ['idle','jog','run']) {
       const weight=state.locomotionWeights[name]+(targets[name]-state.locomotionWeights[name])*blend;
       state.locomotionWeights[name]=weight;
@@ -714,7 +725,7 @@ export function createGltfPlayer(options = {}) {
       mixer.timeScale = state.speed;
       bones.hips.position.y = bindHipY;
       for (const bone of rigBones) bone.quaternion.identity();
-      updateLocomotion(speed, step);
+      updateLocomotion(speed, step, movement);
       mixer.update(step);
       // Substitui as curvas ruins dos joelhos do clipe antigo por trajetórias
       // de pés com apoio no solo. Gestos continuam sobre essa base.
@@ -722,7 +733,7 @@ export function createGltfPlayer(options = {}) {
         * (['dive','tackle','fall','place-ball','pick-ball','stepover'].includes(gesture.name)?1-gestureEnvelope():1);
       if(gaitWeight>.001){
         for(const [side,offset]of [['left',0],['right',.5]]){
-          const pose=runningLegPose(gaitPhase+offset,.65+.35*state.locomotionWeights.run,state.locomotionWeights.run);
+          const pose=runningLegPose(gaitPhase+offset,gaitStride,state.locomotionWeights.run);
           for(const [part,angle]of [['UpLeg',pose.hip],['Leg',pose.knee],['Foot',pose.ankle]]){
             const bone=bones[side+part];
             gQuat.setFromEuler(gEuler.set(angle,0,0));
@@ -743,8 +754,12 @@ export function createGltfPlayer(options = {}) {
         const running=state.locomotionWeights.run;
         bones.hips.position.y+=.018*running*(1-Math.cos(gaitPhase*Math.PI*4));
         // Tronco ereto no andar; inclinação pequena e única ao correr.
-        bones.spine.rotation.x=.065*running;
-        bones.spine.rotation.y=.045*running*Math.sin(gaitPhase*Math.PI*2);
+        bones.spine.rotation.x=.055*running+Math.max(0,gaitAcceleration)*.009*gaitWeight;
+        const twist=Math.sin(gaitPhase*Math.PI*2)*gaitWeight;
+        bones.hips.rotation.y=-.035*twist;
+        bones.spine.rotation.y=.06*twist;
+        bones.head.rotation.y=-.025*twist;
+        bones.head.rotation.x=-.02*running;
         bones.spine2.rotation.x=0;
       }
       addBoneRotation(bones.spine2, 0, 0, Number(movement.lean) || 0, 1);
@@ -838,6 +853,7 @@ export function createGltfPlayer(options = {}) {
       return {
         model: 'glb',
         speed: state.speed,
+        gaitPhase,gaitStride,gaitAcceleration,
         mask: state.mask,
         weights: { ...state.locomotionWeights },
         layers: [...actions.entries()]

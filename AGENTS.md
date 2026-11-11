@@ -451,3 +451,24 @@ cd xfc-game/android && ./gradlew assembleDebug
 - Pedido novo SUPERA o passeio físico da v0.5.20: escanteio/tiro de meta começam
   no ponto e só ajeitam a bola por 0,8 s. Não restaurar seek/pickup/carry/retreat
   nem corrida preparatória. Bola fica no solo; comandos bloqueados só no ajuste.
+
+### v0.5.24 — pools ampliados, FIFA e referências UT
+
+- `FIFA_NATIONAL_TEAMS` tem 211 associações; `NATIONAL_TEAMS` continua sendo os
+  32 elencos da campanha clássica e do catálogo UT. Não substituir o array antigo
+  globalmente: quebraria sorteios antigos e multiplicaria cartas fictícias no UT.
+- Países novos têm `squadSource: fictional`, onze `Atleta N · País`, aviso explícito
+  na seleção, atributos neutros e bandeira real local. Cadastro por confederação
+  em `fifa-members.js`; SVGs MIT em `assets/flags`, mantendo a API SVG dos badges.
+- Torneios novos salvam `rules`. Sem `rules`, aplicar formatos/terceiros antigos.
+  `seedKnockout`/`byes` suportam até 256; passes entram junto dos vencedores, sem
+  jogar contra null e sem eliminar ímpar. WORLD novo é mata-mata customizado 211;
+  Copa clássica 32 segue acessível e saves dela continuam sendo retomados.
+- Libertadores mista Brasil/Europa é escolha EXPRESSA do usuário, não bug de pool.
+  Só Copa América usa exclusivamente as dez associações CONMEBOL.
+- UI UT: fontes recortadas em `assets/ultimate/reference`, procedimento Python
+  documentado. Não usar saldo/XP/nível/cartas das imagens como dados do save.
+  Campo/palco/medalhão têm cópias limpas; cartas e nível são DOM do perfil.
+- Corrida: fase pelo deslocamento real (`movement.x/z`), distância do ciclo pela
+  escala/alcance/apoio. Não reintroduzir tempo fixo que anime corrida parado.
+  Preview sem coordenadas usa integração de velocidade. Teleporte não é passada.

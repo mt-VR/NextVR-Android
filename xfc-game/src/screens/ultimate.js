@@ -145,6 +145,10 @@ export function ultimateTeamScreen(ctx, params = {}) {
     paint();
   }
   function heading(title, description) {
+    const artwork={market:'market',store:'store',events:'events'}[section];
+    if(artwork)main.append(el('div',{class:`ut-reference-banner ut-reference-banner--${artwork}`},
+      el('img',{src:`assets/ultimate/reference/${artwork}-art.jpg`,alt:'Arte promocional da referência fornecida'}),
+      text('small','Arte promocional • cartas ilustrativas, não são recompensa garantida','ut-art-caption')));
     main.append(
       text("p", "XFC / ULTIMATE TEAM", "ut-eyebrow"),
       text("h1", title),
@@ -187,9 +191,10 @@ export function ultimateTeamScreen(ctx, params = {}) {
   function paint() {
     if (disposed) return;
     UT.ensureUltimate(profile);
+    root.dataset.section=section;
     header.replaceChildren(
       button("XFC 27", () => ctx.go(params.returnTo || "menu"), "ut-brand"),
-      text("strong", "ULTIMATE\nTEAM", "ut-wordmark"),
+      el("img",{src:"assets/ultimate/reference/brand.jpg",alt:"XFC 27 Ultimate Team",class:"ut-reference-brand"}),
       text("span", "LOCAL / IA", "ut-offline"),
       text("span", `${num(profile.coins)} ◉`, "ultimate__coin-value"),
       text("span", `${num(u.season.xp)} XP`),
@@ -225,51 +230,10 @@ export function ultimateTeamScreen(ctx, params = {}) {
       "Monte seu time. Conquiste o campo.",
       "Seu clube, suas cartas e sua história. Todos os confrontos são contra a IA do XFC.",
     );
-    const hero = el(
-      "div",
-      { class: "ut-home-hero" },
-      el(
-        "div",
-        {},
-        text("p", "BEM-VINDO AO SEU CLUBE", "ut-eyebrow"),
-        text("h2", "O FUTEBOL\nÉ SEU."),
-        text(
-          "p",
-          "Elenco inicial gratuito • múltiplas formações • progressão salva",
-        ),
-        button("Jogar UT  →", () => go("battles")),
-        button("Gerenciar elenco", () => go("squad")),
-      ),
-      el(
-        "div",
-        { class: "ut-shield" },
-        text("b", "UT"),
-        text("span", "XFC 27"),
-        text("small", "ULTIMATE TEAM"),
-      ),
-    );
-    main.append(
-      hero,
-      el(
-        "div",
-        { class: "ut-tiles" },
-        [
-          [
-            "squad",
-            "MEU ELENCO",
-            `${u.inventory.length} cartas • ${UT.chemistry(u)} de entrosamento`,
-          ],
-          ["store", "ABRA O JOGO", "Pacotes Bronze, Ouro e Destaques"],
-          [
-            "events",
-            "FESTIVAL DO FUTEBOL",
-            "Uma série de 5 partidas com recompensa",
-          ],
-        ].map(([id, title, desc]) =>
-          button(`${title}\n${desc}`, () => go(id), "ut-tile"),
-        ),
-      ),
-    );
+    const links=[['battles','Jogar UT'],['club','Meu Clube'],['squad','Meu Elenco'],['market','Mercado de Transferências'],['dme','Desafios de Montagem de Elenco'],['season','Temporadas'],['objectives','Objetivos'],['store','Loja']];
+    main.append(el('section',{class:'ut-reference-home'},
+      el('div',{class:'ut-reference-menu'},links.map(([id,label])=>button(label+'  ›',()=>go(id))))),
+      el('div',{class:'ut-tiles'},[['squad','Gerenciar elenco'],['events','Festival do Futebol'],['evolution','Evoluções']].map(([id,label])=>button(label,()=>go(id),'ut-tile'))));
     if (u.pending)
       main.append(
         panel(
@@ -840,6 +804,7 @@ export function ultimateTeamScreen(ctx, params = {}) {
     );
   }
   function season() {
+    main.append(el('div',{class:'ut-season-medal'},text('b',String(Math.min(20,Math.floor(u.season.xp/500))))));
     heading(
       "Temporada XFC",
       `${num(u.season.xp)} XP • temporadas locais de 28 dias • nível ${Math.min(20, Math.floor(u.season.xp / 500))}`,
@@ -950,7 +915,7 @@ export function ultimateTeamScreen(ctx, params = {}) {
     main.append(
       el(
         "div",
-        { class: "ut-home-hero" },
+        { class: "ut-event-actions" },
         el(
           "div",
           {},
@@ -973,6 +938,7 @@ export function ultimateTeamScreen(ctx, params = {}) {
     );
   }
   function mode(id) {
+    if(id==='battles')main.append(el('img',{src:'assets/ultimate/reference/battles-badge.jpg',class:'ut-battles-badge',alt:'Emblema Squad Battles'}));
     const m = UT.UT_MODES[id],
       r = u.modes[id];
     heading(

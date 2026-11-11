@@ -12,8 +12,11 @@ export function steerPlayer(player, targetX, targetZ, dt, maxSpeed = 6.4, { arri
   const distance = Math.hypot(dx, dz);
 
   if (distance < 0.05) {
-    player.vx *= 0.6;
-    player.vz *= 0.6;
+    const damping=Math.exp(-Math.max(0,dt)*12);
+    player.vx *= damping;
+    player.vz *= damping;
+    player.x+=player.vx*dt;player.z+=player.vz*dt;
+    clampToPitch(player,1.2);
     return 0;
   }
 
@@ -21,9 +24,13 @@ export function steerPlayer(player, targetX, targetZ, dt, maxSpeed = 6.4, { arri
   const desiredSpeed = distance < arrive ? maxSpeed * (distance / arrive) : maxSpeed;
   const desiredVx = (dx / distance) * desiredSpeed;
   const desiredVz = (dz / distance) * desiredSpeed;
-  const factor = Math.min(1, turn * dt);
-  player.vx += (desiredVx - player.vx) * factor;
-  player.vz += (desiredVz - player.vz) * factor;
+  const step=Math.max(0,Math.min(.1,dt));
+  const factor=1-Math.exp(-Math.max(1,turn)*step);
+  const changeX=(desiredVx-player.vx)*factor,changeZ=(desiredVz-player.vz)*factor;
+  const accelerating=desiredSpeed>Math.hypot(player.vx,player.vz);
+  const maxChange=(accelerating?9.5:14)*step;
+  const ratio=Math.min(1,maxChange/Math.max(.00001,Math.hypot(changeX,changeZ)));
+  player.vx+=changeX*ratio;player.vz+=changeZ*ratio;
 
   player.x += player.vx * dt;
   player.z += player.vz * dt;

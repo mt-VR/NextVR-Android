@@ -10,31 +10,18 @@
 // podem validar o campeonato inteiro sem abrir o navegador.
 
 import { TEAMS, getTeam } from './teams.js';
-import { NATIONAL_TEAMS, getNationalTeam } from './worldcup.js';
+import { FIFA_NATIONAL_TEAMS as NATIONAL_TEAMS, getNationalTeam } from './worldcup.js';
 
 const CLUBS = new Set(TEAMS.map(team => team.id));
 const NATIONS = new Set(NATIONAL_TEAMS.map(team => team.id));
 
-// Pool europeu do jogo (clubes do pacote que não são sul-americanos).
-const EUROPEAN_CLUBS = [
-  'fc-barcelona', 'real-madrid', 'aston-villa', 'brentford', 'eintracht-frankfurt',
-  'panathinaikos', 'levante', 'huddersfield-town', 'queens-park-rangers',
-  'wrexham', 'sheffield-united', 'rkc-waalwijk'
-];
-
-// Clubes sul-americanos do pacote.
-const SOUTH_AMERICAN_CLUBS = [
-  'flamengo', 'palmeiras', 'corinthians', 'santos', 'river-plate', 'ibis-esporte',
-  'parana-clube'
-];
-
-// Seleções da Copa América: as dez da CONMEBOL mais dois convidados.
-// Dez da CONMEBOL não estão todos no pacote: entram seis convidados, como nas
-// edições reais do torneio (México, EUA, Canadá, Japão, Catar e Costa Rica).
-const COPA_AMERICA_NATIONS = [
-  'brazil', 'argentina', 'uruguay', 'ecuador', 'mexico', 'usa',
-  'canada', 'japan', 'qatar', 'costa-rica', 'south-korea', 'poland'
-];
+// Pools editoriais do XFC: todos os clubes cadastrados da região, não uma
+// alegação de classificados oficiais da temporada real.
+const EUROPEAN_COUNTRIES=new Set(['Espanha','Inglaterra','Grécia','Alemanha','País de Gales','Países Baixos','Escócia','Tchéquia','França','Portugal','Noruega','Suíça','Bélgica','Itália']);
+export const BRAZILIAN_CLUBS=TEAMS.filter(t=>t.country==='Brasil').map(t=>t.id);
+export const EUROPEAN_CLUBS=TEAMS.filter(t=>EUROPEAN_COUNTRIES.has(t.country)).map(t=>t.id);
+const MIXED_LIBERTADORES=[...BRAZILIAN_CLUBS,...EUROPEAN_CLUBS];
+const COPA_AMERICA_NATIONS=NATIONAL_TEAMS.filter(t=>t.confederation==='CONMEBOL').map(t=>t.id);
 
 const THEMES = {
   ucl: {
@@ -74,9 +61,9 @@ export const COMPETITIONS = [
     entitySingular: 'clube',
     year: '2026/27',
     pool: EUROPEAN_CLUBS,
-    groupCount: 3,
-    bestThirds: 2,
-    stageTitle: 'Fase de liga',
+    groupCount: 8,
+    bestThirds: 0,
+    stageTitle: 'Grupos · edição XFC ampliada',
     stadiumIndex: 5,
     ...THEMES.ucl
   },
@@ -90,8 +77,8 @@ export const COMPETITIONS = [
     entitySingular: 'seleção',
     year: '2027',
     pool: COPA_AMERICA_NATIONS,
-    groupCount: 3,
-    bestThirds: 2,
+    groupCount: 2,
+    bestThirds: 0,
     stageTitle: 'Fase de grupos',
     stadiumIndex: 3,
     ...THEMES['copa-america']
@@ -105,12 +92,13 @@ export const COMPETITIONS = [
     entityLabel: 'Clubes',
     entitySingular: 'clube',
     year: '2027',
-    pool: SOUTH_AMERICAN_CLUBS,
-    groupCount: 2,
+    pool: MIXED_LIBERTADORES,
+    groupCount: 8,
     bestThirds: 0,
     stageTitle: 'Fase de grupos',
     stadiumIndex: 4,
-    ...THEMES.libertadores
+    ...THEMES.libertadores,
+    tagline:'Edição personalizada · brasileiros e europeus'
   },
   {
     id: 'world-cup',
@@ -122,9 +110,10 @@ export const COMPETITIONS = [
     entitySingular: 'seleção',
     year: '2027',
     pool: NATIONAL_TEAMS.map(team => team.id),
-    groupCount: 8,
+    groupCount: 1,
     bestThirds: 0,
-    stageTitle: 'Fase de grupos',
+    format:'knockout',
+    stageTitle: '211 seleções · mata-mata mundial XFC',
     stadiumIndex: 2,
     ...THEMES['world-cup']
   }
@@ -132,20 +121,22 @@ export const COMPETITIONS = [
 
 // Edições compactas com os clubes brasileiros disponíveis no elenco local.
 COMPETITIONS.push(
-  {id:'copa-do-brasil',theme:'brasil',name:'Copa do Brasil',shortName:'Copa do Brasil',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:['flamengo','palmeiras','corinthians','santos'],groupCount:1,bestThirds:0,format:'knockout',stageTitle:'Semifinais · edição compacta',stadiumIndex:0,mark:'🏆',trophy:'libertadores',tagline:'Mata-mata com quatro clubes disponíveis',menuLabel:'COPA DO BRASIL'},
-  {id:'brasileirao',theme:'brasil',name:'Brasileirão',shortName:'Brasileirão',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:SOUTH_AMERICAN_CLUBS.filter(id=>id!=='river-plate'),groupCount:1,bestThirds:0,format:'league',stageTitle:'Pontos corridos · edição compacta',stadiumIndex:0,mark:'★',trophy:'libertadores',tagline:'Turno e returno com seis clubes disponíveis',menuLabel:'BRASILEIRÃO'}
+  {id:'copa-do-brasil',theme:'brasil',name:'Copa do Brasil',shortName:'Copa do Brasil',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:BRAZILIAN_CLUBS,groupCount:1,bestThirds:0,format:'knockout',stageTitle:'Mata-mata · todos os brasileiros',stadiumIndex:0,mark:'🏆',trophy:'libertadores',tagline:`Mata-mata com ${BRAZILIAN_CLUBS.length} clubes brasileiros`,menuLabel:'COPA DO BRASIL'},
+  {id:'brasileirao',theme:'brasil',name:'Brasileirão',shortName:'Brasileirão',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:BRAZILIAN_CLUBS,groupCount:1,bestThirds:0,format:'league',stageTitle:'Pontos corridos · edição XFC',stadiumIndex:0,mark:'★',trophy:'libertadores',tagline:`Turno e returno com ${BRAZILIAN_CLUBS.length} clubes brasileiros`,menuLabel:'BRASILEIRÃO'}
 );
 
 export const GROUP_LETTERS = Object.freeze(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
 
-const KNOCKOUT_ORDER = ['r16', 'qf', 'sf', 'final'];
+const KNOCKOUT_ORDER = ['r256','r128','r64','r32','r16', 'qf', 'sf', 'final'];
 const KNOCKOUT_LABELS = {
+  r256:'Preliminar mundial',r128:'Fase de 128',r64:'Fase de 64',r32:'Fase de 32',
   r16: 'Oitavas de final',
   qf: 'Quartas de final',
   sf: 'Semifinais',
   final: 'Final'
 };
 const KNOCKOUT_NAMES = {
+  r256:'PRELIMINAR',r128:'128 SELEÇÕES',r64:'FASE DE 64',r32:'FASE DE 32',
   r16: 'OITAVAS',
   qf: 'QUARTAS',
   sf: 'SEMIFINAL',
@@ -208,7 +199,8 @@ function normalizeNation(team) {
     flagCode: team.flagCode,
     colors: team.colors,
     stars: team.stars,
-    league: 'Seleções',
+    league: team.squadSource==='fictional'?'Seleções · elenco fictício XFC':'Seleções',
+    squadSource:team.squadSource,
     country: team.name,
     ratings: { att: attack, mid: middle, def: defense, ovr: Math.round((attack + middle + defense) / 3) },
     players: (team.players || []).map((player, index) => ({
@@ -263,6 +255,20 @@ function strengthOf(teamId) {
   return (team.ratings.att + team.ratings.mid + team.ratings.def) / 3;
 }
 
+function rulesFor(tournament){
+  if(tournament.rules)return tournament.rules;
+  // Saves <= v0.5.23: original formats/qualifiers remain unchanged.
+  return {format:tournament.competitionId==='brasileirao'?'league':tournament.competitionId==='copa-do-brasil'?'knockout':'groups',bestThirds:['uefa-champions-league','copa-america'].includes(tournament.competitionId)?2:0};
+}
+function stageForSize(size){return size<=2?'final':size<=4?'sf':size<=8?'qf':`r${size}`;}
+function seedKnockout(tournament,ids){
+  const size=2**Math.ceil(Math.log2(ids.length)),stage=stageForSize(size);
+  const matches=ids.length-size/2;
+  tournament.byes||={};tournament.byes[stage]=ids.slice(matches*2);
+  tournament.fixtures.push(...Array.from({length:matches},(_,i)=>({id:`${stage}-${i+1}`,stage,round:1,group:null,home:ids[i*2],away:ids[i*2+1],played:false,homeGoals:null,awayGoals:null})));
+  tournament.stage=stage;tournament.knockoutStarted=true;
+}
+
 /** Cria o campeonato com grupos sorteados e calendário completo. */
 export function createTournament(competitionId, { teamId, random = Math.random } = {}) {
   const competition = getCompetition(competitionId);
@@ -286,7 +292,9 @@ export function createTournament(competitionId, { teamId, random = Math.random }
     userTeamId: chosen,
     teams: ordered,
     groups,
-    fixtures: buildGroupFixtures(groups),
+    fixtures: competition.format==='knockout'?[]:buildGroupFixtures(groups),
+    rules:{format:competition.format||'groups',bestThirds:competition.bestThirds},
+    edition:24,
     stage: 'group',
     eliminatedIn: null,
     champion: null,
@@ -296,8 +304,7 @@ export function createTournament(competitionId, { teamId, random = Math.random }
     createdAt: Date.now()
   };
   if(competition.format==='knockout'){
-    tournament.stage='sf';tournament.knockoutStarted=true;
-    tournament.fixtures=[[ordered[0],ordered[1]],[ordered[2],ordered[3]]].map(([home,away],i)=>({id:`sf-${i+1}`,stage:'sf',round:1,group:null,home,away,played:false,homeGoals:null,awayGoals:null}));
+    seedKnockout(tournament,shuffle(ordered,random));
   }else if(competition.format==='league'){
     const offset=Math.max(...tournament.fixtures.map(f=>f.round));
     tournament.fixtures.push(...tournament.fixtures.map(f=>({...f,id:f.id+'-return',round:f.round+offset,home:f.away,away:f.home})));
@@ -400,7 +407,7 @@ export function allGroupTables(tournament) {
 export function resolveGroupQualification(tournament) {
   if (!tournament || tournament.eliminatedIn || tournament.stage !== 'group') return tournament;
   if (!groupStageComplete(tournament)) return tournament;
-  const competition = getCompetition(tournament.competitionId);
+  const competition = rulesFor(tournament);
   const userGroup = Object.keys(tournament.groups)
     .find(group => tournament.groups[group].includes(tournament.userTeamId));
   const table = groupTable(tournament, userGroup);
@@ -434,7 +441,7 @@ function groupStageComplete(tournament) {
 /* --------------------------------------------------------------- mata-mata --- */
 
 function qualifiers(tournament) {
-  const competition = getCompetition(tournament.competitionId);
+  const competition = rulesFor(tournament);
   const tables = allGroupTables(tournament);
   const direct = tables.map(({ group, table }) => table.slice(0, 2).map((entry, index) => ({
     ...entry, group, position: index + 1
@@ -454,7 +461,6 @@ function qualifiers(tournament) {
 
 function buildKnockout(tournament) {
   const seeded = qualifiers(tournament);
-  const firstStage = seeded.length >= 16 ? 'r16' : seeded.length >= 8 ? 'qf' : 'sf';
   const pairs = [];
   const remaining = [...seeded];
   // Confrontos clássicos: o primeiro de um grupo pega o segundo de outro.
@@ -465,20 +471,9 @@ function buildKnockout(tournament) {
     const away = remaining.splice(index, 1)[0];
     pairs.push([home, away]);
   }
-  const fixtures = pairs.map(([home, away], index) => ({
-    id: `${firstStage}-${index + 1}`,
-    stage: firstStage,
-    round: 1,
-    group: null,
-    home: home.id,
-    away: away.id,
-    played: false,
-    homeGoals: null,
-    awayGoals: null
-  }));
-  tournament.stage = firstStage;
-  tournament.knockoutStarted = true;
-  tournament.fixtures.push(...fixtures);
+  const ids=pairs.flat().map(team=>team.id);
+  if(remaining.length)ids.push(remaining[0].id);
+  seedKnockout(tournament,ids);
 }
 
 function roundFixtures(tournament, stage) {
@@ -496,22 +491,11 @@ function createNextRound(tournament, stage) {
   const current = roundFixtures(tournament, stage);
   if (!current.length || current.some(fixture => !fixture.played)) return false;
   if (roundFixtures(tournament, following).length) return false;
+  const winners=[...current.map(f=>f.winner),...(tournament.byes?.[stage]||[])];
   const fixtures = [];
-  for (let index = 0; index < current.length; index += 2) {
-    const first = current[index];
-    const second = current[index + 1];
-    if (!second) break;
-    fixtures.push({
-      id: `${following}-${index / 2 + 1}`,
-      stage: following,
-      round: 1,
-      group: null,
-      home: first.winner,
-      away: second.winner,
-      played: false,
-      homeGoals: null,
-      awayGoals: null
-    });
+  for(let i=0;i<winners.length;i+=2){
+    if(!winners[i+1])throw new Error('Chaveamento inválido: vencedor sem par');
+    fixtures.push({id:`${following}-${i/2+1}`,stage:following,round:1,group:null,home:winners[i],away:winners[i+1],played:false,homeGoals:null,awayGoals:null});
   }
   tournament.fixtures.push(...fixtures);
   tournament.stage = following;
@@ -520,7 +504,7 @@ function createNextRound(tournament, stage) {
 
 export function tournamentBracket(tournament) {
   return KNOCKOUT_ORDER
-    .map(stage => ({ stage, label: stageLabel(stage), fixtures: roundFixtures(tournament, stage) }))
+    .map(stage => ({ stage, label: stageLabel(stage), fixtures: roundFixtures(tournament, stage), byes:tournament.byes?.[stage]||[] }))
     .filter(round => round.fixtures.length);
 }
 
@@ -620,7 +604,7 @@ export function nextTournamentFixture(tournament) {
       && (fixture.home === tournament.userTeamId || fixture.away === tournament.userTeamId));
     return pending || null;
   }
-  const order = ['group', 'r16', 'qf', 'sf', 'final'];
+  const order = ['group', ...KNOCKOUT_ORDER];
   const fixtures = [...tournament.fixtures]
     .filter(fixture => !fixture.played && fixture.home && fixture.away
       && (fixture.home === tournament.userTeamId || fixture.away === tournament.userTeamId))
@@ -633,7 +617,7 @@ export function nextTournamentFixture(tournament) {
 export function simulateRound(tournament, { random = Math.random } = {}) {
   if (!tournament) return tournament;
   if(tournament.champion)return tournament;
-  if(getCompetition(tournament.competitionId).format==='league'){
+  if(rulesFor(tournament).format==='league'){
     const upcoming=nextTournamentFixture(tournament);
     for(const fixture of tournament.fixtures){
       if(fixture.played || fixture===upcoming || (upcoming&&fixture.round!==upcoming.round))continue;

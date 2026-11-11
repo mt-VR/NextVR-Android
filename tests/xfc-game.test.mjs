@@ -777,6 +777,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
     await page.locator('.menu__item[data-menu-item="seasons"]').click();
+    await page.waitForSelector('.screen--competition[data-competition="world-cup"]');
+    await page.locator('.comp__classic').click();
     await page.waitForSelector('.screen--worldcup');
     assert.equal(await page.locator('.worldcup__select-team').count(), 32,
       'antes do sorteio, a pessoa escolhe entre as 32 seleções');
@@ -1909,7 +1911,7 @@ test('as quatro competições sorteiam grupos, calendário, artilharia e campeã
     for (const { table } of allGroupTables(tournament)) {
       assert.equal(table.reduce((total, entry) => total + entry.points, 0) % 1, 0,
         `${competition.id}: a tabela soma pontos inteiros`);
-      assert.ok(table.every(entry => entry.played <= 3), `${competition.id}: ninguém joga mais que três rodadas`);
+      assert.ok(table.every(entry => entry.played <= table.length-1), `${competition.id}: jogos limitados aos adversários do grupo`);
     }
     const status = tournamentStatus(tournament);
     assert.ok(['champion', 'finished'].includes(status.stage), `${competition.id}: o status acompanha o fim do torneio`);
@@ -1996,20 +1998,20 @@ test('os menus das competições são próprios e todas as opções abrem telas 
     await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
     await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
     await page.locator('.comp__menu-item[data-panel="play"]').click();
-    assert.equal(await page.locator('.comp__team-card').count(), 12, 'a Champions oferece os doze clubes europeus');
+    assert.equal(await page.locator('.comp__team-card').count(), 40, 'a Champions oferece os quarenta clubes europeus cadastrados');
     await page.locator('.comp__team-card[data-team-id="fc-barcelona"]').click();
     await page.locator('.comp__selection-preview .comp__cta').click();
     await page.waitForSelector('.comp__match', { timeout: 10000 });
     assert.ok(await page.locator('.comp__kit').first().isVisible(), 'a escolha de uniforme fica no painel');
-    assert.equal(await page.locator('.comp__opponent').count(), 11, 'o amistoso oferece os outros clubes do torneio');
+    assert.equal(await page.locator('.comp__opponent').count(), 39, 'o amistoso oferece os outros clubes do torneio');
     assert.ok(await page.locator('.comp__friendlies .comp__ghost').isVisible(), 'o amistoso tem o botão de jogar');
 
     await page.locator('.comp__menu-item[data-panel="standings"]').click();
-    assert.equal(await page.locator('.comp__table').count(), 3, 'a classificação mostra os três grupos');
-    assert.equal(await page.locator('.comp__table-row').count(), 12, 'cada grupo lista seus quatro times');
+    assert.equal(await page.locator('.comp__table').count(), 8, 'a classificação mostra os oito grupos');
+    assert.equal(await page.locator('.comp__table-row').count(), 40, 'cada grupo lista seus cinco times');
 
     await page.locator('.comp__menu-item[data-panel="calendar"]').click();
-    assert.ok(await page.locator('.comp__fixture').count() >= 18, 'o calendário lista toda a fase de grupos');
+    assert.ok(await page.locator('.comp__fixture').count() >= 80, 'o calendário lista toda a fase de grupos');
 
     // A Champions da referência não tem uma opção "Fase de Grupos": a tabela
     // dos grupos já aparece em "Classificação".

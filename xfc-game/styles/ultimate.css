@@ -835,3 +835,57 @@
   transform: translateX(75%) scaleX(-1);
 }
 .ut-captain{position:absolute;right:5px;top:9px;background:#2e1445;color:#f8e1a2;border:1px solid #ffe28a;border-radius:50%;width:13px;height:13px;line-height:12px;font-size:8px;z-index:5;}
+
+/* v0.5.24: artes extraídas das colagens do usuário, dados e ações em DOM. */
+.ut{grid-template-columns:1fr;grid-template-rows:72px 45px 1fr 25px;background:linear-gradient(100deg,#050811ed,#050817ad),url('../assets/ultimate/reference/home.jpg') center/cover;}
+.ut-header{padding:8px 26px;gap:18px;background:#040710e8;}
+.ut-reference-brand{width:210px;height:58px;object-fit:contain;order:-1;}
+.ut-header .ut-brand{display:none;}
+.ut-nav{grid-column:1/-1;flex-direction:row;align-items:center;overflow:auto;padding:4px 24px;gap:4px;background:#050710db;border-bottom:1px solid #a177dd44;}
+.ut-nav .ut-button{flex:0 0 auto;padding:8px 12px;white-space:nowrap;border:0;font-size:12px;}
+.ut-nav .is-active,.ut-reference-menu .ut-button:hover,.ut-reference-menu .ut-button:first-child{background:linear-gradient(100deg,#a000fa,#5200ee);box-shadow:0 0 22px #6a00ff33;}
+.ut-main{grid-column:1/-1;position:relative;padding:22px 32px;}
+.ut-main>h1{font-size:30px;letter-spacing:-1px;margin:4px 0 10px;}
+.ut-main>.ut-eyebrow{color:#ceb6fa;}
+.ut-panel{background:linear-gradient(135deg,#171326e8,#05070de8);border:1px solid #ad94cd55;border-radius:8px;box-shadow:0 12px 30px #0006;}
+.ut-button{border-radius:5px;}
+.ut-reference-home{min-height:360px;aspect-ratio:2.3;background:url('../assets/ultimate/reference/home-art.jpg') right center/auto 100% no-repeat;display:flex;align-items:center;}
+.ut-reference-menu{padding:12px 0;width:38%;background:linear-gradient(90deg,#050710 65%,#05071000);}
+.ut-reference-menu .ut-button{display:block;width:100%;text-align:left;margin:0;padding:12px 18px;border:0;border-bottom:1px solid #ffffff13;background-color:#050710dc;font-size:16px;}
+.ut[data-section=home] .ut-main>h1,.ut[data-section=home] .ut-main>.ut-description,.ut[data-section=home] .ut-main>.ut-eyebrow{display:none;}
+.ut[data-section=home] .ut-tiles{margin-top:18px;}
+.ut-reference-banner{float:right;width:50%;height:280px;position:relative;margin:0 0 20px 25px;overflow:hidden;border-radius:8px;}
+.ut-reference-banner img{width:100%;height:100%;object-fit:cover;}
+.ut-art-caption{position:absolute;bottom:0;left:0;right:0;padding:8px;background:#050710e8;font-size:10px;color:#e4d7f5;}
+.ut[data-section=market] .ut-filters,.ut-pack-grid,.ut-event-actions{clear:both;}
+.ut-event-actions{display:flex;justify-content:space-between;padding:24px;background:#050710b8;border-top:1px solid #983cff;}
+.ut-season-medal{float:right;width:200px;height:200px;background:url('../assets/ultimate/reference/season-badge.jpg') center/contain no-repeat;display:grid;place-items:center;}
+.ut-season-medal b{font-size:48px;margin-top:10px;}
+.ut[data-section=season] .ut-tiles{clear:both;border-top:3px solid #af5bff;padding-top:22px;}
+.ut-battles-badge{float:right;width:135px;height:135px;object-fit:contain;}
+.ut-mode-grid{clear:both;}
+.ut-mode-grid .ut-pack-art{background:url('../assets/ultimate/reference/reward-art.jpg') center/contain no-repeat;box-shadow:none;border:0;transform:none;width:220px;}
+.ut-mode-grid .ut-pack-art b{visibility:hidden;}
+.ut-pack .ut-pack-art{background:url('../assets/ultimate/reference/store-art.jpg') center/cover;transform:none;box-shadow:0 0 32px #31f0a51c;border:1px solid #c7dca333;}
+.ut-pack .ut-pack-art>*{visibility:hidden;}
+.ut-pitch{background:url('../assets/ultimate/reference/squad-field.jpg') 80% 78%/145% 125%;height:470px;}
+.ut-pitch::before,.ut-pitch::after{display:none;}
+.ut-reveal{background:linear-gradient(#05071088,#050710d9),url('../assets/ultimate/reference/walkout-stage.jpg') center/cover;}
+.ut-reveal--3 .ut-card{box-shadow:0 0 65px #f9db7d55;}
+@media(max-width:900px){.ut{grid-template-rows:58px 41px 1fr 24px;grid-template-columns:1fr;}.ut-header{padding:5px 14px;gap:12px;}.ut-reference-brand{width:155px;height:46px;}.ut-header .ut-offline{font-size:9px;}.ut-nav{padding:4px 10px;}.ut-main{padding:14px 20px;}.ut-reference-home{min-height:280px;}.ut-reference-menu{width:43%;}.ut-reference-menu .ut-button{font-size:13px;padding:9px 12px;}.ut-reference-banner{height:220px;}.ut-pitch{height:400px;}}
+@media(max-width:560px){.ut-header{gap:8px;}.ut-reference-brand{width:120px;}.ut-reference-banner{float:none;width:100%;height:200px;margin:0 0 18px;}.ut-reference-menu{width:65%;}.ut-reference-home{background-position:70%;}.ut-season-medal{width:120px;height:140px;}.ut-season-medal b{font-size:30px;}}
+/* A camada de estádio nunca reutiliza menus/valores impressos ao fundo. */
+.ut{background:linear-gradient(100deg,#03060ee8,#080b18a8),url('../assets/stadiums/allianz-menu.jpg') center/cover;}
+.ut-reference-menu{width:30%;}
+.ut-reference-menu .ut-button{background:linear-gradient(90deg,#040710f5,#040710c9);border-radius:0;}
+.ut-reference-menu .ut-button:first-child,.ut-reference-menu .ut-button:hover,.ut-reference-menu .ut-button:focus-visible{background:linear-gradient(100deg,#a000fa,#5200ee);border-radius:4px;}
+.ut-reference-home{aspect-ratio:2.65;min-height:340px;}
+.ut-season-medal b{margin-left:18px;}
+.ut[data-section=squad] .ut-main>.ut-eyebrow{display:none;}
+.ut[data-section=squad] .ut-description{max-width:none;font-size:12px;margin:8px 0;}
+.ut[data-section=squad] .ut-toolbar{margin:12px 0;}
+.ut-pitch{height:360px;}
+@media(max-width:900px){.ut-reference-menu{width:40%;}.ut-reference-home{min-height:280px;}.ut-pitch{height:360px;}}
+@media(max-width:560px){.ut-reference-menu{width:65%;}.ut-reference-home{min-height:310px;}}
+.ut-reveal>.ut-button{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);margin:0;min-width:210px;}
+.ut-reveal{padding-bottom:65px;box-sizing:border-box;}
