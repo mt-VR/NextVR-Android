@@ -16,7 +16,7 @@ for shift in [0,868]:
     mask=mask.filter(ImageFilter.GaussianBlur(3*sx))
     plate=source.copy()
     for y in range(round(212*sy),round(695*sy)):
-        left=source.getpixel((round((180+shift)*sx),y));right=source.getpixel((round(((590 if y/sy<610 else 535 if y/sy<640 else 180)+shift)*sx),y))
+        left=source.getpixel((round(((145 if 415<y/sy<468 else 160 if y/sy<610 else 180)+shift)*sx),y));right=source.getpixel((round(((590 if y/sy<610 else 535 if y/sy<640 else 180)+shift)*sx),y))
         for x in range(round((145+shift)*sx),round((605+shift)*sx)):
             t=max(0,min(1,(x/sx-shift-160)/430))
             plate.putpixel((x,y),tuple(round(a*(1-t)+b*t) for a,b in zip(left,right)))
