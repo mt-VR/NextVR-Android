@@ -6,7 +6,7 @@ name: XFC APK
 
 on:
   push:
-    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android", "arena/5d087ee3-nextvr-android" ]
+    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android", "arena/5d087ee3-nextvr-android", "arena/79ef9c3b-nextvr-android" ]
   workflow_dispatch:
     inputs:
       publish:
@@ -171,7 +171,7 @@ jobs:
           echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
 
       - name: Publish the release with the direct download links
-        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && github.ref_name == 'arena/5d087ee3-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && (github.ref_name == 'arena/5d087ee3-nextvr-android' || github.ref_name == 'arena/79ef9c3b-nextvr-android') && contains(github.event.head_commit.message, '[publish-apk]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
