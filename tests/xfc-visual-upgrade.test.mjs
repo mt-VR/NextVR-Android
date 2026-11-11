@@ -11,7 +11,7 @@ test('quatro qualidades: orçamento crescente, fallback mobile seguro e sem alte
   const players=Array.from({length:22},(_,i)=>({active:true,x:i,z:0})),hero=players[21],ball={x:0,z:0};
   const high=selectShadowCasters(players,hero,ball,GRAPHICS_PRESETS.high);
   assert.equal(high.size,6);assert.ok(high.has(hero));assert.ok(high.has(players[0]));assert.ok(!high.has(players[10]));
-  assert.equal(selectShadowCasters(players,hero,ball,graphicsPreset('ultra')).size,22);
+  assert.equal(selectShadowCasters(players,hero,ball,graphicsPreset('ultra')).size,10);
   assert.equal(selectShadowCasters(players,hero,ball,GRAPHICS_PRESETS.low).size,0);
   assert.ok(GRAPHICS_PRESETS.high.grass<GRAPHICS_PRESETS.ultra.grass);assert.ok(GRAPHICS_PRESETS.ultra.shadowSize<=2048);
 });
@@ -27,7 +27,7 @@ test('materiais, luz/relva e quatro perfis compilam no WebGL sem trocar o corpo'
       const {createEngine}=await import('/src/match3d/engine.js'),{buildStadium}=await import('/src/match3d/stadium.js'),{preloadFootballerPack,createGltfPlayer}=await import('/src/match3d/models.js');await preloadFootballerPack();
       const reports=[];
       for(const quality of ['low','medium','high','ultra']){
-        const canvas=document.createElement('canvas'),engine=createEngine(canvas,{graphicsQuality:quality});engine.resize(480,270);
+        const canvas=document.createElement('canvas'),engine=createEngine(canvas,{graphicsQuality:quality,lowPower:false});engine.resize(480,270);
         const stadium=buildStadium(engine.scene,{lowPower:engine.lowPower,graphics:engine.graphics,timeOfDay:'day'});
         const m=createGltfPlayer({name:'Neymar',number:10,graphics:engine.graphics});engine.scene.add(m.root);
         engine.camera.position.set(3,1.6,4);engine.camera.lookAt(0,1,0);m.update(1/60,{speed:6});

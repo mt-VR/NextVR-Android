@@ -8,7 +8,7 @@
 // câmera, laço de animação e um ajuste automático de qualidade (pixel ratio)
 // para o celular não engasgar.
 
-import {graphicsPreset} from './quality.js';
+import {graphicsPreset,createDetailGovernor} from './quality.js';
 import * as THREE from '../../vendor/three.module.min.js';
 
 export { THREE };
@@ -112,6 +112,9 @@ export function createEngine(canvas, options = {}) {
   let sampleTime = 0;
   let sampleFrames = 0;
   let recoverySamples = 0;
+  const detailGovernor=createDetailGovernor(graphics);
+  let shadowElapsed=1;
+  if(graphics.id==='ultra'){renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;}
 
   function applyQuality(index) {
     const nextRatio = qualitySteps[index];
@@ -134,6 +137,12 @@ export function createEngine(canvas, options = {}) {
     if (sampleTime < 2) return;
     const fps = sampleFrames / sampleTime;
     state.fps = fps;
+    if(detailGovernor.sample(fps)){
+      const grass=scene.getObjectByName('xfc-procedural-grass');
+      if(grass)grass.count=Math.min(graphics.grass,grass.instanceMatrix.count);
+      renderer.shadowMap.needsUpdate=true;
+    }
+    state.detailLevel=detailGovernor.level;
     sampleTime = 0;
     sampleFrames = 0;
     if (fps < 34 && state.quality < qualitySteps.length - 1) {
@@ -162,6 +171,12 @@ export function createEngine(canvas, options = {}) {
     // lentos (4 FPS eram medidos como ~20), impedindo a queda de qualidade.
     sampleQuality(realFrameTime);
     update?.(dt, state);
+    if(graphics.id==='ultra'){
+      shadowElapsed+=realFrameTime;
+      if(shadowElapsed>=1/Math.max(1,graphics.shadowHz)){
+        renderer.shadowMap.needsUpdate=true;shadowElapsed=0;
+      }
+    }
     renderer.render(scene, camera);
   }
 

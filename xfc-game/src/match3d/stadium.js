@@ -1179,7 +1179,7 @@ export function buildStadium(scene, options = {}) {
 
   // Refletores físicos sem shadow map: dois no Android para conter custo de
   // iluminação por pixel, quatro em telas grandes para cobrir o campo inteiro.
-  const activeFloodlights = lowPower
+  const activeFloodlights = (lowPower || graphics.mobile)
     ? floodlightPositions.filter((_, index) => index === 0 || index === 3)
     : floodlightPositions;
   for (const [x, z] of activeFloodlights) {

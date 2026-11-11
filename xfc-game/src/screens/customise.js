@@ -83,6 +83,8 @@ export function customiseScreen(ctx, params = {}) {
     footer
   );
 
+  node.append(el('button',{type:'button',class:'asset-library-entry',text:'Biblioteca de faces, escudos e camisas',onClick:()=>ctx.go('asset-library',{returnTo:'customise'})}));
+
   function updateFocus() {
     buttons.forEach((button, index) => {
       const active = index === focusIndex;

@@ -66,6 +66,7 @@ export function createVisualReplay(engine, players, ball) {
       engine.camera.fov = restore.fov;
       engine.camera.updateProjectionMatrix();
       restore = null;
+      if(engine.renderer.shadowMap)engine.renderer.shadowMap.needsUpdate=true;
       engine.renderer.render(engine.scene, engine.camera);
     }
     const done = onDone; onDone = null;
@@ -109,6 +110,7 @@ export function createVisualReplay(engine, players, ball) {
         engine.camera.lookAt(p.x, Math.max(.6, p.y), p.z);
         engine.camera.fov = 48;
         engine.camera.updateProjectionMatrix();
+        if(engine.renderer.shadowMap)engine.renderer.shadowMap.needsUpdate=true;
         engine.renderer.render(engine.scene, engine.camera);
         raf = requestAnimationFrame(step);
       }

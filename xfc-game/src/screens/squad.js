@@ -1,3 +1,4 @@
+import {portraitFor} from '../data/asset-library.js';
 // Tela de elenco (Team Management): as abas no topo, o campo com a formação
 // 4-3-3, o banco de reservas e o painel do jogador selecionado à direita —
 // no mesmo desenho da tela de elenco do FC.
@@ -21,11 +22,11 @@ const PLAYSTYLES = ['F', 'T', 'P', 'L', 'S', 'C'];
 
 /** Retrato do jogador (ou as iniciais, quando o elenco ainda não tem foto). */
 function portraitOf(player) {
-  if (!player.photo) {
+  if (!portraitFor(player)) {
     return el('span', { class: 'avatar avatar--empty' },
       el('span', { class: 'avatar__initials', text: initialsOf(player.name) }));
   }
-  return el('img', { src: player.photo, alt: `Retrato de ${player.fullName}` });
+  return el('img', { src: portraitFor(player), alt: `Retrato de ${player.fullName}` });
 }
 
 function starsFilled(value) {

@@ -160,6 +160,7 @@ export function kitsScreen(ctx, params = {}) {
     node.dataset.side = focusSide;
   }
 
+  node.append(el('button',{type:'button',class:'asset-library-entry',text:'Camisas da biblioteca',onClick:()=>ctx.go('asset-library',{category:'kits',teamId:teamFor(focusSide)?.id,returnTo:'kits',returnParams:params})}));
   paint();
 
   return {

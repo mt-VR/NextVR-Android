@@ -1,3 +1,4 @@
+import {libraryProfileIcon} from '../data/asset-library.js';
 // Menu inicial do XFC 27, seguindo a referência do hub de futebol:
 // estádio em tela cheia, navegação vertical à esquerda e destaque de Kick Off.
 
@@ -141,7 +142,7 @@ export function menuScreen(ctx) {
       'aria-label': 'Open profile and kits',
       title: 'Profile and kits',
       onClick() { ctx.go('kits'); }
-    }, svg(ICONS.profile))
+    }, libraryProfileIcon()?el('img',{src:libraryProfileIcon(),alt:'Ícone do perfil',style:{width:'32px',height:'32px',objectFit:'contain'}}):svg(ICONS.profile))
   );
 
   const featureTitle = el('h1', { class: 'hub__headline', text: MENU_ITEMS[focusIndex].headline });

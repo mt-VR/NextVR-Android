@@ -1,3 +1,4 @@
+import {portraitFor} from '../data/asset-library.js';
 // Editor de posições no toque/mouse e teclado. Só confirma ao soltar; cancelar
 // restaura a posição. Coordenadas de tela vêm do retângulo escalado do campo.
 import { el, initialsOf } from './dom.js';
@@ -41,7 +42,7 @@ export function footballCard(player,{className='',crest=null}={}){
   return el('button',{type:'button',class:`football-card ${className}`,'aria-label':`${player.name} · ${player.pos||player.role} · arraste ou use as setas para mudar a posição`},
     el('b',{class:'football-card__rating',text:String(player.ovr||player.rating||'—')}),
     el('span',{class:'football-card__role',text:player.pos||player.role}),
-    player.photo?el('img',{class:'football-card__portrait',src:player.photo,alt:'',draggable:'false'}):el('span',{class:'football-card__initials',text:initialsOf(player.name)}),
+    portraitFor(player)?el('img',{class:'football-card__portrait',src:portraitFor(player),alt:'',draggable:'false'}):el('span',{class:'football-card__initials',text:initialsOf(player.name)}),
     crest&&el('img',{class:'football-card__crest',src:crest,alt:'',draggable:'false'}),
     el('strong',{class:'football-card__name',text:player.name})
   );

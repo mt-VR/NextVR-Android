@@ -169,3 +169,10 @@ Há retratos ainda ausentes; sem testes em aparelho físico ou promessa de níve
 [Diagnóstico e validação](docs/v0.5.26.md): orientação em baixa velocidade,
 correção do gesto que desligava CORRER, assistência de passe sem frenagem
 artificial, ajuste de rolamento/recepção e textos nítidos nos mesmos painéis UT.
+
+### v0.5.27 — biblioteca enviada e Ultra móvel
+
+[Notas](docs/v0.5.27.md). Personalização → Biblioteca de faces, escudos e camisas:
+1976 recortes locais; retratos por seleção, escudos, ícones e três camisas adaptadas.
+Ultra agora tem orçamento móvel e redução de detalhe sem resize durante a partida.
+Sem promessa de FPS no telefone físico nem conversão de fotos em faces 3D.

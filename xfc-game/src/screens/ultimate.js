@@ -1,3 +1,4 @@
+import {portraitFor} from '../data/asset-library.js';
 import {ultimateReference} from './ultimate-reference.js';
 import {graphicsSettings} from '../ui/graphics-settings.js';
 import { el, avatar } from "../ui/dom.js";
@@ -58,7 +59,7 @@ export function utCard(c, { small = false, action = null } = {}) {
       text("span", c.position),
     ),
     avatar(c),
-    !c.photo?text('span',c.fictional?'Fictício':'Sem retrato','ut-no-photo'):null,
+    !portraitFor(c)?text('span',c.fictional?'Fictício':'Sem retrato','ut-no-photo'):null,
     text("b", c.name, "ut-card__name"),
     el(
       "div",
@@ -66,7 +67,7 @@ export function utCard(c, { small = false, action = null } = {}) {
       c.country
         ? el("span", { title: c.country.name }, flagSvg(c.country.flag))
         : text("span", "País n/d"),
-      el("img", { src: c.crest, alt: c.team }),
+      el("img", { src: TEAMS.find(t=>t.id===c.teamId)?.crest||c.crest, alt: c.team }),
     ),
     el(
       "div",

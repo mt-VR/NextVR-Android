@@ -42,12 +42,12 @@ export function shirtGeometry(mesh){
   }
   g.setAttribute('uv',new THREE.BufferAttribute(uv,2));shirtGeometries.set(mesh.geometry.uuid,g);return g;
 }
-export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=false}){
-  const canvas=document.createElement('canvas');canvas.width=simplified?512:1024;canvas.height=simplified?256:512;
+export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=false,graphics}){
+  const canvas=document.createElement('canvas');canvas.width=graphics?.jerseySize||(simplified?512:1024);canvas.height=canvas.width/2;
   const c=canvas.getContext('2d');c.scale(canvas.width/1024,canvas.height/512);
   const texture=new THREE.CanvasTexture(canvas);texture.flipY=false;texture.colorSpace=THREE.SRGBColorSpace;
   const primary=kit.primary,secondary=kit.secondary,accent=kit.accent||'#fff';
-  let badge=null;
+  let badge=null,front=null,back=null;
   const draw=()=>{
     c.fillStyle=primary;c.fillRect(0,0,1024,512);
     for(let face=0;face<2;face++){
@@ -58,6 +58,7 @@ export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=fa
       if(kit.pattern==='sash'){c.strokeStyle=secondary;c.lineWidth=65;c.beginPath();c.moveTo(70,0);c.lineTo(420,512);c.stroke();}
       // Atlas is in glTF's top-left image convention: v=0 is the hem.
       c.translate(0,512);c.scale(1,-1);
+      const panel=face===0?front:back;if(panel)c.drawImage(panel,0,0,512,512);
       c.fillStyle=accent;c.fillRect(135,42,5,80);c.fillRect(371,42,5,80);
       c.textAlign='center';c.fillStyle=kit.print||accent;
       if(face===0){
@@ -78,6 +79,9 @@ export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=fa
     c.restore();texture.needsUpdate=true;
   };
   draw();
+  for(const [side,path]of [['front',kit.libraryFront],['back',kit.libraryBack]])if(path){
+    const image=new Image();image.onload=()=>{if(side==='front')front=image;else back=image;draw();};image.src=path;
+  }
   if(crest){const image=new Image();image.onload=()=>{badge=image;draw();};image.src=crest;}
   return texture;
 }

@@ -125,7 +125,8 @@ match.phase.name
      máscaras, pesos, clipes de evento e IK.
 * Iluminação em `stadium.js`: hemisférica, direcional, preenchimentos e
   refletores. Baixa/Média só contato; Alta shadow map 1024, até seis atletas
-  incluindo o controlado; Ultra 2048 e elenco ativo. `quality.js` centraliza
+  incluindo o controlado; Ultra 1536/10 no desktop e 1024/6 no móvel, com
+  redução adaptativa de detalhe. `quality.js` centraliza
   os orçamentos; `profile.graphicsQuality` aplica na próxima partida/treino.
 
 ### `match3d/animation.js` — camadas, máscaras e IK
@@ -502,3 +503,18 @@ cd xfc-game/android && ./gradlew assembleDebug
   navegação, mesmos painéis/funções. Raridades das cartas usam variáveis de cor.
 - `tests/xfc-motion-continuity.test.mjs` cobre baixa velocidade, input constante,
   gesto de sprint, física de rolamento e integração com posse; incluído no CI.
+
+## v0.5.27 — biblioteca e Ultra móvel
+
+- `asset-library.js` mantém escolhas de IDs no perfil e getters de escudo, sem
+  URLs arbitrárias. `asset-library-catalog.js` tem só metadados; JPEGs externos,
+  carregados sob demanda em páginas de 36. Não executar o HTML de origem.
+- Não reconhecer identidades pelos rostos: recortes sem nomes são associados
+  pelo usuário. Faces são retratos 2D; três atlas têm adaptação real de camisa.
+- `graphicsPreset('ultra',true)` tem orçamento próprio móvel: ratio 1, shadow
+  1024/6 casters/20Hz, 12000 lâminas, atlas de camisa 512×256. Desktop: 1,25,
+  1536/10/30Hz, 20000 lâminas. Não voltar a todas as sombras/ratio1,5 no celular.
+- `createDetailGovernor` reduz detalhes secundários com histerese; NÃO muda
+  framebuffer durante a partida. Replay deve invalidar shadows quando renderiza.
+- `tests/xfc-assets-performance.test.mjs` está no CI; testes desktop precisam
+  declarar lowPower:false, caso contrário hardware do CI pode ser econômico.

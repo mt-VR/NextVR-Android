@@ -1,3 +1,4 @@
+import {portraitFor} from '../data/asset-library.js';
 import {createVisualReplay} from './replay.js';
 import {selectShadowCasters} from './quality.js';
 // O mundo da partida: monta o estádio, os dois times, a bola e o relógio;
@@ -307,6 +308,7 @@ export function createMatch(options = {}) {
       secondary: colors.secondary,
       accent: colors.trim || colors.accent || '#ffffff',
       pattern: kit?.pattern || 'solid',
+      libraryFront:kit?.libraryFront,libraryBack:kit?.libraryBack,
       shorts: kit?.shorts || colors.primary,
       socks: kit?.socks || colors.primary,
       print: kit?.print || colors.trim || '#ffffff'
@@ -374,7 +376,7 @@ export function createMatch(options = {}) {
         hairStyle: look.hairStyle,
         heightScale: look.heightScale,
         // O retrato pode enriquecer o rosto 3D; corpo e uniforme continuam em 3D.
-        photo: data.photo || null
+        photo: portraitFor(data) || null
       });
       engine.scene.add(model.root);
 

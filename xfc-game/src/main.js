@@ -1,3 +1,4 @@
+import {assetLibraryScreen} from './screens/asset-library.js';
 // Bootstrap do XFC: monta o roteador de telas, o aviso rápido (toast), o
 // tratamento global de teclado e o palco em paisagem.
 //
@@ -54,6 +55,7 @@ const registry = {
   stadiums: stadiumsScreen,
   modes: modesScreen,
   customise: customiseScreen,
+  'asset-library':assetLibraryScreen,
   worldcup: worldCupScreen,
   ultimate: ultimateTeamScreen,
   training: trainingScreen,

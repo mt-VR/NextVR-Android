@@ -6,5 +6,5 @@ export function graphicsSettings(state){
     el('option',{value:'auto',selected:!state.profile.graphicsQuality||state.profile.graphicsQuality==='auto',text:'Automática (segura no celular)'}),
     ...Object.entries(GRAPHICS_PRESETS).map(([id,q])=>el('option',{value:id,selected:state.profile.graphicsQuality===id,text:q.label})));
   return el('div',{class:'graphics-settings'},el('label',{},el('span',{text:'Qualidade gráfica'}),select),
-    el('p',{text:'Aplica na próxima partida. Alta/Ultra exigem mais GPU e bateria. Se houver lentidão, use Baixa ou Média; FPS não é garantido.'}));
+    el('p',{text:'Aplica na próxima partida. Ultra limita resolução/sombras no celular e adapta grama e sombras se o FPS cair. Se houver lentidão, use Baixa ou Média; FPS não é garantido.'}));
 }
