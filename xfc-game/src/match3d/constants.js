@@ -1,7 +1,7 @@
 // Medidas do campo e regras usadas pelo motor de partida.
 //
 // As distâncias são reais (metros) para que a bola, os jogadores e a câmera
-// se comportem como num campo de futebol: o jogador tem 1,80 m, a bola 22 cm
+// se comportem como num campo de futebol: o jogador importado tem 1,75 m, a bola 22 cm
 // de diâmetro e o gol tem 7,32 x 2,44 m.
 
 export const PITCH = {

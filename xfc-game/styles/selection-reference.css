@@ -1,0 +1,40 @@
+/* Arte original inteira na abertura; sem recortes/gradientes/logos por cima. */
+.screen--intro.intro-reference{padding:0;background:#02172f;cursor:pointer}
+.intro-reference__art{display:block;width:100%;height:100%;object-fit:fill}
+.selection-reference{padding:0;background:#050d12;isolation:isolate}
+.selection-reference::before,.selection-reference::after{display:none}
+.selection-reference>.ref-art{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;z-index:-1}
+.selection-reference .ref-button{position:absolute;background:transparent;border:0;color:white;cursor:pointer;border-radius:8px}
+.selection-reference .ref-button:hover,.selection-reference .ref-button:focus-visible{outline:2px solid #23ff83;background:#22ff7520}
+.selection-title{position:absolute;left:20%;top:3.4%;margin:0;background:#040a0d;padding:2px 12px;font-size:26px;max-width:55%}
+.selection-reference .selection-team{position:absolute;top:24.7%;width:32.3%;height:52.4%;padding:0;border:0;border-radius:0;background:none;box-shadow:none;display:flex;align-items:center;flex-direction:column;gap:0;overflow:visible}
+.selection-reference .selection-team--home{left:6.3%}.selection-reference .selection-team--away{left:61.8%}
+.selection-crest-row{height:52%;width:72%;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.selection-reference .picker-arrow--crest{position:static;transform:none;border:1px solid #ffffff60;width:35px;height:35px;border-radius:50%;background:#080e11;color:white;font-size:34px;line-height:24px;padding:0;flex-shrink:0}
+.selection-reference .team-card__crest{width:49%;height:95%;object-fit:contain;filter:none;margin:0}
+.selection-reference .selection-name{padding:0;margin:0;min-height:0;height:12%;width:100%;background:none;border:0;box-shadow:none;display:flex;align-items:center;justify-content:center;color:#fff}
+.selection-reference .team-card__name{font-family:Inter,Arial,sans-serif;font-size:clamp(23px,2.3vw,32px);font-weight:900;line-height:1.08;text-transform:uppercase;white-space:normal;text-align:center;margin:0;letter-spacing:0}
+.selection-country{height:9%;display:flex;align-items:center;color:#bdc5c9;letter-spacing:2px;font-size:15px;text-transform:uppercase}
+.selection-shirt{height:28%;width:25%;min-width:92px;border:2px solid #22f17e;border-radius:14px;background:#0a251b;display:flex;flex-direction:column;align-items:center;color:white;padding:0;overflow:hidden;box-shadow:0 0 9px #23e97d33;cursor:pointer;flex-shrink:0}
+.selection-shirt img,.selection-shirt>span:first-child{height:82%;width:100%;object-fit:contain;min-height:0}.selection-shirt svg{height:100%;max-width:100%}
+.selection-shirt>span:last-child{font-size:11px;text-transform:uppercase;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.selection-uniform{font:14px monospace;letter-spacing:2px;color:#c2c8cd;text-transform:uppercase;margin-top:14px;text-align:center;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.selection-reference .selection-option{border:1px solid #ffffff55;border-radius:7px;background:linear-gradient(#162026,#080e11);font-size:12px;font-weight:bold;padding:0;color:#fff}
+.selection-reference .selection-option.is-selected{border-color:#22ff85;background:linear-gradient(#105c35,#063721);box-shadow:0 0 8px #22ff85;color:#75ffa7}
+.selection-reference .continue-btn{padding:0;min-width:0;min-height:0;box-shadow:none;transform:none}
+.selection-tools{position:absolute;left:46%;bottom:4.8%;display:flex;gap:10px}
+.selection-tools button{border:1px solid #ffffff45;background:#060e10c9;color:#c8d4cd;border-radius:7px;font-size:12px;padding:8px 13px;cursor:pointer}
+.selection-dialog{position:absolute;inset:12% 16%;z-index:20;border:1px solid #32fa8c;border-radius:18px;background:#08151bf5;box-shadow:0 0 0 2000px #0009;padding:25px;text-align:center;overflow:auto}
+.selection-kit-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin:22px 0}.selection-kit-grid .quick__kit{width:150px;height:180px;display:flex;flex-direction:column;align-items:center;color:#fff;background:#122b26;border:1px solid #59947e}.selection-kit-grid img{width:120px;height:140px;object-fit:contain}.selection-dialog button:focus-visible{outline:3px solid #21ff83}
+.selection-reference .ref-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.screen--intro.intro-reference{opacity:1;transform:none;transition:none}
+.selection-reference .selection-team{top:25%;height:49.5%}
+.selection-reference .selection-team--home{left:6.45%}.selection-reference .selection-team--away{left:62.05%}
+.selection-crest-row{height:46%;width:68%}
+.selection-reference .team-card__crest{height:96%;width:54%}
+.selection-reference .selection-name{height:14%}
+.selection-country{height:10%}
+.selection-shirt{height:29%}
+.selection-uniform{margin-top:15px}
+
+.selection-reference select.selection-country{background:#081719;color:#def9e9;border:1px solid #47c78c66;border-radius:7px;min-height:28px;height:8%;width:67%;text-align:center;text-transform:uppercase;cursor:pointer;margin-bottom:6px;font-size:14px}.selection-country option{background:#0b1c21;color:white}

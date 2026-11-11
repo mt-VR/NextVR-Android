@@ -160,3 +160,39 @@ fidelidade arquitetônica dos modelos 3D.
   em `assets/crests/CREDITS.md`. Não são anunciados como CC0/licenciados pelo clube.
 - Micah CC0 permanece o atleta. As mudanças de corrida/goleiro/reposições são
   adaptações de animação do projeto, não um novo modelo, mocap ou asset EA FC.
+
+## Interface e cartas — v0.5.21
+
+Referência visual de pausa/placar fornecida pelo usuário na conversa
+(`file_0000000082f8820ebe361acb35688e2b.png`). A interface foi implementada em
+DOM/CSS com a marca SVG existente, não como imagem estática. O fundo é a própria
+partida renderizada e congelada. Cartas usam apenas escudos e retratos já
+creditados neste projeto; não usam templates oficiais de cartas EA. Não foram
+adicionados modelos, texturas nem clipes de terceiros nesta revisão.
+
+## Ultimate Team e competições domésticas — v0.5.22
+
+- Referências enviadas pelo usuário: `file_000000006cc0820e953c589c3ad429fb.png`
+  e `file_000000004dc0820ebdd6d0c0118fcc59.png` (UT); implementadas como
+  componentes DOM/CSS, sem importar templates de cartas oficiais EA.
+- `file_000000004d4c820e91a71038c5bce4d1.png` →
+  `assets/competitions/brasileirao.jpg`; `file_000000007a98820ebeab166b1607f683.png`
+  → `assets/competitions/copa-do-brasil.jpg`. Conversão JPEG, sem geração dos
+  troféus/escudos. Artes fornecidas pelo usuário; autoria/licença comercial não
+  verificadas. Marcas, patrocinadores e CBF permanecem dos titulares; não há
+  afiliação oficial nem declaração de licença CC0 dessas imagens.
+- Cards usam somente fotos e escudos do acervo já creditado, com as condições
+  originais em `assets/players/CREDITS.md` e `assets/crests/CREDITS.md`.
+  Retrato ausente não é substituído por foto de outra pessoa. As raridades
+  Ídolo/Herói/Especial/TOTW são edições conceituais de jogo XFC.
+- Placar: referência `IMG_20261111_001747.jpg`, refeito em DOM/CSS.
+- Animações modificam o rig do mesmo Micah CC0. Sem modelo novo, mocap ou clipes EA.
+
+## Pausa e placar — v0.5.23
+
+Por solicitação de manter exatamente a arte da pausa enviada, marca, textos e
+ícones foram recortados da referência em `assets/ui/pause/`, com transparência
+sobre botões DOM. Origem e processo em `assets/ui/pause/CREDITS.md`. Campo e
+placar não são imagens estáticas: preservam a partida/dados reais. O placar ao
+vivo segue `IMG_20261111_001747.jpg` em DOM/CSS (escudos existentes e siglas
+variáveis); na pausa usa a faixa preta da segunda referência.

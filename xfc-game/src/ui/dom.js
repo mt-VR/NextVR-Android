@@ -1,3 +1,4 @@
+import {portraitFor} from '../data/asset-library.js';
 // Ajudantes de DOM usados pelas telas do XFC. Sem framework: o jogo roda direto
 // no navegador, sem build, para poder ser aberto em qualquer máquina de teste.
 
@@ -94,13 +95,14 @@ export function initialsOf(name) {
  */
 export function avatar(player, { className = '' } = {}) {
   const node = el('span', { class: `avatar ${className}`.trim() });
+  const photo=portraitFor(player);
   // Elenco sem foto no pacote (ainda sem retrato) mostra as iniciais.
-  if (!player.photo) {
+  if (!photo) {
     node.classList.add('avatar--empty');
     node.appendChild(el('span', { class: 'avatar__initials', text: initialsOf(player.name) }));
     return node;
   }
-  const img = el('img', { src: player.photo, alt: `Retrato de ${player.fullName}`, loading: 'lazy' });
+  const img = el('img', { src: photo, alt: `Retrato de ${player.fullName||player.name}`, decoding:'async', loading: 'lazy' });
   img.addEventListener('error', () => {
     node.classList.add('avatar--empty');
     node.replaceChildren(el('span', { class: 'avatar__initials', text: initialsOf(player.name) }));

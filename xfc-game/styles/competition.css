@@ -1319,3 +1319,18 @@
 
 .comp__friendlies-row .comp__opponents { flex: 1 1 auto; min-width: 0; }
 .comp__ghost--friendly { flex: none; white-space: nowrap; }
+/* Telas domésticas: artes enviadas pelo usuário; seis ações reais por cima. */
+.comp--domestic:not(.is-panel) .comp__wallet,.comp--domestic:not(.is-panel) .comp__menu,.comp--domestic:not(.is-panel) .comp__deck,.comp--domestic:not(.is-panel) .comp__hints,.comp--domestic:not(.is-panel) .comp__home {display:none;}
+.comp--domestic .comp__art{background-image:var(--comp-art);background-size:100% 100%;}
+.comp__domestic-reference{position:absolute;inset:0;z-index:5;}
+.comp--domestic.is-panel .comp__domestic-reference{display:none;}
+.comp__reference-button{position:absolute;background:transparent;border:0;cursor:pointer;border-radius:2px;}
+.comp__reference-button:hover,.comp__reference-button:focus-visible{background:#dbff2029;outline:2px solid #e7ff57;outline-offset:-2px;box-shadow:0 0 22px #dbff2033;}
+.comp__edition-note{position:absolute;bottom:2%;right:3%;padding:5px 10px;background:#020b20aa;font-size:11px;}
+.comp__gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}.comp__gallery figure{margin:0;}.comp__gallery img{width:100%;max-height:150px;object-fit:cover;}.comp__gallery figcaption{padding:8px;background:#07142d;}
+.comp__reference-button .ref-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+.comp__team-search{width:100%;padding:12px 16px;margin:12px 0;background:#061931;color:white;border:1px solid #7692b5;border-radius:5px;font-size:16px;}
+.comp__classic{position:absolute;right:2%;bottom:2%;z-index:6;background:#081428eb;color:white;border:1px solid #7891b8;border-radius:4px;padding:9px 16px;cursor:pointer;}
+.comp__byes{font-size:12px;line-height:1.5;max-height:130px;overflow:auto;color:#cdd8e5;}
+.worldcup__expanded{margin-left:auto;padding:10px;background:#134076;color:white;border:1px solid #668cc9;cursor:pointer;}
+.flag{object-fit:contain;}

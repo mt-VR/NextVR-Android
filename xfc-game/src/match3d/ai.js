@@ -49,7 +49,7 @@ export function createTeamAI({ side, world }) {
    * para a bola. As pontas preservam largura e a última linha recua em defesa.
    */
   function shapeTarget(player) {
-    const base = FORMATION_433[player.index] || FORMATION_433[0];
+    const base = player.tacticalBase || FORMATION_433[player.index] || FORMATION_433[0];
     const ball = world.ball.state.position;
     const owner = world.ball.state.owner;
     const hasPossession = owner?.side === side;
@@ -61,7 +61,7 @@ export function createTeamAI({ side, world }) {
     // metros lateralmente em vez de puxar onze atletas para o mesmo corredor.
     const lateralShift = Math.max(-3.2, Math.min(3.2, (ball.z - base.z) * 0.12));
     z += lateralShift;
-    if (hasPossession && ['LW', 'RW'].includes(base.role)) {
+    if (hasPossession && !player.tacticalCustom && ['LW', 'RW'].includes(base.role)) {
       z = Math.sign(base.z || 1) * Math.max(17.5, Math.abs(z));
     }
     return { x, z, role: base.role, baseX: base.x * attackSign, baseZ: base.z };
@@ -308,8 +308,8 @@ export function createTeamAI({ side, world }) {
         const inBox = Math.abs(ball.position.x - myGoal) < 17 && Math.abs(ball.position.z) < 22;
         const prediction = owner ? null : predictGoalkeeperIntercept(ball, myGoal);
         const baseTarget = goalkeeperPositionTarget(ball.position, myGoal, attackSign);
-        targetX = baseTarget.x;
-        targetZ = baseTarget.z;
+        targetX = player.tacticalCustom?shape.x:baseTarget.x;
+        targetZ = player.tacticalCustom?shape.z:baseTarget.z;
         speed = KEEPER_POSITION_SPEED;
 
         if (prediction?.onTarget) {
@@ -348,7 +348,7 @@ export function createTeamAI({ side, world }) {
       } else {
         const supports = owner?.side === side;
         const recovering = owner && owner.side !== side;
-        if (supports) {
+        if (supports && !player.tacticalCustom) {
           // Opções em alturas diferentes: pontas abertas, centroavante atacando
           // profundidade e meias em diagonais para formar linhas de passe.
           if (shape.role === 'LW' || shape.role === 'RW') {
@@ -369,7 +369,7 @@ export function createTeamAI({ side, world }) {
             targetX += attackSign * 2.2;
             targetZ = Math.sign(shape.baseZ || 1) * Math.max(15, Math.abs(targetZ));
           }
-        } else if (recovering) {
+        } else if (recovering && !player.tacticalCustom) {
           // A equipe sem a bola recua em bloco; os atacantes recuperam a faixa
           // central enquanto a última linha protege a área.
           if (['ST', 'CF', 'LW', 'RW'].includes(shape.role)) {
@@ -380,7 +380,7 @@ export function createTeamAI({ side, world }) {
         }
 
         const isBackLine = ['CB', 'LB', 'RB'].includes(shape.role);
-        if (recovering && isBackLine) {
+        if (recovering && isBackLine && !player.tacticalCustom) {
           const marked = markTarget(player, { x: targetX, z: targetZ }, assignedMarkers);
           targetX = marked.x;
           targetZ = marked.z;

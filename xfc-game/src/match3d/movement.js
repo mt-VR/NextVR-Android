@@ -12,8 +12,11 @@ export function steerPlayer(player, targetX, targetZ, dt, maxSpeed = 6.4, { arri
   const distance = Math.hypot(dx, dz);
 
   if (distance < 0.05) {
-    player.vx *= 0.6;
-    player.vz *= 0.6;
+    const damping=Math.exp(-Math.max(0,dt)*12);
+    player.vx *= damping;
+    player.vz *= damping;
+    player.x+=player.vx*dt;player.z+=player.vz*dt;
+    clampToPitch(player,1.2);
     return 0;
   }
 
@@ -21,9 +24,13 @@ export function steerPlayer(player, targetX, targetZ, dt, maxSpeed = 6.4, { arri
   const desiredSpeed = distance < arrive ? maxSpeed * (distance / arrive) : maxSpeed;
   const desiredVx = (dx / distance) * desiredSpeed;
   const desiredVz = (dz / distance) * desiredSpeed;
-  const factor = Math.min(1, turn * dt);
-  player.vx += (desiredVx - player.vx) * factor;
-  player.vz += (desiredVz - player.vz) * factor;
+  const step=Math.max(0,Math.min(.1,dt));
+  const factor=1-Math.exp(-Math.max(1,turn)*step);
+  const changeX=(desiredVx-player.vx)*factor,changeZ=(desiredVz-player.vz)*factor;
+  const accelerating=desiredSpeed>Math.hypot(player.vx,player.vz);
+  const maxChange=(accelerating?9.5:14)*step;
+  const ratio=Math.min(1,maxChange/Math.max(.00001,Math.hypot(changeX,changeZ)));
+  player.vx+=changeX*ratio;player.vz+=changeZ*ratio;
 
   player.x += player.vx * dt;
   player.z += player.vz * dt;
@@ -49,7 +56,7 @@ export function faceTowards(player, x, z, dt, turnSpeed = 9) {
   while (difference < -Math.PI) difference += Math.PI * 2;
   // Inclinação do corpo na curva (animação de giro natural).
   player.turnLean = Math.max(-0.32, Math.min(0.32, -difference * 0.55));
-  player.facingAngle += difference * Math.min(1, turnSpeed * dt);
+  player.facingAngle += difference * (1 - Math.exp(-turnSpeed * Math.max(0, dt)));
   player.root.rotation.y = player.facingAngle;
   player.facing.x = Math.sin(player.facingAngle);
   player.facing.z = Math.cos(player.facingAngle);
@@ -62,7 +69,7 @@ export function faceTowards(player, x, z, dt, turnSpeed = 9) {
  *
  * @returns {boolean} true quando o modelo foi orientado pela velocidade
  */
-export function faceVelocity(player, dt, turnSpeed = 10, minSpeed = 1.1) {
+export function faceVelocity(player, dt, turnSpeed = 10, minSpeed = 0.15) {
   const speed = Math.hypot(player.vx, player.vz);
   if (speed < minSpeed) {
     player.turnLean *= Math.max(0, 1 - 6 * dt);
@@ -73,7 +80,7 @@ export function faceVelocity(player, dt, turnSpeed = 10, minSpeed = 1.1) {
   while (difference > Math.PI) difference -= Math.PI * 2;
   while (difference < -Math.PI) difference += Math.PI * 2;
   player.turnLean = Math.max(-0.32, Math.min(0.32, -difference * 0.55));
-  player.facingAngle += difference * Math.min(1, turnSpeed * dt);
+  player.facingAngle += difference * (1 - Math.exp(-turnSpeed * Math.max(0, dt)));
   player.root.rotation.y = player.facingAngle;
   player.facing.x = Math.sin(player.facingAngle);
   player.facing.z = Math.cos(player.facingAngle);

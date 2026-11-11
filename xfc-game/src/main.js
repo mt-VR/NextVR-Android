@@ -1,3 +1,5 @@
+import {careerScreen} from './screens/career.js';
+import {assetLibraryScreen} from './screens/asset-library.js';
 // Bootstrap do XFC: monta o roteador de telas, o aviso rápido (toast), o
 // tratamento global de teclado e o palco em paisagem.
 //
@@ -42,6 +44,7 @@ const toastHost = document.getElementById('toasts');
 export const state = createState();
 
 const registry = {
+  career:careerScreen,
   intro: introScreen,
   launch: launchScreen,
   menu: menuScreen,
@@ -54,6 +57,7 @@ const registry = {
   stadiums: stadiumsScreen,
   modes: modesScreen,
   customise: customiseScreen,
+  'asset-library':assetLibraryScreen,
   worldcup: worldCupScreen,
   ultimate: ultimateTeamScreen,
   training: trainingScreen,

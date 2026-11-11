@@ -1,3 +1,4 @@
+import {libraryProfileIcon} from '../data/asset-library.js';
 // Menu inicial do XFC 27, seguindo a referência do hub de futebol:
 // estádio em tela cheia, navegação vertical à esquerda e destaque de Kick Off.
 
@@ -16,7 +17,7 @@ const MENU_ITEMS = [
   },
   {
     id: 'kickoff',
-    label: 'KICK OFF',
+    label: 'JOGO RÁPIDO',
     headline: 'Dive straight into the action',
     subtitle: 'Quick matches  ·  Couch Co-op  ·  Customise settings',
     action: 'Enter Kick Off',
@@ -67,10 +68,10 @@ const MENU_ITEMS = [
   },
   {
     id: 'quick',
-    label: 'CO-OP SEASONS',
-    headline: 'Take on the season together',
-    subtitle: 'Pick your sides and get straight into a match.',
-    action: 'Play Co-op',
+    label: 'TIME ALEATÓRIO',
+    headline: 'Um novo confronto a cada sorteio',
+    subtitle: 'Sorteie dois clubes, escolha o uniforme e entre em campo.',
+    action: 'Sortear times',
     target: 'quick'
   },
   {
@@ -141,7 +142,7 @@ export function menuScreen(ctx) {
       'aria-label': 'Open profile and kits',
       title: 'Profile and kits',
       onClick() { ctx.go('kits'); }
-    }, svg(ICONS.profile))
+    }, libraryProfileIcon()?el('img',{src:libraryProfileIcon(),alt:'Ícone do perfil',style:{width:'32px',height:'32px',objectFit:'contain'}}):svg(ICONS.profile))
   );
 
   const featureTitle = el('h1', { class: 'hub__headline', text: MENU_ITEMS[focusIndex].headline });
@@ -210,6 +211,7 @@ export function menuScreen(ctx) {
       src: 'assets/bg/menu-hero.jpg',
       alt: 'Jogador em campo diante de um estádio cheio'
     }),
+    el('button',{type:'button',class:'career-entry',text:'CARREIRA DE JOGADOR',onClick:()=>ctx.go('career')}),
     topbar,
     quickRail,
     nav,

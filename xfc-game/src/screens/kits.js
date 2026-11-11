@@ -108,7 +108,7 @@ export function kitsScreen(ctx, params = {}) {
   const ready = el('button', {
     class: 'kits__ready', type: 'button',
     onClick() {
-      ctx.go('kickoff');
+      ctx.go(params.returnTo||'kickoff',params.returnParams||{});
     }
   }, 'READY');
 
@@ -160,6 +160,7 @@ export function kitsScreen(ctx, params = {}) {
     node.dataset.side = focusSide;
   }
 
+  node.append(el('button',{type:'button',class:'asset-library-entry',text:'Camisas da biblioteca',onClick:()=>ctx.go('asset-library',{category:'kits',teamId:teamFor(focusSide)?.id,returnTo:'kits',returnParams:params})}));
   paint();
 
   return {
@@ -179,11 +180,11 @@ export function kitsScreen(ctx, params = {}) {
         return true;
       }
       if (event.key === 'Enter' || event.key === ' ') {
-        ctx.go('kickoff');
+        ctx.go(params.returnTo||'kickoff',params.returnParams||{});
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go('kickoff');
+        ctx.go(params.returnTo||'kickoff',params.returnParams||{});
         return true;
       }
       return false;

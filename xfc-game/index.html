@@ -18,11 +18,15 @@
     <link rel="stylesheet" href="styles/frontend.css" />
     <link rel="stylesheet" href="styles/competition.css" />
     <link rel="stylesheet" href="styles/reference-menu.css" />
+    <link rel="stylesheet" href="styles/ultimate.css" />
+    <link rel="stylesheet" href="styles/reference-broadcast.css" />
+    <link rel="stylesheet" href="styles/selection-reference.css" />
+    <link rel="stylesheet" href="styles/career.css" />
   </head>
   <body>
     <div class="app">
       <div class="stage" id="stage">
-        <div id="screen" class="screen-host"></div>
+        <div id="screen" class="screen-host"><img src="assets/ui/quick/loading.png" alt="XF Esportes · XFC" style="position:fixed;inset:0;width:100vw;height:100vh;object-fit:fill" /></div>
         <div id="toasts" class="toasts" aria-live="polite"></div>
       </div>
     </div>
@@ -43,7 +47,7 @@
         var script = document.createElement('script');
         script.src = 'app.bundle.js';
         script.onerror = function () {
-          if (!host || host.firstChild) return;
+          if (!host || window.__xfcBooted) return;
           host.innerHTML =
             '<div class="boot-help"><h1>XFC</h1>'
             + '<p>Não deu para carregar o jogo neste navegador.</p>'

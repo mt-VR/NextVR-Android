@@ -14,19 +14,19 @@ test('aparência acompanha a identidade, não o índice no elenco; uniformes tê
   assert.equal(KITS['fc-barcelona'][0].pattern,'stripes');assert.equal(KITS.flamengo[0].pattern,'hoops');
 });
 
-test('Brasileirão termina por pontos em turno/returno; Copa do Brasil tem semifinal e final',()=>{
+test('Brasileirão termina por pontos em turno/returno; Copa do Brasil ampliada tem oitavas até final',()=>{
   for(const id of ['brasileirao','copa-do-brasil']){
     const t=createTournament(id,{random:()=>.31});
-    assert.equal(t.fixtures.length,id==='brasileirao'?30:2);
+    assert.equal(t.fixtures.length,id==='brasileirao'?240:8);
     for(let guard=0;guard<40;guard++){
       simulateRound(t,{random:()=>.31});const f=nextTournamentFixture(t);if(!f)break;
       recordTournamentResult(t,f.id,2,1,{random:()=>.31});
     }
     assert.ok(t.champion);assert.equal(t.stage,'champion');assert.equal(t.fixtures.filter(f=>!f.played).length,0);
     if(id==='brasileirao'){
-      assert.ok(t.fixtures.every(f=>f.stage==='group'));assert.ok(allGroupTables(t)[0].table.every(r=>r.played===10));
+      assert.ok(t.fixtures.every(f=>f.stage==='group'));assert.ok(allGroupTables(t)[0].table.every(r=>r.played===30));
       assert.equal(t.champion,allGroupTables(t)[0].table[0].id);
-    }else assert.deepEqual(t.fixtures.map(f=>f.stage),['sf','sf','final']);
+    }else assert.deepEqual([...new Set(t.fixtures.map(f=>f.stage))],['r16','qf','sf','final']);
   }
 });
 
@@ -81,7 +81,8 @@ test('sete cartões abrem fundamentos distintos; goleiro é controlável, escant
     assert.equal(await p.locator('.modes__cta').count(),0,'não há o CTA nem o hub roxo intermediário');
     for(const id of ['copa-do-brasil','brasileirao']){
       await p.click(`[data-option="${id}"]`);await p.waitForSelector(`.screen--competition[data-competition="${id}"]`);
-      assert.ok(await p.locator('.comp__domestic-title').isVisible());
+      assert.ok(await p.locator('.comp__domestic-reference').isVisible());
+      assert.match(await p.locator('.comp__art').evaluate(n=>getComputedStyle(n).backgroundImage),new RegExp(id));
       await p.keyboard.press('Escape');await p.waitForSelector('.screen--modes');
     }
     await p.keyboard.press('Escape');await p.waitForSelector('.screen--menu');await p.click('[data-menu-item="grounds"]');

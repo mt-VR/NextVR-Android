@@ -1,3 +1,4 @@
+import {graphicsSettings} from '../ui/graphics-settings.js';
 // Menu Customise do XFC 27: grade 4 × 2 de configurações, perfil, equipes,
 // elenco, criação de jogador e trilha sonora, no visual azul das referências.
 
@@ -82,6 +83,8 @@ export function customiseScreen(ctx, params = {}) {
     footer
   );
 
+  node.append(el('button',{type:'button',class:'asset-library-entry',text:'Biblioteca de faces, escudos e camisas',onClick:()=>ctx.go('asset-library',{returnTo:'customise'})}));
+
   function updateFocus() {
     buttons.forEach((button, index) => {
       const active = index === focusIndex;
@@ -110,6 +113,7 @@ export function customiseScreen(ctx, params = {}) {
       const brightness = el('input', { type: 'range', min: '50', max: '130', value: String(ctx.state.settings.brightness ?? 100), 'aria-label': 'Brilho' });
       brightness.addEventListener('input', () => { ctx.state.settings.brightness = Number(brightness.value); });
       body.append(
+        graphicsSettings(ctx.state),
         el('label', { class: 'customise__setting-row' }, el('span', { text: 'Volume geral' }), volume),
         el('label', { class: 'customise__setting-row' }, el('span', { text: 'Brilho da tela' }), brightness),
         el('p', { class: 'customise__note', text: 'Idioma: Português (Brasil)  •  Controles: Clássico' })
@@ -221,7 +225,7 @@ export function customiseScreen(ctx, params = {}) {
       if (event.key === 'ArrowDown') { focusIndex = Math.min(TILES.length - 1, focusIndex + 4); updateFocus(); return true; }
       if (event.key === 'ArrowUp') { focusIndex = Math.max(0, focusIndex - 4); updateFocus(); return true; }
       if (event.key === 'Enter' || event.key === ' ') { activate(focusIndex); return true; }
-      if (event.key === 'Escape' || event.key === 'Backspace') { ctx.go('menu'); return true; }
+      if (event.key === 'Escape' || event.key === 'Backspace') { ctx.go(params.returnTo || 'menu',params.returnParams || {}); return true; }
       return false;
     }
   };

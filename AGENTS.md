@@ -112,10 +112,10 @@ match.phase.name
 
 ### Hoje
 
-* Personagens são **gerados por código** (`player.js`): tronco, membros
-  segmentados, mãos, shorts, meias, chuteiras, cabelo, rosto por textura e
-  uniforme com escudo. Não há arquivos `.glb/.gltf/.fbx` no repositório — e o
-  sandbox não alcança Mixamo/Sketchfab/Kenney/Poly Pizza (ver §4).
+* O padrão é **Micah masculino importado CC0** em
+  `assets/players/models/footballer.glb`, conforme o pipeline abaixo.
+  `player.js` é somente reserva se o glTF falhar. Não trocar/recriar/remodelar
+  corpos para melhorar gráficos: materiais, iluminação e poses apenas.
 * Toda a animação é **procedural por osso**, em duas etapas por quadro:
   1. `updateBase()` escreve a **pose base** a partir do estado (parado,
      correndo, chutando, comemorando, defendendo, carrinho, cartão...). Ela
@@ -123,9 +123,11 @@ match.phase.name
      entre quadros.
   2. `animation.update()` (em `animation.js`) aplica **camadas** por cima:
      máscaras, pesos, clipes de evento e IK.
-* Iluminação em `stadium.js`: hemisférica + uma direcional com shadow map
-  512/1024 (cascata limitada ao campo), dois preenchimentos e refletores sem
-  sombra. Sombras dinâmicas só no protagonista e na bola (`setDynamicShadow`).
+* Iluminação em `stadium.js`: hemisférica, direcional, preenchimentos e
+  refletores. Baixa/Média só contato; Alta shadow map 1024, até seis atletas
+  incluindo o controlado; Ultra 1536/10 no desktop e 1024/6 no móvel, com
+  redução adaptativa de detalhe. `quality.js` centraliza
+  os orçamentos; `profile.graphicsQuality` aplica na próxima partida/treino.
 
 ### `match3d/animation.js` — camadas, máscaras e IK
 
@@ -395,3 +397,175 @@ cd xfc-game/android && ./gradlew assembleDebug
 - `controls.readKeyboard` não toca no vetor enquanto há pointerId ativo. Mira
   do pênalti retém último vetor fora da zona morta e só reseta na próxima cobrança.
 - Luz/relva clareadas sem subir resolução/sombras/passes no Android.
+
+
+## Atualização v0.5.21 — pausa, gestos e plano de jogo
+
+- Placar único em `hud.js`, topo direito, faixa escura e período inline. Pausa
+  mantém o MESMO HUD/partida por baixo de um gradiente; não usar arte de partida
+  fictícia nem um segundo placar. Novo menu `pause-reference` em `play.js`.
+- `showPause` congela world E renderer; `resumeRender()` retoma sem kickoff/reset.
+  Nunca usar `match.start()` para despausar (ele reinicia a saída!). Inputs são
+  limpos para não ficar correndo após soltar o dedo durante a pausa.
+- CHUTE: força pelo tempo real no release (inclusive dedo imóvel), carga total
+  vira power. CORRER: pointer capturado; swipe ↑ rainbow / ↓ dribble confirmado
+  somente no pointerup. Cancelamento/perda de captura/pausa não geram ação.
+  Botões dribble/rainbow/super e teclas R/C/V foram retirados; K carregado é power.
+- `ui/game-plan.js`: cartas e arrasto pelo bounding rect (palco escalado). Cancelar
+  restaura; setas também movem. Posição em `profile.gamePlans[teamId][rosterId]`.
+- `world.setGamePlan` exige pausa, jogador ativo do usuário e números finitos.
+  Altera tacticalBase, NÃO a posição física. IA usa âncoras personalizadas sem
+  forçar a antiga faixa por função. Papel/GK do atleta não muda pelo arrasto.
+  Dados globais de formação/elenco não são mutados. Partidas novas leem o perfil.
+- Nova locomoção elimina os 6 cm de abaixamento contínuo; apoio quase estendido,
+  balanço distinto de andar/correr e correção de contato dos pés. Preservar todos
+  os gestos anteriores e modelo importado; regressão visual ainda requer usuário.
+
+### v0.5.22 — UT local e revisão de corrida
+
+- `data/ultimate.js`: motor puro de economia/migração/pacotes/instâncias/elencos,
+  objetivos, DME, evolução e séries locais. `profile.ut` dentro da mesma chave
+  v1. Não apague `ultimatePlayers`: migração preserva compras negociáveis.
+- `screens/ultimate.js` e `styles/ultimate.css`: UI DOM real, sem print fingindo
+  sistema. Todos os modos claramente LOCAL/IA; não existe backend multiplayer.
+- `beginUtMatch` salva snapshot/ID; `ultimateMatchTeam` constrói a equipe que o
+  `play.js` envia a `createMatch`; `settleUtMatch` é idempotente. Não usar o
+  caminho de recompensa comum junto do UT (duplicaria moedas/partidas).
+- Carta inicial não é vendável; carta em qualquer elenco/banco/evolução/partida
+  não pode ser vendida/consumida. Débito e cartas do pacote persistem antes da
+  revelação. `unmount` cancela seus timers. DME exige confirmação de consumo.
+- Agora placar BRANCO com relógio LIMA ABAIXO, não a faixa preta da v0.5.21.
+- Corrida tem fase aérea e braços amplos alternados; NÃO nivelar pés ao chão
+  em todos os frames (isso cancela o voo). O modelo importado não mudou.
+- Artes brasileiras em `assets/competitions`, botões DOM sem texto duplicado
+  por cima. Manter as competições compactas reais, saída e retorno corretos.
+- Documentação e limitações em `xfc-game/docs/v0.5.22.md`. Testes de UI/modelo
+  não substituem aprovação visual no aparelho. CI inclui UT e pausa/gestos.
+
+### v0.5.23 — pedido de referência exata e reposição curta
+
+- CSS final do HUD/pausa em `styles/reference-broadcast.css`: ao vivo branco/lima
+  à esquerda; pausado faixa preta à direita. Mesmo DOM/dados, nunca placar fixo.
+- `assets/ui/pause` contém apenas marca/letras/ícones recortados da referência
+  fornecida. Campo continua sendo o renderer real congelado. Botões têm aria-label
+  (não busque texto no PNG); menu principal tem CINCO linhas. Plano de jogo agora
+  dentro de Configurações, não removido. Rodapé A/B é clicável.
+- Pedido novo SUPERA o passeio físico da v0.5.20: escanteio/tiro de meta começam
+  no ponto e só ajeitam a bola por 0,8 s. Não restaurar seek/pickup/carry/retreat
+  nem corrida preparatória. Bola fica no solo; comandos bloqueados só no ajuste.
+
+### v0.5.24 — pools ampliados, FIFA e referências UT
+
+- `FIFA_NATIONAL_TEAMS` tem 211 associações; `NATIONAL_TEAMS` continua sendo os
+  32 elencos da campanha clássica e do catálogo UT. Não substituir o array antigo
+  globalmente: quebraria sorteios antigos e multiplicaria cartas fictícias no UT.
+- Países novos têm `squadSource: fictional`, onze `Atleta N · País`, aviso explícito
+  na seleção, atributos neutros e bandeira real local. Cadastro por confederação
+  em `fifa-members.js`; SVGs MIT em `assets/flags`, mantendo a API SVG dos badges.
+- Torneios novos salvam `rules`. Sem `rules`, aplicar formatos/terceiros antigos.
+  `seedKnockout`/`byes` suportam até 256; passes entram junto dos vencedores, sem
+  jogar contra null e sem eliminar ímpar. WORLD novo é mata-mata customizado 211;
+  Copa clássica 32 segue acessível e saves dela continuam sendo retomados.
+- Libertadores mista Brasil/Europa é escolha EXPRESSA do usuário, não bug de pool.
+  Só Copa América usa exclusivamente as dez associações CONMEBOL.
+- UI UT: fontes recortadas em `assets/ultimate/reference`, procedimento Python
+  documentado. Não usar saldo/XP/nível/cartas das imagens como dados do save.
+  Campo/palco/medalhão têm cópias limpas; cartas e nível são DOM do perfil.
+- Corrida: fase pelo deslocamento real (`movement.x/z`), distância do ciclo pela
+  escala/alcance/apoio. Não reintroduzir tempo fixo que anime corrida parado.
+  Preview sem coordenadas usa integração de velocidade. Teleporte não é passada.
+
+## v0.5.25 — painéis UT, materiais e replay
+
+- Os painéis enviados são as próprias telas, não banners internos. Hotspots em
+  `screens/ultimate-reference.js`; dados salvos sobrepostos. `tools:true` mantém
+  as ferramentas detalhadas de elenco/mercado/pacotes sem perder funções.
+- Fotos só quando há imagem correspondente. Neymar/Vini são recortes da arte
+  fornecida, com procedência; fictícios não recebem retratos de outras pessoas.
+- `quality.js` / `graphics-settings.js`: baixa/média/alta/ultra, mais automática.
+  Perfis explícitos mantêm resolução fixa durante o jogo. Nenhum FPS garantido.
+- `replay.js`: buffer circular limitado a 61 poses/10 Hz. Só pode começar com
+  motor parado; registra poses/bola, não física/placar. Encerramento restaura
+  pose/câmera pausadas com Float64, não retoma a partida sozinho. Não exporta vídeo.
+- `tests/xfc-visual-upgrade.test.mjs` cobre quatro shaders/perfis, corpo inalterado,
+  teto de sombras, replay sintético e na partida real, painéis e persistência.
+- Alterações no fonte exigem regenerar `app.bundle.js` (é rastreado neste repo).
+  Sem teste em telefone físico ou aprovação visual implícita em teste automatizado.
+
+## v0.5.26 — continuidade de movimento e UT
+
+- Limiar de orientação por velocidade 0,15 m/s (também no treino); cabeça usa
+  diferença angular normalizada. Não adicionar rotação PI ao Micah: frente é +Z.
+- CORRER só solta em pointerup/cancel/lostcapture, não na prévia do gesto.
+- Assistência da bola gira mantendo módulo; atrito de rolamento em `physics.js`.
+  Não reintroduzir aceleração mínima de bola parada ou meia-volta ao passar alvo.
+- PNGs UT são recortes lossless nativos, não novos assets HD. Texto DOM sobre
+  navegação, mesmos painéis/funções. Raridades das cartas usam variáveis de cor.
+- `tests/xfc-motion-continuity.test.mjs` cobre baixa velocidade, input constante,
+  gesto de sprint, física de rolamento e integração com posse; incluído no CI.
+
+## v0.5.27 — biblioteca e Ultra móvel
+
+- `asset-library.js` mantém escolhas de IDs no perfil e getters de escudo, sem
+  URLs arbitrárias. `asset-library-catalog.js` tem só metadados; JPEGs externos,
+  carregados sob demanda em páginas de 36. Não executar o HTML de origem.
+- Não reconhecer identidades pelos rostos: recortes sem nomes são associados
+  pelo usuário. Faces são retratos 2D; três atlas têm adaptação real de camisa.
+- `graphicsPreset('ultra',true)` tem orçamento próprio móvel: ratio 1, shadow
+  1024/6 casters/20Hz, 12000 lâminas, atlas de camisa 512×256. Desktop: 1,25,
+  1536/10/30Hz, 20000 lâminas. Não voltar a todas as sombras/ratio1,5 no celular.
+- `createDetailGovernor` reduz detalhes secundários com histerese; NÃO muda
+  framebuffer durante a partida. Replay deve invalidar shadows quando renderiza.
+- `tests/xfc-assets-performance.test.mjs` está no CI; testes desktop precisam
+  declarar lowPower:false, caso contrário hardware do CI pode ser econômico.
+
+## v0.5.28 — logos originais são o padrão
+
+- Correção expressa do usuário: NÃO substituir automaticamente logos existentes
+  pelos da biblioteca. `crestFor` só usa ID escolhido; fallback é o logo anterior.
+  Ícone de perfil também mantém o original sem escolha explícita. Não apagar
+  escolhas manuais do save para fazer essa reversão.
+- `asset-library-clean.js` lista 82 derivados PNG transparentes revisados; o
+  catálogo de exibição usa `sourceFile` para preservar acesso ao JPEG intacto.
+  Script `clean-library-crests.py` remove só preto periférico; não chroma key
+  global, nem remover preto das bandeiras/escudos sem revisar. Fontes originais
+  em `assets/crests` não foram regravadas nem substituídas.
+
+## v0.5.29 — referências de abertura/seleção e ajuste corporal autorizado
+
+- `assets/ui/quick/loading.png` é o PNG INTACTO enviado; intro e pré-bootstrap
+  usam a própria arte, sem redesenhar logo/adicionar texto. A resolução é
+  1672×941, não 1568×882 (esta última é apenas a base de coordenadas dos hotspots).
+- `team-selection.js` atende kickoff/quick. Quick agora sorteia clubes distintos;
+  testes que exigem clubes específicos precisam passá-los. Kits/elenco retornam
+  pela origem. Uniformes disponíveis ficam no modal da camisa, não todos no painel.
+- Pedido explícito novo autoriza APENAS altura de 1,75 m e braços/pernas levemente
+  grossos. `athleticLimbs` deriva/cacheia geometria radial (+7%/+9%) sem mudar
+  topologia, UV, rig ou arquivo GLB. Não substituir Micah nem alterar rosto/tronco.
+- Braços quietos ao andar, contralaterais na corrida. Recuperação de joelho até
+  1,83 rad; dive dura 1,35 s, não mais 0,95. Alcance físico de defesa continua
+  limitado ao voo; cooldown impede reinício visual antes da recuperação.
+- Pênalti reposiciona todos os outros atletas fora da área/arco e árbitro na
+  lateral; goleiro atacante retorna ao próprio gol. Ninguém é desativado.
+- Marcador plano vermelho orientado pela câmera, inclusive replay; não cone azul.
+- `tests/xfc-reference-motion.test.mjs` incluído no CI. Documentação e procedência
+  em `docs/v0.5.29.md` e `assets/ui/quick/CREDITS.md`.
+
+## v0.5.30 — países, carreira e confirmação do pênalti
+
+- `team-groups.js`: só agrupamento da UI, não reordenar `TEAMS` global. Setas
+  agora circulam no país; seletores Espanha/Brasil primeiro.
+- `penaltyRunup` é estado separado de `restart.preparation`. Espera 50 cm;
+  CHUTE snapshot de mira/força/canto independente do GK; .46 s de aproximação,
+  só contato chama `releasePenalty`/conta tentativa. `update` respeita pausa e
+  bloqueia comando duplicado; reset limpa estado. Não mexer nas reposições .8 s.
+- Cadência de caminhada/corrida foi corrigida (ciclo antigo muito curto), mas
+  fase continua baseada em distância real. Cotovelo agora ~10–33°, não ~22–56°.
+- `career.js` é motor puro local; `profile.career` isolado, ID pendente/fixture
+  para liquidação única. Liga customizada 8/14, transferência livre entre anos.
+- `playerLockId` e `selectControlled` preservam protagonista mesmo fora de casa;
+  não usar atribuição direta ao controlado nos fluxos comuns. Modo treino segue
+  seu próprio controle. TROCAR pede passe; sem controle dos onze na carreira.
+- Gol chega no campo `event.scorer`, não `event.player`: contabilizar corretamente
+  o atleta criado. XP do modo não se mistura às moedas/XP gerais ou UT.
+- Novos testes `xfc-career-penalty.test.mjs` no CI; documentação v0.5.30.md.

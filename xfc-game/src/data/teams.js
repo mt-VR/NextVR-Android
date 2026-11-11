@@ -1,3 +1,4 @@
+import {crestFor} from './asset-library.js';
 // Clubes do XFC; elencos novos da coleção são sinalizados como fictícios.
 //
 // Os retratos são gerados para o projeto (sem material de terceiros) e ficam em
@@ -660,6 +661,7 @@ for (const club of EXTRA_CLUBS) {
   const squad = generatedSquad(club.id, club.pool, club.offset, club.ratings.ovr);
   TEAMS.push({
     id: club.id,
+    squadSource:'generated',
     name: club.name,
     shortName: club.shortName,
     nickname: club.nickname,
@@ -688,6 +690,9 @@ for (const club of COLLECTION_CLUBS) {
     crest: `assets/crests/${club.id}.png`, formation: '4-3-3', stars: 3.5,
     ratings: { att: 75, mid: 75, def: 75, ovr: 75 }, ...squad });
 }
+
+// Getter preserva atualização/reversão das escolhas sem alterar o cadastro salvo.
+for(const team of TEAMS){const original=team.crest;Object.defineProperty(team,'crest',{enumerable:true,get:()=>crestFor(team.id,original)});}
 
 /** Times disponíveis no carousel da tela de escolha. */
 export const TEAM_IDS = TEAMS.map(team => team.id);

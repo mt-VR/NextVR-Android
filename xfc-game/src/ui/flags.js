@@ -1,9 +1,14 @@
+import { FIFA_MEMBERS } from '../data/fifa-members.js';
+const availableFlags=new Set(FIFA_MEMBERS.map(m=>m.flagCode));
 // Bandeiras dos países desenhadas em SVG.
 //
 // Emoji não funciona bem em WebView (vira quadradinho) e arquivo de imagem
 // demais pesa o pacote, então cada bandeira é um SVG pequeno e nítido.
 
 const MARKS = {
+  tr: `<rect width="24" height="16" fill="#e30a17"/><circle cx="9" cy="8" r="4.3" fill="white"/><circle cx="10.2" cy="8" r="3.5" fill="#e30a17"/><path d="m14 5.8 .6 1.5 1.7.1-1.3 1 .5 1.7-1.5-1-1.4 1 .5-1.7-1.3-1 1.6-.1z" fill="white"/>`,
+  ve: `<rect width="24" height="16" fill="#cf142b"/><rect width="24" height="5.33" fill="#ffcc00"/><rect y="5.33" width="24" height="5.34" fill="#00247d"/><path d="M6 9l1-1m1-1 .8-.5m1.2-.5h1m2 0h1m1.2.5 .8.5m1 1 1 1" stroke="white" stroke-width=".8"/>`,
+  at: `<rect width="24" height="16" fill="#ed2939"/><rect y="5.33" width="24" height="5.34" fill="white"/>`,
   es: `
     <rect x="0" y="0" width="24" height="16" fill="#c60b1e"/>
     <rect x="0" y="4" width="24" height="8" fill="#ffc400"/>
@@ -171,11 +176,18 @@ const MARKS = {
 };
 
 /**
- * Bandeira de um país como elemento SVG. Países sem desenho pronto caem no
- * desenho genérico do Brasil.
+ * Bandeira de um país como elemento SVG. Código desconhecido usa marcador neutro,
+ * nunca a bandeira de outro país.
  */
 export function flagSvg(code) {
-  const markup = MARKS[code] || MARKS.br;
+  if(availableFlags.has(code)){
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),image=document.createElementNS(ns,'image');
+    svg.setAttribute('class',`flag flag--${code}`);svg.setAttribute('viewBox','0 0 24 18');
+    svg.setAttribute('role','img');svg.setAttribute('aria-label','Bandeira');
+    image.setAttribute('href',`assets/flags/${code}.svg`);image.setAttribute('width','24');image.setAttribute('height','18');
+    svg.append(image);return svg;
+  }
+  const markup = MARKS[code] || '<rect width="24" height="16" fill="#56616b"/><text x="12" y="12" text-anchor="middle" fill="white" font-size="12">?</text>';
   const wrapper = document.createElement('div');
   wrapper.innerHTML = `<svg class="flag flag--${code}" viewBox="0 0 24 16" role="img" aria-label="Bandeira">${markup}</svg>`;
   return wrapper.firstElementChild;

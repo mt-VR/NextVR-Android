@@ -1,5 +1,10 @@
 # XFC — o jogo de futebol da XF Esports
 
+**v0.5.30:** clubes agrupados por país (Espanha/Brasil primeiro), cobrança de
+pênalti com espera de 50 cm e aproximação confirmada, corrida mais solta e
+**carreira local de jogador** com calendário, evolução e save.
+[Detalhes e limites](docs/v0.5.30.md).
+
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de
 realidade virtual — é uma pasta à parte, com os seus próprios assets, estilos e
@@ -156,3 +161,29 @@ continuam valendo.
 Retratos, escudos e fotos de uniforme têm origem externa e estão creditados
 em [`assets/players/CREDITS.md`](assets/players/CREDITS.md) e
 [`assets/crests/CREDITS.md`](assets/crests/CREDITS.md).
+
+### v0.5.25 — painéis UT, materiais e replay
+
+[Notas e limites da versão](docs/v0.5.25.md). Quatro perfis gráficos persistidos,
+mesmo corpo Micah, materiais/relva/gestos aprimorados e replay visual na pausa.
+Os painéis enviados são as próprias telas UT, com hotspots e dados salvos.
+Há retratos ainda ausentes; sem testes em aparelho físico ou promessa de nível AAA.
+
+### v0.5.26 — direção, corrida e menu UT
+
+[Diagnóstico e validação](docs/v0.5.26.md): orientação em baixa velocidade,
+correção do gesto que desligava CORRER, assistência de passe sem frenagem
+artificial, ajuste de rolamento/recepção e textos nítidos nos mesmos painéis UT.
+
+### v0.5.27 — biblioteca enviada e Ultra móvel
+
+[Notas](docs/v0.5.27.md). Personalização → Biblioteca de faces, escudos e camisas:
+1976 recortes locais; retratos por seleção, escudos, ícones e três camisas adaptadas.
+Ultra agora tem orçamento móvel e redução de detalhe sem resize durante a partida.
+Sem promessa de FPS no telefone físico nem conversão de fotos em faces 3D.
+
+### v0.5.28 — logos originais e fundo transparente
+
+[Notas](docs/v0.5.28.md). Escudos anteriores novamente como padrão, sem troca
+automática. 82 escudos revisados da biblioteca têm PNG sem fundo preto externo;
+as escolhas manuais e os arquivos originais continuam preservados.

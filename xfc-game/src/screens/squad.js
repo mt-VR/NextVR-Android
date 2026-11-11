@@ -1,8 +1,11 @@
+import {portraitFor} from '../data/asset-library.js';
 // Tela de elenco (Team Management): as abas no topo, o campo com a formação
 // 4-3-3, o banco de reservas e o painel do jogador selecionado à direita —
 // no mesmo desenho da tela de elenco do FC.
 
 import { el, svg, ICONS, padButton, starRow, initialsOf } from '../ui/dom.js';
+import { footballCard,enablePositionDrag,planToPitch,pitchToPlan,positionCard } from '../ui/game-plan.js';
+import { saveProfile } from '../state.js';
 import { getTeam, FORMATION_433, POSITION_LABELS } from '../data/teams.js';
 
 const ATTRIBUTE_LABELS = [
@@ -19,11 +22,11 @@ const PLAYSTYLES = ['F', 'T', 'P', 'L', 'S', 'C'];
 
 /** Retrato do jogador (ou as iniciais, quando o elenco ainda não tem foto). */
 function portraitOf(player) {
-  if (!player.photo) {
+  if (!portraitFor(player)) {
     return el('span', { class: 'avatar avatar--empty' },
       el('span', { class: 'avatar__initials', text: initialsOf(player.name) }));
   }
-  return el('img', { src: player.photo, alt: `Retrato de ${player.fullName}` });
+  return el('img', { src: portraitFor(player), alt: `Retrato de ${player.fullName}` });
 }
 
 function starsFilled(value) {
@@ -46,24 +49,15 @@ export function squadScreen(ctx, params = {}) {
 
   const pitchCards = FORMATION_433.map((slot, index) => {
     const player = players[index];
-    const card = el('div', {
-      class: 'pitch-player',
-      style: { left: `${slot.x}%`, top: `${slot.y}%` },
-      dataset: { playerId: player.id },
-      role: 'button',
-      tabindex: '0',
-      onClick() {
-        focusIndex = index;
-        selectedId = player.id;
-        paint();
-      }
-    },
-      el('div', { class: 'pitch-player__portrait' },
-        el('span', { class: 'pitch-player__ovr', text: String(player.ovr) }),
-        portraitOf(player)
-      ),
-      el('span', { class: 'pitch-player__name', text: player.name })
-    );
+    const saved=ctx.state.profile.gamePlans?.[team.id]?.[player.id];
+    let point=saved?planToPitch(saved):{x:slot.x,y:slot.y};
+    const card=footballCard(player,{className:'pitch-player',crest:team.crest});
+    card.dataset.playerId=player.id;positionCard(card,point);
+    card.addEventListener('click',()=>{focusIndex=index;selectedId=player.id;paint();});
+    enablePositionDrag(card,pitch,{getPosition:()=>point,onChange:next=>{
+      point=next;ctx.state.profile.gamePlans||={};ctx.state.profile.gamePlans[team.id]||={};
+      ctx.state.profile.gamePlans[team.id][player.id]=pitchToPlan(next);saveProfile(ctx.state);
+    }});
     pitch.appendChild(card);
     return card;
   });
@@ -200,7 +194,7 @@ export function squadScreen(ctx, params = {}) {
         return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go('kickoff');
+        ctx.go(params.returnTo||'kickoff',params.returnParams||{});
         return true;
       }
       return false;

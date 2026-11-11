@@ -1,3 +1,4 @@
+import {libraryKitFor} from './asset-library.js';
 // Uniformes do XFC: kits anteriores preservados e fotos identificadas do HTML.
 // Fotos são usadas nos menus; cores/padrões alimentam a reconstrução em campo.
 
@@ -167,7 +168,14 @@ export const KITS = {
 
 /** Os três uniformes de um time (ou uma lista vazia, se o time não tiver). */
 export function kitsOf(teamId) {
-  return KITS[teamId] || [];
+  const kits=KITS[teamId]||[],custom=libraryKitFor(teamId);
+  if(!custom)return kits;
+  // Personalização do principal sem deslocar índices de uniformes antigos.
+  const main={...(kits[0]||{}),id:'library-'+custom.id,name:custom.name,
+    colors:custom.colors,shirt:custom.front,render:null,pattern:'solid',
+    libraryFront:custom.front,libraryBack:custom.back,
+    shorts:custom.colors.secondary,socks:custom.colors.secondary};
+  return [main,...kits.slice(1)];
 }
 
 /** Uniforme inicial (o principal) de um time. */

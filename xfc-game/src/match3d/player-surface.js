@@ -42,12 +42,12 @@ export function shirtGeometry(mesh){
   }
   g.setAttribute('uv',new THREE.BufferAttribute(uv,2));shirtGeometries.set(mesh.geometry.uuid,g);return g;
 }
-export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=false}){
-  const canvas=document.createElement('canvas');canvas.width=simplified?512:1024;canvas.height=simplified?256:512;
+export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=false,graphics}){
+  const canvas=document.createElement('canvas');canvas.width=graphics?.jerseySize||(simplified?512:1024);canvas.height=canvas.width/2;
   const c=canvas.getContext('2d');c.scale(canvas.width/1024,canvas.height/512);
   const texture=new THREE.CanvasTexture(canvas);texture.flipY=false;texture.colorSpace=THREE.SRGBColorSpace;
   const primary=kit.primary,secondary=kit.secondary,accent=kit.accent||'#fff';
-  let badge=null;
+  let badge=null,front=null,back=null;
   const draw=()=>{
     c.fillStyle=primary;c.fillRect(0,0,1024,512);
     for(let face=0;face<2;face++){
@@ -58,6 +58,7 @@ export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=fa
       if(kit.pattern==='sash'){c.strokeStyle=secondary;c.lineWidth=65;c.beginPath();c.moveTo(70,0);c.lineTo(420,512);c.stroke();}
       // Atlas is in glTF's top-left image convention: v=0 is the hem.
       c.translate(0,512);c.scale(1,-1);
+      const panel=face===0?front:back;if(panel)c.drawImage(panel,0,0,512,512);
       c.fillStyle=accent;c.fillRect(135,42,5,80);c.fillRect(371,42,5,80);
       c.textAlign='center';c.fillStyle=kit.print||accent;
       if(face===0){
@@ -70,9 +71,49 @@ export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=fa
       }
       c.restore();
     }
-    texture.needsUpdate=true;
+    // Costuras/tecido na camisa já existente: seguem a projeção original do atlas.
+    c.save();c.strokeStyle='rgba(255,255,255,.10)';c.lineWidth=1;
+    for(let y=3;y<512;y+=4){c.beginPath();c.moveTo(0,y);c.lineTo(1024,y);c.stroke();}
+    c.strokeStyle='rgba(0,0,0,.13)';c.setLineDash([3,3]);
+    for(const x of [16,496,528,1008]){c.beginPath();c.moveTo(x,0);c.lineTo(x,512);c.stroke();}
+    c.restore();texture.needsUpdate=true;
   };
   draw();
+  for(const [side,path]of [['front',kit.libraryFront],['back',kit.libraryBack]])if(path){
+    const image=new Image();image.onload=()=>{if(side==='front')front=image;else back=image;draw();};image.src=path;
+  }
   if(crest){const image=new Image();image.onload=()=>{badge=image;draw();};image.src=crest;}
   return texture;
+}
+
+// Microrelevo/aspereza reais de material. Sem modificar vértices, UVs ou corpos.
+const details=new Map();
+export function surfaceDetail(kind='cloth'){
+  if(details.has(kind))return details.get(kind);
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const ctx=c.getContext('2d'),data=ctx.createImageData(256,256);
+  for(let y=0;y<256;y++)for(let x=0;x<256;x++){
+    const i=(y*256+x)*4;
+    const noise=((Math.imul(x+1,73856093)^Math.imul(y+1,19349663))>>>0)%29-14;
+    const weave=kind==='cloth'?Math.sin(x*Math.PI/2)*11+Math.sin(y*Math.PI/2)*9:noise*.65;
+    const fold=kind==='cloth'?18*Math.sin(x*Math.PI/32+y*Math.PI/64)*Math.sin(y*Math.PI/128):0;
+    const v=Math.max(0,Math.min(255,128+weave+fold+noise*.3));
+    data.data[i]=data.data[i+1]=data.data[i+2]=v;data.data[i+3]=255;
+  }
+  ctx.putImageData(data,0,0);const map=new THREE.CanvasTexture(c);
+  map.wrapS=map.wrapT=THREE.RepeatWrapping;map.flipY=false;map.anisotropy=4;map.userData.shared=true;
+  details.set(kind,map);return map;
+}
+export function refinePlayerMaterial(material,{surface=true}={}){
+  const name=material.name||'';
+  material.metalness=0;
+  if(/top|bottom|socks/i.test(name)){
+    material.roughness=.88;
+    if(surface){material.bumpMap=surfaceDetail('cloth');material.bumpScale=/socks/i.test(name)?.0014:.003;}
+  }else if(/body\.body/.test(name)){
+    material.roughness=.64;
+    if(surface){material.roughnessMap=surfaceDetail('skin');material.roughness=.94;}
+  }else if(/short01/.test(name))material.roughness=.96;
+  else if(/shoe|boot/i.test(name))material.roughness=.58;
+  material.userData.surfaceDetail=Boolean(surface);return material;
 }

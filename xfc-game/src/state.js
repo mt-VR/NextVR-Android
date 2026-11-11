@@ -1,3 +1,4 @@
+import {bindAssetProfile} from './data/asset-library.js';
 // Estado global do XFC: perfil do jogador, seleção de times e opções de tela.
 //
 // O perfil é salvo em `localStorage` para que a barra de XP continue no mesmo
@@ -34,8 +35,9 @@ function loadProfile() {
 }
 
 export function createState() {
+  const profile=loadProfile();bindAssetProfile(profile);
   return {
-    profile: loadProfile(),
+    profile,
     selection: { home: null, away: null },
     // Blusa escolhida por time (índice em KITS[teamId]).
     kits: {},
@@ -46,9 +48,12 @@ export function createState() {
 
 export function saveProfile(state) {
   try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(state.profile));
+    if(!globalThis.localStorage)return false;
+    globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.profile));
+    return true;
   } catch {
-    // Sem storage (modo privado) o jogo continua funcionando, só não lembra do perfil.
+    // Sem storage o chamador pode avisar; nunca fingir que a gravação funcionou.
+    return false;
   }
 }
 

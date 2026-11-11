@@ -2,17 +2,23 @@
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** IK de duas pernas: o pé percorre o solo e volta pela frente, não chuta atrás. */
-export function runningLegPose(phase, stride = 1) {
+export function runningLegPose(phase, stride = 1, running = 1) {
   const p = ((phase % 1) + 1) % 1;
-  stride = clamp(stride, 0, 1);
-  const stance = p < 0.52;
-  const t = stance ? p / 0.52 : (p - 0.52) / 0.48;
-  // Apoio termina apenas 12 cm atrás do quadril. Na recuperação o joelho
-  // sobe à frente, em vez de o calcanhar ser arremessado para trás.
+  stride = clamp(stride, 0, 1.05);
+  running=clamp(running,0,1);
+  const support=.62-.30*running;
+  const stance = p < support;
+  const t = stance ? p / support : (p - support) / (1-support);
+  // Corrida tem apoio < metade do ciclo: duas fases aéreas por passada.
+  // Recuperação alta do joelho, com alcance traseiro curto (21 cm).
   const smooth = t * t * (3 - 2 * t);
-  const z = (stance ? .30 - .42 * smooth : -.12 + .42 * smooth) * stride;
-  const lift = stance ? 0 : Math.sin(Math.PI * t) ** 2 * .17;
-  const y = -.80 + lift,
+  const front=.25+.13*running,back=.12+.09*running;
+  const z = (stance ? front-(front+back)*t : -back+(front+back)*smooth)*stride;
+  const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.275*running);
+  // O pé de apoio quase estende a perna; retirar o encurtamento constante
+  // de 6 cm elimina o agachamento durante toda a passada.
+  const compression=stance?.018*running*Math.sin(Math.PI*t)**2:0;
+  const y = -Math.sqrt(.855*.855-z*z)+lift+compression,
     a = 0.44,
     b = 0.42;
   const distance = clamp(Math.hypot(y, z), 0.2, a + b - 0.002);
@@ -26,7 +32,33 @@ export function runningLegPose(phase, stride = 1) {
     Math.acos(
       clamp((a * a + distance * distance - b * b) / (2 * a * distance), -1, 1)
     );
-  return { hip, knee, ankle: -hip - knee, z, lift };
+  // Rolagem pequena de calcanhar/ponta no apoio, tornozelo neutro no voo.
+  const roll=stance?(.10*(1-t)-.22*Math.max(0,(t-.7)/.3)):0;
+  return { hip, knee, ankle: -hip - knee+roll, z, lift, y, stance };
+}
+
+/** Contrabalanço sagital: braço oposto à perna; cotovelo abre atrás do corpo. */
+export function runningArmPose(phase, running=1) {
+  const r=clamp(running,0,1),blend=r*r*(3-2*r);
+  const swing=Math.cos(phase*Math.PI*2);
+  // Caminhada: braços soltos e quietos. Corrida: balanço contralateral.
+  return { shoulder:.80*blend*swing,
+    elbow:-.08-(.30-.20*Math.sin(phase*Math.PI*2-.35))*blend, twist:.025*blend*Math.sin(phase*Math.PI*2) };
+}
+export function runningFlight(phase,running=1){
+  const support=.62-.30*clamp(running,0,1),p=((phase%1)+1)%1,other=(p+.5)%1;
+  return p>=support&&other>=support;
+}
+
+/** Distância de um ciclo compatível com a velocidade local do pé no apoio.
+ * Número/altura modulam apenas discretamente o estilo, nunca identidade/rosto. */
+export function runningCycle(running=1,height=1,number=10){
+  const r=clamp(running,0,1),style=1+((Math.abs(Number(number)||10)%7)-3)*.012;
+  const stride=(.65+.35*r)*style;
+  // O cálculo antigo dava ciclos de apenas ~0,4 m ao andar (até 6 ciclos/s),
+  // fazendo as pernas tremerem/parecerem rígidas. Cadência humana por distância.
+  const distance=(1.15+2.05*r)*style*Math.max(.5,height);
+  return {stride,distance,style};
 }
 
 /** O joystick horizontal é relativo à câmera atrás do batedor. */
@@ -51,4 +83,14 @@ export function rainbowPoint(progress, profile) {
   const t = clamp(progress, 0, 1);
   return { forward: -.55 + (profile.distance + .55) * t * t,
     height: .11 + 4 * profile.height * t * (1 - t) };
+}
+
+/** Preparação, contato e acompanhamento, usados apenas na pose (não mudam física). */
+export function kickPose(progress,kind='shot'){
+  const p=clamp(progress,0,1),smooth=x=>x*x*(3-2*x);
+  const pass=['pass','through','placed'].includes(kind),power=kind==='power';
+  const amplitude=pass?.65:power?1.24:1;
+  const swing=p<.32?.48*Math.sin(Math.PI*p/.32)**2:-.85*Math.sin(Math.PI*(p-.32)/.68);
+  return {hip:swing*amplitude,knee:p<.32?.9*smooth(p/.32):.12+.78*(1-smooth(clamp((p-.32)/.2,0,1))),
+    opening:pass?.22:0,torso:(power?.16:.09)*Math.sin(p*Math.PI),contact:.32};
 }

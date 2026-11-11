@@ -272,7 +272,7 @@ test('o rig real responde à camada de animação e ao LOD de sombra', () => {
   }
 });
 
-test('no rig procedural (fallback) a API de animação controla o protagonista e só ele projeta sombra', { timeout: 120000 }, async (t) => {
+test('no rig procedural (fallback) a API controla o protagonista e respeita sombras na qualidade Baixa', { timeout: 120000 }, async (t) => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
   if (!browser) {
@@ -289,6 +289,7 @@ test('no rig procedural (fallback) a API de animação controla o protagonista e
     // O caminho glTF é o padrão do jogo; aqui forçamos o rig procedural para
     // continuar cobrindo o fallback (`?models=2d`).
     await page.goto(url + '?models=2d', { waitUntil: 'domcontentloaded' });
+    await page.evaluate(async()=>{(await import('/src/main.js')).state.profile.graphicsQuality='low';});
     await page.keyboard.press('Enter');
     await page.waitForSelector('.screen--launch');
     await page.click('.launch__enter');
@@ -339,7 +340,7 @@ test('no rig procedural (fallback) a API de animação controla o protagonista e
     assert.ok(after.shoulder < -1, 'a comemoração disparada pela API move o braço do protagonista');
     assert.equal(after.state.mask.join(','), 'body,shoulderL,shoulderR,elbowL,elbowR');
     assert.ok(after.state.layers.length >= 1, 'o estado mostra a camada ativa');
-    assert.equal(after.heroCasts, true, 'o protagonista projeta sombra dinâmica');
+    assert.equal(after.heroCasts, false, 'Baixa mantém só sombra de contato também no protagonista');
     assert.equal(after.keeperCasts, false, 'o goleiro usa só a sombra de contato');
     assert.equal(after.keeperMeshCasting, 0, 'nenhuma malha do goleiro entra no shadow map');
 

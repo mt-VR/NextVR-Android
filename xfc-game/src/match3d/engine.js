@@ -8,6 +8,7 @@
 // câmera, laço de animação e um ajuste automático de qualidade (pixel ratio)
 // para o celular não engasgar.
 
+import {graphicsPreset,createDetailGovernor} from './quality.js';
 import * as THREE from '../../vendor/three.module.min.js';
 
 export { THREE };
@@ -73,14 +74,16 @@ export function createEngine(canvas, options = {}) {
     hardwareConcurrency: device.hardwareConcurrency || 0,
     deviceMemory: device.deviceMemory || 0
   });
-  const lowPower = options.lowPower ?? profile.lowPower;
-  const ratioCap = lowPower ? LOW_POWER_PIXEL_RATIO : 1.5;
-  const initialPixelRatio = Math.max(0.5, Math.min(pixelRatio ?? profile.initialPixelRatio, ratioCap));
-  const qualitySteps = qualityStepsFor(initialPixelRatio, lowPower);
+  const graphics=graphicsPreset(options.graphicsQuality,options.lowPower??profile.lowPower);
+  const explicitQuality=['low','medium','high','ultra'].includes(options.graphicsQuality);
+  const lowPower = explicitQuality?graphics.id==='low':options.lowPower ?? profile.lowPower;
+  const ratioCap = explicitQuality?graphics.pixelRatio:lowPower ? LOW_POWER_PIXEL_RATIO : 1.5;
+  const initialPixelRatio = Math.max(0.5, Math.min(pixelRatio ?? (explicitQuality?graphics.pixelRatio:profile.initialPixelRatio), ratioCap));
+  const qualitySteps = explicitQuality?[initialPixelRatio]:qualityStepsFor(initialPixelRatio, lowPower);
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: options.antialias ?? !lowPower,
+    antialias: options.antialias ?? (explicitQuality?graphics.antialias:!lowPower),
     alpha: false,
     powerPreference: 'high-performance',
     stencil: false
@@ -90,7 +93,7 @@ export function createEngine(canvas, options = {}) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.enabled = options.shadows ?? !lowPower;
+  renderer.shadowMap.enabled = options.shadows ?? (explicitQuality?graphics.shadows:!lowPower);
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
@@ -109,6 +112,9 @@ export function createEngine(canvas, options = {}) {
   let sampleTime = 0;
   let sampleFrames = 0;
   let recoverySamples = 0;
+  const detailGovernor=createDetailGovernor(graphics);
+  let shadowElapsed=1;
+  if(graphics.id==='ultra'){renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;}
 
   function applyQuality(index) {
     const nextRatio = qualitySteps[index];
@@ -118,7 +124,7 @@ export function createEngine(canvas, options = {}) {
     if (options.shadows === undefined) {
       // Ao perder desempenho, a primeira degradação também remove o passe de
       // sombra (que custa caro no WebView). Só reativa após recuperação estável.
-      renderer.shadowMap.enabled = !lowPower && index === 0;
+      renderer.shadowMap.enabled = graphics.shadows && index === 0;
     }
     state.quality = index;
     state.pixelRatio = nextRatio;
@@ -131,6 +137,12 @@ export function createEngine(canvas, options = {}) {
     if (sampleTime < 2) return;
     const fps = sampleFrames / sampleTime;
     state.fps = fps;
+    if(detailGovernor.sample(fps)){
+      const grass=scene.getObjectByName('xfc-procedural-grass');
+      if(grass)grass.count=Math.min(graphics.grass,grass.instanceMatrix.count);
+      renderer.shadowMap.needsUpdate=true;
+    }
+    state.detailLevel=detailGovernor.level;
     sampleTime = 0;
     sampleFrames = 0;
     if (fps < 34 && state.quality < qualitySteps.length - 1) {
@@ -159,6 +171,12 @@ export function createEngine(canvas, options = {}) {
     // lentos (4 FPS eram medidos como ~20), impedindo a queda de qualidade.
     sampleQuality(realFrameTime);
     update?.(dt, state);
+    if(graphics.id==='ultra'){
+      shadowElapsed+=realFrameTime;
+      if(shadowElapsed>=1/Math.max(1,graphics.shadowHz)){
+        renderer.shadowMap.needsUpdate=true;shadowElapsed=0;
+      }
+    }
     renderer.render(scene, camera);
   }
 
@@ -169,6 +187,7 @@ export function createEngine(canvas, options = {}) {
     state,
     clock,
     lowPower,
+    graphics,
     profile: { lowPower, initialPixelRatio, qualitySteps: [...qualitySteps] },
     /** Liga o laço de animação (retoma com o update já registrado). */
     start(step) {

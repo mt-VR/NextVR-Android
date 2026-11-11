@@ -13,7 +13,8 @@
 // `animation` (`speed`, `blend`, `trigger`, `applyMask`, `state`). Assim o
 // motor (`match.js`) não sabe — nem precisa saber — qual modelo está em campo.
 
-import { runningLegPose } from './football-actions.js';
+import { runningLegPose, runningArmPose, runningFlight, runningCycle, kickPose } from './football-actions.js';
+import {refinePlayerMaterial} from './player-surface.js';
 import { THREE, softShadowTexture } from './engine.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
@@ -161,13 +162,48 @@ function findBone(root, name) {
   return found;
 }
 
+// Ajuste pedido em v0.5.29: mesmo Micah, rig/topologia/UV intactos.
+// Dilatação radial moderada por influência de osso, calculada UMA vez por malha.
+// Não escala o comprimento dos ossos, nem infla cabeça, mãos ou tronco.
+const athleticGeometryCache=new WeakMap();
+function athleticLimbs(model){
+  model.updateMatrixWorld(true);
+  model.traverse(mesh=>{
+    if(!mesh.isSkinnedMesh)return;
+    const source=mesh.geometry;
+    if(athleticGeometryCache.has(source)){mesh.geometry=athleticGeometryCache.get(source);return;}
+    const geometry=source.clone(),position=geometry.attributes.position;
+    const indices=geometry.attributes.skinIndex,weights=geometry.attributes.skinWeight;
+    const inverse=mesh.matrixWorld.clone().invert();
+    const axes=mesh.skeleton.bones.map(bone=>{
+      const name=bareBone(bone.name);
+      if(!/^(Left|Right)(Arm|ForeArm|UpLeg|Leg)$/.test(name))return null;
+      const child=bone.children.find(b=>b.isBone);if(!child)return null;
+      const origin=bone.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
+      const end=child.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
+      return {origin,axis:end.sub(origin).normalize(),gain:/Leg$/.test(name)?.09:.07};
+    });
+    const v=new THREE.Vector3(),radial=new THREE.Vector3(),delta=new THREE.Vector3();
+    for(let i=0;i<position.count;i++){
+      v.fromBufferAttribute(position,i);delta.set(0,0,0);
+      for(let j=0;j<4;j++){
+        const a=axes[indices.getComponent(i,j)],w=weights.getComponent(i,j);if(!a||!w)continue;
+        radial.copy(v).sub(a.origin);radial.addScaledVector(a.axis,-radial.dot(a.axis));
+        delta.addScaledVector(radial,a.gain*w);
+      }
+      v.add(delta);position.setXYZ(i,v.x,v.y,v.z);
+    }
+    geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();
+    athleticGeometryCache.set(source,geometry);mesh.geometry=geometry;
+  });
+}
+
 export function createGltfPlayer(options = {}) {
   if (!pack) return null;
   const {
     kit = { primary: '#2ef0a8', secondary: '#0b2b3a', accent: '#ffffff' },
     number = 10,
     isKeeper = false,
-    heightScale = 1,
     simplified = false,
     preferredFoot = 'Right',
     skinTone, hairColor = '#251a12', hairStyle = 'short'
@@ -185,9 +221,10 @@ export function createGltfPlayer(options = {}) {
   model.rotation.y = 0;
   root.userData.frontAxis = '+Z';
   root.add(model);
+  athleticLimbs(model);
 
   // Normaliza a altura: o arquivo importado usa metros, mas cada arquivo pode
-  // variar. A escala final precisa ser 1,8 m para o campo continuar correto.
+  // variar. A escala final precisa ser 1,75 m para o campo continuar correto.
   // Alguns exports vêm com Z para cima (3ds Max/Mixamo antigos). Detecta pela
   // caixa da pose de bind e gira para o Y do jogo antes de medir a altura.
   let box = bindPoseBounds(model);
@@ -198,7 +235,9 @@ export function createGltfPlayer(options = {}) {
     box = bindPoseBounds(model);
     size = box.getSize(new THREE.Vector3());
   }
-  const targetHeight = 1.82 * (Number(heightScale) || 1);
+  const targetHeight = 1.75;
+  root.userData.targetHeight=targetHeight;
+  root.userData.limbRadialGain={arms:1.07,legs:1.09};
   const scale = size.y > 0.01 ? targetHeight / size.y : 1;
   model.scale.setScalar(scale);
   model.position.y = -box.min.y * scale;
@@ -212,6 +251,7 @@ export function createGltfPlayer(options = {}) {
   model.traverse(object => {
     if (!object.isMesh) return;
     object.castShadow = true;
+    object.receiveShadow=Boolean(options.graphics?.shadows);
     object.frustumCulled = false;
     shadowMeshes.push(object);
     if (object.name === 'short01') object.geometry = hairstyleGeometry(object, hairStyle);
@@ -231,7 +271,7 @@ export function createGltfPlayer(options = {}) {
       if(name === 'Micah | anatomical body.short01') clone.map=recolorSurface(material.map,hairColor,.08);
       if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
-      clone.metalness = 0;
+      refinePlayerMaterial(clone,{surface:options.graphics?.surface??!simplified});
       materials.push(clone);
       return clone;
     });
@@ -243,6 +283,7 @@ export function createGltfPlayer(options = {}) {
     new THREE.PlaneGeometry(0.92, 0.72),
     new THREE.MeshBasicMaterial({
       map: softShadowTexture(),
+      color:0x07110a,
       transparent: true,
       opacity: 0.78,
       depthWrite: false,
@@ -351,9 +392,11 @@ export function createGltfPlayer(options = {}) {
 
   const GESTURES = {
     kick: 0.46,
+    receive:.46,
+    volley:.6,
     header: 0.5,
     celebrate: 2.2,
-    dive: 0.95,
+    dive: 1.35,
     tackle: 0.8,
     react: 0.55,
     fall: 0.95,
@@ -447,17 +490,32 @@ export function createGltfPlayer(options = {}) {
         addBoneRotation(bones.leftUpLeg,.15*wave,0,0,w);
         break;
       }
+      case 'receive': {
+        const side=preferredFoot==='Left'?'left':'right',sign=side==='left'?1:-1;
+        poseBoneRotation(bones[side+'UpLeg'],-.22*wave,sign*.28*wave,0,w);
+        poseBoneRotation(bones[side+'Leg'],.38*wave,0,0,w);
+        poseBoneRotation(bones[side+'Foot'],-.1*wave,sign*.24*wave,0,w);
+        addBoneRotation(bones.spine2,.07*wave,-sign*.06*wave,0,w);
+        break;
+      }
+      case 'volley': {
+        const side=preferredFoot==='Left'?'left':'right';
+        poseBoneRotation(bones[side+'UpLeg'],-1.15*wave,0,.08*wave,w);
+        poseBoneRotation(bones[side+'Leg'],.6*(1-wave),0,0,w);
+        addBoneRotation(bones.spine2,-.13*wave,.14*wave,0,w);
+        addBoneRotation(bones.leftArm,-.3*wave,0,.55*wave,w);
+        addBoneRotation(bones.rightArm,-.2*wave,0,-.55*wave,w);
+        break;
+      }
       case 'kick': {
-        // Pernada: recua, chuta e volta. Joelho abre antes do contato.
-        const swing = p < 0.3 ? -0.9 * (p / 0.3) : 1.3 * Math.sin(((p - 0.3) / 0.7) * Math.PI);
-        const knee = p < 0.45 ? 1.0 * Math.sin(Math.PI * Math.min(1, p / 0.45)) : 0.15;
-        addBoneRotation(bones.rightUpLeg, -swing, 0, 0, w);
-        addBoneRotation(bones.rightLeg, knee, 0, 0, w);
-        addBoneRotation(bones.rightFoot, knee * 0.4, 0, 0, w);
-        addBoneRotation(bones.leftUpLeg, swing * 0.18, 0, 0, w);
-        addBoneRotation(bones.spine2, -0.22 * wave, 0.12 * wave, 0, w);
-        addBoneRotation(bones.leftArm, 0, 0, 0.55 * wave, w);
-        addBoneRotation(bones.rightArm, 0, 0, -0.35 * wave, w);
+        const pose=kickPose(p,gesture.kind),side=preferredFoot==='Left'?'left':'right',other=side==='left'?'right':'left',sign=side==='left'?1:-1;
+        poseBoneRotation(bones[side+'UpLeg'],pose.hip,sign*pose.opening,0,w);
+        poseBoneRotation(bones[side+'Leg'],pose.knee,0,0,w);
+        poseBoneRotation(bones[side+'Foot'],-.12,sign*pose.opening,0,w);
+        addBoneRotation(bones[other+'Leg'],.12*wave,0,0,w);
+        addBoneRotation(bones.spine2,pose.torso,-sign*.16*wave,0,w);
+        addBoneRotation(bones.leftArm,-.15*wave,0,.45*wave,w);
+        addBoneRotation(bones.rightArm,-.1*wave,0,-.45*wave,w);
         break;
       }
       case 'header': {
@@ -469,28 +527,31 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'celebrate': {
-        const lift = Math.sin(Math.PI * Math.min(1, p * 1.4));
-        addBoneRotation(bones.leftArm, -2.2 * lift, 0, 0, w);
-        addBoneRotation(bones.rightArm, -2.2 * lift, 0, 0, w);
-        addBoneRotation(bones.leftForeArm, -0.3 * lift, 0, 0, w);
-        addBoneRotation(bones.rightForeArm, -0.3 * lift, 0, 0, w);
-        addBoneRotation(bones.spine2, -0.12 * lift, 0, 0, w);
-        addBoneRotation(bones.head, -0.2 * lift, 0, 0, w);
-        break;
+        const lift=Math.sin(Math.PI*Math.min(1,p*1.25)),style=Number(number)%3;
+        addBoneRotation(bones.leftArm,style===1?-.5*lift:-1.9*lift,0,style===2?.85*lift:0,w);
+        addBoneRotation(bones.rightArm,-1.9*lift,0,style===2?-.85*lift:0,w);
+        addBoneRotation(bones.leftForeArm,-.45*lift,0,0,w);
+        addBoneRotation(bones.rightForeArm,style===1?-1.0*lift:-.3*lift,0,0,w);
+        addBoneRotation(bones.spine2,-.07*lift,.05*Math.sin(p*Math.PI*2),0,w);
+        addBoneRotation(bones.head,-.13*lift,0,0,w);break;
       }
       case 'dive': {
-        const push=ease(.08,.32), land=ease(.40,.60), recover=ease(.76,1);
+        // Carrega a perna de apoio → impulsão → voo → contato lateral → levanta.
+        // Arco do quadril acompanha o deslocamento horizontal do goleiro.
+        const push=ease(.09,.30), land=ease(.42,.64), recover=ease(.78,1);
         const extension=push*(1-recover), grounded=land*(1-recover);
-        const crouch=Math.sin(Math.PI*Math.min(1,p/.25))*.14;
-        bones.hips.position.y=bindHipY-(crouch+.22*extension+.43*grounded)*w;
-        addBoneRotation(bones.hips,.10*extension,0,-1.4*extension*dir,w);
-        addBoneRotation(bones.spine2,.12*grounded,0,.12*grounded*dir,w);
+        const preload=ease(0,.08)*(1-ease(.12,.28));
+        const crouch=Math.sin(Math.PI*Math.min(1,p/.24))*.12;
+        const flight=.25*Math.sin(Math.PI*Math.max(0,Math.min(1,(p-.09)/.50)));
+        bones.hips.position.y=bindHipY+(flight-crouch-.18*extension-.46*grounded)*w;
+        addBoneRotation(bones.hips,.08*extension,0,-1.35*extension*dir,w);
+        addBoneRotation(bones.spine2,.16*grounded,0,.10*grounded*dir,w);
         for(const [side,sign] of [['left',1],['right',-1]]){
           const leading=sign===dir;
-          poseBoneRotation(bones[side+'Arm'],-2.55*extension+.35*grounded,0,-sign*.12*extension,w);
-          poseBoneRotation(bones[side+'ForeArm'],-.18*extension-.3*grounded,0,0,w);
-          addBoneRotation(bones[side+'UpLeg'],-(leading?.28:.52)*extension,0,sign*.12*extension,w);
-          addBoneRotation(bones[side+'Leg'],(leading?.4:.85)*extension,0,0,w);
+          poseBoneRotation(bones[side+'Arm'],-(leading?3.02:2.92)*extension+.5*grounded,0,-sign*.16*extension,w);
+          poseBoneRotation(bones[side+'ForeArm'],-(leading?.05:.12)*extension-.45*grounded,0,0,w);
+          addBoneRotation(bones[side+'UpLeg'],-(leading?.18:.42)*extension-.28*preload,0,sign*.13*extension,w);
+          addBoneRotation(bones[side+'Leg'],(leading?.28:.75)*extension+.20*grounded+.55*preload,0,0,w);
         }
         break;
       }
@@ -592,7 +653,9 @@ export function createGltfPlayer(options = {}) {
 
   /** Locomoção: mistura idle/jog/run pela velocidade (blend tree). */
   let gaitPhase=0;
-  function updateLocomotion(speed, dt) {
+  let gaitGroundOffset=0,previousX=null,previousZ=null,previousSpeed=0,gaitAcceleration=0;
+  let gaitStride=.65,shieldWeight=0,breathing=0,effort=0;
+  function updateLocomotion(speed, dt, movement) {
     const value = Math.max(0, Number(speed) || 0);
     let idle = 0;
     let jog = 0;
@@ -613,8 +676,20 @@ export function createGltfPlayer(options = {}) {
     const lowPose=['dive','tackle','fall'].includes(gesture.name) && gesture.maskName==='full';
     const locomotionGain=lowPose?1-gestureEnvelope()*gesture.weight:1;
     // Fase compartilhada evita pernas opostas ao misturar trote e corrida.
-    const cadence=Math.max(.7,Math.min(2.15,.7+value*.18));
-    gaitPhase=(gaitPhase+dt*cadence*state.speed)%1;
+    const cycle=runningCycle(state.locomotionWeights.run,model.scale.y,number);
+    const strideScale=Math.max(.3,Math.min(1,Number(movement.strideScale)||1));
+    gaitStride=cycle.stride*strideScale;
+    cycle.distance*=strideScale;
+    let travel=value*dt;
+    if(Number.isFinite(movement.x)&&Number.isFinite(movement.z)){
+      travel=previousX===null?0:Math.hypot(movement.x-previousX,movement.z-previousZ);
+      previousX=movement.x;previousZ=movement.z;
+      if(travel>Math.max(1.5,value*dt*3))travel=0; // reposições/teleportes não animam passos
+    }
+    gaitPhase=(gaitPhase+travel/cycle.distance*state.speed)%1;
+    const acceleration=dt>0?(value-previousSpeed)/dt:0;
+    gaitAcceleration+=(Math.max(-4,Math.min(8,acceleration))-gaitAcceleration)*(1-Math.exp(-dt*6));
+    previousSpeed=value;
     for(const name of ['idle','jog','run']) {
       const weight=state.locomotionWeights[name]+(targets[name]-state.locomotionWeights[name])*blend;
       state.locomotionWeights[name]=weight;
@@ -652,10 +727,14 @@ export function createGltfPlayer(options = {}) {
     placeBall(duration=.9){return startGesture('place-ball',duration);},
     skill(name='stepover'){return startGesture(name==='rainbow'?'rainbow':'stepover');},
     kick(type = 'shot') {
-      return startGesture('kick');
+      gesture.kind=type;
+      const result=startGesture(type==='volley'?'volley':'kick');
+      // A física solta a bola no comando: o contato visual começa aqui também.
+      if(type!=='volley')gesture.time=gesture.duration*.32;
+      return result;
     },
     pass(kind = 'pass') {
-      return startGesture('kick', 0.34);
+      return api.kick(kind);
     },
     header(duration = 0.4) {
       return startGesture('header', duration);
@@ -664,7 +743,7 @@ export function createGltfPlayer(options = {}) {
       return startGesture('celebrate', duration);
     },
     receive() {
-      return startGesture('signal', 0.6);
+      return startGesture('receive', .46);
     },
     dive(dir = 1) {
       gesture.dir = dir;
@@ -686,7 +765,8 @@ export function createGltfPlayer(options = {}) {
       if (!target || !bones.head) return;
       const dx = target.x - root.position.x;
       const dz = target.z - root.position.z;
-      const angle = Math.atan2(dx, dz) - root.rotation.y;
+      const delta = Math.atan2(dx, dz) - root.rotation.y;
+      const angle = Math.atan2(Math.sin(delta),Math.cos(delta));
       const yaw = Math.max(-0.9, Math.min(0.9, angle));
       bones.neck.rotation.y += yaw * 0.35;
       bones.head.rotation.y += yaw * 0.5;
@@ -713,7 +793,7 @@ export function createGltfPlayer(options = {}) {
       mixer.timeScale = state.speed;
       bones.hips.position.y = bindHipY;
       for (const bone of rigBones) bone.quaternion.identity();
-      updateLocomotion(speed, step);
+      updateLocomotion(speed, step, movement);
       mixer.update(step);
       // Substitui as curvas ruins dos joelhos do clipe antigo por trajetórias
       // de pés com apoio no solo. Gestos continuam sobre essa base.
@@ -721,29 +801,63 @@ export function createGltfPlayer(options = {}) {
         * (['dive','tackle','fall','place-ball','pick-ball','stepover'].includes(gesture.name)?1-gestureEnvelope():1);
       if(gaitWeight>.001){
         for(const [side,offset]of [['left',0],['right',.5]]){
-          const pose=runningLegPose(gaitPhase+offset,.65+.35*state.locomotionWeights.run);
+          const pose=runningLegPose(gaitPhase+offset,gaitStride,state.locomotionWeights.run);
           for(const [part,angle]of [['UpLeg',pose.hip],['Leg',pose.knee],['Foot',pose.ankle]]){
             const bone=bones[side+part];
             gQuat.setFromEuler(gEuler.set(angle,0,0));
             bone.quaternion.identity().slerp(gQuat,gaitWeight);
           }
         }
-        bones.hips.position.y=bindHipY-.06*gaitWeight;
-        // Cotovelos flexionados e contrabalanço curto, oposto às coxas.
+        bones.hips.position.y=bindHipY;
+        // Ombros alternam frente/trás; cotovelo abre quando o braço vai para trás.
         for(const [side,offset] of [['left',0],['right',.5]]){
-          const swing=Math.cos((gaitPhase+offset)*Math.PI*2);
-          for(const [part,x,z] of [['Arm',.32*swing,side==='left'?-.08:.08],['ForeArm',-.95-.15*swing,0]]){
+          const arm=runningArmPose(gaitPhase+offset,state.locomotionWeights.run);
+          for(const [part,x,z] of [['Arm',arm.shoulder,side==='left'?-.035:.035],['ForeArm',arm.elbow,0]]){
             gQuat.setFromEuler(gEuler.set(x,0,z));
             bones[side+part].quaternion.identity().slerp(gQuat,gaitWeight);
           }
+          addBoneRotation(bones[side+'Hand'],0,arm.twist,0,gaitWeight);
         }
       }
       if(!['dive','tackle','fall'].includes(gesture.name)){
         const running=state.locomotionWeights.run;
         bones.hips.position.y+=.018*running*(1-Math.cos(gaitPhase*Math.PI*4));
-        addBoneRotation(bones.spine,Math.min(.12,speed*.016)*running,0,0,1);
+        // Tronco ereto no andar; inclinação pequena e única ao correr.
+        bones.spine.rotation.x=.055*running+Math.max(0,gaitAcceleration)*.009*gaitWeight;
+        const twist=Math.sin(gaitPhase*Math.PI*2)*gaitWeight;
+        bones.hips.rotation.y=-.035*twist;
+        bones.spine.rotation.y=.06*twist;
+        bones.head.rotation.y=-.025*twist;
+        bones.head.rotation.x=-.02*running;
+        bones.spine2.rotation.x=0;
       }
       addBoneRotation(bones.spine2, 0, 0, Number(movement.lean) || 0, 1);
+      if(gaitWeight>.5&&!gesture.name){
+        root.updateMatrixWorld(true);
+        const feet=[bones.leftFoot,bones.rightFoot];let min=Infinity;
+        for(const foot of feet)min=Math.min(min,foot.getWorldPosition(floorPoint).y-root.position.y);
+        if(!runningFlight(gaitPhase,state.locomotionWeights.run)){
+          const targetOffset=(.13*model.scale.y-min)/model.scale.y;
+          gaitGroundOffset+=(targetOffset-gaitGroundOffset)*(1-Math.exp(-step*22));
+        }
+        // Não prender os pés ao chão na fase aérea: isso transformava corrida
+        // em caminhada acelerada mesmo com joelhos e braços animados.
+        bones.hips.position.y+=gaitGroundOffset;
+      }
+      // Proteção e preparação são camadas contextuais, sem mexer no controle.
+      shieldWeight+=((movement.protecting?.7:0)-shieldWeight)*(1-Math.exp(-step*8));
+      effort+=((speed>5?1:0)-effort)*(1-Math.exp(-step*.18));breathing+=step*(1.3+effort*.6);
+      if(!gesture.name){
+        addBoneRotation(bones.spine2,.035*effort*Math.sin(breathing*Math.PI*2),shieldWeight*.1,0,1);
+        addBoneRotation(bones.leftArm,-.16,0,.32,shieldWeight);
+        addBoneRotation(bones.rightArm,-.12,0,-.32,shieldWeight);
+        if(movement.shotCharge>0){
+          const side=preferredFoot==='Left'?'left':'right',w=Math.min(.8,movement.shotCharge);
+          addBoneRotation(bones[side+'UpLeg'],.34,0,0,w);
+          addBoneRotation(bones[side+'Leg'],.7,0,0,w);
+          addBoneRotation(bones.spine2,.06,0,0,w);
+        }
+      }
       applyGesture(step);
       if (['dive', 'tackle', 'fall'].includes(gesture.name)) {
         // Keep contact landmarks above the turf during low poses.
@@ -823,6 +937,7 @@ export function createGltfPlayer(options = {}) {
       return {
         model: 'glb',
         speed: state.speed,
+        gaitPhase,gaitStride,gaitAcceleration,
         mask: state.mask,
         weights: { ...state.locomotionWeights },
         layers: [...actions.entries()]

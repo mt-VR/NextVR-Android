@@ -3,10 +3,8 @@
 
 import { THREE, canvasTexture, softShadowTexture } from './engine.js';
 import { BALL, PITCH, GOAL } from './constants.js';
-import { applyBallAirForces, curveSpinRate } from './physics.js';
+import { applyBallAirForces, curveSpinRate, applyRollingResistance, guideBallVelocity } from './physics.js';
 
-/** Desaceleração da bola rolando no gramado (m/s²). */
-const GROUND_FRICTION = 5.4;
 
 function drawBall(context, width, height) {
   context.fillStyle = '#f4f3ed';
@@ -144,6 +142,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     new THREE.PlaneGeometry(BALL.radius * 7.2, BALL.radius * 5.2),
     new THREE.MeshBasicMaterial({
       map: softShadowTexture(),
+      color:0x07110a,
       transparent: true,
       opacity: 0.82,
       depthWrite: false,
@@ -182,6 +181,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     state.lastTouch = null;
     state.lastIntentionalTouch = null;
     state.guidance = null;
+    state.passTarget=null;state.flightTime=0;
     mesh.position.copy(state.position);
   }
 
@@ -203,12 +203,14 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
       // Separar o sidespin do rolamento evita forças verticais e curvas orbitais.
       state.spin.set(-dz * speed * 0.25, curveSpinRate(speed, curve), dx * speed * 0.25);
       state.guidance = guide ? { ...guide, elapsed: 0 } : null;
+      state.passTarget=guide?.receiver||null;state.flightTime=0;
       state.owner = null;
     },
     /** Coloca a bola no pé de um jogador (domínio). */
     attachTo(player) {
       state.goalPocket = 0;
       state.owner = player;
+      state.passTarget=null;
       state.lastIntentionalTouch = player;
       state.velocity.set(0, 0, 0);
       state.guidance = null;
@@ -219,6 +221,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
      */
     update(dt, players = []) {
       const { position, velocity, spin } = state;
+      state.flightTime=(state.flightTime||0)+dt;
       const previousX=position.x,previousY=position.y,previousZ=position.z;
       // Reposições/teletransportes administrativos podem mudar a posição sem
       // passar por kick/reset. Nunca levar o volume da rede para outra jogada.
@@ -229,9 +232,9 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
         const owner = state.owner;
         const forward = owner.facing || new THREE.Vector3(0, 0, 1);
         position.set(
-          owner.root.position.x + forward.x * 0.45,
+          (owner.x??owner.root.position.x) + forward.x * 0.45,
           BALL.radius,
-          owner.root.position.z + forward.z * 0.45
+          (owner.z??owner.root.position.z) + forward.z * 0.45
         );
         mesh.position.copy(position);
         shadow.position.set(position.x, 0.02, position.z);
@@ -250,17 +253,14 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
         } else {
           guide.elapsed += dt;
           const horizontalSpeed = Math.max(4, Math.hypot(velocity.x, velocity.z));
-          const distance = Math.hypot(guide.x - position.x, guide.z - position.z);
+          const anchorX=guide.follow?receiver.x:guide.x,anchorZ=guide.follow?receiver.z:guide.z;
+          const distance = Math.hypot(anchorX - position.x, anchorZ - position.z);
           const flightTime = Math.max(0.08, Math.min(0.7, distance / horizontalSpeed));
-          const futureX = guide.x + (receiver.vx || 0) * flightTime * 0.45;
-          const futureZ = guide.z + (receiver.vz || 0) * flightTime * 0.45;
+          const futureX = anchorX + (receiver.vx || 0) * flightTime * 0.45;
+          const futureZ = anchorZ + (receiver.vz || 0) * flightTime * 0.45;
           const dx = futureX - position.x;
           const dz = futureZ - position.z;
-          const length = Math.hypot(dx, dz) || 1;
-          const response = Math.min(1, dt * (guide.through ? 2.1 : 2.9));
-          velocity.x += (dx / length * horizontalSpeed - velocity.x) * response;
-          velocity.z += (dz / length * horizontalSpeed - velocity.z) * response;
-          if (distance < 1.1) state.guidance = null;
+          if(!guideBallVelocity(velocity,dx,dz,dt,guide.through?2.1:2.9))state.guidance=null;
         }
       }
 
@@ -274,14 +274,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
         position.y = BALL.radius;
         if (velocity.y < 0) velocity.y = -velocity.y * 0.58;
         if (Math.abs(velocity.y) < 0.6) velocity.y = 0;
-        // Atrito do gramado: a bola perde velocidade de forma constante
-        // (como no gramado de verdade, ~5 m/s²).
-        const groundSpeed = Math.hypot(velocity.x, velocity.z);
-        if (groundSpeed > 0.01) {
-          const factor = Math.max(0, 1 - (GROUND_FRICTION * dt) / groundSpeed);
-          velocity.x *= factor;
-          velocity.z *= factor;
-        }
+        applyRollingResistance(velocity,dt);
         spin.multiplyScalar(1 - Math.min(1.6 * dt, 0.4));
       }
 
@@ -377,7 +370,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
       mesh.position.copy(position);
       shadow.position.set(position.x, 0.02, position.z);
       const shadowScale = Math.max(0.55, 1 - position.y * 0.25);
-      shadow.scale.setScalar(shadowScale);
+      shadow.scale.setScalar(1+Math.min(1.5,position.y*.16));
       shadow.material.opacity = 0.9 * shadowScale;
 
       // A bola gira conforme anda.

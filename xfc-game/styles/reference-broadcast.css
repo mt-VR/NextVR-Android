@@ -1,0 +1,53 @@
+/* v0.5.23: duas referências, um só placar com os dados vivos do jogo. */
+.hud__scoreboard {top:32px;left:44px;right:auto;gap:0;padding:0 0 24px;filter:drop-shadow(0 2px 3px #0003);}
+.hud__sc-main {height:47px;gap:0;padding:0;background:none;color:#090b19;border:0;border-radius:0;box-shadow:none;}
+.hud__sc-wing {height:34px;display:flex;align-items:center;gap:6px;background:linear-gradient(#fff,#e8eae8);position:relative;padding:0 10px;width:103px;}
+.hud__sc-wing--home {border-radius:13px 0 0 13px;padding-right:22px;}
+.hud__sc-wing--away {border-radius:0 13px 13px 0;padding-left:22px;justify-content:flex-end;}
+.hud__sc-wing--home::after,.hud__sc-wing--away::before {content:'';position:absolute;top:0;bottom:0;width:17px;}
+.hud__sc-wing--home::after {right:0;background:var(--home-band);}
+.hud__sc-wing--away::before {left:0;background:var(--away-band);box-shadow:inset 2px 0 5px #0002;}
+.hud__sc-main .hud__team {font-size:23px;font-weight:800;letter-spacing:-1px;color:#090b19;transform:scaleX(.8);margin:0 -4px;}
+.hud__sc-main .hud__crest {width:26px;height:29px;flex-shrink:0;filter:none;}
+.hud__sc-score {height:47px;min-width:98px;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;border-radius:12px;position:relative;z-index:1;box-shadow:0 0 3px #aaa4;}
+.hud__sc-main .hud__score {font-size:36px;line-height:1;font-weight:600;min-width:25px;color:#080a1b;background:none;}
+.hud__sc-main .hud__dash {font-size:0;width:1px;height:30px;background:#726882;}
+.hud__sc-main .hud__clock {position:absolute;left:50%;top:41px;transform:translateX(-50%);height:30px;min-width:98px;justify-content:center;padding:3px 10px 0;margin:0;border:0;border-radius:0 0 13px 13px;clip-path:none;background:#baff00;color:#102000;font-size:23px;line-height:1;font-weight:800;z-index:0;}
+.hud__sc-main .hud__half {display:none;}
+.play__pause-button {left:auto;right:32px;top:27px;}
+
+/* Na foto da pausa o placar é a faixa preta, com minuto e período à direita. */
+.play__stage.is-paused .hud__scoreboard {top:42px;right:40px;left:auto;padding:0;filter:drop-shadow(0 2px 4px #0004);}
+.play__stage.is-paused .hud__sc-main {height:36px;padding:0 10px;gap:10px;border-radius:4px;background:#06080cf2;color:white;}
+.play__stage.is-paused .hud__sc-wing {width:auto;height:30px;padding:0;gap:9px;background:none;border-radius:0;}
+.play__stage.is-paused .hud__sc-wing--home::after,.play__stage.is-paused .hud__sc-wing--away::before {display:none;}
+.play__stage.is-paused .hud__sc-score {height:auto;min-width:0;gap:4px;background:none;border-radius:0;box-shadow:none;}
+.play__stage.is-paused .hud__sc-main .hud__team {font-size:16px;letter-spacing:0;font-weight:400;color:white;transform:none;margin:0;}
+.play__stage.is-paused .hud__sc-main .hud__score {font-size:18px;font-weight:600;min-width:11px;color:white;}
+.play__stage.is-paused .hud__sc-main .hud__dash {font-size:17px;font-weight:400;width:auto;height:auto;background:none;color:white;}
+.play__stage.is-paused .hud__sc-main .hud__crest {width:23px;height:19px;}
+.play__stage.is-paused .hud__sc-main .hud__clock {position:static;transform:none;height:23px;min-width:0;margin:0 0 0 2px;padding:0 0 0 10px;border-radius:0;border-left:1px solid #ffffff24;background:transparent;color:white;font-size:16px;font-weight:400;}
+.play__stage.is-paused .hud__sc-main .hud__half {display:inline;color:white;font-size:15px;font-weight:400;}
+.play__stage.is-paused .play__canvas {filter:blur(1.2px);}
+
+/* Recortes da interface enviada: tipografia, símbolos e marca sem redesenho.
+   Fundo de campo NÃO é recorte: continua sendo a própria partida congelada. */
+.pause-reference {background:linear-gradient(90deg,#000f 0%,#000e 18%,#000b 27%,#0007 36%,#0004 50%,#0003 100%);}
+.pause-reference::before {content:'';position:absolute;inset:0 auto 0 0;width:300px;pointer-events:none;opacity:.25;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 720'%3E%3Cg fill='%23242424'%3E%3Cpath d='M30 0h9L0 66V50zM56 0h11L0 114V95zM48 67h18L0 179v-31zM0 210 57 112h16L0 238zM0 576l54-92h34L0 634zM0 685l122-182h29L13 720H0zM38 720l43-73h12l-43 73zM89 615l21-37v85H69z'/%3E%3C/g%3E%3C/svg%3E") left center/300px 720px no-repeat;}
+.pause-reference__brand {top:48px;left:5.15625%;width:208px;height:72px;display:block;gap:0;padding:0;border:0;}
+.pause-reference__brand img {width:208px;height:40px;display:block;}
+.pause-reference__brand::after {content:'';position:absolute;left:0;top:70px;width:216px;height:1px;background:linear-gradient(90deg,#ffffff9a,#ffffff05);}
+.pause-reference__menu {top:157px;left:2.109375%;width:379px;gap:0;}
+.pause-reference__item {position:relative;display:block;width:379px;height:64px;min-height:0;padding:0;border:0;border-radius:9px;background:none;box-shadow:none;}
+.pause-reference__item:first-child {height:63px;margin-bottom:7px;}
+.pause-reference__row-art {position:absolute;left:39px;top:50%;transform:translateY(-50%);width:auto;height:auto;pointer-events:none;}
+.pause-reference__item:first-child .pause-reference__row-art {inset:0;transform:none;width:379px;height:63px;}
+.pause-reference__item.is-primary,.pause-reference__item:hover,.pause-reference__item:focus-visible {background:none;color:inherit;box-shadow:none;outline:none;}
+.pause-reference__item:not(:first-child):hover,.pause-reference__item:not(:first-child):focus-visible {background:#ffffff0d;box-shadow:inset 3px 0 #ffffff90;}
+.pause-reference__item:first-child:hover {filter:brightness(1.04);}
+.pause-reference__footer {left:5.15625%;bottom:40px;display:flex;gap:20px;height:27px;font-size:0;}
+.pause-reference__footer button {display:block;padding:0;border:0;background:transparent;cursor:pointer;}
+.pause-reference__footer img {height:27px;width:auto;display:block;}
+.pause-reference__footer button:focus-visible {outline:1px solid white;outline-offset:4px;}
+.pause-reference__detail {z-index:2;}
+.play__stage.is-paused .hud__sc-main {min-width:333px;justify-content:space-between;}
