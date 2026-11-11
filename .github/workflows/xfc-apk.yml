@@ -176,6 +176,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
+          # Builds concorrentes podem terminar fora de ordem: o antigo não
+          # deve sobrescrever os anexos da correção mais recente da mesma versão.
+          REMOTE_HEAD=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$GITHUB_REF_NAME" --jq '.object.sha')
+          if [ "$REMOTE_HEAD" != "$GITHUB_SHA" ]; then
+            echo "Publicação ignorada: há um commit mais recente nesta branch."
+            exit 0
+          fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
           TAG=xfc-gameplay-v0.5.29
           NOTES=$(printf '%s\n' \
@@ -192,6 +199,9 @@ jobs:
           else
             gh release edit "$TAG" --title "XFC 27 — abertura, seleção e movimentos v0.5.29" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
+            # --target não move uma tag existente; manter fonte e APK alinhados.
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \
+              -f sha="$GITHUB_SHA" -F force=true > /dev/null
           fi
           # O `gh release upload` funciona; o nome do arquivo do Gradle é
           # app-release.apk, então o anexo é renomeado para xfc.apk logo depois
