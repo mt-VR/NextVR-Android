@@ -418,3 +418,24 @@ cd xfc-game/android && ./gradlew assembleDebug
 - Nova locomoção elimina os 6 cm de abaixamento contínuo; apoio quase estendido,
   balanço distinto de andar/correr e correção de contato dos pés. Preservar todos
   os gestos anteriores e modelo importado; regressão visual ainda requer usuário.
+
+### v0.5.22 — UT local e revisão de corrida
+
+- `data/ultimate.js`: motor puro de economia/migração/pacotes/instâncias/elencos,
+  objetivos, DME, evolução e séries locais. `profile.ut` dentro da mesma chave
+  v1. Não apague `ultimatePlayers`: migração preserva compras negociáveis.
+- `screens/ultimate.js` e `styles/ultimate.css`: UI DOM real, sem print fingindo
+  sistema. Todos os modos claramente LOCAL/IA; não existe backend multiplayer.
+- `beginUtMatch` salva snapshot/ID; `ultimateMatchTeam` constrói a equipe que o
+  `play.js` envia a `createMatch`; `settleUtMatch` é idempotente. Não usar o
+  caminho de recompensa comum junto do UT (duplicaria moedas/partidas).
+- Carta inicial não é vendável; carta em qualquer elenco/banco/evolução/partida
+  não pode ser vendida/consumida. Débito e cartas do pacote persistem antes da
+  revelação. `unmount` cancela seus timers. DME exige confirmação de consumo.
+- Agora placar BRANCO com relógio LIMA ABAIXO, não a faixa preta da v0.5.21.
+- Corrida tem fase aérea e braços amplos alternados; NÃO nivelar pés ao chão
+  em todos os frames (isso cancela o voo). O modelo importado não mudou.
+- Artes brasileiras em `assets/competitions`, botões DOM sem texto duplicado
+  por cima. Manter as competições compactas reais, saída e retorno corretos.
+- Documentação e limitações em `xfc-game/docs/v0.5.22.md`. Testes de UI/modelo
+  não substituem aprovação visual no aparelho. CI inclui UT e pausa/gestos.

@@ -6,15 +6,15 @@ export function runningLegPose(phase, stride = 1, running = 1) {
   const p = ((phase % 1) + 1) % 1;
   stride = clamp(stride, 0, 1);
   running=clamp(running,0,1);
-  const support=.62-.12*running;
+  const support=.62-.24*running;
   const stance = p < support;
   const t = stance ? p / support : (p - support) / (1-support);
-  // Apoio termina apenas 12 cm atrás do quadril. Na recuperação o joelho
-  // sobe à frente, em vez de o calcanhar ser arremessado para trás.
+  // Corrida tem apoio < metade do ciclo: duas fases aéreas por passada.
+  // Recuperação alta do joelho, com alcance traseiro curto (21 cm).
   const smooth = t * t * (3 - 2 * t);
-  const front=.25+.05*running,back=.12+.04*running;
+  const front=.25+.13*running,back=.12+.09*running;
   const z = (stance ? front-(front+back)*smooth : -back+(front+back)*smooth)*stride;
-  const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.10*running);
+  const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.225*running);
   // O pé de apoio quase estende a perna; retirar o encurtamento constante
   // de 6 cm elimina o agachamento durante toda a passada.
   const y = -Math.sqrt(.855*.855-z*z)+lift,
@@ -32,6 +32,17 @@ export function runningLegPose(phase, stride = 1, running = 1) {
       clamp((a * a + distance * distance - b * b) / (2 * a * distance), -1, 1)
     );
   return { hip, knee, ankle: -hip - knee, z, lift, y, stance };
+}
+
+/** Contrabalanço sagital: braço oposto à perna; cotovelo abre atrás do corpo. */
+export function runningArmPose(phase, running=1) {
+  const swing=Math.cos(phase*Math.PI*2);
+  return { shoulder:(.32+.48*clamp(running,0,1))*swing,
+    elbow:-(.68-.30*swing), twist:.055*Math.sin(phase*Math.PI*2) };
+}
+export function runningFlight(phase,running=1){
+  const support=.62-.24*clamp(running,0,1),p=((phase%1)+1)%1,other=(p+.5)%1;
+  return p>=support&&other>=support;
 }
 
 /** O joystick horizontal é relativo à câmera atrás do batedor. */

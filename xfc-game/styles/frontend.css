@@ -954,3 +954,13 @@
 .football-card__crest { position: absolute; left: 5px; top: 40px; width: 19px; height: 19px; object-fit: contain; pointer-events: none; }
 .football-card__name { position: absolute; bottom: 6px; left: 3px; right: 3px; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; background: #0b1725e0; padding: 3px 0; }
 .pitch .football-card { width: 84px; height: 92px; }
+
+/* v0.5.22: referência branca; relógio verde abaixo, no canto direito. */
+.hud__scoreboard { top:24px; right:32px; left:auto; padding-bottom:29px; }
+.hud__sc-main { position:relative; height:42px; gap:12px; padding:0 15px; background:#fafbf9; border-radius:0; color:#13181b; box-shadow:0 3px 10px #0003; }
+.hud__sc-main .hud__team { color:#15191c; font-size:16px; font-weight:850; }
+.hud__sc-main .hud__score { color:#13181b; font-size:25px; }
+.hud__sc-main .hud__dash { color:#13181b; }
+.hud__sc-main .hud__crest { width:29px; height:29px; }
+.hud__sc-main .hud__clock { position:absolute; top:42px; left:50%; transform:translateX(-50%); margin:0; padding:3px 24px; height:27px; border:0; background:#baff20; color:#101a08; font-size:18px; font-weight:850; min-width:101px; justify-content:center; clip-path:polygon(0 0,100% 0,92% 100%,8% 100%); }
+.hud__sc-main .hud__half { display:none; }

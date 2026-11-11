@@ -46,9 +46,12 @@ export function createState() {
 
 export function saveProfile(state) {
   try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(state.profile));
+    if(!globalThis.localStorage)return false;
+    globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.profile));
+    return true;
   } catch {
-    // Sem storage (modo privado) o jogo continua funcionando, só não lembra do perfil.
+    // Sem storage o chamador pode avisar; nunca fingir que a gravação funcionou.
+    return false;
   }
 }
 

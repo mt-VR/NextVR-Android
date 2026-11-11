@@ -169,3 +169,21 @@ DOM/CSS com a marca SVG existente, não como imagem estática. O fundo é a pró
 partida renderizada e congelada. Cartas usam apenas escudos e retratos já
 creditados neste projeto; não usam templates oficiais de cartas EA. Não foram
 adicionados modelos, texturas nem clipes de terceiros nesta revisão.
+
+## Ultimate Team e competições domésticas — v0.5.22
+
+- Referências enviadas pelo usuário: `file_000000006cc0820e953c589c3ad429fb.png`
+  e `file_000000004dc0820ebdd6d0c0118fcc59.png` (UT); implementadas como
+  componentes DOM/CSS, sem importar templates de cartas oficiais EA.
+- `file_000000004d4c820e91a71038c5bce4d1.png` →
+  `assets/competitions/brasileirao.jpg`; `file_000000007a98820ebeab166b1607f683.png`
+  → `assets/competitions/copa-do-brasil.jpg`. Conversão JPEG, sem geração dos
+  troféus/escudos. Artes fornecidas pelo usuário; autoria/licença comercial não
+  verificadas. Marcas, patrocinadores e CBF permanecem dos titulares; não há
+  afiliação oficial nem declaração de licença CC0 dessas imagens.
+- Cards usam somente fotos e escudos do acervo já creditado, com as condições
+  originais em `assets/players/CREDITS.md` e `assets/crests/CREDITS.md`.
+  Retrato ausente não é substituído por foto de outra pessoa. As raridades
+  Ídolo/Herói/Especial/TOTW são edições conceituais de jogo XFC.
+- Placar: referência `IMG_20261111_001747.jpg`, refeito em DOM/CSS.
+- Animações modificam o rig do mesmo Micah CC0. Sem modelo novo, mocap ou clipes EA.

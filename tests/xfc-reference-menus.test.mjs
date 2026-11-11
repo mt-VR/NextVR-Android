@@ -81,7 +81,8 @@ test('sete cartões abrem fundamentos distintos; goleiro é controlável, escant
     assert.equal(await p.locator('.modes__cta').count(),0,'não há o CTA nem o hub roxo intermediário');
     for(const id of ['copa-do-brasil','brasileirao']){
       await p.click(`[data-option="${id}"]`);await p.waitForSelector(`.screen--competition[data-competition="${id}"]`);
-      assert.ok(await p.locator('.comp__domestic-title').isVisible());
+      assert.ok(await p.locator('.comp__domestic-reference').isVisible());
+      assert.match(await p.locator('.comp__art').evaluate(n=>getComputedStyle(n).backgroundImage),new RegExp(id));
       await p.keyboard.press('Escape');await p.waitForSelector('.screen--modes');
     }
     await p.keyboard.press('Escape');await p.waitForSelector('.screen--menu');await p.click('[data-menu-item="grounds"]');

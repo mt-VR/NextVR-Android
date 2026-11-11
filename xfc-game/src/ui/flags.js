@@ -4,6 +4,9 @@
 // demais pesa o pacote, então cada bandeira é um SVG pequeno e nítido.
 
 const MARKS = {
+  tr: `<rect width="24" height="16" fill="#e30a17"/><circle cx="9" cy="8" r="4.3" fill="white"/><circle cx="10.2" cy="8" r="3.5" fill="#e30a17"/><path d="m14 5.8 .6 1.5 1.7.1-1.3 1 .5 1.7-1.5-1-1.4 1 .5-1.7-1.3-1 1.6-.1z" fill="white"/>`,
+  ve: `<rect width="24" height="16" fill="#cf142b"/><rect width="24" height="5.33" fill="#ffcc00"/><rect y="5.33" width="24" height="5.34" fill="#00247d"/><path d="M6 9l1-1m1-1 .8-.5m1.2-.5h1m2 0h1m1.2.5 .8.5m1 1 1 1" stroke="white" stroke-width=".8"/>`,
+  at: `<rect width="24" height="16" fill="#ed2939"/><rect y="5.33" width="24" height="5.34" fill="white"/>`,
   es: `
     <rect x="0" y="0" width="24" height="16" fill="#c60b1e"/>
     <rect x="0" y="4" width="24" height="8" fill="#ffc400"/>

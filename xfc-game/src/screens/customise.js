@@ -221,7 +221,7 @@ export function customiseScreen(ctx, params = {}) {
       if (event.key === 'ArrowDown') { focusIndex = Math.min(TILES.length - 1, focusIndex + 4); updateFocus(); return true; }
       if (event.key === 'ArrowUp') { focusIndex = Math.max(0, focusIndex - 4); updateFocus(); return true; }
       if (event.key === 'Enter' || event.key === ' ') { activate(focusIndex); return true; }
-      if (event.key === 'Escape' || event.key === 'Backspace') { ctx.go('menu'); return true; }
+      if (event.key === 'Escape' || event.key === 'Backspace') { ctx.go(params.returnTo || 'menu',params.returnParams || {}); return true; }
       return false;
     }
   };

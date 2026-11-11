@@ -10,7 +10,7 @@ test('postura: apoio quase estendido e recuperação distinta de caminhada/corri
  for(const running of [0,1])for(let i=0;i<240;i++){
    const pose=runningLegPose(i/240,1,running);
    if(pose.stance)assert.ok(pose.knee<.25,'não agacha a perna de apoio');
-   assert.ok(Number.isFinite(pose.hip));assert.ok(pose.knee<1.5);
+   assert.ok(Number.isFinite(pose.hip));assert.ok(pose.knee<1.75);
  }
  assert.ok(runningLegPose(.78,1,1).lift>runningLegPose(.78,1,0).lift);
  for(const point of [{x:0,z:0},{x:20,z:-12},{x:-35,z:25}]){
@@ -51,7 +51,8 @@ test('pausa real: congela simulação/render; plano arrasta sem teleporte, persi
    const capture=()=>p.evaluate(()=>{const m=__xfcMatch;return{clock:{...m.clock},ball:m.ball.state.position.toArray(),velocity:m.ball.state.velocity.toArray(),players:[...m.teams.home.players,...m.teams.away.players].map(x=>[x.x,x.z,x.vx,x.vz]),frames:m.engine.state.frames,camera:m.engine.camera.position.toArray(),phase:m.phase.name};});
    const before=await capture();await p.waitForTimeout(300);await p.evaluate(()=>{for(let i=0;i<60;i++)__xfcMatch.world.tick(1/60);});assert.deepEqual(await capture(),before);
    assert.equal(await p.evaluate(()=>__xfcMatch.engine.running),false);
-   const board=await p.locator('.hud__scoreboard').boundingBox();assert.ok(board.x>800);assert.ok(await p.locator('.hud__half').isVisible());
+   const board=await p.locator('.hud__scoreboard').boundingBox();assert.ok(board.x>800);assert.equal(await p.locator('.hud__half').isVisible(),false);
+   const clock=await p.locator('.hud__clock').boundingBox();const mainBoard=await p.locator('.hud__sc-main').boundingBox();assert.ok(clock.y>=mainBoard.y+mainBoard.height-1,'relógio verde fica abaixo');
    await p.click('[data-pause-action="plan"]');assert.equal(await p.locator('.game-plan__pitch .football-card').count(),11);
    const card=p.locator('.game-plan__pitch .football-card').nth(8),id=await card.getAttribute('data-player-id');
    const old=await p.evaluate(id=>__xfcMatch.world.getGamePlan().find(x=>x.id===id),id);

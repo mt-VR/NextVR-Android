@@ -135,6 +135,8 @@ const LAYOUT = {
 };
 
 const ART = {
+  'brasileirao':'assets/competitions/brasileirao.jpg',
+  'copa-do-brasil':'assets/competitions/copa-do-brasil.jpg',
   'uefa-champions-league': 'assets/competitions/ucl.jpg',
   'copa-america': 'assets/competitions/copa-america.jpg',
   'conmebol-libertadores': 'assets/competitions/libertadores.jpg',
@@ -357,7 +359,22 @@ export function competitionScreen(ctx, params = {}) {
   root.append(artboard);
   if(competition.theme==='brasil'){
     root.classList.add('comp--domestic');
-    artboard.append(el('div',{class:'comp__domestic-title'},el('h1',{text:competition.name}),el('p',{text:competition.tagline})));
+    const reference=el('nav',{class:'comp__domestic-reference','aria-label':`Início da ${competition.name}`});
+    const labels=['Jogar Partida',competition.id==='brasileirao'?'Campeonato':'Fases da Copa','Configurações','Estatísticas','Galeria','Sair'];
+    labels.forEach((label,i)=>reference.append(el('button',{type:'button',class:'comp__reference-button','aria-label':label,title:label,
+      style:{left:'3.4%',top:`${32.7+i*6.48}%`,width:'24%',height:'6.4%'},
+      onClick:()=>{
+        if(i===0)show('play');
+        else if(i===1)show(competition.id==='brasileirao'?'standings':'knockout');
+        else if(i===2)ctx.go('customise',{returnTo:'competition',returnParams:{competitionId:competition.id,returnTo}});
+        else if(i===3)show('scorers');
+        else if(i===4)show('gallery');
+        else ctx.go(returnTo);
+      }
+    },el('span',{class:'ref-sr',text:label}))));
+    for(const [label,left,action]of [['Selecionar','2.8%',()=>show('play')],['Voltar','14.2%',()=>ctx.go(returnTo)]])reference.append(el('button',{type:'button',class:'comp__reference-button','aria-label':label,style:{left,top:'92%',width:'11%',height:'7%'},onClick:action}));
+    reference.append(el('small',{class:'comp__edition-note',text:competition.tagline+' · edição local compacta'}));
+    artboard.append(reference);
   }
 
   function paintWallet() {
@@ -588,6 +605,9 @@ export function competitionScreen(ctx, params = {}) {
     if (isHome) {
       stage.replaceChildren();
       return;
+    }
+    if(panel==='gallery'){
+      stage.replaceChildren(sectionTitle('Galeria da competição','Estádios disponíveis no XFC'),el('div',{class:'comp__gallery'},STADIUMS.map(stadium=>el('figure',{},el('img',{src:stadium.file,alt:stadium.name}),el('figcaption',{text:stadium.name})))));return;
     }
     if (panel === 'play' || panel === 'entity') {
       stage.replaceChildren(panel === 'entity' && tournament ? entitiesPanel() : playPanel());

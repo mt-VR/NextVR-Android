@@ -13,7 +13,7 @@
 // `animation` (`speed`, `blend`, `trigger`, `applyMask`, `state`). Assim o
 // motor (`match.js`) não sabe — nem precisa saber — qual modelo está em campo.
 
-import { runningLegPose } from './football-actions.js';
+import { runningLegPose, runningArmPose, runningFlight } from './football-actions.js';
 import { THREE, softShadowTexture } from './engine.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
@@ -592,6 +592,7 @@ export function createGltfPlayer(options = {}) {
 
   /** Locomoção: mistura idle/jog/run pela velocidade (blend tree). */
   let gaitPhase=0;
+  let gaitGroundOffset=0;
   function updateLocomotion(speed, dt) {
     const value = Math.max(0, Number(speed) || 0);
     let idle = 0;
@@ -729,10 +730,10 @@ export function createGltfPlayer(options = {}) {
           }
         }
         bones.hips.position.y=bindHipY;
-        // Cotovelos flexionados e contrabalanço curto, oposto às coxas.
+        // Ombros alternam frente/trás; cotovelo abre quando o braço vai para trás.
         for(const [side,offset] of [['left',0],['right',.5]]){
-          const swing=Math.cos((gaitPhase+offset)*Math.PI*2);
-          for(const [part,x,z] of [['Arm',.32*swing,side==='left'?-.08:.08],['ForeArm',-.95-.15*swing,0]]){
+          const arm=runningArmPose(gaitPhase+offset,state.locomotionWeights.run);
+          for(const [part,x,z] of [['Arm',arm.shoulder,side==='left'?-.035:.035],['ForeArm',arm.elbow,0]]){
             gQuat.setFromEuler(gEuler.set(x,0,z));
             bones[side+part].quaternion.identity().slerp(gQuat,gaitWeight);
           }
@@ -742,7 +743,8 @@ export function createGltfPlayer(options = {}) {
         const running=state.locomotionWeights.run;
         bones.hips.position.y+=.018*running*(1-Math.cos(gaitPhase*Math.PI*4));
         // Tronco ereto no andar; inclinação pequena e única ao correr.
-        bones.spine.rotation.x=.035*running;
+        bones.spine.rotation.x=.065*running;
+        bones.spine.rotation.y=.045*running*Math.sin(gaitPhase*Math.PI*2);
         bones.spine2.rotation.x=0;
       }
       addBoneRotation(bones.spine2, 0, 0, Number(movement.lean) || 0, 1);
@@ -750,7 +752,12 @@ export function createGltfPlayer(options = {}) {
         root.updateMatrixWorld(true);
         const feet=[bones.leftFoot,bones.rightFoot];let min=Infinity;
         for(const foot of feet)min=Math.min(min,foot.getWorldPosition(floorPoint).y-root.position.y);
-        bones.hips.position.y+=(.13*model.scale.y-min)/model.scale.y;
+        if(!runningFlight(gaitPhase,state.locomotionWeights.run)){
+          gaitGroundOffset=(.13*model.scale.y-min)/model.scale.y;
+        }
+        // Não prender os pés ao chão na fase aérea: isso transformava corrida
+        // em caminhada acelerada mesmo com joelhos e braços animados.
+        bones.hips.position.y+=gaitGroundOffset;
       }
       applyGesture(step);
       if (['dive', 'tackle', 'fall'].includes(gesture.name)) {

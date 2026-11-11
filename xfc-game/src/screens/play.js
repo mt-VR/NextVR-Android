@@ -18,6 +18,7 @@ import {
 } from '../data/tournament.js';
 import { footballCard,enablePositionDrag,planToPitch,pitchToPlan,positionCard } from '../ui/game-plan.js';
 import { saveProfile } from '../state.js';
+import { ultimateMatchTeam, settleUtMatch } from '../data/ultimate.js';
 import { flagSvg } from '../ui/flags.js';
 import { createMatch } from '../match3d/match.js';
 import { createControls } from '../match3d/controls.js';
@@ -90,7 +91,7 @@ function resolvePlayableTeam(id) {
 }
 
 function kitForTeam(team, index = 0) {
-  if (team.isNationalTeam) {
+  if (team.isNationalTeam || team.id==='xfc-ut') {
     return { name: `${team.name} Home`, colors: team.colors, pattern: 'solid' };
   }
   const kits = kitsOf(team.id);
@@ -117,7 +118,7 @@ function projectToStage(camera, position) {
 }
 
 export function playScreen(ctx, params = {}) {
-  const home = resolvePlayableTeam(params.home || ctx.state.selection.home);
+  const home = (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || resolvePlayableTeam(params.home || ctx.state.selection.home);
   const away = resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
   const homeKit = kitForTeam(home, params.homeKit ?? 0);
   const awayKit = kitForTeam(away, params.awayKit ?? 0);
@@ -297,7 +298,7 @@ export function playScreen(ctx, params = {}) {
       difficulty,
       userSide,
       onEvent: handleEvent,
-      gamePlans:{home:ctx.state.profile.gamePlans?.[home.id],away:ctx.state.profile.gamePlans?.[away.id]},
+      gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:ctx.state.profile.gamePlans?.[away.id]},
       stadium: stadiumIndex
     });
     hud = createHud({
@@ -346,6 +347,10 @@ export function playScreen(ctx, params = {}) {
     rewarded = true;
     const userGoals = userSide === 'home' ? event.score[0] : event.score[1];
     const rivalGoals = userSide === 'home' ? event.score[1] : event.score[0];
+    if(params.ultimateMatchId){
+      const result=settleUtMatch(ctx.state.profile,params.ultimateMatchId,[userGoals,rivalGoals]);
+      matchReward={coins:result.coins||0,goals:userGoals};saveProfile(ctx.state);return;
+    }
     const outcomeBonus = userGoals > rivalGoals ? 45 : userGoals === rivalGoals ? 25 : 0;
     const coins = 65 + outcomeBonus + userGoals * 5;
     matchReward = { coins, goals: userGoals };
@@ -642,6 +647,7 @@ export function playScreen(ctx, params = {}) {
               returnTo: params.worldCupReturnTo || 'modes'
             })
           }, 'CONTINUAR COPA')
+          : params.ultimateMatchId ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('ultimate')},'VOLTAR AO CLUBE')
           : el('button', {
             class: 'btn btn--primary',
             type: 'button',
@@ -699,12 +705,18 @@ export function playScreen(ctx, params = {}) {
           if(!match.world.setGamePlan(entry.id,base))return;
           point=next;
           ctx.state.profile.gamePlans||={};ctx.state.profile.gamePlans[userTeam.id]||={};
-          ctx.state.profile.gamePlans[userTeam.id][entry.rosterId]=base;saveProfile(ctx.state);
+          ctx.state.profile.gamePlans[userTeam.id][entry.rosterId]=base;
+          if(params.ultimateMatchId&&ctx.state.profile.ut?.pending){
+            const u=ctx.state.profile.ut;u.pending.squad.positions[entry.rosterId]=next;
+            const saved=u.squads.find(s=>s.id===u.pending.squad.id);if(saved)saved.positions[entry.rosterId]=next;
+            home.plan[entry.rosterId]=base;
+          }
+          saveProfile(ctx.state);
         }});
       }
       panel('PLANO DE JOGO',el('p',{text:'Arraste as cartinhas livremente. No teclado, selecione uma carta e use as setas. As novas posições orientam a equipe ao retomar, sem teletransportar o lance.'}),pitch);
     }
-    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go('menu');
+    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go(params.ultimateMatchId?'ultimate':'menu');
     const confirm=(title,message,action)=>panel(title,el('p',{text:message}),el('button',{type:'button',class:'pause-reference__confirm',onClick:action,text:'CONFIRMAR'}));
     const actions=[
       ['resume','▶','VOLTAR À PARTIDA',resumeMatch],

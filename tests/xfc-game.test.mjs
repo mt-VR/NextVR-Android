@@ -726,15 +726,14 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     const coinsBeforePurchase = Number(await page.locator('.screen--menu').getAttribute('data-coins'));
     await page.locator('.menu__item[data-menu-item="ultimate"]').click();
     await page.waitForSelector('.screen--ultimate');
-    assert.ok(await page.locator('.ultimate-card__buy').count() >= 6, 'a loja mostra cartas contratáveis');
-    const buyButton = page.locator('.ultimate-card__buy').first();
-    const priceText = await buyButton.textContent();
-    await buyButton.click();
-    await page.waitForFunction(() => document.querySelectorAll('.ultimate-card__owned').length === 1);
-    const coinsAfterPurchase = Number(await page.locator('.ultimate__coin-value').textContent());
-    assert.ok(coinsAfterPurchase < coinsBeforePurchase, `a compra desconta moedas (${priceText})`);
-    assert.equal(await page.locator('.ultimate__tab.is-active').textContent(), 'MEU ELENCO',
-      'a compra leva para a coleção do jogador');
+    await page.getByRole('button',{name:'Mercado de Transferências',exact:true}).click();
+    assert.ok(await page.locator('.ultimate-card__buy').count() >= 6, 'mercado tem cartas contratáveis');
+    await page.locator('.ultimate-card__buy').nth(3).click(); // Cubarsí cabe no saldo inicial.
+    await page.getByRole('button',{name:'Confirmar',exact:true}).click();
+    const afterPurchase=await page.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')));
+    assert.ok(afterPurchase.coins<coinsBeforePurchase);
+    assert.equal(afterPurchase.ut.inventory.length,19,'18 iniciais mais uma compra');
+    await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
 
@@ -831,7 +830,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     }, campaignMatchId);
     assert.ok(persistedResult.match?.played, 'o apito final registra o jogo na campanha salva');
     assert.equal(persistedResult.match.winner, 'argentina', 'o resultado da partida conta para a classificação');
-    assert.ok(persistedResult.coins > coinsAfterPurchase, 'a partida da Copa também recompensa moedas');
+    assert.ok(persistedResult.coins > afterPurchase.coins, 'a partida da Copa também recompensa moedas');
     await page.click('.result__actions .btn:has-text("CONTINUAR COPA")');
     await page.waitForSelector('.screen--worldcup');
     assert.equal(await page.locator('.worldcup__play-match').count(), 1,

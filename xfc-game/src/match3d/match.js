@@ -383,6 +383,7 @@ export function createMatch(options = {}) {
         index: slotIndex,
         order: index,
         rosterId:data.id||String(index),
+        captain:Boolean(data.captain),
         tacticalCustom:Number.isFinite(options.gamePlans?.[team.side]?.[data.id||String(index)]?.x)&&Number.isFinite(options.gamePlans?.[team.side]?.[data.id||String(index)]?.z),
         tacticalBase:{...base,...validatedPlan(options.gamePlans?.[team.side]?.[data.id||String(index)])},
         role,
