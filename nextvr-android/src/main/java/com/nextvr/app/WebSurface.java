@@ -196,9 +196,19 @@ final class WebSurface {
             // hora. Sem 'wasm-unsafe-eval' o Chromium recusa essa compilação e as mãos do jogo nunca
             // sobem ("MediaPipe não carregou"). Essa página é servida daqui, do APK, e roda numa
             // janela sem a ponte NativeXR — o resto da UI continua sem eval.
-            headers.put("Content-Security-Policy",path.startsWith("/ui/cockpit/")
-                ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob: mediastream: data:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; child-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'"
-                : "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
+            // As duas páginas de jogo (Cockpit VR e Gorilla Rush) rodam o MediaPipe delas, que compila
+            // WASM na hora — sem 'wasm-unsafe-eval' as mãos do jogo nunca sobem. A do Gorilla Rush
+            // ainda fala WebSocket com o NOSSO servidor, então precisa de ws:/wss: em connect-src.
+            String gameCsp="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'"
+                +" https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com;"
+                +" style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:;"
+                +" media-src blob: mediastream: data:; font-src 'self';"
+                +" connect-src 'self' https: wss: ws: blob: data:; worker-src blob:; child-src blob:;"
+                +" frame-src 'none'; object-src 'none'; base-uri 'none'";
+            if(path.startsWith("/ui/cockpit/") || path.startsWith("/ui/gorilla-rush/"))
+                headers.put("Content-Security-Policy",gameCsp);
+            else
+                headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: blob: data: content:; media-src blob:; font-src 'self'; connect-src 'self' https: blob: data:; worker-src blob:; frame-src 'none'; object-src 'none'; base-uri 'none'");
             headers.put("Access-Control-Allow-Origin",ORIGIN);
             headers.put("Cache-Control","no-store");
             return new WebResourceResponse(mime,"UTF-8",200,"OK",headers,context.getAssets().open(path.substring(1)));
@@ -276,7 +286,11 @@ final class WebSurface {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        // A página do jogo é servida de https://appassets.androidplatform.net e o online dela é o
+        // NOSSO servidor, que na mesma rede Wi-Fi é `ws://192.168.x.x:8787` — sem TLS, porque não
+        // faz sentido exigir certificado dentro de casa. Com NEVER_ALLOW o Chromium bloqueia esse
+        // WebSocket como conteúdo misto e o jogo ficaria "offline" sem ninguém entender por quê.
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setSupportMultipleWindows(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setUseWideViewPort(false);
@@ -328,6 +342,8 @@ final class WebSurface {
         /** O gesto de encerrar do jogo (ou o ✕ da tela dele): o NextVR reassume a tela e a câmera. */
         @android.webkit.JavascriptInterface public void exit() { if(owner!=null) owner.closeCockpitGame(); }
         @android.webkit.JavascriptInterface public void report(String message) { if(owner!=null) owner.report(message); }
+        /** Até onde a página chegou ("boot", "flight"): o app usa isto para saber se o voo montou. */
+        @android.webkit.JavascriptInterface public void stage(String stage) { if(owner!=null) owner.cockpitStage(stage); }
     }
     /**
      * Serves one launcher icon out of the app-icon cache. Only flat file names, only images: the

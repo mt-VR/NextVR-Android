@@ -131,10 +131,21 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     // A tela cheia de um jogo HTML com estéreo e mãos próprios (Cockpit VR). Enquanto ela existe,
     // a câmera e o rastreio de mão DESTE app estão parados: são do jogo.
     private WebView cockpitView;
+    // Qual página é a dona da tela cheia agora: "cockpit" (Cockpit VR) ou "gorilla" (Gorilla Rush).
+    // As duas usam a MESMA janela, o mesmo dono da câmera e o mesmo caminho de volta; o que muda é o
+    // arquivo que abre e a etapa que a página reporta quando já está rodando.
+    private volatile String gameKind="cockpit";
     // O voo do Cockpit VR precisa da câmera para as mãos do PRÓPRIO jogo: se o NextVR ainda não a
     // tem (o usuário nunca ligou o rastreio de mão), a permissão é pedida antes de a página abrir.
     private static final int REQUEST_GAME_CAMERA=12;
-    private String pendingCockpitQuery=null;
+    // Até onde a página do jogo chegou (reportado por ela: "boot", "flight"). Vazio = nem carregou.
+    private volatile String cockpitStage="";
+    // O voo está A CAMINHO (a câmera já foi solta, a tela vai nascer em 0,9 s). Enquanto isto for
+    // verdade, o NextVR não reabre a própria câmera — e é aqui que o pedido de permissão atrapalhava:
+    // o diálogo do Android pausa a activity, o onResume reabria a nossa Camera2, e a página do jogo
+    // chegava depois e não conseguia a câmera dela (NotReadableError). Era o "as mãos do jogo não
+    // funcionam".
+    private volatile boolean cockpitPending=false;
     private volatile long vrSessionReadyAtMs=0L;
     private String pendingVrSettingsJson;
     private android.hardware.SensorManager sensorManager;
@@ -259,11 +270,19 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             }
             @Override public void hands(com.nextvr.app.hands.PhoneXrHands.Frame frame) {
                 SpatialRenderer r=renderer;
-                if(entryVisible || android.os.SystemClock.elapsedRealtime()<vrSessionReadyAtMs) {
+                // O Gorilla Rush desenha as mãos dele (o gorila), então o app não desenha a
+                // silhueta por cima — mas o quadro é necessário: é ele que alimenta o jogo.
+                final boolean gorillaGame="gorilla".equals(gameKind) && cockpitView!=null;
+                // O portão do menu de entrada vale para a INTERFACE (nada de cursor sobre o menu),
+                // não para o jogo: o JOIN da aba 4 abre o Gorilla Rush com o menu de entrada ainda
+                // marcado como visível, e o jogo ficava SEM mãos justamente nesse caminho — os
+                // braços do gorila só apareciam quando se entrava pela Biblioteca.
+                if(!gorillaGame && (entryVisible
+                        || android.os.SystemClock.elapsedRealtime()<vrSessionReadyAtMs)) {
                     if(r!=null) r.hands=null;
                     return;
                 }
-                boolean inGame=gameHandMode;
+                boolean inGame=gameHandMode || gorillaGame;
                 if(r!=null)r.hands=inGame?null:frame;
                 // The newest frame also goes to the PhoneXR runtime, which turns it into two Oculus
                 // Touch controllers. Offered unconditionally: the bridge drops it when nothing is
@@ -279,6 +298,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 // somava duas extrapolações (a daqui e a do cursor do shell), e era isso que fazia a
                 // mão "passar do ponto" e voltar em movimento rápido. O shell prevê a partir do
                 // timestamp de CAPTURA que vem no pacote, com uma previsão só.
+                if(gorillaGame) {
+                    // O jogo é dono da tela: nada de mão no shell, só no jogo.
+                    offerGorillaHands(frame.gameJson());
+                    return;
+                }
                 String payload=inGame?frame.gameJson():frame.json();
                 handFrames.offer(frame,"window.nextvrHands&&window.nextvrHands("+payload+","+mx+","+my+")");
                 scheduleHandFrameDrain();
@@ -673,6 +697,48 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
 
     /* ======================= jogo HTML em tela cheia (Cockpit VR) ======================= */
 
+    /** Conta para a shell o que aconteceu com a janela do jogo (aberto, falhou, saiu). */
+    private void cockpitState(String what,String detail) {
+        WebSurface target=shell;
+        if(target==null) return;
+        String hook="gorilla".equals(gameKind)?"nextvrGorillaState":"nextvrCockpitState";
+        try {
+            target.evaluate("window."+hook+"&&window."+hook+"("
+                +JSONObject.quote(what)+","+JSONObject.quote(detail==null?"":detail)+")");
+        } catch(Throwable ignored) {}
+    }
+
+    /** A página do jogo diz até onde ela chegou ("boot", "flight", "play"); o nativo só escuta. */
+    void cockpitStage(String stage) { cockpitStage=stage==null?"":stage; }
+
+    // As mãos do Gorilla Rush vêm daqui: o quadro mais novo do rastreio do NextVR espera o próximo
+    // giro do main thread, e só UM envio fica pendente (o rastreio roda a 30 Hz e o WebView não
+    // precisa de fila —. jogar fora o quadro velho é o que mantém o gorila colado na mão).
+    private volatile String gorillaHandsJson;
+    private volatile boolean gorillaHandsPosted;
+
+    /** O rastreio (outro thread) deixa o quadro aqui; o main thread empurra para a página do jogo. */
+    private void offerGorillaHands(String json) {
+        if(json==null || json.isEmpty()) return;
+        gorillaHandsJson=json;
+        if(gorillaHandsPosted) return;
+        gorillaHandsPosted=true;
+        main.post(this::flushGorillaHands);
+    }
+
+    private void flushGorillaHands() {
+        gorillaHandsPosted=false;
+        WebView view=cockpitView;
+        String json=gorillaHandsJson;
+        if(view==null || json==null || !"gorilla".equals(gameKind) || closed) return;
+        try { view.evaluateJavascript("window.__nvHands&&window.__nvHands("+json+")",null); }
+        catch(Throwable ignored) { }
+    }
+
+    /** Os aviões que a página do Cockpit VR traz (ids de `GLBS`, em game.html). */
+    private static final String[] COCKPIT_PLANES={"cessna","tucano","f22","f117","f35"};
+    private static final java.util.Random rnd=new java.util.Random();
+
     /**
      * Os ajustes escolhidos no menu do jogo, como query string da página — nomes e valores em lista
      * branca. A shell não decide o que a página carrega; ela escolhe entre as opções que o jogo tem.
@@ -682,8 +748,12 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         try {
             o=new JSONObject(json==null || json.trim().isEmpty()?"{}":json);
         } catch(Throwable malformed) { return "air=cessna&mode=vr&snd=1&lq=0&as=1&ck=0&hsw=0&dof=6&d6s=1"; }
-        String air=o.optString("air","cessna");
-        if(!air.matches("[a-z0-9]{1,12}")) air="cessna";
+        // Sem avião escolhido (é o caminho normal: entrar direto no voo), o avião é SORTEADO entre os
+        // que a página tem. O usuário pediu isto: "quando iniciar o jogo já entramos em um avião
+        // aleatório". `air=random` também é aceito, para a shell poder pedir o sorteio explicitamente.
+        String air=o.optString("air","");
+        if(air.isEmpty() || "random".equals(air) || !air.matches("[a-z0-9]{1,12}"))
+            air=COCKPIT_PLANES[rnd.nextInt(COCKPIT_PLANES.length)];
         String mode="mono".equals(o.optString("mode","vr"))?"mono":"vr";
         String dof="3".equals(o.optString("dof","6"))?"3":"6";
         String d6s=o.optString("d6s","1");
@@ -703,6 +773,52 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     }
 
     /**
+     * Os ajustes do Gorilla Rush escolhidos na aba 4 das Configurações, como query string.
+     *
+     * <p>Lista branca de novo, pelo mesmo motivo do Cockpit: a shell escolhe entre as opções que o
+     * jogo tem, não inventa o que a página carrega. `srv` é o NOSSO servidor (WebSocket); sem ele o
+     * jogo entra sozinho e diz isso na tela.
+     */
+    private static String gorillaQueryFromJson(String json) {
+        JSONObject o;
+        try { o=new JSONObject(json==null || json.trim().isEmpty()?"{}":json); }
+        catch(Throwable malformed) { o=new JSONObject(); }
+        StringBuilder out=new StringBuilder();
+        String nick=o.optString("nick","").replaceAll("[^\\p{L}\\p{N} _-]"," ").trim();
+        if(nick.length()>12) nick=nick.substring(0,12);
+        String room=o.optString("room","").toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9]","");
+        if(room.length()>8) room=room.substring(0,8);
+        String mode=o.optString("mode","cas");
+        if(!mode.equals("tag") && !mode.equals("inf")) mode="cas";
+        int gfx=o.optInt("gfx",0);
+        if(gfx<0 || gfx>2) gfx=0;
+        String srv=o.optString("srv","").trim();
+        // Só WebSocket, e nunca http(s)/javascript: o valor vai direto para `new WebSocket()`
+        // dentro da página do jogo.
+        if(!srv.isEmpty() && !srv.matches("wss?://[^\\s\"'<>]{1,180}")) srv="";
+        appendQuery(out,"nick",nick);
+        appendQuery(out,"room",room);
+        appendQuery(out,"mode",mode);
+        appendQuery(out,"gfx",String.valueOf(gfx));
+        appendQuery(out,"vr",o.optBoolean("vr",true)?"1":"0");
+        appendQuery(out,"mv",o.optBoolean("mv",true)?"1":"0");
+        appendQuery(out,"ht",o.optBoolean("ht",false)?"1":"0");
+        // A aparência é do menu do PRÓPRIO jogo: o app não manda cor nem acessório (se mandasse,
+        // sobrescreveria a escolha feita no STYLE do gorila).
+        appendQuery(out,"srv",srv);
+        appendQuery(out,"solo",o.optBoolean("solo",false)?"1":"0");
+        appendQuery(out,"quick",o.optBoolean("quick",false)?"1":"0");
+        return out.toString();
+    }
+
+    private static void appendQuery(StringBuilder out,String key,String value) {
+        if(out.length()>0) out.append('&');
+        out.append(key).append('=');
+        try { out.append(java.net.URLEncoder.encode(value==null?"":value,"UTF-8")); }
+        catch(Throwable ignored) { }
+    }
+
+    /**
      * Entrega a tela ao jogo HTML.
      *
      * <p>O Cockpit VR traz o próprio estéreo (dois olhos com a distorção da lente do VR Box) e o
@@ -710,39 +826,80 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
      * rastreio de mão DESTE app sai de cena — sem feixe, sem cursor, sem mão desenhada — e a câmera
      * é fechada, porque é uma só no aparelho.
      */
-    private void openCockpitGame(String query) {
-        if(closed || cockpitView!=null) return;
-        // A concessão de câmera da página (onPermissionRequest do WebView) só vale se o APP já
-        // tiver a permissão. Sem esta checagem, quem nunca ligou o rastreio de mão abria o voo com
-        // as mãos do jogo mudas — e o jogo parecia "não funcionar".
-        if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) {
-            pendingCockpitQuery=query;
-            report("Cockpit VR: permita a Câmera para as mãos do jogo.");
+    private void openCockpitGame(String query) { openHtmlGame("cockpit",query); }
+
+    /**
+     * Abre o Gorilla Rush (o jogo HTML que o usuário entregou) em tela cheia.
+     *
+     * <p>Entra-se direto no jogo: o menu do jogo original só respondia a toque e por isso era
+     * inalcançável dentro do VR Box. Quem escolhe sala, skin e configurações é o NextVR (aba 4) e o
+     * menu de dentro do jogo, guiado pelo giroscópio.
+     */
+    private void openGorillaRush(String query) { openHtmlGame("gorilla",query); }
+
+    private void openHtmlGame(String kind,String query) {
+        if(closed || cockpitView!=null || cockpitPending) return;
+        gameKind=kind;
+        cockpitPending=true;
+        // A permissão de câmera é pedida SEM travar a abertura. Ela é necessária para as mãos do
+        // jogo (a concessão do WebView só vale se o APP já a tiver), mas esperar a resposta antes de
+        // abrir a página prendia o voo no menu do NextVR quando o diálogo não voltava — era o
+        // "escolho o avião e não acontece nada". O voo abre, e quando o Android responde a página
+        // é avisada para levantar as mãos dela (`__nvRetryHands`).
+        if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA},REQUEST_GAME_CAMERA);
-            return;
-        }
         gameHandMode=false;
         camera.gameHandMode=false;
         camera.mrGameMode=false;
-        camera.enableHands(false);
-        camera.stop();
         SpatialRenderer r=renderer;
-        if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
-        // A Camera2 fecha em outro thread. O jogo pede a câmera assim que a página carrega, então a
-        // janela dele só nasce depois que o aparelho devolve o dispositivo ao CameraManager; sem
-        // essa espera o getUserMedia dele falha com NotReadableError ("câmera em uso por outro app").
-        main.postDelayed(()->showCockpitGame(query),900);
+        final boolean gorilla="gorilla".equals(kind);
+        if(gorilla) {
+            // O GORILLA RUSH NÃO TEM RASTREIO PRÓPRIO: a câmera continua com o NextVR e as mãos que
+            // o app já rastreia são empurradas para a página (`window.__nvHands`). Antes o jogo
+            // abria a câmera dele, esbarrava na câmera do app e ficava SEM mãos — era o
+            // "bota Hand tracking nele, pq ele tá sem".
+            camera.enableHands(true);
+            camera.resetHandsState();
+            if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
+            startCamera();
+            main.postDelayed(this::startCamera,700);
+            main.postDelayed(()->showCockpitGame(query),300);
+        } else {
+            camera.enableHands(false);
+            camera.stop();
+            if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
+            // A Camera2 fecha em outro thread. O jogo pede a câmera assim que a página carrega,
+            // então a janela dele só nasce depois que o aparelho devolve o dispositivo ao
+            // CameraManager; sem essa espera o getUserMedia dele falha com NotReadableError
+            // ("câmera em uso por outro app").
+            main.postDelayed(()->showCockpitGame(query),900);
+        }
+        // Rede de segurança: se a janela não nascer (activity destruída, exceção em outro thread), o
+        // "a caminho" não pode ficar ligado para sempre segurando a câmera do NextVR.
+        main.postDelayed(()->{ if(cockpitView==null) cockpitPending=false; },15000);
     }
 
     private void showCockpitGame(String query) {
         if(closed || cockpitView!=null) return;
-        String url=WebSurface.ORIGIN+"/ui/cockpit/game.html"+(query==null || query.isEmpty()?"":"?"+query);
+        String page="gorilla".equals(gameKind)?"/ui/gorilla-rush/game.html":"/ui/cockpit/game.html";
+        String url=WebSurface.ORIGIN+page+(query==null || query.isEmpty()?"":"?"+query);
         WebView view;
         try { view=WebSurface.createFullscreenGameView(this,url,"cockpit"); }
-        catch(Throwable failed) { report("O jogo não abriu: "+failed.getMessage()); restartTracking(); return; }
+        catch(Throwable failed) {
+            cockpitPending=false;
+            cockpitState("falhou",String.valueOf(failed.getMessage()));
+            report("O jogo não abriu: "+failed.getMessage()); restartTracking(); return;
+        }
         android.view.ViewParent parent=glView.getParent();
-        if(!(parent instanceof android.view.ViewGroup)) { view.destroy(); restartTracking(); return; }
+        if(!(parent instanceof android.view.ViewGroup)) {
+            cockpitPending=false;
+            view.destroy(); cockpitState("falhou","a tela do NextVR não aceitou a janela do jogo"); restartTracking(); return;
+        }
         cockpitView=view;
+        cockpitStage="";
+        // A shell fica sabendo que a janela do jogo existe: se ela não receber isto, mostra na tela o
+        // motivo em vez de o toque não fazer nada.
+        cockpitState("aberto","");
         // O jogo é dono da tela inteira: o menu de entrada (se ainda estivesse à vista) sai da frente
         // e volta no closeCockpitGame().
         if(entryView!=null && entryVisible) entryView.setVisibility(View.GONE);
@@ -750,6 +907,32 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             android.view.ViewGroup.LayoutParams.MATCH_PARENT,android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         view.bringToFront();
         view.requestFocus();
+        // Rede de segurança com o que a PÁGINA sabe: se em 12 s não houver canvas, o aviso traz a
+        // linha de estado do jogo (biblioteca que faltou, mão, câmera) em vez de a tela ficar parada
+        // sem explicação.
+        main.postDelayed(()->{
+            WebView v=cockpitView;
+            if(v==null) return;
+            String ready="gorilla".equals(gameKind)?"play":"flight";
+            // O Gorilla Rush abre no MENU DO JOGO (é lá que se escolhe a aparência), e a partida só
+            // começa quando o jogador aperta PLAY: as duas etapas contam como "o jogo abriu".
+            if(ready.equals(cockpitStage)) return;   // a página já está rodando (voo / partida)
+            if("gorilla".equals(gameKind) && "lobby".equals(cockpitStage)) return;
+            try {
+                v.evaluateJavascript("(function(){var n=document.getElementById('nvd');"
+                    +"return (document.querySelector('canvas')?'ok':'SEM CANVAS')+' | '+(n?n.textContent:'')"
+                    +"+' | '+(window.__lastErr||'')})()",value->{
+                        if(v!=cockpitView) return;
+                        String label="gorilla".equals(gameKind)?"Gorilla Rush":"Cockpit VR";
+                        String why="o jogo não montou a tela em 12 s. "+value;
+                        cockpitState("falhou",why);
+                        report(label+": "+why);
+                        // Tela preta não pode prender o usuário: sai do jogo e devolve o NextVR (com o
+                        // motivo já dito). Se o jogo estiver só lento, ele volta a ser aberto na próxima.
+                        closeCockpitGame();
+                    });
+            } catch(Throwable ignored) {}
+        },12000);
     }
 
     /**
@@ -759,6 +942,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     void closeCockpitGame() {
         main.post(()->{
             WebView view=cockpitView;
+            cockpitPending=false;
             if(view==null) return;
             cockpitView=null;
             android.view.ViewParent parent=view.getParent();
@@ -769,6 +953,7 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             try { view.destroy(); } catch(Throwable ignored) {}
             if(entryView!=null) entryView.setVisibility(entryVisible?View.VISIBLE:View.GONE);
             if(closed) return;
+            cockpitState("saiu","");
             restartTracking();
             if(shell!=null && ready) shell.evaluate("window.nextvrResume&&window.nextvrResume()");
         });
@@ -804,10 +989,15 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants) {
         super.onRequestPermissionsResult(code,permissions,grants);
         if(code==REQUEST_GAME_CAMERA) {
-            String query=pendingCockpitQuery; pendingCockpitQuery=null;
-            if(grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) startCamera();
-            else report("Cockpit VR: sem a permissão de Câmera o voo abre, mas as mãos do jogo não sobem.");
-            if(query!=null) openCockpitGame(query);
+            boolean granted=grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED;
+            WebView game=cockpitView;
+            if(granted) {
+                // O voo já está na tela: a página do jogo levanta as mãos dela agora.
+                if(game!=null) game.evaluateJavascript("window.__nvRetryHands&&window.__nvRetryHands()",null);
+            } else {
+                report(("gorilla".equals(gameKind)?"Gorilla Rush":"Cockpit VR")
+                    +": sem a permissão de Câmera o jogo abre, mas as mãos dele não sobem.");
+            }
             return;
         }
         if(code==10) {
@@ -868,12 +1058,13 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         main.postDelayed(batterySyncTask,2500L);
         requestAudio(); if(shell!=null) { shell.resume(); shell.evaluate("window.nextvrResume&&window.nextvrResume()"); }
         for(WebSurface b:browsers.values()) b.resume();
-        // Com o voo aberto, a câmera é do JOGO: reabrir a nossa aqui seria tomá-la dele.
-        if(cockpitView==null) startCamera();
+        // Com o voo aberto (ou a caminho), a câmera é do JOGO: reabrir a nossa aqui seria tomá-la
+        // dele — e a página chegaria depois sem câmera nenhuma.
+        if(cockpitView==null && !cockpitPending) startCamera();
         // Toda volta ao primeiro plano rearma o rastreio de mão. Se alguma tela cheia (o jogo HTML) ou
         // uma falha de rastreio o tinha desligado, é aqui que o feixe e o cursor voltam — sem precisar
         // fechar e abrir o NextVR. `enableHands` é idempotente.
-        if(cockpitView==null) camera.enableHands(true);
+        if(cockpitView==null && !cockpitPending) camera.enableHands(true);
         immersive();
         if(appWindows!=null) appWindows.onShellResumed();
         // A hosted game keeps running across a pause: it is in its own task on its own display, and
@@ -1126,6 +1317,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             if(closed) return;
             final String query=queryFromJson(json);
             main.post(()->openCockpitGame(query));
+        }
+        /**
+         * Abre o Gorilla Rush em tela cheia: {@code {room:'ABCDE',mode:'inf',srv:'ws://…',
+         * nick:'…',gfx:0,vr:true,solo:false}}.
+         *
+         * <p>Dois caminhos chegam aqui e os dois entram direto no jogo, sem passar pela biblioteca:
+         * o JOIN da aba 4 (online, com a sala) e a tile da biblioteca (sozinho).
+         */
+        @JavascriptInterface public void gorillaGame(String json) {
+            if(closed) return;
+            final String query=gorillaQueryFromJson(json);
+            main.post(()->openGorillaRush(query));
         }
         @JavascriptInterface public void handVisuals(boolean enabled) { SpatialRenderer r=renderer;if(r!=null)r.showHands=enabled; }
         @JavascriptInterface public void setGameHandMode(boolean enabled) {

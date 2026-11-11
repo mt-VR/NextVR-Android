@@ -106,10 +106,14 @@ class PhoneXrHandRenderer {
     @JvmField @Volatile var virtualEnv=false
     @JvmField @Volatile var gameHandMode=false
     @JvmField @Volatile var mrGameMode=false
-    private val CURSOR_R=.016f
-    // O feixe ia da mão até 42% do caminho do alvo (0.76 * 0.55): parecia um toco. Agora ele vai
-    // quase ATÉ o alvo, e onde não há alvo o destino é o ponto apontado a 3 m — um raio de verdade.
-    private val RAY_SHOWN=1.06f
+    // Tamanho do ponteiro. Era .016 — grande demais na tela ("o raio tá muito grande"). O raio, a
+    // bolinha da ponta e o pingo da mão saem todos deste número, então um só encolhe os três.
+    private val CURSOR_R=.0095f
+    // TAMANHO do raio, como na build 62: o trecho desenhado vai de 24% a 42% do caminho até o alvo
+    // (0.76 * 0.55). Ele tinha sido esticado até quase o alvo, e o pedido foi voltar: "diminui o
+    // TAMANHO do raio, não é pra deixar ele mais fino — deixa o raio igual da build 62, mas só o
+    // raio". O alcance (onde o clique cai) não muda: só o pedaço de raio que se vê.
+    private val RAY_SHOWN=.55f
     /** Zero rebuild delay: every frame updates the hand silhouette immediately. */
     private val MESH_REBUILD_EPSILON=0f
     /** Rebuild every display frame with zero throttling. */
@@ -301,7 +305,10 @@ class PhoneXrHandRenderer {
             // qualquer velocidade.
             if(!direct) beamStart(hand,sx,sy,origin)
             b[0]=if(direct)0f else origin[0];b[1]=if(direct)0f else origin[1];b[2]=if(direct)0f else -1f
-            b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(end!=null && !fingerHover)1f else 0f
+            // A bolinha da ponta aparece SEMPRE (menos no Toque Direto, que tem o anel do dedo):
+            // ela é o cursor. Antes ela só existia quando havia um alvo sob o raio, e sem alvo a
+            // única marca do ponteiro era o pingo desenhado na mão — o "raio pra dentro".
+            b[3]=e[0];b[4]=e[1];b[5]=e[2];b[6]=if(fingerHover || noBeam)0f else 1f
             if(!direct) beamPush(b,hand,sx,sy)
             drawBeam(b,down,blueRay,noBeam,position,hFade)
         }
@@ -734,7 +741,9 @@ private fun beamPush(b: FloatArray, hand: PhoneXrHands.Hand, sx: Float, sy: Floa
     // como fração do trecho do mesmo jeito (é o mesmo "pedaço da tela").
     val push = ((handExitPush(hand, b, sx, sy) ?: (handReach(hand) * BEAM_CLEAR)
         .coerceIn(BEAM_CLEAR_MIN, BEAM_CLEAR_MAX)) * length).coerceAtLeast(BEAM_CLEAR_MIN_WORLD)
-    val clear = push.coerceAtMost(length * .30f)
+    // O teto é generoso: com a mão perto da câmera a silhueta ocupa metade da tela e um teto de
+    // 30% parava o raio DENTRO dela, que é justamente o defeito que se via na tela.
+    val clear = push.coerceAtMost(length * .55f)
     if (clear <= 0f) return
     b[0] += dx * clear
     b[1] += dy * clear
@@ -873,9 +882,10 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
                         out[0] = cx / cl * width; out[1] = cy / cl * width; out[2] = cz / cl * width
                     }
                     val segments = 12
-                    val startT = 0.12f
-                    val endT = 0.94f * RAY_SHOWN
-                    val rayWidth = if (blueRay) .0032f else .0024f
+                    // Os mesmos números da build 62 (o raio curto, grosso e centrado na mão).
+                    val startT = 0.24f
+                    val endT = 0.76f * RAY_SHOWN
+                    val rayWidth = if (blueRay) .0025f else .0019f
                     val boost = if (blueRay) 1f else .78f
                     val rayR = if (blueRay) .18f else HAND_CONTOUR_R
                     val rayG = if (blueRay) .62f else HAND_CONTOUR_G
@@ -905,7 +915,7 @@ private fun drawBeam(b: FloatArray, down: Boolean, blueRay: Boolean, noBeam: Boo
             if (b[6] < .5f) return
             // Bolinha branca sólida na ponta do raio (inner = 0f).
             val depth = -b[5]
-            val outer = (if (down || touching) .0095f else .0115f) * depth
+            val outer = (if (down || touching) .0058f else .0068f) * depth
             val inner = 0f
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
             GLES20.glUniform4f(color, 1f, 1f, 1f, fade)

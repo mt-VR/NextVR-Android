@@ -1,0 +1,10 @@
+/* NextVR · Gorilla Rush (o jogo HTML que o usuário entregou), dentro do app.
+ *
+ * Regra desta rodada: "tira os textos que fica na tela, é só o jogo". Nada de faixa de estado,
+ * contador de FPS ou nome de sala por cima do gorila — a tela é o jogo e mais nada. O estado
+ * (conectando, sozinho, sala) vai para o console e para o app, e quem avisa o usuário é a janela
+ * de problema do NextVR quando a partida não abre.
+ */
+#nvb,#netst,#ighint,#st,#hud{display:none!important}
+/* O menu inicial do jogo FICA (pedido: "o menu inicial do gorilla vai continuar"). O NextVR só
+   entra com as lentes e o rastreio de mão — nada de esconder a tela de início do próprio jogo. */

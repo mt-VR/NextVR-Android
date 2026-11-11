@@ -10,6 +10,11 @@ export const ENTRY_COLLABORATORS = Object.freeze([
   'Faylan',
   'NanyGata',
   'JocaVR',
+  // Pedido do usuário: "bota o nome welli com Verificado". Entra no fim da lista, com o mesmo selo
+  // vermelho dos outros (o selo é o `data-collab-verified` que todo colaborador recebe).
+  'welli',
+  // E depois: "bota o nome Ryuzaki com o verificado nos colaboradores".
+  'Ryuzaki',
 ]);
 
 export const ENTRY_VERIFIED_NAMES = Object.freeze([
@@ -17,6 +22,9 @@ export const ENTRY_VERIFIED_NAMES = Object.freeze([
   'Faylan',
   'NanyGata',
   'JocaVR',
+  // Também vale no Login/Perfil: quem digitar "welli" ganha o selo verificado ao lado do nome.
+  'welli',
+  'Ryuzaki',
 ]);
 
 export function isVerifiedProfileName(name) {
@@ -30,6 +38,7 @@ export const ENTRY_COLLABORATOR_BIOS = Object.freeze({
   Faylan: 'o desenvolvedor mais sabido de todo o universo muita aura',
   NanyGata: '',
   JocaVR: 'o portador de jogos mais importante do planeta aurudo 67',
+  Ryuzaki: 'o estrategista do aurudo, sempre um passo à frente',
 });
 
 export const ENTRY_ABOUT_TITLE = 'NextVR — realidade aumentada';
@@ -44,6 +53,123 @@ export const ENTRY_ABOUT_PARAGRAPHS = Object.freeze([
 export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].join('\n\n');
 
 export const ENTRY_UPDATES = Object.freeze([
+  {
+    id: 'gorilla-lentes-webxr-menu-do-jogo-gorila-visivel',
+    tag: 'CORREÇÃO · LENTES COMO AS DO WEBXR · GORILA NA TELA · MENU DE APARÊNCIA DE VOLTA AO JOGO',
+    time: 'Agora',
+    heading: 'As Lentes Ficaram Como as do WebXR, o Gorila Apareceu e a Aparência Voltou para o Menu do Jogo',
+    desc: 'AS LENTES: você estava certo de novo — o retângulo arredondado da rodada anterior também não era a lente do WebXR. No WebXR a página NÃO desenha lente nenhuma: ela desenha cada olho de tela cheia, e quem curva a imagem é a lente física do visor. Era isso que faltava aqui: o passe de correção com recorte saiu INTEIRO (não é mais um formato novo, é a ausência da máscara). Cada olho é agora uma metade da tela, do tamanho dela, desenhada direto, sem textura intermediária — o que também gastou metade dos desenhos por quadro. O que continua valendo é o preset da Cardboard 2015: 80° de campo por olho e 67 mm entre os olhos. O mesmo foi feito no jogo de avião. '
+      + 'O GORILA: o corpo do jogador envolve a câmera (o peito vai de -1,30 m a +0,41 m em volta dos olhos), e o modelo que veio do HTML antigo é de duas faces — de dentro do próprio corpo a câmera via o LADO DE DENTRO do pelo, uma parede que tapava o mapa (ou nada). Agora o corpo do jogador descarta as faces de trás e só as de frente aparecem: é assim que os jogos em primeira pessoa desenham o corpo. E a montagem do modelo ganhou rede de segurança: se alguma etapa falhar, o modelo pela metade sai da cena e o CORPO RESERVA volta — antes ele ficava plantado na origem do mundo, embaixo do mapa, com o jogo apontando para um boneco que já não existia. '
+      + 'A APARÊNCIA: como você pediu, o jogo HTML agora só participa pelo NextVR, e o menu de escolher a aparência SAIU das Configurações (a aba 5 inteira, com as cores, os óculos, o chapéu e a roupa). O MENU INICIAL DO GORILA CONTINUA: é ele que abre agora quando você entra, com STYLE e PLAY, e é lá que a aparência é escolhida. O app não manda mais cor nem acessório para o jogo. O rastreio de mão continua sendo o do NextVR, mexendo os braços dele.',
+  },
+  {
+    id: 'gorilla-modelo-antigo-lentes-retangulo-chao',
+    tag: 'CORREÇÃO · O GORILA DO HTML ANTIGO ENTROU NO JOGO · LENTES COMO AS DO APP · NASCIMENTO NO CHÃO',
+    time: 'Agora',
+    heading: 'O Gorila É o do Jogo Antigo, as Lentes Ficaram Como as do NextVR e Ele Nasce no Chão',
+    desc: 'O GORILA: você pediu e está feito — o modelo do gorila é o do HTML antigo, o mesmo que você jogava. Ele saiu de dentro daquele arquivo (o rig que viaja comprimido nele, "Customizable Gorilla Tag Monkey Model", de YouthfulPat501, licença CC-BY-4.0) e entrou no jogo no lugar do modelo que não aparecia. Os nomes dos ossos dele são outros, então o jogo traduz o esqueleto na chegada e cria o osso da palma que faltava: com isso a sua mão continua movendo o braço dele pelo mesmo caminho de sempre — é o nosso personagem, e quem mexe os braços é o rastreio de mão. '
+      + 'EMBAIXO DA TERRA: o jogador nascia numa coordenada fixa que cai DENTRO do terreno — começava enterrado, sem ver o mapa e sem ver o próprio corpo, e o resgate devolvia para o mesmo lugar. Agora o nascimento vem do próprio mapa (um raio de cima para baixo acha o chão) e existe resgate: se o jogador acabar sob o terreno, ele sobe para cima dele. '
+      + 'A SETA: a seta do chão saiu, como você pediu. '
+      + 'AS LENTES: não são mais um círculo. O recorte passou a ser um RETÂNGULO DE CANTOS ARREDONDADOS, que é o formato que o NextVR desenha fora do jogo (e o do WebXR) — mesmas contas, mesmo tamanho de imagem, outro formato. O mesmo ajuste foi feito no jogo de avião.',
+  },
+  {
+    id: 'gorilla-corpo-reserva-lentes-menores',
+    tag: 'CORREÇÃO · O GORILA NUNCA FICA SEM BONECO · LENTES MENORES, NO TAMANHO DA INTERFACE DO NEXTVR',
+    time: 'Agora',
+    heading: 'O Gorila Tem Corpo Sempre, e as Lentes Ficaram no Tamanho do NextVR Fora do Jogo',
+    desc: 'O BONECO: o modelo do gorila é um arquivo grande, com as texturas embutidas, e quando alguma etapa dele falha no aparelho o jogo ficava SEM corpo e SEM braços. Agora existe um CORPO RESERVA, montado com formas simples (tronco, cabeça com olhos, braços e mãos), que aparece desde o primeiro quadro — antes mesmo de o modelo grande terminar de carregar. Ele usa os MESMOS nomes de ossos do modelo original, então a sua mão continua movendo o braço dele exatamente igual. Quando o modelo de verdade chega, ele toma o lugar do reserva: ou é o gorila original, ou é este — nunca o vazio. '
+      + 'AS LENTES: você pediu para diminuir, e o erro era meu. A correção da lente estava aplicada ao contrário e AMPLIAVA o centro da imagem em 1,6 vez — por isso tudo parecia grande. Agora a conta é a mesma do SDK do Cardboard que o NextVR usa fora do jogo: a imagem fica um pouco menor que a tela e o círculo dela ocupa 86 % do olho, com o anel preto em curva em volta. É o mesmo tamanho da interface do NextVR, com os mesmos 67 mm entre os olhos e os 80° de campo. '
+      + 'O mesmo ajuste foi feito no jogo de avião, que usa a mesma lente.',
+  },
+  {
+    id: 'gorilla-boneco-lentes-67-bordas',
+    tag: 'CORREÇÃO · O BONECO DO GORILA CARREGA SEMPRE · LENTES CARDBOARD COM 67 MM · BORDAS ARREDONDADAS',
+    time: 'Agora',
+    heading: 'O Gorila Sem o Aviso de "Modelo Não Carregado", as Lentes com 67 mm e as Bordas Deixaram de Ser um Quadrado',
+    desc: 'O AVISO DO BONECO: o recado "o modelo do gorila não carregou" aparecia por TEMPO — 8 segundos depois de o jogo abrir, se o boneco ainda não estivesse na tela. Num celular que ainda está decodificando o mapa, 8 segundos não é falha: é demora, e o aviso aparecia sem haver problema. Agora o boneco é carregado em TRÊS caminhos, do mais compatível para o mais simples: primeiro pelas bordas por imagem clássica (o motor 3D tenta buscar a textura embutida por um caminho que o navegador do celular costuma recusar, e uma textura recusada derrubava o modelo INTEIRO); depois pelo caminho padrão; e, se os dois falharem, o corpo aparece sem as texturas — melhor um gorila branco do que nenhum. Só depois das três tentativas o app recebe um aviso, e agora ele vem com o MOTIVO real. Se estiver só demorando, o recado é outro ("ainda carregando", aos 30 s). '
+      + 'AS LENTES: a distância entre os olhos passou a 67 mm — era 64 mm — tanto no Gorilla Rush quanto no Cockpit VR, mantendo a lente do Google Cardboard 2015 (os mesmos coeficientes oficiais, k1 0,441 e k2 0,156) e os 80° por olho. '
+      + 'AS BORDAS: você estava certo, a imagem era um quadrado com moldura preta em volta. A correção da lente esticava a amostra para FORA da imagem em quase toda a tela, então só uma área pequena no meio aparecia — e o resto ficava preto, com o corte em esquadro. Agora a correção é medida pelo canto do olho: no canto a imagem encosta exatamente na borda, e a tela INTEIRA de cada olho fica preenchida. O último anel escurece em curva, como a lente redonda da caixa, em vez do corte reto que fazia o quadrado. E, para a imagem não encolher ao ser corrigida, cada olho é desenhado um pouco mais aberto do que o campo que você vê — o campo entregue continua sendo o do NextVR.',
+  },
+  {
+    id: 'cockpit-qualidade-e-sem-travamento',
+    tag: 'COCKPIT VR · MAIOR QUALIDADE E MENOS TRAVAMENTO NO MESMO VOO · 900 PX POR OLHO',
+    time: 'Agora',
+    heading: 'O Jogo de Avião Ficou Mais Nítido e Parou de Engasgar no Meio do Voo',
+    desc: 'MAIS QUALIDADE: cada olho agora é desenhado em 900 px de altura (era 560 px) — quase o triplo de pixels — e o cenário completo volta a ser o padrão: campos, árvores e nuvens, sem o modo leve ligado por conta própria. A imagem também estava ALARGADA: o olho era desenhado numa proporção fixa (1,26) e esticado numa meia-tela de ~1,07, então tudo saía mais largo do que é. Agora a textura de cada olho nasce com a proporção exata da meia-tela e a câmera de cada olho usa essa mesma proporção — inclusive depois de girar o celular. '
+      + 'E MENOS TRAVAMENTO: o engasgo que voltava de tempos em tempos era eu mesmo. Para segurar o quadro, a resolução caía e subia a cada 1,2 segundo, em passos de 6 %, e cada mudança joga fora e recria duas texturas grandes — era isso que aparecia como um soluço no meio do voo. Agora a resolução anda em DEGRAUS fixos (1 · 0,9 · 0,8 · 0,72 · 0,64 · 0,56 · 0,5 · 0,45), com histerese larga (só cai acima de 26 ms por quadro, só sobe abaixo de 17 ms) e 4 segundos entre uma decisão e outra. Quando o tamanho não muda, nada é recriado. Celular mais fraco já começa num degrau abaixo, em vez de descobrir isso no meio do voo. '
+      + 'O RASTREIO DE MÃO DO JOGO: ele roda no mesmo thread do desenho e era o maior consumidor de quadro. Em voo passa a rodar a ~20 Hz (o suficiente para o manche e para piscar), sobe quando o aparelho está folgado e quase para quando não há mão na tela há 3 segundos. O 6DoF continua igual: o piso de emissão do passo lento não foi tocado. '
+      + 'PARA CONFERIR NO APARELHO, sem nada escrito na tela: abra a página do jogo e rode __nvPerf() — ele diz a resolução escolhida, o degrau, o MSAA, os milissegundos por quadro e o intervalo do rastreio de mão.',
+  },
+  {
+    id: 'gorilla-rush-cardboard-maos-grudadas-seta-ryuzaki',
+    tag: 'GORILLA RUSH · LENTES DA CARDBOARD 2015 · MÃOS DO APP GRUDADAS NA MÃO · SETA DE DIREÇÃO · RYUZAKI VERIFICADO',
+    time: 'Agora',
+    heading: 'As Lentes do Google Cardboard no Gorilla Rush, a Mão que Não Some, a Seta que Diz Para Onde o Gorila Vai e o Ryuzaki Verificado',
+    desc: 'AS LENTES DO GOOGLE CARDBOARD 2015: o jogo de gorila passou a desenhar cada olho numa textura de meia tela e a corrigir a imagem com os coeficientes oficiais da lente Cardboard v1 (k1 0,441 · k2 0,156 · 80° por olho · 64 mm entre os olhos) — os MESMOS números que o jogo de avião usa e que já foram aprovados no seu VR Box. Nada de imagem pequena no canto: um olho em cada metade da tela. '
+      + 'AS MÃOS FICAM GRUDADAS: quando o rastreio do app perdia a mão por um instante, o braço do gorila despencava e a mão sumia — e era isso que dava a sensação de "não tem mão no jogo". Agora a última mão boa continua valendo por até 700 ms, com até 220 ms de continuação do movimento (a mão segue o caminho em vez de congelar), e ela entra no jogo no mesmo formato de 21 pontos que o jogo já usava. Quem rastreia é o NextVR: a câmera do jogo não abre, e o rastreio do NextVR só é desligado na interface — o jogo recebe os quadros dele. '
+      + 'A SETA PARA ONDE ELE VAI: um pedaço de seta no chão, discreto (42 % de opacidade), logo à frente do gorila e acompanhando a direção da cabeça — quando você olha para o lado, ela aponta para onde o gorila vai andar. Ela só existe durante a partida; fora do jogo não aparece nada. '
+      + 'E O RYUZAKI ENTRA VERIFICADO na lista de colaboradores, com o selo vermelho, ao lado do welli — o estrategista do aurudo, sempre um passo à frente.',
+  },
+  {
+    id: 'gorilla-rush-lentes-corrigidas-boneco',
+    tag: 'CORREÇÃO · GORILLA RUSH: AS LENTES ESTÃO CERTAS, O GORILA TEM BRAÇOS DE NOVO E O HAND TRACKING MOVE O BRAÇO · ÍCONE NOVO',
+    time: 'Agora',
+    heading: 'As Lentes Cabem na Tela, o Gorila Voltou a Ter Braços na Frente e a Sua Mão Move o Braço Dele',
+    desc: 'AS LENTES: o que aparecia eram DOIS QUADRADINHOS no canto de baixo, com o resto preto. O motivo era conta dobrada: o motor 3D já multiplica a área de desenho pela densidade da tela, e eu multiplicava de novo — cada olho ficava com um quarto da tela em vez de metade. Agora o desenho usa as unidades de tela normais, com os mesmos 80° por olho e os mesmos 64 mm entre os olhos da lente Cardboard 2015 do NextVR: olho esquerdo na metade esquerda, olho direito na metade direita, tela cheia. '
+      + 'O BONECO: ele não tinha "sumido" do jogo — ele nunca chegava a aparecer. As duas mãos em repouso ficavam 1,05 m ABAIXO da câmera e praticamente coladas no corpo (z 0,02), fora de qualquer campo de visão; sem mão rastreada, não havia braço nenhum à vista. Agora elas descansam à frente e abaixo, como no Gorilla Tag, e é ali que a sua mão aparece. '
+      + 'O HAND TRACKING: quem entrava pelo botão ENTRAR da aba 4 podia ficar com o jogo SEM mãos para sempre. O rastreio do app tinha um portão "o menu de entrada está à vista? então não manda mão", e o JOIN abre o jogo justamente antes de esse menu sair da frente — os quadros eram jogados fora nesse caminho (pela Biblioteca funcionava). O portão continua valendo para a interface e deixou de valer para o jogo. Além disso, quem manda em qual braço é qual é o rastreio (esquerda/direita de verdade), não a posição na imagem: com as mãos cruzadas os braços não trocam mais. '
+      + 'MAIS DUAS COISAS QUE APARECERAM NO CAMINHO: se o modelo do gorila ainda não tivesse carregado, um quadro do jogo quebrava o laço antes de desenhar (tela preta na largada) — agora o mundo desenha e o boneco entra quando chega; e se o modelo não carregar, isso vira aviso na janela do app em vez de um jogo sem boneco e sem explicação. '
+      + 'E O ÍCONE NOVO: a árvore de Natal com o chapéu do Papai Noel no logo roxo é o ícone do aplicativo, em todas as densidades.',
+  },
+  {
+    id: 'gorilla-rush-lentes-maos',
+    tag: 'GORILLA RUSH · MESMAS LENTES DO NEXTVR · HAND TRACKING DO APP · TELA SÓ COM O JOGO · ABA 5 DOS ACESSÓRIOS',
+    time: 'Agora',
+    heading: 'O Gorilla Rush Recebe as Lentes e as Mãos do NextVR, a Tela Fica Só com o Jogo e os Acessórios Ganham a Aba 5',
+    desc: 'AS MESMAS LENTES: o jogo desenhava os dois olhos dele com FOV 70 e sem contar o pixel ratio da tela, e no aparelho isso saía torto. Agora o desenho passa pelas lentes do NextVR — os MESMOS números da Cardboard 2015 que o app usa nos jogos dele: 80° por olho, 64 mm entre os olhos e meia tela por olho, com o recorte medido no buffer de verdade. É a lente do VR Box que fecha a imagem, como no resto do NextVR. '
+      + 'HAND TRACKING DE VERDADE: antes o jogo abria a câmera dele e o MediaPipe dele — só que a câmera do aparelho é UMA e estava com o app, então o jogo ficava sem mãos. Agora quem rastreia é o NextVR (o mesmo rastreio das mãos da interface, com os 21 pontos e o filtro que já existia) e cada quadro é entregue ao jogo no formato que ele já entendia. A câmera do jogo não abre mais. '
+      + 'SEM TEXTO NA TELA: saíram a faixa de estado, o contador de FPS, o aviso de carregamento e o nome da sala. Sobrou o jogo. O estado (conectando, sozinho, sala) vai para o diagnóstico e para o app, que mostra a janela de problema quando a partida não abre — erro continua visível, só não fica escrito por cima do gorila. '
+      + 'ABA 5 · ACESSÓRIOS: os acessórios saíram da aba do Gorilla Tag e ganharam uma aba só deles, cada um no seu campo — COR, ÓCULOS, CABEÇA e ROUPA — com todas as opções à vista para escolher direto, sem botão que fica girando entre elas. A primeira opção de cada campo continua NENHUM. '
+      + 'E O WELLI ENTRA VERIFICADO: o nome dele aparece na lista de colaboradores com o selo de verificado, como os outros.',
+  },
+  {
+    id: 'gorilla-rush-online',
+    tag: 'GORILLA RUSH NO LUGAR DO GORILLA TAG · 4ª ABA · ONLINE NO NOSSO SERVIDOR',
+    time: 'Agora',
+    heading: 'Gorilla Rush: o Jogo Entra Direto, a Skin e a Sala Ficam na Aba 4, e o Online é um Servidor Nosso',
+    desc: 'O GORILLA TAG QUE EXISTIA NO APP SAIU DA FRENTE: a tile da Biblioteca agora abre o GORILLA RUSH — o arquivo HTML que você entregou — em tela cheia, com o estéreo, o mapa e o rastreio de mão que já vêm dentro dele. '
+      + 'NADA DE SERVIÇO DE TERCEIROS: o online do jogo usava o PeerJS público. Ele saiu, e entrou o NOSSO servidor (server/gorilla-rush), que roda num PC da mesma rede Wi-Fi ou em qualquer VPS. '
+      + 'ENTRA SEM SKIN: o gorila nasce sem acessório nenhum; a cor, o óculos, o chapéu e a roupa são escolhidos de pé, antes de pôr o celular no VR Box. '
+      + 'A ABA 4 "GORILLA TAG" tem a sala (código ou pública), o modo (Casual, Pega-pego, Infecção), a skin, os gráficos, a tela de dois olhos, o movimento, o rastreio de mão e o endereço do servidor. O botão ENTRAR (JOIN) cai direto no jogo online, sem passar pela Biblioteca; quem quer jogar sozinho abre pela Biblioteca de Apps. '
+      + 'E DENTRO DO JOGO TEM MENU: segure as DUAS MÃOS paradas à frente por 1,2 s (ou dois dedos na tela) e um painel aparece no mundo — você MIRE COM A CABEÇA, pelo giroscópio, e fica 0,9 s em cima do botão para acionar. Sem toque, sem controle, sem sair do jogo.',
+  },
+  {
+    id: 'raio-tamanho-build-62',
+    tag: 'AJUSTE · O RAIO VOLTOU AO TAMANHO DA BUILD 62 (CURTO) — E A BOLINHA CONTINUA PEQUENA',
+    time: 'Agora',
+    heading: 'Raio do Ponteiro no Tamanho da Build 62: Curto, sem Ficar Fino Demais',
+    desc: 'O PEDIDO ERA DE TAMANHO, NÃO DE ESPESSURA: o raio estava indo quase até o alvo e tomando a tela, e a correção anterior tinha deixado ele FINO em vez de CURTO. Agora o trecho desenhado é exatamente o da BUILD 62: começa a 24% do caminho e termina a 42%, com a mesma espessura de antes (.0025 no raio azul da pinça, .0019 no ponteiro). '
+      + 'O QUE NÃO MUDOU: a bolinha e o pingo continuam pequenos (o ponteiro não voltou a ser grande), o cursor continua à frente da mão e o clique continua caindo onde a bolinha está — o destino do raio é o mesmo de antes, só o pedaço que se desenha é que ficou curto, igual à build 62.',
+  },
+  {
+    id: 'cockpit-vr-entra-direto',
+    tag: 'CORREÇÃO · COCKPIT VR: UM TOQUE E VOCÊ JÁ ESTÁ NO AVIÃO (AVIÃO SORTEADO) · RAIO MENOR',
+    time: 'Agora',
+    heading: 'Cockpit VR Sem Menu no Caminho: Toca no Jogo e o Voo Começa Num Avião Sorteado',
+    desc: 'PEDIU DIRETO E AGORA É DIRETO: tocar no Cockpit VR (na biblioteca ou na Loja) entra no voo na hora, com um avião SORTEADO entre os cinco — Cessna 172, Super Tucano, F-22, F-117 e F-35. O menu do NextVR deixou de ser o caminho para voar: ele era mais uma tela que podia não aparecer, e era exatamente isso que travava tudo ("não inicia e nem o menu do jogo aparece"). O menu continua existindo para ajustes, mas ninguém precisa passar por ele. '
+      + 'E SE ALGO DER ERRADO, APARECE NA TELA: quando o jogo abre, a página diz isso ao app; se o app não receber essa confirmação em 6 segundos, surge uma janela dizendo em que etapa parou, com o botão TENTAR DE NOVO. Dentro da janela do jogo, o primeiro que aparece é um aviso amarelo "Cockpit VR · abrindo o voo…": se você vir só ele, o HTML carregou e o problema é no script; se não vir nem ele, a janela não carregou. Sem mais tela preta em silêncio. '
+      + 'O RAIO FICOU MENOR: o ponteiro, o pingo na mão, a espessura do raio e a bolinha da ponta encolheram (o raio estava grosso e a bolinha grande demais na tela). Nada mudou no alcance nem em onde o clique cai — só no tamanho do que se vê.',
+  },
+  {
+    id: 'cockpit-vr-voo-direto-e-raio',
+    tag: 'CORREÇÃO · COCKPIT VR ABRE NO VOO DIRETO · CURSOR E RAIO SAEM DA MÃO (A BOLINHA NÃO FICA MAIS PRA DENTRO)',
+    time: 'Agora',
+    heading: 'O Cockpit VR Entra no Avião na Primeira Pinça, e o Raio Aponta Para Onde Você Aponta',
+    desc: 'DUAS COISAS, e as duas eram visíveis na tela do aparelho. '
+      + 'PRIMEIRA: escolher o avião no menu do NextVR não abria o voo — a tela ficava no próprio menu. O motivo era o portão que eu tinha posto na rodada anterior: o app pedia a permissão de Câmera e só abria a página DEPOIS da resposta do Android. Quando o diálogo não voltava, o voo ficava esperando para sempre. Agora o voo abre na hora (a câmera é solta, a página entra em 0,9 s), a permissão é pedida em paralelo e, quando o Android responde, o jogo que já está na tela levanta as mãos dele sem precisar sair e entrar de novo. '
+      + 'SEGUNDA: o cursor (a bolinha) e o raio. O alvo do raio era o MEIO DA PALMA, então o feixe saía das pontas dos dedos e voltava para dentro da mão — desenhado por baixo da própria silhueta, era exatamente a "bolinha do raio pra dentro". Agora o alvo é a mão APONTADA: o pulso cruzado com a base do dedo médio, esticado para fora, o que põe o cursor à frente das pontas dos dedos. Mover a mão continua movendo o cursor igual (sem ganho, sem viés, sem tremor extra); o que muda é que ele aparece fora da mão, no lugar para onde você está apontando. E como o cursor, o destino do raio e o hit-test do clique leem o mesmo número, o que você vê é onde você clica. '
+      + 'Além disso: a folga do feixe para sair da silhueta subiu (com a mão perto da câmera ela ocupa metade da tela e o raio parava dentro dela), e a bolinha da ponta do raio agora aparece sempre no modo ponteiro, não só quando há um alvo embaixo. Se o voo não montar a tela em 12 segundos, o NextVR avisa na tela com o que o próprio jogo escreveu (biblioteca que faltou, mão, câmera) — em vez de ficar parado sem explicação.',
+  },
   {
     id: 'cockpit-vr-voo-que-abre',
     tag: 'CORREÇÃO · COCKPIT VR (O JOGO DE AVIÃO): AGORA ABRE E VOA SEM DEPENDER DA INTERNET',

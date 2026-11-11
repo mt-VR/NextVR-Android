@@ -89,7 +89,26 @@ jobs:
             echo "ui: o bundle commitado está DIFERENTE do que o build gera (rode node web/build.mjs)"
             exit 1
           fi
-          echo "ui: bundle commitado está em dia") 2>&1 | tee /tmp/build.log
+          echo "ui: bundle commitado está em dia") 2>&1 | tee /tmp/ui.log | tee -a /tmp/build.log
+
+      # Quando a etapa da interface falha, o MOTIVO tem de sair como ANOTAÇÃO: o log do job é
+      # servido por um blob que não abre em todo lugar, e "Process completed with exit code 1" não
+      # diz nada. Este passo roda DEPOIS (o `bash -e` do passo anterior derruba ele mesmo), e lê o
+      # /tmp/ui.log que o `tee` já gravou até o ponto da falha.
+      - name: Diagnóstico da etapa da interface
+        if: steps.ui.outcome != 'success'
+        continue-on-error: true
+        run: |
+          # O bloco de erro do node --test (a asserção que caiu, com a mensagem) vem logo DEPOIS
+          # da linha "not ok": é ele que diz o que consertar.
+          BODY=$(sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/ui.log \
+            | awk '/^not ok/{show=28} show>0{print;show--}' \
+            | head -30 | cut -c1-500 \
+            | awk 'NR>1{printf "%%0A"} {printf "%s",$0}')
+          echo "::error::passo UI falhou: ${BODY:-<sem saída em /tmp/ui.log>}"
+          TAIL=$(tail -6 /tmp/ui.log | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\r//g' \
+            | cut -c1-500 | awk 'NR>1{printf "%%0A"} {printf "%s",$0}')
+          echo "::error::fim da saída: ${TAIL:-<vazio>}"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -254,9 +273,23 @@ jobs:
 
       # Diagnostics are best-effort, but validation is not: the build/test steps use
       # continue-on-error so their logs can be published before the job fails.
+      # A anotação abaixo é de propósito: o log do job mora num blob do Azure e não abre em todo
+      # lugar, então os últimos erros de /tmp/build.log vão como ANOTAÇÕES da rodada — que aparecem
+      # direto na aba do commit e na API. Sem isso, "Process completed with exit code 1." era tudo
+      # que sobrava para descobrir o que falhou.
       - name: Fail if any validation failed
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
-        run: exit 1
+        run: |
+          echo "::error::etapas: ui=${{ steps.ui.outcome }} build=${{ steps.build.outcome }} verify=${{ steps.verify.outcome }} sign=${{ steps.sign.outcome }}"
+          if [ -f /tmp/build.log ]; then
+            sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\r//g' /tmp/build.log \
+              | grep -nE '(^|\b)(FAIL|failing|not ok|ERROR|error:|Error:|Exception|error\[|e: |não |falhou|exit code)' \
+              | tail -25 | cut -c1-900 \
+              | while IFS= read -r L; do echo "::error::${L}"; done
+          else
+            echo "::error::sem /tmp/build.log"
+          fi
+          exit 1
 
       - name: Publish debug APK to apk-dist branch
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository

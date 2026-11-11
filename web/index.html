@@ -1323,6 +1323,37 @@
   .entry-bento-cell--env{grid-column:1;grid-row:3}
   .entry-bento-grid--tab3 .entry-bento-cell--dockcolor{grid-column:1;grid-row:1}
   .entry-bento-grid--tab3 .entry-bento-cell--env{grid-column:2;grid-row:1}
+  /* Aba 4 · Gorilla Tag: skin à esquerda, sala à direita, configurações e o nosso servidor
+     embaixo. Duas colunas porque cada grupo tem botões grandes, que é o que a mão acerta. */
+  .entry-bento-grid--tab4{
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:1fr 1fr
+  }
+  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-room{grid-column:2;grid-row:1 / 3}
+  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-cfg{grid-column:1;grid-row:1}
+  .entry-bento-grid--tab4 .entry-bento-cell--gorilla-srv{grid-column:1;grid-row:2}
+  /* Aba 5 · Acessórios: cada acessório no seu bloco (cor, óculos, cabeça, roupa), todos à vista. */
+  .entry-bento-grid--tab5{
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:1fr 1fr
+  }
+  .entry-bento-grid--tab5 .entry-bento-cell--acc-color{grid-column:1;grid-row:1}
+  .entry-bento-grid--tab5 .entry-bento-cell--acc-glasses{grid-column:2;grid-row:1}
+  .entry-bento-grid--tab5 .entry-bento-cell--acc-head{grid-column:1;grid-row:2}
+  .entry-bento-grid--tab5 .entry-bento-cell--acc-clothes{grid-column:2;grid-row:2}
+  .entry-gorilla-acc-row{display:flex;flex-wrap:wrap;gap:6px}
+  .entry-gorilla-acc-row .entry-seg-btn{flex:1 1 auto;min-width:104px}
+  .entry-gorilla-col{display:flex;flex-direction:column;gap:6px;min-height:0}
+  .entry-gorilla-colors{display:flex;gap:6px;flex-wrap:wrap;padding:2px 0}
+  .entry-gorilla-sw{
+    width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.45);
+    padding:0;cursor:pointer
+  }
+  .entry-gorilla-sw.on{border:3px solid #3ddc84;box-shadow:0 0 0 2px rgba(61,220,132,.35)}
+  .entry-gorilla-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .entry-gorilla-actions .entry-btn{flex:1 1 0;min-width:130px}
+  .entry-gorilla-input{min-height:38px;margin:2px 0}
+  .entry-bento-hint{font-size:10px;line-height:1.35;color:rgba(255,255,255,.66);font-weight:600}
   .entry-bento-cell--hand{
     grid-column:2;grid-row:1 / 4;
     justify-content:space-evenly;padding:8px 10px

@@ -10,10 +10,15 @@ import { installXrGames, xrLibraryItems, xrTileHtml, xrHosting, launchXrGame, ph
   refreshXrLibrary, ensureXrLibrary, installXrRuntime, xrState, xrRuntimeReady, xrHandModeOf, setXrHandMode,
   xrSelfTest, xrGames, closeXrGame, restoreXrGame, launchAppFullScreen,
   TAXI_LABEL, TAXI_LOGO, taxiInstalled, openTaxiDriver } from './xr-games.js';
-import { openCockpitMenu, COCKPIT_LABEL, COCKPIT_LOGO } from './cockpit.js';
+import { launchCockpitGame, COCKPIT_LABEL, COCKPIT_LOGO } from './cockpit.js';
 import { installJoycon } from './joycon.js';
 import { buildEntryMenu } from './entry-menu.js';
-import { openGorillaTag, CARDBOARD_2015_LENS } from './gorilla-tag.js';
+import { CARDBOARD_2015_LENS } from './gorilla-tag.js';
+// O Gorilla Tag de antes (cena 3D da própria UI) saiu da frente: a tile abre o GORILLA RUSH, o
+// jogo HTML que o usuário entregou, em tela cheia e com o rastreio de mão dele. O módulo antigo
+// continua no repositório como referência das lentes Cardboard 2015, mas não é mais um caminho
+// de jogo: nada nele é chamado pela interface.
+import { launchGorillaRush } from './gorilla-rush.js';
 import { openVrfsGame } from './vrfs-game.js';
 import { openMrPistolGame } from './mr-pistol-game.js';
 import { openOrbMenu, closeOrbMenu, orbOpen, installOrbMenu } from './orb-menu.js';
@@ -1569,10 +1574,10 @@ const COCKPIT_VR_ITEM = {
 };
 const GORILLA_TAG_ITEM = {
   id: 'gorilla-tag',
-  name: 'Gorilla Tag',
-  label: 'Gorilla Tag',
+  name: 'Gorilla Rush',
+  label: 'Gorilla Rush',
   bg: '#0b141a',
-  html: '<img class="lx-gorilla-logo" src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Tag" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">',
+  html: '<img class="lx-gorilla-logo" src="./icons/gorilla-tag-logo.jpg" alt="Gorilla Rush" draggable="false" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:block">',
   kind: 'app',
 };
 const MR_PISTOL_ITEM = {
@@ -2154,7 +2159,7 @@ const LIB_ACTIONS = {
   vrfs:     () => openVrfsGame(),
   'mr-pistol': () => openMrPistolGame(),
   'hand-draw': () => openHandDrawGame(),
-  'gorilla-tag': () => openGorillaTag(),
+  'gorilla-tag': () => launchGorillaRush({ mode: 'solo' }),
   'beat-vr': () => openBeatSaberVr(),
   'roblox-vr': () => openRobloxVr(),
   roblox: () => openRobloxVr(),
@@ -2167,7 +2172,10 @@ const LIB_ACTIONS = {
   },
   // O Cockpit VR (o jogo de avião do planeVR) abre o MENU do jogo na shell, operado pelo rastreio de
   // mão do NextVR; o voo em si roda na página do jogo, com o rastreio de mão dela (ver cockpit.js).
-  'cockpit-vr': () => openCockpitMenu(),
+  // UM toque = DENTRO DO AVIÃO, num avião sorteado. O menu do Cockpit VR (janela da shell) deixou de
+  // ser o caminho para voar: ele era mais uma tela que podia não aparecer, e o pedido é explícito —
+  // "quando iniciar o jogo já entramos em um avião aleatório".
+  'cockpit-vr': () => launchCockpitGame(),
 };
 
 /* ============ o anel de 10 apps da bolinha da dock ============ */
@@ -2237,7 +2245,7 @@ const QUEST_STORE_ITEMS = [
   { id: 'cockpit-vr', name: COCKPIT_LABEL, cat: 'games', rating: '4.9', reviews: '2,1 mil', tag: 'Voo · Mãos do jogo · VR Cardboard', badge: 'NOVO', img: COCKPIT_LOGO, bg: 'linear-gradient(135deg,#0b1220,#0ea5e9)' },
   { id: 'mr-pistol', name: 'ShootTheDie', cat: 'games', rating: '4.9', reviews: '18 mil', tag: 'MR · G18 & Alvos 3D', badge: 'NOVO MR', img: './icons/shootthedie-logo.jpg', bg: 'linear-gradient(135deg,#090b10,#dc2626)' },
   { id: 'hand-draw', name: 'paintdrawer', cat: 'games', rating: '4.9', reviews: '14 mil', tag: 'Hand Tracking · Tela Branca', badge: 'NOVO', img: './icons/paintdrawer-logo.jpg', bg: '#09090b' },
-  { id: 'gorilla-tag', name: 'Gorilla Tag', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
+  { id: 'gorilla-tag', name: 'Gorilla Rush', cat: 'games', rating: '4.9', reviews: '28 mil', tag: 'VR · Hand Tracking · Online', badge: 'DESTAQUE', img: './icons/gorilla-tag-logo.jpg', bg: 'linear-gradient(135deg,#431407,#ea580c)' },
   { id: 'vrfs', name: 'VRFS · Futebol VR', cat: 'games', rating: '4.9', reviews: '34 mil', tag: 'Chuteiras VR · Bola 3D', badge: 'DESTAQUE', img: './icons/vrfs-logo.jpg', bg: 'linear-gradient(135deg,#052e16,#dc2626)' },
   { id: 'beat-vr', name: 'Beat Saber', cat: 'games', rating: '4.9', reviews: '45 mil', tag: 'Modo VR Imediato', badge: 'VR', img: './beat-saber-logo.jpg', bg: 'linear-gradient(135deg,#450a0a,#0284c7)' },
   { id: 'hyper-vr', name: 'Hyper Dash VR', cat: 'games', rating: '4.8', reviews: '9,4 mil', tag: 'Ação · Arena VR', badge: 'VR', img: './hyper-dash-logo.jpg', bg: 'linear-gradient(135deg,#082f49,#0284c7)' },
@@ -2391,13 +2399,14 @@ function buildStore() {
         gorillaFetchPct = null;
         paintStore();
         paintLibrary();
-        toast('Gorilla Tag baixado! Adicionado à Biblioteca de Apps.');
+        toast('Gorilla Rush baixado! Adicionado à Biblioteca de Apps.');
       }, 260);
       return;
     }
     if (q('[data-launch-gorilla]')) {
+      // A BIBLIOTECA é o caminho de quem quer jogar SOZINHO: entra sem sala e sem skin.
       touchLib('gorilla-tag');
-      openGorillaTag();
+      launchGorillaRush({ mode: 'solo' });
       return;
     }
     if ((m = q('[data-store-launch]'))) {
@@ -2738,7 +2747,7 @@ const SPATIAL_CORE_APPS = [
 const SPATIAL_GAME_ITEMS = [
   { id:'mr-pistol',   name:'ShootTheDie',    bg:'#080a0f', imgUrl:'./icons/shootthedie-logo.jpg', isGame:true },
   { id:'hand-draw',   name:'paintdrawer',    bg:'#09090b', imgUrl:'./icons/paintdrawer-logo.jpg', isGame:true },
-  { id:'gorilla-tag', name:'Gorilla Tag',    bg:'#0d1b12', imgUrl:'./icons/gorilla-tag-logo.jpg', isGame:true },
+  { id:'gorilla-tag', name:'Gorilla Rush',   bg:'#0d1b12', imgUrl:'./icons/gorilla-tag-logo.jpg', isGame:true },
   { id:'vrfs',        name:'VRFS Futebol VR', bg:'#0b1a10', imgUrl:'./icons/vrfs-logo.jpg', isGame:true },
   { id:'roblox-vr',   name:'Roblox VR',      bg:'#090d16', imgUrl:'./roblox-logo.jpg', icon:'controller', isGame:true, url:'https://www.roblox.com/' },
   { id:'beat-vr',     name:'Beat Saber Web', bg:'#070814', imgUrl:'./beat-saber-logo.jpg', icon:'controller', isGame:true, url:'https://moonrider.xyz/?mode=ride&vr=1' },
@@ -3049,7 +3058,7 @@ function buildSpatialLauncherDom() {
       const id = bBuiltin.dataset.spatialBuiltin;
       if (id === 'environments') { environments(); return; }
       if (id === 'shizuku') { shizukuWindow(); return; }
-      if (id === 'gorilla-tag') { openGorillaTag(); return; }
+      if (id === 'gorilla-tag') { launchGorillaRush({ mode: 'solo' }); return; }
       if (id === 'vrfs') { openVrfsGame(); return; }
       if (id === 'mr-pistol') { openMrPistolGame(); return; }
       if (id === 'hand-draw') { openHandDrawGame(); return; }
@@ -4048,7 +4057,7 @@ function launchGorillaFromEntryMenu() {
     return;
   }
   finishEntryMenu();
-  openGorillaTag();
+  launchGorillaRush({ mode: 'solo' });
 }
 
 on('gorilla-installed', () => {
@@ -4207,7 +4216,8 @@ window.nextvrEnterWorkspace = rawSettings => {
       window.NativeXR?.setFingerTouch?.(S.fingerTouch !== 0);
       window.NativeXR?.setSingleHandMode?.(S.singleHandMode || 'both');
       if (shouldAutoGorilla) {
-        setTimeout(() => openGorillaTag(), 120);
+        // O "abrir o Gorilla direto do menu inicial" agora abre o Gorilla RUSH, sozinho.
+        setTimeout(() => launchGorillaRush({ mode: 'solo' }), 120);
       }
     } catch {}
   } else if (native) {
