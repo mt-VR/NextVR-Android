@@ -1053,22 +1053,6 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
 // A v0.5.42 ampliou os lances com replay automático. Quando um clipe está
 // aberto, o motor fica pausado de propósito (o jogador está assistindo), então
 // os trechos que dirigem a partida por `world.tick` fecham o clipe antes.
-async function closeAutoReplay(page) {
-  // Repete até o motor ficar realmente livre: um clipe agendado pode abrir
-  // logo depois da limpeza, e o motor pausado ignora comandos.
-  await page.evaluate(async () => {
-    const wait = ms => new Promise(done => setTimeout(done, ms));
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const match = window.__xfcMatch;
-      const open = document.querySelector('.play-replay button');
-      if (open) open.click();
-      match?.world?.setPaused(false);
-      await wait(150);
-      if (!document.querySelector('.play-replay') && !match?.world?.isPaused()) return;
-    }
-  });
-}
-
 test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout: 180000 }, async (t) => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
@@ -1166,6 +1150,12 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
 
     // Partida: HUD, radar e controles na tela.
     await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    // Os blocos abaixo conduzem a partida por `world.tick` e medem o motor (chute
+    // defendido, gol, carrinho, intervalo). Com a cobertura de replay da v0.5.42
+    // um clipe automático pode abrir no meio e pausar o motor, que então ignora
+    // os ticks e a medição. Desliga o clipe automático neste teste; ele tem
+    // cobertura própria nas suítes de replay.
+    await page.evaluate(() => { window.__xfcMatch.world.__noAutoReplay = true; });
     const kickoffAccepted = await page.evaluate(() => window.__xfcMatch.world.command('pass'));
     assert.ok(kickoffAccepted, 'a saída aguarda e começa com o passe explícito do jogador');
     await page.waitForTimeout(2200); // cruza pelo menos uma janela de amostragem de FPS
@@ -1361,11 +1351,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       'um comando explícito de chute cobra a bola parada e retoma o jogo');
     assert.ok(goalAndGoalKick.awayKeeperExists, 'o goleiro também existe no lado visitante');
 
-    await closeAutoReplay(page);
     const manualSlide = await page.evaluate(() => {
       const match = window.__xfcMatch;
-      document.querySelector('.play-replay button')?.click();
-      match.world.setPaused(false);
       const players = [...match.teams.home.players, ...match.teams.away.players];
       const tackler = match.teams.home.players.find(player => !player.isKeeper);
       const previousControl = match.controlled.home;
@@ -1482,17 +1469,9 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       'a expulsão troca o controle para um atleta ativo, nunca para o jogador removido');
 
     // O jogo pausa no intervalo: o jogador volta com o botão do segundo tempo.
-    await closeAutoReplay(page);
     await page.evaluate(async () => {
       const match = window.__xfcMatch;
       for (let index = 0; index < 60000; index += 1) {
-        // O laço é síncrono: se um replay automático abrir aqui, o motor fica
-        // pausado e os ticks seguintes não avançam o relógio. Fecha o clipe e
-        // devolve o comando — o teste mede o fluxo do intervalo, não o clipe.
-        if (match.world.isPaused()) {
-          document.querySelector('.play-replay button')?.click();
-          match.world.setPaused(false);
-        }
         match.world.tick(1 / 60);
         if (match.phase.name === 'kickoff' && match.phase.side === match.world.userSide) {
           match.world.command('pass');

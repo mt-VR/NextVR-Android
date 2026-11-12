@@ -830,6 +830,10 @@ export function playScreen(ctx, params = {}) {
       goalSuppressUntil = performance.now() + 3600;
     }
     if (replayActive || replayPending || stage !== 'live' || !match) return;
+    // Interruptor de diagnóstico/teste: desliga só o clipe automático, sem mexer
+    // no replay manual da pausa. Usado pela suíte de partida, que conduz o motor
+    // por `tick` e não pode ser pausada no meio.
+    if (match.world.__noAutoReplay) return;
     // Replay nunca por cima dos painéis: se o jogo já está no intervalo/fim,
     // o lance fica para o próximo.
     const livePhase = () => { try { return match.world.snapshot().phase; } catch { return null; } };

@@ -838,10 +838,11 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
 - Replay nunca abre por cima de painel: `scheduleReplay` e `startAutoReplay` em
   `play.js` checam a fase (`halftime`/`fulltime`) e o `stage`.
 - Com o replay mais frequente, testes que dirigem a partida por `world.tick`
-  precisam fechar o clipe: motor pausado ignora comandos. Em
-  `xfc-game.test.mjs` há `closeAutoReplay(page)` e o laço do intervalo fecha o
-  clipe dentro do próprio laço síncrono. Não remover — sem isso o teste de
-  "partidas rápidas" falha de forma intermitente.
+  precisam ficar livres de clipe: motor pausado ignora comandos. Existe o
+  interruptor de diagnóstico `match.world.__noAutoReplay = true` (só desliga o
+  clipe automático; o replay manual da pausa continua). `partidas rápidas` usa
+  esse interruptor — sem ele o teste falha de forma intermitente no runner
+  (foi assim que o job XFC APK ficou vermelho com a suíte local verde).
 - Replay tem WATCHDOG (`replayWatchdog`): se o quadro parar no meio do clipe
   (aba em segundo plano, WebView lenta), ele fecha sozinho em
   `REPLAY_CLIP_SECONDS / .65 * 1000 + 2500` ms. Não remover: sem isso a partida
