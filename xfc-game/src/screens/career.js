@@ -58,7 +58,7 @@ export function careerScreen(ctx,params={}){
   content.append(el('div',{class:'season-agenda'},nav,el('p',{text:'Calendário local desta carreira. Datas e sedes do jogo, não calendário oficial.'}),list),details);renderDay();
  }else if(view==='table')content.append(panel('Liga da carreira · classificação completa',standings(),button('Agenda de Jogos',()=>go('agenda'))));
  else if(view==='club'){
-  const roster=careerRoster(c,kind);content.append(panel(getTeam(c.clubId).name,el('div',{class:'season-roster'},...[...roster.players,...roster.substitutes].map(p=>el('div',{},el('b',{text:`${p.number} · ${p.name}`}),el('span',{text:`${p.pos} · OVR ${p.ovr}`})))),button('Plano de Jogo',()=>go('plan')),kind==='player'&&button('Personalizar Jogador',()=>go('custom'))));
+  const roster=careerRoster(c,kind);content.append(panel(getTeam(c.clubId).name,el('div',{class:'season-roster'},...[...roster.players,...roster.substitutes].map(p=>el('div',{},el('b',{text:`${p.number} · ${p.name}`}),el('span',{text:`${p.pos} · OVR ${p.ovr}`})))),button('Plano de Jogo',()=>go('plan')),kind==='player'&&button('Personalizar Jogador',()=>go('custom')),kind==='player'&&button('Editar jogador',()=>go('custom-edit'))));
  }else if(view==='transfers'){
   if(kind==='manager'){
    const clubs=select('Clube vendedor',Object.fromEntries(TEAMS.filter(t=>t.id!==c.clubId).map(t=>[t.id,t.name])),TEAMS.find(t=>t.id!==c.clubId).id),offers=el('div',{class:'season-transfer-list'}),balance=el('p');

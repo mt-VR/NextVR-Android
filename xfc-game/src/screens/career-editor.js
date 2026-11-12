@@ -8,12 +8,34 @@ import {TEAM_COUNTRIES,countryTeams} from '../data/team-groups.js';
 import {getTeam} from '../data/teams.js';
 import {createManagerCareer,saveCareerSlot} from '../data/career-services.js';
 import {createCareer,careerTeam,careerAppearance,customiseCareer,CAREER_POSITIONS,CAREER_HAIR_COLORS,CAREER_BOOTS,CAREER_SKIN,CAREER_NATIONS,CAREER_BEARD,CAREER_FACE,CAREER_BODY} from '../data/career.js';
+
+// Permite "arrastar pra baixo" com o mouse sem brigar com selects/inputs.
+// Em telas de toque, o overflow nativo (touch-action:pan-y) já faz o scroll.
+function enableVerticalDragScroll(node){
+ let startY=0,startTop=0,dragging=false;
+ node.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='touch')return;
+  if(e.target.closest('input,select,textarea,button,label'))return;
+  dragging=true;startY=e.clientY;startTop=node.scrollTop;
+  try{node.setPointerCapture?.(e.pointerId);}catch{}
+ });
+ node.addEventListener('pointermove',e=>{
+  if(!dragging)return;node.scrollTop=startTop-(e.clientY-startY);
+ });
+ const end=()=>{dragging=false;};
+ node.addEventListener('pointerup',end);node.addEventListener('pointercancel',end);
+}
+
 export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,persist,back}){
- const editing=view==='custom-edit',manager=kind==='manager',blocked=editing&&!!c?.pending;
+ // Edição liberada MESMO DEPOIS DE PRONTO (e até com partida pendente):
+ // mudanças cosméticas não alteram o resultado em andamento.
+ const editing=view==='custom-edit',manager=kind==='manager',blocked=false;
  if(editing&&(!c||manager)){return {node:el('div',{class:'screen season-screen'},button('Voltar à carreira',back)),onKey(e){if(e.key==='Escape'){back();return true;}return false;}};}
  const draft=JSON.parse(JSON.stringify(editing?c:createCareer())),look=careerAppearance(draft.player.appearance);
  const {node,content}=shell(ctx,{title:editing?'Personalizar Jogador':manager?'Nova Carreira de Técnico':'Nova Carreira de Jogador',subtitle:editing?'Deixe seu jogador do seu jeito. Alterações na prévia 3D; confirme para salvar.':'Escolha o clube inicial. Seus outros modos e cópias salvas serão preservados.',career:c,view:editing?'custom':'create',go,back});
- const form=el('form',{class:'season-editor'}),categories=el('div',{class:'season-categories'}),fields=el('div',{class:'season-editor-fields'}),canvas=el('canvas',{class:'season-player-preview','aria-label':'Prévia 3D do seu atleta'});
+ const form=el('form',{class:'season-editor'}),scroll=el('div',{class:'season-editor-scroll','data-scrollable':'true'}),categories=el('div',{class:'season-categories'}),fields=el('div',{class:'season-editor-fields'}),canvas=el('canvas',{class:'season-player-preview','aria-label':'Prévia 3D do seu atleta'});
+ // Só a área de opções rola/é arrastada; SALVAR/CANCELAR ficam sempre visíveis.
+ enableVerticalDragScroll(scroll);
  let preview=manager?null:playerPreview(canvas),revision=0;
  const controls={};
  function choose(key,name,values,value){const input=select(name,values,value);controls[key]=input;input.disabled=blocked;input.addEventListener('change',()=>{sync();showPreview();});return label(name,input);}
@@ -43,11 +65,13 @@ export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,
  async function showPreview(){if(!preview)return;const r=++revision;sync();const team=careerTeam(draft);await preview.show([{team,kit:kitsOf(team.id)[draft.kitIndex]||kitsOf(team.id)[0],player:team.players.find(p=>p.id==='career-player')}]);if(r===revision)canvas.dataset.appearance=JSON.stringify(draft.player.appearance);}
  function showGroup(id){preview?.focus(id==='head'?'head':id==='accessories'?'hands':'body');fields.replaceChildren(...groups[id]);for(const b of categories.children)b.classList.toggle('is-active',b.dataset.category===id);}
  for(const [id,title,subtitle,ico]of [['appearance','Aparência','Pele, corpo e medidas','shirt'],['head','Cabeça','Rosto, cabelo e barba','player'],['uniform','Uniforme','Camisa e meiões','shirt'],['accessories','Acessórios','Chuteiras, luvas e munhequeira','boot'],['animation','Animações','Sua comemoração','celebrate'],['settings','Configurações','Pé e nacionalidade','settings']])categories.append(tile(title,subtitle,ico,()=>showGroup(id),{dataset:{category:id}}));
- if(manager){form.append(label('Nome do técnico',name),label('País do clube',country),label('Clube inicial',clubs),el('p',{text:'Você controla a equipe inteira, define a escalação e contrata jogadores com o orçamento da carreira.'}));}
- else{if(!editing)form.append(el('div',{class:'season-club-selection'},label('País do clube',country),label('Clube inicial',clubs),clubCard));form.append(categories,fields);content.append(el('div',{class:'season-preview-wrap'},canvas,el('div',{},button('Girar prévia',()=>preview?.rotate()),button('Testar movimentos',()=>preview?.testMotion()),button('Corpo inteiro',()=>preview?.focus('body'))),el('small',{text:'JOGADOR DE TESTE · ALTERAÇÕES SOMENTE NESTE ATLETA'})));showGroup(Object.hasOwn(groups,category||'')?category:'appearance');}
- const save=el('button',{type:'submit',text:editing?'Salvar personalização':'Começar carreira',disabled:blocked,class:'season-primary'});form.append(el('div',{class:'season-editor-actions'},save,button('Cancelar',back)));if(blocked)form.append(el('p',{text:'Termine a partida pendente antes de editar seu atleta.'}));
+ if(manager){scroll.append(label('Nome do técnico',name),label('País do clube',country),label('Clube inicial',clubs),el('p',{text:'Você controla a equipe inteira, define a escalação e contrata jogadores com o orçamento da carreira.'}));}
+ else{if(!editing)scroll.append(el('div',{class:'season-club-selection'},label('País do clube',country),label('Clube inicial',clubs),clubCard));scroll.append(categories,fields);content.append(el('div',{class:'season-preview-wrap'},canvas,el('div',{},button('Girar prévia',()=>preview?.rotate()),button('Testar movimentos',()=>preview?.testMotion()),button('Corpo inteiro',()=>preview?.focus('body'))),el('small',{text:'JOGADOR DE TESTE · ALTERAÇÕES SOMENTE NESTE ATLETA'})));showGroup(Object.hasOwn(groups,category||'')?category:'appearance');}
+ const save=el('button',{type:'submit',text:editing?'Salvar personalização':'Começar carreira',disabled:blocked,class:'season-primary'});
+ if(!manager)scroll.append(el('div',{class:'season-editor-scroll-hint','aria-hidden':'true',text:'↕ Arraste ou role para ver mais opções'}));
+ form.append(scroll,el('div',{class:'season-editor-actions'},save,button('Cancelar',back)));
  const commit=()=>{
-  sync();if(editing){if(!customiseCareer(c,{...draft.player,position:draft.player.position}))return;c.kitIndex=draft.kitIndex;}
+  sync();if(editing){if(!customiseCareer(c,{...draft.player,position:draft.player.position},{allowPending:true}))return;c.kitIndex=draft.kitIndex;}
   else{saveCareerSlot(ctx.state.profile,kind);ctx.state.profile[manager?'managerCareer':'career']=manager?createManagerCareer(clubs.value,name.value):{...createCareer({name:draft.player.name,clubId:clubs.value,position:draft.player.position,number:draft.player.number,foot:draft.player.foot,nationality:draft.player.nationality,appearance:draft.player.appearance}),kitIndex:draft.kitIndex};}
   if(!editing&&!manager)queueCareerPresentation(ctx.state.profile.career);
   ctx.state.profile.careerKind=kind;if(persist())go(editing?'custom':'journey',editing?{back:customReturnTo||'hub'}:{});

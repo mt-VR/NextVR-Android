@@ -28,3 +28,23 @@
 .season-plan .season-content{top:190px}.season-plan-layout>.season-panel:last-child{padding:12px}.season-plan-layout>.season-panel:last-child label{margin:6px 0;gap:3px}.season-plan-layout>.season-panel:last-child p{margin:6px 0;font-size:11px}.season-plan-layout>.season-panel:last-child select{padding:5px 8px;font-size:12px}.season-plan-layout>.season-panel:last-child small{font-size:10px}.season-plan-layout>.season-panel:last-child>button{display:block;width:100%;margin:6px 0 0;padding:8px}.season-plan-pitch .football-card__crest{left:auto}.season-plan-pitch .football-card__initials{right:auto;width:32px;height:25px;top:24px;left:14px;color:#334945;font-size:15px}.season-plan-pitch .football-card__portrait{top:12px;right:auto}.season-plan-pitch .football-card__name{right:auto;background:#ffffff88;color:#10202a;font-size:8px;padding:2px 0}.season-hub-left .season-panel:last-child{flex:1.12}.season-hub-left .season-panel:last-child small{display:block;font-size:11px}.season-hub-left .season-primary{margin:8px auto 0;padding:8px 20px}.season-hub-right .season-panel:first-child{flex:.95}.season-hub-right .season-panel:first-child p{margin:6px 0}
 
 .season-choice p{max-width:47%}.season-choice-player img{mask-image:linear-gradient(to right,transparent,#000 50%)}
+
+/* Personalização mais espaçosa: só a área de opções rola/é arrastável;
+   SALVAR e CANCELAR ficam num rodapé fixo, sem cobrir nenhum campo.
+   Regras restritas ao editor; os quatro menus de referência, o HUD e os
+   controles aprovados não são tocados. */
+.season-screen .season-editor{overflow:visible;gap:10px;min-height:0}
+.season-screen .season-editor-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:6px 14px 10px 4px;display:flex;flex-direction:column;gap:18px;scrollbar-width:thin;scrollbar-color:#ffffff40 transparent}
+.season-screen .season-editor-scroll::-webkit-scrollbar{width:9px}
+.season-screen .season-editor-scroll::-webkit-scrollbar-thumb{background:#ffffff33;border-radius:6px}
+/* Sem encolher os filhos: o conteúdo cresce e a ÁREA rola, sem texto sobreposto. */
+.season-screen .season-editor-scroll>*{flex-shrink:0}
+.season-screen .season-editor-fields>p,.season-screen .season-editor-fields>small{grid-column:1/-1;margin:0}
+.season-screen .season-categories{gap:14px}
+.season-screen .season-categories .season-tile{height:84px;padding:14px}
+.season-screen .season-editor-fields{gap:20px 26px;padding:22px;min-height:150px}
+.season-screen .season-editor label{gap:9px;font-size:13px;line-height:1.35}
+.season-screen .season-editor input,.season-screen .season-editor select{padding:11px 12px;font-size:14px}
+.season-screen .season-editor p{font-size:13px;line-height:1.6}
+.season-screen .season-editor-actions{gap:16px;padding:8px 0 0;position:static;flex-shrink:0}
+.season-screen .season-editor-scroll-hint{color:#aab6bd;font-size:11px;letter-spacing:.06em;text-align:center;padding:2px 0;opacity:.72}

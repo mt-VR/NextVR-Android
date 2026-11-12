@@ -184,18 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.40
+          TAG=xfc-gameplay-v0.5.41
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.40 (versionCode 46), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.41 (versionCode 47), commit ${GITHUB_SHA}." \
             "" \
-            "Entrada e ícone derivados das artes enviadas, sem redesenho. 18 cortes opt-in, 13 cores isoladas, munhequeiras no pulso e seleção inicial com cartão de clubes europeus." \
-            "Mãos locais com juntas digitais, detalhes de materiais, sombra e foco opcional nas apresentações; arquibancadas ampliadas e reservas em aquecimento. Campo, gols, HUD, controles e quatro menus aprovados preservados." \
-            "148 testes locais aprovados, sem skips. Versão de testes: pegada de escrita, cabelos e acabamento artístico ainda em evolução; sem FPS medido em telefone. Detalhes: xfc-game/docs/v0.5.40.md.")
+            "Passe direcional pelo analógico (frente, lados e atrás); bola parada sem grudar na barreira/goleiro; câmera Pro da carreira acompanha a bola; cutscenes de posicionamento em falta e pênalti." \
+            "Replay automático de chutes perigosos, defesas, faltas graves e pênaltis; nota AO VIVO 0-10 (inicia 6: gol +2, assistência +1, décimos por passe/chute/drible); cartão vermelho sob o time no placar." \
+            "Expulsão do atleta da carreira com escolha explícita ASSISTIR ou ENCERRAR; editor de personalização mais espaçado, rolável/arrastável e editável depois de pronto. Rede do gol verificada em partida real." \
+            "165 testes locais aprovados, sem skips. Versão de testes: recursos artísticos já conhecidos e sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.41.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — carreira, personalização e estádios v0.5.40" \
+            gh release create "$TAG" --title "XFC 27 — jogabilidade e carreira v0.5.41" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — carreira, personalização e estádios v0.5.40" \
+            gh release edit "$TAG" --title "XFC 27 — jogabilidade e carreira v0.5.41" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

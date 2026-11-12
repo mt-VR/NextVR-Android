@@ -264,3 +264,13 @@ foram alterados. Acabamento estilizado ainda em evolução.
 - Mãos cinematográficas, textura procedural de materiais, foco por profundidade
   e aquecimento: código/geometria do projeto; GLB Micah CC0 e sua licença
   permanecem inalterados. Juntas digitais são locais à apresentação.
+
+## Jogabilidade, replay e carreira — v0.5.41
+
+Passe direcional, proteção de bola parada, câmera Pro, nota ao vivo, replay
+automático, indicador de expulsão, painel de espectador e o editor rolável são
+código local do projeto. Nenhum modelo, textura, vídeo, mocap, som, captura de
+replay ou asset de outro jogo foi adicionado. O GLB Micah CC0, o rig de 22 ossos,
+as artes de entrada/ícone enviadas e os quatro menus de referência permanecem
+inalterados; a rede do gol usa a física procedural já existente. Sem nova
+aprovação de acabamento artístico ou licença inferida.

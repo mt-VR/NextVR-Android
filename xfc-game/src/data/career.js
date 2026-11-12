@@ -22,8 +22,11 @@ export function careerAppearance(value={}){return {
  wristband:pick(ACCESSORY_LABELS,value.wristband,'none'),wristbandSide:pick({left:1,right:1,both:1},value.wristbandSide,'left'),celebration:pick({arms:1,fist:1,wide:1},value.celebration,'arms')
 };}
 export function careerOverall(c){return Math.round(Object.values(c.player.stats).reduce((a,b)=>a+b,0)/6);}
-export function customiseCareer(c,values={}){
- if(c.pending)return false;
+export function customiseCareer(c,values={},opts={}){
+ // Edição cosmética permitida mesmo com partida pendente quando chamada pela
+ // tela de edição (opts.allowPending). O bloqueio padrão permanece para
+ // chamadas diretas de progressão, preservando as regras de temporada.
+ if(c.pending&&!opts.allowPending)return false;
  c.player.appearance=careerAppearance(values.appearance||c.player.appearance);
  if(Object.hasOwn(CAREER_POSITIONS,values.position))c.player.position=values.position;
  if(values.number!=null)c.player.number=Math.round(cap(values.number,1,99));
@@ -66,7 +69,12 @@ export function settleCareer(c,id,score,performance={}){
  const g=careerFixture(c);if(!g||g.score||c.pending?.id!==id||g.id!==id||!Array.isArray(score)||score.length!==2||score.some(n=>!Number.isInteger(n)||n<0||n>99))return null;
  const home=g.home===c.clubId,won=score[home?0:1]>score[home?1:0];
  const goals=Math.floor(cap(performance.goals,0,score[home?0:1])),shots=Math.floor(cap(performance.shots,0,100)),passes=Math.floor(cap(performance.passes,0,300));
- const rating=Math.min(10,Math.round((6+goals*.9+Math.min(shots,6)*.1+Math.min(passes,20)*.04+(won?.5:0))*10)/10);
+ // Nota AO VIVO da partida (6→10 por gols/assistências/passes/chutes/dribles).
+ // Se não vier, mantém a média histórica para técnico e fluxos antigos.
+ const live=performance.liveRating;
+ const rating=Number.isFinite(live)
+  ?Math.max(0,Math.min(10,Math.round(live*10)/10))
+  :Math.min(10,Math.round((6+goals*.9+Math.min(shots,6)*.1+Math.min(passes,20)*.04+(won?.5:0))*10)/10);
  const xp=80+goals*35+Math.min(passes,20)*2+(won?40:0);g.score=[...score];
  // Outros jogos da rodada: simulação local determinística, não resultados reais.
  for(const [i,game] of c.league.rounds[c.round].entries())if(!game.score)game.score=[(c.round*7+c.season+i*3)%4,(c.round*3+i+c.season)%3];

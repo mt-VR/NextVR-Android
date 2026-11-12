@@ -36,8 +36,12 @@ export function buyManagerPlayer(c,clubId,playerId){
  const fee=transferPrice(p);if(c.budget<fee)return false;
  c.budget-=fee;c.transfers.push({from:clubId,to:c.clubId,player:JSON.parse(JSON.stringify(p)),fee,season:c.season,round:c.round});return true;
 }
-export function settleManager(c,id,score){
- if(!validManager(c))return null;const result=settleCareer(c,id,score);if(!result)return null;
+export function settleManager(c,id,score,performance={}){
+ // O fechamento do técnico compartilha settleCareer com o jogador, mas não
+ // tem nota AO VIVO nem lances de um atleta controlado: recebe só o placar
+ // (e, se a tela fornecer, estatísticas já limitadas) e mantém o caminho
+ // histórico barato — uma única passada pela rodada, sem recalcular tabela.
+ if(!validManager(c))return null;const result=settleCareer(c,id,score,performance);if(!result)return null;
  const game=c.league.rounds[c.round-1].find(g=>g.id===id);const home=game.home===c.clubId;const won=score[home?0:1]>score[home?1:0];
  c.budget+=100+(won?100:0);return result;
 }

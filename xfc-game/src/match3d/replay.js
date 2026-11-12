@@ -87,7 +87,9 @@ export function createVisualReplay(engine, players, ball) {
         ? frames.shift() : new Float32Array(nodes.length * stride);
       frames.push(read(next));
     },
-    start(done) {
+    // `seconds` limita o replay automático aos últimos N segundos do buffer;
+    // sem ele, o replay manual continua exibindo todos os quadros gravados.
+    start(done, { seconds } = {}) {
       if (restore || frames.length < 3 || engine.running) return false;
       onDone = done;
       restore = {
@@ -96,12 +98,17 @@ export function createVisualReplay(engine, players, ball) {
         position: engine.camera.position.clone(),
         rotation: engine.camera.quaternion.clone(), fov: engine.camera.fov
       };
-      const begin = performance.now(), duration = (frames.length - 1) * interval;
+      const begin = performance.now();
+      const total = frames.length - 1;
+      const wanted = Number.isFinite(seconds) && seconds > 0
+        ? Math.max(2, Math.ceil(seconds / interval)) : total;
+      const count = Math.min(total, wanted), first = total - count;
+      const duration = count * interval;
       function step(now) {
         const time = Math.max(0, (now - begin) / 1000) * .65;
         if (time >= duration) { stop(); return; }
-        const f = time / interval, index = Math.min(frames.length - 2, Math.floor(f));
-        apply(frames[index], frames[index + 1], f - index);
+        const f = time / interval, index = Math.min(count - 1, Math.floor(f));
+        apply(frames[first + index], frames[first + index + 1], f - index);
         const p = ball.mesh.position;
         engine.camera.position.set(
           Math.max(-54, Math.min(54, p.x - 9)), 5.5,

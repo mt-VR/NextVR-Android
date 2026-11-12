@@ -3,6 +3,7 @@ import {evaluatePassRequest} from './pass-request.js';
 import {portraitFor} from '../data/asset-library.js';
 import {createVisualReplay} from './replay.js';
 import {selectShadowCasters} from './quality.js';
+import {directionalPassTarget} from './directional-pass.js';
 // O mundo da partida: monta o estádio, os dois times, a bola e o relógio;
 // roda as regras (falta, cartão, escanteio, lateral, impedimento, pênalti,
 // tiro de meta, intervalo, acréscimos e fim de jogo) e comanda a câmera.
@@ -171,6 +172,9 @@ export function createMatch(options = {}) {
   // 'play' (transmissão) ou 'cinematic' (volta sobre o estádio).
   let cameraMode = 'cinematic';
   let cameraZoom=1;
+  // Espectador (herói expulso e o usuário escolheu assistir): câmera de
+  // transmissão seguindo a bola, sem travar no atleta inativo.
+  let spectator = false;
   // Entrada cinematográfica: os 22 jogadores saem do vestiário e a câmera
   // acompanha o time do usuário até o alinhamento no gramado.
   let entrance = null;
@@ -182,6 +186,9 @@ export function createMatch(options = {}) {
   let goalCelebrationStyle = 'classic';
   let goalCelebrationIndex = 0;
   let trainingCameraReady = false;
+  // Câmera Pro da carreira: eixo suavizado que VIra para a bola (atrás/lados).
+  // Também orienta o analógico para continuar coerente com a imagem.
+  let careerCameraForward = null;
   const setPieceOptions = {
     aim: 0,
     power: 0.72,
@@ -202,7 +209,9 @@ export function createMatch(options = {}) {
   const opponentOf = side => (side === 'home' ? 'away' : 'home');
   function selectControlled(player,side=userSide){
     const locked=side===userSide&&options.playerLockId?teams[side].players.find(p=>p.rosterId===options.playerLockId):null;
-    controlled[side]=locked||player;
+    // Herói expulso não fica preso como "controlado": cai para o substituto,
+    // permitindo câmera/IA de espectador seguras depois do cartão vermelho.
+    controlled[side]=(locked&&locked.active!==false)?locked:player;
   }
   const isUserControlled = player => player?.side === userSide && controlled[userSide] === player;
 
@@ -450,6 +459,26 @@ export function createMatch(options = {}) {
   // ------------------------------------------------------------------ ações --
 
   /** Passe guiado entre companheiros, com bola à frente e checagem de impedimento. */
+  // Converte o analógico para uma direção de CAMPO usando o mesmo referencial
+  // do movimento (Pro/Treino = relativo à câmera; transmissão = eixo fixo).
+  function stickWorldDirection() {
+    const pro = training.enabled || cameraMode === 'pro';
+    return pro
+      ? cameraRelativeMovementFromStick(
+        input.moveX, input.moveZ,
+        training.enabled ? (training.cameraForward?.x ?? 1) : (careerCameraForward?.x ?? attackSign(userSide)),
+        training.enabled ? (training.cameraForward?.z ?? 0) : (careerCameraForward?.z ?? 0)
+      )
+      : worldMovementFromStick(input.moveX, input.moveZ);
+  }
+
+  // O passe obedece ao analógico: se houver companheiro na direção apontada
+  // (inclusive para o lado ou para trás), a bola vai para ele. Sem direção
+  // clara, mantém a escolha automática anterior como garantia.
+  function humanPassTarget(player, fallback) {
+    return directionalPassTarget(player, members(player.side), stickWorldDirection()) || fallback();
+  }
+
   function kickBall(player, target, { power = 18, lob = false, through = false, targetPoint = null, curve = 0, lift = null, requested = false } = {}) {
     if (!target) return;
     const sign = attackSign(player.side);
@@ -487,6 +516,7 @@ export function createMatch(options = {}) {
     ball.state.lastShotKind = null;
     ball.state.lastTouch = player;
     ball.state.lastIntentionalTouch = player;
+    if(target.active&&target!==player)ball.state.lastPass={from:player,to:target,at:elapsedWorldTime};
     if (training.enabled && training.drill === 'team' && player.side === userSide) {
       training.lastPassFrom = player.id;
     }
@@ -504,7 +534,14 @@ export function createMatch(options = {}) {
       setRestart('freekick',opponentOf(player.side),player.x,player.z,{foulKind:'offside'});
       return;
     }
-    if(wasPass&&from&&from!==player&&from.side===player.side)stats[player.side].passesOn++;
+    const goodPass=wasPass&&from&&from!==player&&from.side===player.side;
+    if(goodPass){
+      stats[player.side].passesOn++;
+      // Último passe certo da posse: candidato a assistência se esta posse
+      // terminar em gol de outro atleta do mesmo time.
+      ball.state.assistProvider=from;
+      emit({type:'pass-completed',team:player.side,from,to:player});
+    }else ball.state.assistProvider=null;
     player.model.receive?.();
     if(player.side===userSide)selectControlled(player);
   }
@@ -516,6 +553,24 @@ export function createMatch(options = {}) {
    *  - colocado (arrastar para baixo no botão): carburação mínima, mira exata
    *    no ângulo — o clássico chute colocado.
    */
+  function armSetPieceRebound() {
+    // Bola parada de falta/pênalti: ninguém domina a bola por um instante;
+    // barreira e goleiro só rebatem e depois o jogo volta ao normal.
+    ball.state.noAttachment = 2.6;
+  }
+
+  /** Projeta a trajetória do chute até a linha do gol para dizer se é no alvo. */
+  function shotIsOnTarget(sign) {
+    const p=ball.state.position,v=ball.state.velocity;
+    const goalX=sign*PITCH.halfLength;
+    if(Math.abs(v.x)<0.5)return false;
+    const t=(goalX-p.x)/v.x;
+    if(!(t>0&&t<3.2))return false;
+    const z=p.z+v.z*t;
+    const y=p.y+v.y*t-4.905*t*t;
+    return Math.abs(z)<GOAL.width/2+0.55 && y>-0.35 && y<GOAL.height+0.55;
+  }
+
   function shootBall(player, { power = 22, spread = 0, target = null, kind = 'normal', lift = null, curve = 0 } = {}) {
     const contactHeight=ball.state.position.y;
     const sign = attackSign(player.side);
@@ -555,7 +610,12 @@ export function createMatch(options = {}) {
       training.shotElapsed = 0;
     }
     if(contactHeight>1.5)player.model.header();else player.model.kick(contactHeight>.7?'volley':kind);
-    emit({ type: 'shot', team: player.side, player, kind });
+    // "Chute perigoso": trajetória que entraria no gol (no alvo). Usado pela
+    // nota da carreira e pelo replay automático. Estimativa pela velocidade
+    // já aplicada em ball.kick, projetada até a linha do gol.
+    const dangerous = shotIsOnTarget(sign);
+    emit({ type: 'shot', team: player.side, player, kind, dangerous });
+    if(!training.enabled && (phase.restart?.type==='freekick'||phase.restart?.type==='penalty'))armSetPieceRebound();
   }
 
   /** Desarme em pé, usado pela IA; o carrinho fica reservado ao toque humano. */
@@ -849,6 +909,7 @@ export function createMatch(options = {}) {
   function setRestart(type, side, x, z, options = {}) {
     ball.state.offside=null;ball.state.reception=null;
     ball.state.goalPocket = 0;
+    ball.state.noAttachment=0;ball.state.assistProvider=null;ball.state.lastPass=null;
     ball.state.rainbow = ball.state.recovery = null;
     if (phase.name === 'fulltime' || phase.name === 'halftime') return;
     clearSlideTackles();
@@ -1001,16 +1062,22 @@ export function createMatch(options = {}) {
     if(restart.type==='penalty'){taker.x=placeX-sign*5;taker.root.position.set(taker.x,0,taker.z);}
     if (side === userSide) selectControlled(taker);
     restart.ready = true;
-    if(['goalkick','corner'].includes(restart.type)){
-      // Reposição curta: já está no ponto, apenas ajeita a bola no chão.
-      // A caminhada até a bola, transporte, recuo e corrida preparatória foram
-      // retirados a pedido do usuário. A cobrança em si continua normal.
-      restart.preparation={stage:'place',time:0,ballX:placeX,ballZ:placeZ,duration:.8};
+    const placement=['goalkick','corner','freekick','penalty'].includes(restart.type);
+    if(placement){
+      // Cutscene de ajuste da bola: o cobrador se abaixa e ajeita a bola no
+      // ponto antes da cobrança. Falta e pênalti ganham a mesma encenação que
+      // escanteio/tiro de meta, com duração maior para ler como cena.
+      // Falta tem tempo de ler a cena; no pênalti a encenação é curta para
+      // devolver o cobrador aos 5 m da corrida de aproximação antes de a
+      // retomada ficar pronta (geometria preservada).
+      const duration=restart.type==='freekick'?1.15:restart.type==='penalty'?.45:.8;
+      restart.preparation={stage:'place',time:0,ballX:placeX,ballZ:placeZ,duration};
       taker.x=placeX-taker.facing.x*.46;taker.z=placeZ-taker.facing.z*.46;
       taker.root.position.set(taker.x,0,taker.z);
       ball.state.owner=null;
       ball.state.position.set(placeX,BALL.radius,placeZ);
-      taker.model.placeBall?.(.8);
+      taker.model.placeBall?.(duration);
+      emit({type:'placement',kind:restart.type,team:side,x:placeX,z:placeZ});
     }
   }
 
@@ -1132,6 +1199,12 @@ export function createMatch(options = {}) {
       if(p.time>=p.duration){
         restart.preparation=null;phase.timer=0;
         ball.attachTo(taker);ball.state.position.set(p.ballX,BALL.radius,p.ballZ);
+        // Depois de ajeitar a bola no pênalti, o cobrador recua para a
+        // corrida de aproximação (o run-up continua existindo).
+        if(restart.type==='penalty'){
+          taker.x=p.ballX-attackSign(restart.side)*5;taker.z=0;
+          taker.vx=taker.vz=0;taker.root.position.set(taker.x,0,taker.z);
+        }
       }
       return;
     }
@@ -1347,6 +1420,7 @@ export function createMatch(options = {}) {
     kicker.vz = 0;
     ball.state.position.set(0, BALL.radius, 0);
     ball.state.velocity.set(0, 0, 0);
+    ball.state.noAttachment=0;ball.state.assistProvider=null;ball.state.lastPass=null;
     ball.attachTo(kicker);
     ball.state.lastTouch = kicker;
     ball.state.lastIntentionalTouch = kicker;
@@ -1363,6 +1437,12 @@ export function createMatch(options = {}) {
     phase.conceding = opponentOf(side);
     const credit = resolveGoalCredit(side, scorer || ball.state.lastTouch, ball.state.lastIntentionalTouch);
     goalScorer = credit.scorer;
+    // Assistência: autor do último passe certo da posse, se o gol não for dele
+    // nem contra. Usado para a nota da carreira (+1).
+    const assistCandidate = ball.state.assistProvider ||
+      (ball.state.lastPass && elapsedWorldTime-ball.state.lastPass.at<10 ? ball.state.lastPass.from : null);
+    const goalAssist = (!credit.ownGoalBy && assistCandidate &&
+      assistCandidate.side === side && assistCandidate !== goalScorer) ? assistCandidate : null;
     goalCelebrationStyle = GOAL_CELEBRATIONS[goalCelebrationIndex % GOAL_CELEBRATIONS.length];
     goalCelebrationIndex += 1;
     goalCameraReady = false;
@@ -1374,6 +1454,7 @@ export function createMatch(options = {}) {
       type: 'goal',
       team: side,
       scorer: goalScorer,
+      assist: goalAssist,
       ownGoalBy: credit.ownGoalBy,
       celebration: goalCelebrationStyle,
       score: [teams.home.score, teams.away.score],
@@ -1691,7 +1772,8 @@ export function createMatch(options = {}) {
       acted = shootUser(taker, shotOptions, true);
       if (acted) startSetPieceShotCamera(restart.type, taker.side, taker);
     } else if (name === 'pass') {
-      const mate = nearbyTeammateFor(taker, { min: 1.2, max: 13 }) || bestTeammateFor(taker);
+      const mate = humanPassTarget(taker,
+        () => nearbyTeammateFor(taker, { min: 1.2, max: 13 }) || bestTeammateFor(taker));
       if (mate) {
         kickBall(taker, mate, { power: restart.type === 'goalkick' ? 15 : 12 });
         acted = true;
@@ -1740,7 +1822,8 @@ export function createMatch(options = {}) {
     if (name === 'shoot') {
       acted = shootUser(player, opts, false);
     } else if (name === 'pass') {
-      const mate = nearbyTeammateFor(player, { min: 1.2, max: 18 }) || bestTeammateFor(player, true);
+      const mate = humanPassTarget(player,
+        () => nearbyTeammateFor(player, { min: 1.2, max: 18 }) || bestTeammateFor(player, true));
       if (mate) {
         kickBall(player, mate, { power: 14 });
         acted = true;
@@ -1834,7 +1917,7 @@ export function createMatch(options = {}) {
       const owner = ball.state.owner;
       if (name === 'pass') {
         if (owner !== player) return false;
-        const mate = bestTeammateFor(player);
+        const mate = humanPassTarget(player, () => bestTeammateFor(player));
         if (!mate) return false;
         kickBall(player, mate, { power: 19 });
         return true;
@@ -1866,6 +1949,8 @@ export function createMatch(options = {}) {
         }else{
           player.model.skill?.('stepover');player.burst=Math.max(player.burst||0,.65);
         }
+        // Drible/finta concluído com a bola: conta décimo na nota da carreira.
+        emit({type:'dribble',team:player.side,player,name});
         return true;
       }
       if (name === 'request-pass') return world.requestPass();
@@ -1927,9 +2012,20 @@ export function createMatch(options = {}) {
 
     /** Alterna entre a câmera de transmissão e a cinematográfica. */
     setCameraMode(mode) {
-      cameraMode = mode === 'play' && options.playerLockId ? 'pro' : mode;
+      cameraMode = spectator ? 'play' : (mode === 'play' && options.playerLockId ? 'pro' : mode);
       if (cameraMode === 'play') cameraReady = false;
       if (cameraMode === 'pro') trainingCameraReady = false;
+    },
+
+    /** Modo assistir: câmera de transmissão, sem controle do atleta. */
+    setSpectator(value) {
+      spectator = Boolean(value);
+      if (spectator) {
+        cameraMode = 'play'; cameraReady = false;
+        // Nenhum comando residual do analógico/botão permanece ao assistir.
+        input.moveX = input.moveZ = 0;
+        input.shotCharge = 0;
+      }
     },
 
     /** Congela a câmera num ponto (capturas de tela e testes). */
@@ -2389,9 +2485,30 @@ export function createMatch(options = {}) {
     const player = controlled[userSide] || training.player;
     if (!player) return;
     const camera = engine.camera;
-    // Mesmo enquadramento Pro dos treinos. Na carreira, acompanha o lado
-    // de ataque do atleta, sem girar o analógico quando ele muda de direção.
-    const cameraForward = training.enabled ? (training.cameraForward || { x: 1, z: 0 }) : { x: attackSign(userSide), z: 0 };
+    let cameraForward;
+    if (training.enabled) {
+      // Treino: eixo fixo, sem girar o analógico (comportamento preservado).
+      cameraForward = training.cameraForward || { x: 1, z: 0 };
+    } else {
+      // Câmera Pro da CARREIRA segue a bola: se ela estiver atrás, a câmera
+      // vira para trás; se estiver dos lados, vira para o lado correspondente.
+      // O eixo é suavizado e também orienta o analógico (updateHuman) para
+      // o controle continuar coerente com a imagem. Perto do atleta (drible)
+      // volta ao eixo de ataque, evitando tremor quando a bola está no pé.
+      const ballDx = ball.state.position.x - player.x;
+      const ballDz = ball.state.position.z - player.z;
+      const ballDistance = Math.hypot(ballDx, ballDz);
+      const baseForward = { x: attackSign(userSide), z: 0 };
+      if (!careerCameraForward) careerCameraForward = { ...baseForward };
+      const targetForward = ballDistance > 4.5
+        ? { x: ballDx / ballDistance, z: ballDz / ballDistance }
+        : baseForward;
+      const turn = 1 - Math.exp(-dt * 2.4);
+      careerCameraForward.x += (targetForward.x - careerCameraForward.x) * turn;
+      careerCameraForward.z += (targetForward.z - careerCameraForward.z) * turn;
+      const len = Math.hypot(careerCameraForward.x, careerCameraForward.z) || 1;
+      cameraForward = { x: careerCameraForward.x / len, z: careerCameraForward.z / len };
+    }
     const facingLength = Math.hypot(cameraForward.x, cameraForward.z) || 1;
     const forwardX = cameraForward.x / facingLength;
     const forwardZ = cameraForward.z / facingLength;
@@ -2409,7 +2526,10 @@ export function createMatch(options = {}) {
     const ballDz = ball.state.position.z - player.z;
     const ballAhead = ballDx * forwardX + ballDz * forwardZ;
     const ballLateral = ballDx * rightX + ballDz * rightZ;
-    const lead = Math.max(7.5, Math.min(13, 8.8 + ballAhead * 0.2));
+    // No treino o foco é fixo à frente; na carreira mira na própria bola.
+    const lead = training.enabled
+      ? Math.max(7.5, Math.min(13, 8.8 + ballAhead * 0.2))
+      : Math.max(5.5, Math.min(13, ballAhead));
     const lateral = Math.max(-1.4, Math.min(1.4, ballLateral * 0.12));
     const targetX = player.x + forwardX * lead + rightX * lateral;
     const targetY = (isPenalty ? .25 : 1.2) + Math.min(0.45, Math.max(0, ball.state.position.y - 0.7) * 0.08);
@@ -2860,12 +2980,14 @@ export function createMatch(options = {}) {
 
     if (phase.name === 'goal') updateGoalCamera(dt);
     else if (refereeDecision) updateRefereeCamera(dt);
-    else if (cameraMode === 'pro') updateTrainingCamera(dt);
+    // A cutscene de ajuste da bola tem prioridade inclusive na câmera Pro da
+    // carreira: falta e pênalti mostram o cobrador ajeitando a bola de perto.
     else if(phase.name==='restart'&&phase.restart?.preparation){
       const p=phase.restart.taker,fx=p.facing.x,fz=p.facing.z;
       blendCameraPose(dt,{x:p.x-fx*4.8-fz*3,y:2.8,z:p.z-fz*4.8+fx*3},
         {x:p.x,y:.85,z:p.z},46,7);
     }
+    else if (cameraMode === 'pro') updateTrainingCamera(dt);
     else if (phase.name === 'restart' && phase.restart?.ready
       && ['freekick', 'penalty', 'corner'].includes(phase.restart.type)) updateSetPieceCamera(dt);
     else if (shotCamera) updateSetPieceShotCamera(dt);
@@ -2947,14 +3069,7 @@ export function createMatch(options = {}) {
     const speed = ((input.sprint || bursting) ? HUMAN_SPRINT * (bursting ? 1.12 : 1) : HUMAN_SPEED)*careerPace;
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
-      const movement = training.enabled || cameraMode === 'pro'
-        ? cameraRelativeMovementFromStick(
-          input.moveX,
-          input.moveZ,
-          training.enabled ? (training.cameraForward?.x ?? 1) : attackSign(userSide),
-          training.enabled ? (training.cameraForward?.z ?? 0) : 0
-        )
-        : worldMovementFromStick(input.moveX, input.moveZ);
+      const movement = stickWorldDirection();
       const targetX = player.x + movement.x * 6;
       const targetZ = player.z + movement.z * 6;
       steerPlayer(player, targetX, targetZ, dt, speed * Math.min(1, magnitude), { arrive: 0.2, turn: 10 });
@@ -2995,6 +3110,9 @@ export function createMatch(options = {}) {
       if (!ball.state.owner.active) ball.state.owner = null;
       return;
     }
+    // Durante a proteção de falta/pênalti a bola só rebate: ninguém a recolhe
+    // como "bola solta" até o jogo voltar ao normal.
+    if(ball.state.noAttachment>0)return;
     const position = ball.state.position;
     if (position.y > 2.1 || elapsedWorldTime<(ball.state.skillUntil||0)) return;
     // Contatos rápidos já são resolvidos por varredura em ball.update.

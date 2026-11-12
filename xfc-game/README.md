@@ -1,12 +1,13 @@
 # XFC — o jogo de futebol da XF Esports
 
-**v0.5.40 — atualização de testes:** entrada/ícone derivados dos arquivos enviados,
-18 cortes opt-in e 13 cores isoladas, munhequeiras no pulso, cartão de clubes
-europeus, mãos com juntas locais e materiais/foco nas apresentações da carreira.
-Arquibancadas ampliadas e reservas em aquecimento, sem mudar campo/gols/física.
-148 testes de regressão aprovados. HUD, controles e quatro menus aprovados
-preservados. Assinatura/cabelos ainda precisam de refinamento artístico;
-sem benchmark em telefone físico. [Detalhes e limites](docs/v0.5.40.md).
+**v0.5.41 — atualização de jogabilidade e carreira:** passe direcional pelo
+analógico, bola parada com rebote sem domínio indevido, câmera Pro seguindo a
+bola, cutscenes de posicionamento em falta/pênalti, replay automático dos lances
+importantes, nota ao vivo 0–10 e indicador de expulsão no placar. Expulsão do
+atleta criado oferece assistir/encerrar; editor mais espaçado, rolável e editável
+depois de pronto. 165 testes de regressão aprovados, sem skips. Controles, HUD e
+quatro menus aprovados preservados; sem redesenho artístico nem benchmark em
+telefone físico. [Detalhes e limites](docs/v0.5.41.md).
 
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de

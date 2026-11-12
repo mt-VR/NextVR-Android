@@ -25,6 +25,12 @@ function abbreviationOf(team) {
   return clean.slice(0, 3).toUpperCase() || '???';
 }
 
+function setEjection(node, count) {
+  const n = Math.max(0, Number(count) || 0);
+  node.hidden = n === 0;
+  node.querySelector('.hud__sc-ejection-count').textContent = n > 1 ? `×${n}` : '';
+}
+
 function teamMark(team) {
   if (team?.crest?.startsWith('assets/')) {
     return el('img', { class: 'hud__crest', src: team.crest, alt: `Escudo do ${team.name}` });
@@ -34,7 +40,7 @@ function teamMark(team) {
   );
 }
 
-export function createHud({ root, home, away, userSide = 'home', onSetPieceChange = () => {} }) {
+export function createHud({ root, home, away, userSide = 'home', careerRating = false, onSetPieceChange = () => {} }) {
   const homeCrest = teamMark(home);
   const awayCrest = teamMark(away);
   const homeScore = el('b', { class: 'hud__score', text: '0' });
@@ -65,12 +71,30 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
     teamCards(away, awayYellowCards, awayRedCards, 'away')
   );
 
+  // Expulsão: um cartão vermelho aparece EMBAIXO do time que perdeu o jogador.
+  const ejectionChip = side => el('span', { class: `hud__sc-ejection hud__sc-ejection--${side}`, hidden: true, 'aria-label': 'Jogador expulso' },
+    el('i', { class: 'hud__sc-ejection-card' }),
+    el('b', { class: 'hud__sc-ejection-count', text: '' })
+  );
+  const homeEjection = ejectionChip('home');
+  const awayEjection = ejectionChip('away');
+
+  // Nota AO VIVO do atleta (só no modo carreira de jogador).
+  const ratingValue = el('b', { class: 'hud__rating-value', text: '6.0' });
+  const ratingFill = el('i', { class: 'hud__rating-fill' });
+  const ratingBadge = el('div', { class: 'hud__rating', 'aria-label': 'Nota do jogador na partida' },
+    el('span', { class: 'hud__rating-label', text: 'NOTA' }),
+    ratingValue,
+    el('div', { class: 'hud__rating-bar' }, ratingFill),
+    el('span', { class: 'hud__rating-scale', text: '0–10' })
+  );
+
   // Mesmos dados nas duas apresentações: transmissão e faixa escura da pausa.
   const scoreboard = el('div', { class: 'hud__scoreboard' },
     el('div', { class: 'hud__sc-main' },
-      el('div',{class:'hud__sc-wing hud__sc-wing--home'},homeCrest,el('span',{class:'hud__team',text:abbreviationOf(home)})),
+      el('div',{class:'hud__sc-wing hud__sc-wing--home'},homeCrest,el('span',{class:'hud__team',text:abbreviationOf(home)}),homeEjection),
       el('div',{class:'hud__sc-score'},homeScore,el('span',{class:'hud__dash',text:'-'}),awayScore),
-      el('div',{class:'hud__sc-wing hud__sc-wing--away'},el('span',{class:'hud__team',text:abbreviationOf(away)}),awayCrest),
+      el('div',{class:'hud__sc-wing hud__sc-wing--away'},el('span',{class:'hud__team',text:abbreviationOf(away)}),awayCrest,awayEjection),
       clock, halfLabel
     ),
     el('div', { class: 'hud__sc-foot' },
@@ -308,7 +332,8 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
     feed,
     radar,
     banner,
-    setPiecePanel
+    setPiecePanel,
+    careerRating ? ratingBadge : null
   );
   root.appendChild(node);
 
@@ -450,6 +475,8 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
       homeRedCards.textContent = String(cards.home?.red ?? 0);
       awayYellowCards.textContent = String(cards.away?.yellow ?? 0);
       awayRedCards.textContent = String(cards.away?.red ?? 0);
+      setEjection(homeEjection, cards.home?.red ?? 0);
+      setEjection(awayEjection, cards.away?.red ?? 0);
 
       const restart = snapshot.restart;
       const analysis = restart?.analysis;
@@ -546,6 +573,15 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
       } else {
         tag.classList.remove('is-visible', 'is-goal-focus');
       }
+    },
+    /** Atualiza a nota AO VIVO (0–10) do atleta da carreira. */
+    setRating(value) {
+      if (!careerRating) return;
+      const v = Math.max(0, Math.min(10, Number(value) || 0));
+      ratingValue.textContent = v.toFixed(1);
+      ratingFill.style.width = `${v * 10}%`;
+      ratingBadge.classList.toggle('is-high', v >= 8);
+      ratingBadge.classList.toggle('is-low', v < 5);
     },
     /** Mostra um aviso grande (gol, cartão, intervalo). */
     showBanner(text, kind = 'info', duration = 2200) {

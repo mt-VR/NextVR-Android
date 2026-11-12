@@ -784,3 +784,33 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   de partida. Não extrapolar essa medida para partida completa ou telefone.
 - Scripts: review-v040, review-career-cinematic, review-customization-lab.
   Artefatos de revisão fora do Git. Detalhes/limitações em docs/v0.5.40.md.
+
+### v0.5.41 — jogabilidade pedida, sem redesenho (ainda versão de testes)
+
+- Escopo autorizado pelo usuário: passe direcional pelo analógico, contatos de
+  bola parada sem domínio indevido, câmera Pro seguindo a bola, verificação da
+  rede, expulsão com espectador/encerrar, indicador vermelho no placar, editor
+  com espaço/arraste/edição posterior, replay automático e nota ao vivo 0–10.
+  Preservar controles, HUD de transmissão, menus aprovados e GLB de 22 ossos.
+- Novos módulos puros: `src/match3d/directional-pass.js` (cone do stick),
+  `src/data/career-rating.js` (6→10, pesos 2/1/.1), `src/match3d/replay-triggers.js`
+  (atrasos/rótulos). `play.js` orquestra replay/rating/expulsão; `hud.js` só
+  acrescenta badge e cartão vermelho sob a asa do time.
+- `replay.js`: `start(done,{seconds})` limita o clipe automático sem alterar o
+  replay manual da pausa. Replay exige motor parado; `play.js` restaura
+  `setPaused(false)` + `resumeRender()` e nunca reaplica eventos/liquidação.
+- `ball.state.noAttachment`: 2,6 s após chute de falta/pênalti; contato rebate,
+  `handlePossession` não recolhe; 0,28 s depois do rebote volta ao normal.
+  Limpar em reset/kick/attachTo/setRestart/kickoff, junto de `lastPass` e
+  `assistProvider`.
+- `settleCareer` usa `performance.liveRating` quando presente; fallback antigo
+  permanece para técnico/saves. `settleManager` ganhou 4º argumento opcional.
+- Editor: `.season-editor-scroll` é a área rolável/arrastável; ações ficam FORA
+  dela. `flex-shrink:0` nos filhos evita texto sobreposto. `customiseCareer`
+  com `{allowPending:true}` libera edição pós-criação; sem opção continua travada.
+- Baseline de hash em `xfc-classic-players.test.mjs` foi atualizado SOMENTE nos
+  três arquivos alterados por este escopo. Não regenerar hashes de controles ou
+  dos quatro menus de referência.
+- 165/165 testes (22 suítes, 17 novos), zero skips. Sem FPS em telefone, sem
+  aprovação artística nova, sem medição de partida completa com 22 jogadores.
+  Detalhes em `xfc-game/docs/v0.5.41.md`.

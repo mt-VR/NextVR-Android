@@ -168,7 +168,10 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     // várias vezes durante a mesma trajetória.
     flightId: 0,
     guidance: null,
-    goalPocket: 0
+    goalPocket: 0,
+    // Em falta/pênalti: segundos restantes em que NINGUÉM pode dominar a bola.
+    // Contatos na barreira/goleiro só rebatem; zerado, o jogo volta ao normal.
+    noAttachment: 0
   };
 
   function reset(x = 0, z = 0) {
@@ -183,6 +186,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     state.lastIntentionalTouch = null;
     state.guidance = null;
     state.passTarget=null;state.flightTime=0;state.offside=null;state.reception=null;
+    state.noAttachment=0;state.lastPass=null;state.assistProvider=null;
     mesh.position.copy(state.position);
   }
 
@@ -199,6 +203,9 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
       state.goalPocket = 0;
       state.offside=null;state.reception=null;
       state.rainbow = state.recovery = null;
+      // Um novo chute/passe limpa qualquer proteção de bola parada anterior.
+      // A falta/pênalti rearma a proteção logo depois (match.js).
+      state.noAttachment = 0;
       state.flightId += 1;
       state.velocity.set(dx * speed, speed * lift, dz * speed);
       // X/Z representam a rotação de rolamento; Y guarda apenas o efeito lateral.
@@ -212,6 +219,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     attachTo(player) {
       state.offside=null;state.reception=null;
       state.goalPocket = 0;
+      state.noAttachment = 0;
       state.owner = player;
       state.passTarget=null;
       state.lastIntentionalTouch = player;
@@ -225,6 +233,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     update(dt, players = []) {
       const { position, velocity, spin } = state;
       state.flightTime=(state.flightTime||0)+dt;
+      if(state.noAttachment>0)state.noAttachment=Math.max(0,state.noAttachment-dt);
       const previousX=position.x,previousY=position.y,previousZ=position.z;
       // Reposições/teletransportes administrativos podem mudar a posição sem
       // passar por kick/reset. Nunca levar o volume da rede para outra jogada.
@@ -288,10 +297,13 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
       });
       if(contact){
         const player=contact.player,from=state.lastIntentionalTouch,wasPass=!!state.passTarget;
+        const protectedContact=state.noAttachment>0;
         position.set(contact.x,Math.max(BALL.radius,contact.y),contact.z);
         state.lastCollision=player;state.lastCollisionAt=performance.now()/1000;
         state.lastTouch=player;
-        if(!player.isKeeper&&!player.isGK){
+        // Na falta/pênalti a bola NÃO gruda em ninguém (só no batedor, antes
+        // do chute). Barreira e goleiro apenas rebatem e o jogo volta ao normal.
+        if(!player.isKeeper&&!player.isGK&&!protectedContact){
           const offside=state.offside;
           this.attachTo(player);
           state.reception={player,from,wasPass,offside};
@@ -300,7 +312,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
           mesh.position.copy(position);shadow.position.set(position.x,.02,position.z);
           return null;
         }
-        // Goleiro continua com defesas/mergulho próprios. Contato físico rebate
+        // Goleiro (e barreira/goleiro durante a proteção): contato físico rebate
         // para fora do corpo, em vez de só tirar 7% da velocidade e atravessá-lo.
         const px=player.x??player.root.position.x,pz=player.z??player.root.position.z;
         let nx=position.x-px,nz=position.z-pz,n=Math.hypot(nx,nz);
@@ -309,6 +321,11 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
         if(dot<0){velocity.x-=1.55*dot*nx;velocity.z-=1.55*dot*nz;}
         const reach=(player.reach||.52)+BALL.radius+.025;position.x=px+nx*reach;position.z=pz+nz*reach;
         state.guidance=null;state.passTarget=null;
+        if(protectedContact){
+          // Já bateu: deixa só uma folga curta para a bola se afastar do corpo
+          // e então retoma o domínio normal, sem grudar na barreira.
+          state.noAttachment=Math.min(state.noAttachment,.28);
+        }
       }
 
       // Traves e travessão.

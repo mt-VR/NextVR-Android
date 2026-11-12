@@ -46,15 +46,17 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
  }finally{await b.close();server.close();}
 });
 
-// Baselines v036: v040 autoriza estádio/arte de entrada, não HUD/gameplay.
+// Baselines v041: a v0.5.41 autoriza SOMENTE os acréscimos pedidos (nota ao
+// vivo, indicador de expulsão, replay automático, passe direcional e câmera
+// Pro). Os controles, menus de referência e a arte de entrada continuam iguais.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
-  "src/match3d/hud.js": "cc7efe5f0fa64961c3592a7fc3c62eb3bd657d23e3bd6af891dc484717966ac1",
+  "src/match3d/hud.js": "7d44e045209b64b67c2afb846ce69cb18242f6d64f73aa2ee2ab24da09a668e3",
   "src/match3d/controls.js": "9a014bf4045165c7a6ed023021a49a1ebf8242b9b99ef580947dc8f4d41b7eec",
-  "src/match3d/match.js": "f3732ca1039304d97e0a1475fe835694dc6a0d61f79b041e09b16b806d59f106",
+  "src/match3d/match.js": "7493ff58e58c34b4a508fc84aa383b26a7aeede46c66a0f6bcfdad7d052fabe7",
   "src/screens/career-reference.js": "c1dac4158ad6d164f875f03459b42d2617d4e2bacd6906556a23666ab9d7b2cd",
   "styles/career-reference.css": "85eebda817ec4e48c3badd1e9dc6be6310495f16f0462ffe6f878a201429888d",
-  "styles/match3d.css": "b89ca9056a97d1a84f980f375605e311087e2d89b3aa0098554b91db7a65ce11"
-};
+  "styles/match3d.css": "b60b94e0bec11bb2da8430a707de7606cdda7dc5dfb5d3eb238f5d0a8b8ee3eb"
+ };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });
