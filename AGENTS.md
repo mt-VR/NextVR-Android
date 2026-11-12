@@ -722,3 +722,34 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   xfc-game/tools/review-customization-lab.mjs /home/user/customization-review`.
   Ainda necessária revisão artística e teste no telefone antes de promover
   os novos cortes ao elenco inteiro. Release v038 é explicitamente de testes.
+
+### v0.5.39 — cor isolada / eventos cinematográficos da carreira
+
+- `applyCareerSurface` NÃO pode usar hairColor: havia acoplamento com pigmento
+  facial. Teste compara pixels da pele/rosto nas cinco cores × quatro tons,
+  incluindo barba/bigode/sobrancelhas, ocultando só a malha de cabelo.
+- Cabelo novo tem `labHairMaterial`, mapa neutro e coverage próprio. Raízes
+  projetadas na cabeça real; fallback da coroa aberta por vértices reais.
+  Editor só mostra LAB_HAIR; aliases legados preservam saves, resolvidos apenas
+  no protagonista (`appearanceFor.careerHair`). Elenco global não é migrado.
+- `career-presentations.js`: evento por temporada/clube/tipo, snapshot e status
+  pending/played/skipped. Criar rascunho não agenda. Confirmar criação agenda;
+  nextCareerSeason agenda transferência ou renovação, nunca para técnico.
+- `career-presentation.js` interceptado em career.js; Pular/Escape antes/depois
+  da carga, conclusão automática, persistir antes de navegar; falha não consome.
+  Página oculta pausa relógio; não limitar tempo cinematográfico pelo FPS (o
+  renderer de software ficava atrasado e demorava excessivamente para terminar).
+- `career-cinematic.js`: palco isolado de match/stadium, três atores, solver
+  de dois ossos, camisa/contrato/pen/câmeras/fotógrafos autorais, materiais do
+  destino. O rig não tem dedos: mãos de preensão são peças exclusivas da cena,
+  com descarte das mãos originais por máscara no shader durante esses planos.
+  Não alegar articulação digital nova, qualidade profissional final, ausência
+  universal de clipping ou FPS em telefone testado. Acabamento ainda precisa
+  de refinamento, especialmente cabelos e contato fino das mãos/props.
+- 143/143 regressões; mais 9/9 específicas após últimos ajustes visuais.
+  `tests/xfc-career-presentations.test.mjs` cobre eventos, pixels, render/limites,
+  UI, fallback, persistência e conclusão automática. Testes antigos de criação
+  agora pulam a apresentação explicitamente. Orçamentos: cabelo <4.500 tri;
+  cena <40.000 tri e <110 draw calls nos casos testados, não benchmark de FPS.
+- Revisão: tools/review-career-cinematic.mjs e review-customization-lab.mjs.
+  Nenhuma alteração do GLB, HUD, controles, gameplay ou artes de referência.

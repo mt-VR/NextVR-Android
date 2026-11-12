@@ -143,7 +143,8 @@ export function applyCareerSurface(material,look){
  if(!body&&!socks)return;
  const enabled=body&&(look.beard&&look.beard!=='none'||look.moustache==='classic'||look.brows==='thick')||socks&&look.socks==='short';
  if(!enabled)return;
- const hair=new THREE.Color(look.hairColor||'#24180f'),skin=new THREE.Color(look.skinTone||'#bd8868');
+ // Pigmento facial independente: hairColor nunca chega ao shader da pele.
+ const hair=new THREE.Color('#24180f'),skin=new THREE.Color(look.skinTone||'#bd8868');
  material.onBeforeCompile=shader=>{
   shader.vertexShader='varying vec3 vCareerBind; varying vec3 vCareerNormal;\n'+shader.vertexShader;
   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvCareerBind=position; vCareerNormal=normal;');
@@ -159,5 +160,5 @@ export function applyCareerSurface(material,look){
   `:`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(${skin.r.toFixed(4)},${skin.g.toFixed(4)},${skin.b.toFixed(4)}),smoothstep(.30,.315,vCareerBind.y));`;
   shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n'+mask);
  };
- material.customProgramCacheKey=()=>JSON.stringify({careerSurface:2,body,beard:look.beard,moustache:look.moustache,brows:look.brows,hair:look.hairColor,skin:look.skinTone,socks:look.socks});
+ material.customProgramCacheKey=()=>JSON.stringify({careerSurface:3,body,beard:look.beard,moustache:look.moustache,brows:look.brows,skin:look.skinTone,socks:look.socks});
 }

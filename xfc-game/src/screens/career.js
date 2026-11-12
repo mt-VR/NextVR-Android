@@ -1,3 +1,5 @@
+import {pendingCareerPresentation} from '../data/career-presentations.js';
+import {careerPresentation} from './career-presentation.js';
 import {careerReference} from './career-reference.js';
 // Telas distintas; apenas dados/roteamento compartilhados. Nenhum placar da arte é usado.
 import {el} from '../ui/dom.js';
@@ -15,6 +17,8 @@ export function careerScreen(ctx,params={}){
  const persist=()=>{if(!saveProfile(ctx.state)){ctx.toast('Não foi possível salvar neste dispositivo.',{variant:'warn'});return false;}return true;};
  const go=(target,extra={})=>ctx.go('career',{kind,view:target,back:target==='hub'?'journey':target==='journey'?'entry':view,...extra});
  const back=()=>view==='entry'?ctx.go('menu'):view==='custom-edit'?go('custom',{back:params.customReturnTo||'hub'}):go(params.back||({journey:'entry',hub:'journey','custom-edit':'custom'}[view])||(['create','load','objectives','settings'].includes(view)&&params.fromEntry?'entry':'hub'));
+ const presentation=kind==='player'&&c&&!c.pending&&pendingCareerPresentation(c);
+ if(presentation&&['journey','hub','office','transfers','presentation'].includes(view))return careerPresentation(ctx,{career:c,event:presentation,persist,go});
  if(view==='entry'||c&&(view==='journey'||kind==='player'&&['hub','custom'].includes(view)))return careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo:params.back||'hub'});
  if(view==='create'||view==='custom-edit')return careerEditor(ctx,{...params,kind,career:c,go,persist,back:view==='create'?()=>go(params.back||'entry'):back});
  if(view==='plan'&&c)return careerPreparation(ctx,{career:c,kind,go,persist,back});
@@ -62,7 +66,7 @@ export function careerScreen(ctx,params={}){
   }else content.append(panel('Transferência de clube',el('p',{text:'Seu contrato dura uma temporada. Ao completar as 14 rodadas, escolha o próximo clube no Escritório. Nenhuma transferência é aplicada no meio de uma partida.'}),button('Ver contrato / temporada',()=>go('office'))));
  }else if(view==='office'){
   const p=panel('Sua temporada',el('p',{text:`${kind==='manager'?c.managerName:c.player.name} · ${getTeam(c.clubId).name} · ${c.round}/14 jogos concluídos`}),button('Objetivos',()=>go('objectives')),button('Estatísticas',()=>go('stats')),button('Salvar cópia da carreira',()=>{saveCareerSlot(profile,kind);if(persist())ctx.toast('Cópia salva.');}));
-  if(!next){const clubs=select('Clube da próxima temporada',Object.fromEntries(TEAMS.map(t=>[t.id,t.name])),c.clubId);p.append(el('h3',{text:'Contrato para a próxima temporada'}),clubs,button('Iniciar próxima temporada',()=>{if(nextCareerSeason(c,clubs.value)){c.plan=null;persist();go('hub');}}));}
+  if(!next){const clubs=select('Clube da próxima temporada',Object.fromEntries(TEAMS.map(t=>[t.id,t.name])),c.clubId);p.append(el('h3',{text:'Contrato para a próxima temporada'}),clubs,button('Iniciar próxima temporada',()=>{if(nextCareerSeason(c,clubs.value)){c.plan=null;if(persist())go('hub');}}));}
   for(const h of c.history)p.append(el('p',{text:`Temporada ${h.season} · ${getTeam(h.clubId).name} · ${h.place}º lugar`}));content.append(p);
  }else if(view==='stats'){
   const p=panel('Estatísticas da carreira',el('p',{text:`Partidas: ${c.totals.matches}`}));if(kind==='player'){

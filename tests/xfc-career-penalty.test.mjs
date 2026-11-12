@@ -23,7 +23,7 @@ test('carreira: calendário de 14 rodadas, clube próprio, evolução e fechamen
 test('carreira: interface salva, atleta controlado fora de casa e resultado chega à carreira',{timeout:120000},async t=>{
  const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
  try{const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.graphicsQuality='low';m.go('menu');});await p.getByRole('button',{name:'CARREIRA DE JOGADOR',exact:true}).click();
- await p.getByRole('button',{name:'Carreira de Jogador',exact:true}).click();await p.getByLabel('País do clube').selectOption('Espanha');await p.getByLabel('Clube inicial').selectOption('fc-barcelona');await p.getByLabel('Nome do atleta').fill('João Teste');await p.getByLabel('Posição',{exact:true}).selectOption('CM');await p.getByRole('button',{name:'Começar carreira',exact:true}).click();
+ await p.getByRole('button',{name:'Carreira de Jogador',exact:true}).click();await p.getByLabel('País do clube').selectOption('Espanha');await p.getByLabel('Clube inicial').selectOption('fc-barcelona');await p.getByLabel('Nome do atleta').fill('João Teste');await p.getByLabel('Posição',{exact:true}).selectOption('CM');await p.getByRole('button',{name:'Começar carreira',exact:true}).click();await p.getByRole('button',{name:'Pular apresentação',exact:true}).click();
  assert.ok((await p.locator('.season-profile,.career-reference-profile').innerText()).includes('João Teste'));await p.reload();await p.evaluate(async()=>{(await import('/src/main.js')).go('career');});assert.ok((await p.locator('.season-profile,.career-reference-profile').innerText()).includes('João Teste'));
  await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();await p.getByRole('button',{name:'Vamos Jogar',exact:true}).click();await p.getByRole('button',{name:'Confirmar escalação',exact:true}).click();await p.getByRole('button',{name:'Jogar partida',exact:true}).click();await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
  const r=await p.evaluate(()=>{const m=__xfcMatch;m.stop();m.world.setPaused(false);m.phase.name='play';m.phase.restart=null;const side=m.world.userSide,hero=m.controlled[side],other=m.teams[side].players.find(x=>x!==hero&&!x.isKeeper);const before=hero?.rosterId;
@@ -106,19 +106,19 @@ test('carreira referência: criação, cabelo/chuteira salvos, painéis e aparê
  assert.equal(await p.locator('.season-entry').count(),1);await p.getByRole('button',{name:'Carreira de Jogador',exact:true}).click();
  await p.getByLabel('País do clube').selectOption('Espanha');await p.getByLabel('Clube inicial').selectOption('real-madrid');
  await p.getByLabel('Nome do atleta').fill('Atleta Teste');await p.getByLabel('Posição',{exact:true}).selectOption('CB');
- await p.getByRole('button',{name:/Cabeça Rosto/}).click();await p.getByLabel('Cabelo',{exact:true}).selectOption('mohawk');
+ await p.getByRole('button',{name:/Cabeça Rosto/}).click();await p.getByLabel('Cabelo',{exact:true}).selectOption('lab-mohawk');
  await p.getByRole('button',{name:/Acessórios Chuteiras/}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('#ee4235');
- await p.getByRole('button',{name:'Começar carreira',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();
+ await p.getByRole('button',{name:'Começar carreira',exact:true}).click();await p.getByRole('button',{name:'Pular apresentação',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();
  assert.ok((await p.locator('.season-profile,.career-reference-profile').textContent()).includes('Real Madrid'));
  for(const label of ['Meu Clube','Escritório','Configurações']){
    await p.getByRole('button',{name:label,exact:true}).first().click();assert.ok(await p.locator('.season-panel').first().isVisible());await p.keyboard.press('Escape');
  }
  await p.getByRole('button',{name:'Personalizar',exact:true}).click();await p.getByRole('button',{name:'Acessórios',exact:true}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('#b3ef36');await p.getByRole('button',{name:'Salvar personalização',exact:true}).click();
  await p.reload();await p.evaluate(async()=>{(await import('/src/main.js')).go('career');});
- const c=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).career);assert.equal(c.player.appearance.bootColor,'#b3ef36');assert.equal(c.player.appearance.hairStyle,'mohawk');assert.equal(c.clubId,'real-madrid');
+ const c=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).career);assert.equal(c.player.appearance.bootColor,'#b3ef36');assert.equal(c.player.appearance.hairStyle,'lab-mohawk');assert.equal(c.clubId,'real-madrid');
  await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();await p.getByRole('button',{name:'Vamos Jogar',exact:true}).click();await p.getByRole('button',{name:'Confirmar escalação',exact:true}).click();await p.getByRole('button',{name:'Jogar partida',exact:true}).click();await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
  const hero=await p.evaluate(()=>{const m=window.__xfcMatch;m.stop();const h=m.controlled[m.world.userSide];return{id:h.rosterId,role:h.role,look:h.model.root.userData.appearance,model:h.model.root.userData.modelId,ovr:h.ovr};});
- assert.equal(hero.id,'career-player');assert.equal(hero.role,'CB');assert.equal(hero.model,'xfc-footballer-glb');assert.equal(hero.look.bootColor,'#b3ef36');assert.equal(hero.look.hairStyle,'mohawk');assert.equal(hero.ovr,57);assert.deepEqual(errors,[]);
+ assert.equal(hero.id,'career-player');assert.equal(hero.role,'CB');assert.equal(hero.model,'xfc-footballer-glb');assert.equal(hero.look.bootColor,'#b3ef36');assert.equal(hero.look.hairStyle,'lab-mohawk');assert.equal(hero.ovr,57);assert.deepEqual(errors,[]);
  }finally{await b.close();server.close();}
 });
 

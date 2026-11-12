@@ -239,3 +239,12 @@ suporte recortado da cabeça CC0 existente. As luvas derivam da geometria das m�
 e dos pesos desse mesmo modelo; munhequeiras são volumes locais ajustados ao
 pulso. Nenhum asset externo novo, extração de PES ou alteração de licença.
 Protótipos não aprovados como acabamento artístico final.
+
+## Apresentações da carreira — v0.5.39
+
+Palco do CT/sala de imprensa, móveis, contrato, caneta, camisa de apresentação,
+câmeras/fotógrafos e poses de mãos fechadas são geometrias procedurais locais.
+Reutilizam o ator CC0 já creditado, as cores/escudos e os uniformes existentes
+no projeto. Nenhum vídeo, mocap, modelo ou textura de outro jogo foi extraído.
+As mãos de preensão são específicas da cena; o rig e o GLB das partidas não
+foram alterados. Acabamento estilizado ainda em evolução.

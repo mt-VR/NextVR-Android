@@ -1,4 +1,5 @@
-import {GLOVE_LABELS,ACCESSORY_LABELS} from '../data/player-customization.js';
+import {queueCareerPresentation} from '../data/career-presentations.js';
+import {GLOVE_LABELS,ACCESSORY_LABELS,LAB_HAIR,CAREER_HAIR_ALIAS} from '../data/player-customization.js';
 import {el} from '../ui/dom.js';
 import {button,select,label,tile,panel,shell} from '../ui/career-ui.js';
 import {playerPreview} from '../ui/player-preview.js';
@@ -6,7 +7,7 @@ import {kitsOf} from '../data/kits.js';
 import {TEAM_COUNTRIES,countryTeams} from '../data/team-groups.js';
 import {getTeam} from '../data/teams.js';
 import {createManagerCareer,saveCareerSlot} from '../data/career-services.js';
-import {createCareer,careerTeam,careerAppearance,customiseCareer,CAREER_POSITIONS,CAREER_HAIR,CAREER_HAIR_COLORS,CAREER_BOOTS,CAREER_SKIN,CAREER_NATIONS,CAREER_BEARD,CAREER_FACE,CAREER_BODY} from '../data/career.js';
+import {createCareer,careerTeam,careerAppearance,customiseCareer,CAREER_POSITIONS,CAREER_HAIR_COLORS,CAREER_BOOTS,CAREER_SKIN,CAREER_NATIONS,CAREER_BEARD,CAREER_FACE,CAREER_BODY} from '../data/career.js';
 export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,persist,back}){
  const editing=view==='custom-edit',manager=kind==='manager',blocked=editing&&!!c?.pending;
  if(editing&&(!c||manager)){return {node:el('div',{class:'screen season-screen'},button('Voltar à carreira',back)),onKey(e){if(e.key==='Escape'){back();return true;}return false;}};}
@@ -25,7 +26,7 @@ export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,
  const kit=select('Uniforme',{},String(c?.kitIndex||0));controls.kit=kit;kit.disabled=blocked;
  function rebuildKit(){kit.replaceChildren(...kitsOf(editing?c.clubId:clubs.value).map((k,i)=>el('option',{value:i,text:k.name||`Uniforme ${i+1}`,selected:i===(draft.kitIndex||0)})));}rebuildKit();kit.addEventListener('change',()=>{sync();showPreview();});
  const appearance=[label('Nome',name),choose('position','Posição',CAREER_POSITIONS,draft.player.position),number('height','Altura (cm)',look.height,160,200),number('weight','Peso (kg)',look.weight,55,100),choose('body','Corpo',CAREER_BODY,look.body),choose('skinTone','Tom de pele',CAREER_SKIN,look.skinTone)];
- const head=[el('p',{text:'Laboratório: novos cortes são protótipos deste atleta. Não alteram o elenco automaticamente.'}),choose('hairStyle','Cabelo',CAREER_HAIR,look.hairStyle),choose('hairColor','Cor do cabelo',CAREER_HAIR_COLORS,look.hairColor),choose('face','Rosto',CAREER_FACE,look.face),choose('beard','Barba',CAREER_BEARD,look.beard),choose('moustache','Bigode',{none:'Sem bigode',classic:'Clássico'},look.moustache),choose('brows','Sobrancelhas',{natural:'Naturais',thick:'Espessas'},look.brows)];
+ const head=[el('p',{text:'Laboratório: novos cortes são protótipos deste atleta. Não alteram o elenco automaticamente.'}),choose('hairStyle','Cabelo',LAB_HAIR,CAREER_HAIR_ALIAS[look.hairStyle]||look.hairStyle),choose('hairColor','Cor do cabelo',CAREER_HAIR_COLORS,look.hairColor),choose('face','Rosto',CAREER_FACE,look.face),choose('beard','Barba',CAREER_BEARD,look.beard),choose('moustache','Bigode',{none:'Sem bigode',classic:'Clássico'},look.moustache),choose('brows','Sobrancelhas',{natural:'Naturais',thick:'Espessas'},look.brows)];
  const uniform=[label('Uniforme',kit),number('number','Número da camisa',draft.player.number,1,99),choose('socks','Meião',{long:'Longo',short:'Curto'},look.socks)];
  const accessories=[choose('bootColor','Chuteira',CAREER_BOOTS,look.bootColor),choose('gloveModel','Modelo de luva',{winter:'Frio · jogador de linha',pro:'Goleiro · acolchoada'},look.gloveModel),choose('gloves','Luvas',GLOVE_LABELS,look.gloves),choose('wristband','Munhequeira',ACCESSORY_LABELS,look.wristband),choose('wristbandSide','Pulsos',{left:'Esquerdo',right:'Direito',both:'Os dois'},look.wristbandSide)];
  const animation=[choose('celebration','Comemoração',{arms:'Braços erguidos',fist:'Punho no alto',wide:'Braços abertos'},look.celebration),button('Testar comemoração',()=>preview?.celebrate())];
@@ -45,6 +46,7 @@ export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,
  const commit=()=>{
   sync();if(editing){if(!customiseCareer(c,{...draft.player,position:draft.player.position}))return;c.kitIndex=draft.kitIndex;}
   else{saveCareerSlot(ctx.state.profile,kind);ctx.state.profile[manager?'managerCareer':'career']=manager?createManagerCareer(clubs.value,name.value):{...createCareer({name:draft.player.name,clubId:clubs.value,position:draft.player.position,number:draft.player.number,foot:draft.player.foot,nationality:draft.player.nationality,appearance:draft.player.appearance}),kitIndex:draft.kitIndex};}
+  if(!editing&&!manager)queueCareerPresentation(ctx.state.profile.career);
   ctx.state.profile.careerKind=kind;if(persist())go(editing?'custom':'journey',editing?{back:customReturnTo||'hub'}:{});
  };
  form.addEventListener('submit',e=>{e.preventDefault();if(blocked)return;if(c&&!editing){const dialog=el('dialog',{class:'season-dialog','aria-label':'Substituir carreira'},el('h2',{text:'Criar nova carreira?'}),el('p',{text:'Uma cópia da carreira atual será preservada em Carregar Carreira.'}),button('Confirmar nova carreira',()=>{dialog.close();commit();}),button('Cancelar',()=>{dialog.close();dialog.remove();}));node.append(dialog);dialog.showModal();}else commit();});

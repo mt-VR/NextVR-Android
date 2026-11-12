@@ -1,3 +1,4 @@
+import {queueCareerPresentation} from './career-presentations.js';
 import {LAB_HAIR,GLOVE_LABELS,ACCESSORY_LABELS} from './player-customization.js';
 // Carreira local de UM atleta. Nunca muta o catálogo global nem as moedas do UT.
 import {TEAMS,getTeam} from './teams.js';
@@ -74,4 +75,4 @@ export function settleCareer(c,id,score,performance={}){
  c.lastResult={id,score:[...score],rating,xp,goals,shots,passes};c.round++;c.pending=null;return c.lastResult;
 }
 export function improveCareer(c,stat){if(c.pending||!Object.hasOwn(c.player.stats,stat)||c.player.points<1||c.player.stats[stat]>=95)return false;c.player.stats[stat]++;c.player.points--;return true;}
-export function nextCareerSeason(c,clubId=c.clubId){if(c.round<c.league.rounds.length||c.pending||!getTeam(clubId))return false;c.history.push({season:c.season,clubId:c.clubId,place:careerTable(c).findIndex(t=>t.id===c.clubId)+1});c.history=c.history.slice(-10);c.clubId=clubId;c.season++;c.round=0;c.league=careerLeague(clubId,c.season);c.lastResult=null;return true;}
+export function nextCareerSeason(c,clubId=c.clubId){if(c.round<c.league.rounds.length||c.pending||!getTeam(clubId))return false;c.history.push({season:c.season,clubId:c.clubId,place:careerTable(c).findIndex(t=>t.id===c.clubId)+1});c.history=c.history.slice(-10);const previousClub=c.clubId;c.clubId=clubId;c.season++;c.round=0;c.league=careerLeague(clubId,c.season);c.lastResult=null;queueCareerPresentation(c,previousClub===clubId?'renewal':'transfer',previousClub);return true;}

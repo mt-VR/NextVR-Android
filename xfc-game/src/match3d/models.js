@@ -1,4 +1,4 @@
-import {labHairGeometry} from './hair-lab.js';
+import {labHairGeometry,labHairMaterial,CAREER_HAIR_ALIAS} from './hair-lab.js';
 import {addPlayerAccessories} from './player-accessories.js';
 import {classicIdentity,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
 // Adaptação low poly clássica do Micah CC0; roupa/rig/UVs preservados.
@@ -212,6 +212,7 @@ export function createGltfPlayer(options = {}) {
     skinTone, hairColor = '#251a12', hairStyle = 'short', bootColor = null
   } = options;
 
+  const renderHair=options.careerHair?(CAREER_HAIR_ALIAS[hairStyle]||hairStyle):hairStyle;
   const root = new THREE.Group();
   root.name = 'xfc-footballer-glb';
   root.userData.modelId = 'xfc-footballer-glb';
@@ -262,10 +263,10 @@ export function createGltfPlayer(options = {}) {
     object.frustumCulled = false;
     shadowMeshes.push(object);
     if (materialList(object).some(m=>m.name==='Micah | anatomical body.body'))object.geometry=smoothSkinGeometry({geometry:classicFaceGeometry({geometry:smoothSkinGeometry(object)},identity)});
-    if (object.name === 'short01') {object.geometry=labHairGeometry(object,hairStyle,scalpBody)||classicHairGeometry(object,hairStyle);object.userData.classicHair=hairStyle;object.visible=hairStyle!=='lab-none';}
+    if (object.name === 'short01') {object.geometry=labHairGeometry(object,renderHair,scalpBody)||classicHairGeometry(object,hairStyle);object.userData.classicHair=hairStyle;object.visible=hairStyle!=='lab-none';}
     if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
-      const clone = object.name==='short01'?classicHairMaterial(hairStyle==='lab-shaved'?'bald':hairStyle.startsWith('lab-')?hairStyle.slice(4):hairStyle,hairColor,skinTone):material.clone();
+      const clone = object.name==='short01'?(renderHair.startsWith('lab-')?labHairMaterial(hairColor):classicHairMaterial(hairStyle==='lab-shaved'?'bald':hairStyle.startsWith('lab-')?hairStyle.slice(4):hairStyle,hairColor,skinTone)):material.clone();
       const name = String(material.name || '');
       // Recolour only the existing cloth materials. Never tint skin/face/hair.
       if (name === 'Micah | top') {
