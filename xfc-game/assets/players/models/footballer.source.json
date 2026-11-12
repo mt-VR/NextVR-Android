@@ -6,13 +6,13 @@
   "licenseUrl": "https://www.innerscene.com/tools/library/terms",
   "mirror": "https://github.com/niktolis/pitchvolt-ai/blob/7e5e192541c06c2788cf8341ae297d543e433b7b/web/public/assets/hero/neutral-59ee4cbe96e07698.glb",
   "inputSha256": "59ee4cbe96e07698c139d6ef9aa6e3965bac553cb9f826c7238bef953d958662",
-  "outputSha256": "f53faee5bed694afa8946f7bee7f6d54669e9bfd19c4d5930a73a3d1f1cd563d",
+  "outputSha256": "136445bfb80965e107a9aa51131e154d9f5a6bda8a4e1ba260d34e3250b50f20",
   "adaptations": [
     "Removed scene-only ball, fixed number and instanced studs",
     "Bound original body/clothing geometry to 22-joint skeleton",
     "Authored idle/walk/run clips for that bind pose",
     "Neutralized fabric base-colour textures for team tint; preserved skin/hair/eyes",
-    "Meshoptimizer simplification for mobile, retaining UVs/materials/skin weights"
+    "Meshoptimizer simplification for mobile (ratio 0.42, error 0.001), retaining more facial vertices, UVs/materials/skin weights"
   ],
   "frontAxis": "+Z",
   "sourceHasRig": false,

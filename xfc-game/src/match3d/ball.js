@@ -1,3 +1,4 @@
+import {firstBallContact} from './ball-contact.js';
 // A bola: física simples (gravidade, quique, atrito, arrasto e efeito Magnus)
 // e a malha 3D com a textura clássica de gomos.
 
@@ -181,7 +182,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     state.lastTouch = null;
     state.lastIntentionalTouch = null;
     state.guidance = null;
-    state.passTarget=null;state.flightTime=0;
+    state.passTarget=null;state.flightTime=0;state.offside=null;state.reception=null;
     mesh.position.copy(state.position);
   }
 
@@ -196,6 +197,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
       const dx = Number(direction?.x) || 0;
       const dz = Number(direction?.z) || 0;
       state.goalPocket = 0;
+      state.offside=null;state.reception=null;
       state.rainbow = state.recovery = null;
       state.flightId += 1;
       state.velocity.set(dx * speed, speed * lift, dz * speed);
@@ -208,6 +210,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     },
     /** Coloca a bola no pé de um jogador (domínio). */
     attachTo(player) {
+      state.offside=null;state.reception=null;
       state.goalPocket = 0;
       state.owner = player;
       state.passTarget=null;
@@ -248,7 +251,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
       const guide = state.guidance;
       if (guide) {
         const receiver = guide.receiver;
-        if (!receiver?.active || guide.elapsed > 2.4) {
+        if (!receiver?.active || guide.elapsed > (guide.maxTime||2.4)) {
           state.guidance = null;
         } else {
           guide.elapsed += dt;
@@ -278,45 +281,34 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
         spin.multiplyScalar(1 - Math.min(1.6 * dt, 0.4));
       }
 
-      // Colisão com os jogadores (tratados como círculos no chão).
-      const now = performance.now() / 1000;
-      for (const player of players) {
-        if (!player.active) continue;
-        const dx = position.x - player.root.position.x;
-        const dz = position.z - player.root.position.z;
-        let distance = Math.hypot(dx, dz);
-        // Segmento varrido: superchutes não atravessam o goleiro entre frames.
-        const sx=position.x-previousX,sz=position.z-previousZ;
-        const length2=sx*sx+sz*sz;
-        if(length2>.01){
-          const t=Math.max(0,Math.min(1,((player.root.position.x-previousX)*sx+(player.root.position.z-previousZ)*sz)/length2));
-          const sweepY=previousY+(position.y-previousY)*t;
-          const sweptDistance=Math.hypot(previousX+sx*t-player.root.position.x,previousZ+sz*t-player.root.position.z);
-          if(sweepY<(player.reachHeight||1.8))distance=Math.min(distance,sweptDistance);
+      // Contato contínuo: o primeiro jogador na trajetória domina, sem a bola
+      // atravessar por causa da velocidade ou da ordem dos times no array.
+      const contact=firstBallContact({x:previousX,y:previousY,z:previousZ},position,players,{
+        radius:BALL.radius,ignore:state.flightTime<.2?state.lastIntentionalTouch:null
+      });
+      if(contact){
+        const player=contact.player,from=state.lastIntentionalTouch,wasPass=!!state.passTarget;
+        position.set(contact.x,Math.max(BALL.radius,contact.y),contact.z);
+        state.lastCollision=player;state.lastCollisionAt=performance.now()/1000;
+        state.lastTouch=player;
+        if(!player.isKeeper&&!player.isGK){
+          const offside=state.offside;
+          this.attachTo(player);
+          state.reception={player,from,wasPass,offside};
+          state.offside=null;
+          position.set((player.x??player.root.position.x)+(player.facing?.x||0)*.45,BALL.radius,(player.z??player.root.position.z)+(player.facing?.z||0)*.45);
+          mesh.position.copy(position);shadow.position.set(position.x,.02,position.z);
+          return null;
         }
-        const reach = (player.reach || 0.52) + BALL.radius;
-        const reachHeight = player.reachHeight || 1.8;
-        if (distance < reach && position.y < reachHeight) {
-          const normalLength=Math.hypot(dx,dz);
-          const nx = normalLength > 0.001 ? dx / normalLength : 1;
-          const nz = normalLength > 0.001 ? dz / normalLength : 0;
-          const push = reach - distance;
-          position.x += nx * push;
-          position.z += nz * push;
-          // A bola "toca" no jogador: uma bola rápida só raspa e segue.
-          const speed = velocity.length();
-          const repeated = state.lastCollision === player && now - state.lastCollisionAt < 0.3;
-          if (!repeated) {
-            const loss = speed > 14 ? 0.93 : 0.8;
-            velocity.multiplyScalar(loss);
-            velocity.x += nx * (speed > 14 ? 0.35 : 1.4);
-            velocity.z += nz * (speed > 14 ? 0.35 : 1.4);
-            state.lastCollision = player;
-            state.lastCollisionAt = now;
-            if (position.y > 1.24) player.model?.header?.();
-          }
-          state.lastTouch = player;
-        }
+        // Goleiro continua com defesas/mergulho próprios. Contato físico rebate
+        // para fora do corpo, em vez de só tirar 7% da velocidade e atravessá-lo.
+        const px=player.x??player.root.position.x,pz=player.z??player.root.position.z;
+        let nx=position.x-px,nz=position.z-pz,n=Math.hypot(nx,nz);
+        if(n<.001){nx=-velocity.x;nz=-velocity.z;n=Math.hypot(nx,nz)||1;}nx/=n;nz/=n;
+        const dot=velocity.x*nx+velocity.z*nz;
+        if(dot<0){velocity.x-=1.55*dot*nx;velocity.z-=1.55*dot*nz;}
+        const reach=(player.reach||.52)+BALL.radius+.025;position.x=px+nx*reach;position.z=pz+nz*reach;
+        state.guidance=null;state.passTarget=null;
       }
 
       // Traves e travessão.

@@ -1,3 +1,4 @@
+import {offsidePosition,offsideExempt} from './offside.js';
 import {evaluatePassRequest} from './pass-request.js';
 import {portraitFor} from '../data/asset-library.js';
 import {createVisualReplay} from './replay.js';
@@ -448,7 +449,7 @@ export function createMatch(options = {}) {
   // ------------------------------------------------------------------ ações --
 
   /** Passe guiado entre companheiros, com bola à frente e checagem de impedimento. */
-  function kickBall(player, target, { power = 18, lob = false, through = false, targetPoint = null, curve = 0, lift = null } = {}) {
+  function kickBall(player, target, { power = 18, lob = false, through = false, targetPoint = null, curve = 0, lift = null, requested = false } = {}) {
     if (!target) return;
     const sign = attackSign(player.side);
     // Passe normal antecipa a corrida curta; a enfiada procura o espaço à
@@ -465,21 +466,23 @@ export function createMatch(options = {}) {
     const dz = aimZ - player.z;
     const distance = Math.hypot(dx, dz) || 1;
     const direction = { x: dx / distance, z: dz / distance };
-    const offside = target.active ? isOffside(player, target) : false;
-    const speed = through
+    const exempt=offsideExempt(phase.name==='kickoff'?'kickoff':phase.restart?.type);
+    const offsidePlayers=exempt?[]:members(player.side).filter(p=>p!==player&&isOffside(player,p)).map(p=>p.id);
+    const speed = requested ? Math.max(7,Math.min(38,8+Math.sqrt(distance*5.5))) : through
       ? Math.max(11, Math.min(22, distance * 0.62 + 7))
       : lob
         ? Math.max(10, Math.min(20, distance * 0.7 + 5))
         : Math.max(7, Math.min(19, distance * 0.62 + 4 + power * 0.08));
     const guide = target.active
-      ? { receiver: target, x: aimX, z: aimZ, through, follow:!through&&!targetPoint }
+      ? { receiver: target, x: aimX, z: aimZ, through, follow:!through&&!targetPoint, maxTime:requested?12:2.4 }
       : null;
     // Enfiada é rasteira e firme; só os cruzamentos/escanteios usam a bola alta.
-    const flightLift = lift ?? (lob ? 0.42 : through ? 0.055 : 0.11);
+    const flightLift = lift ?? (requested ? .025 : lob ? 0.42 : through ? 0.055 : 0.11);
     ball.kick(direction, speed, flightLift, {
       guide,
       curve: clampSetPiece(curve, -1, 1)
     });
+    ball.state.offside=offsidePlayers.length?{side:player.side,players:offsidePlayers}:null;
     ball.state.lastShotKind = null;
     ball.state.lastTouch = player;
     ball.state.lastIntentionalTouch = player;
@@ -488,23 +491,21 @@ export function createMatch(options = {}) {
     }
     player.model.kick(lob ? 'cross' : through ? 'through' : 'pass');
     emit({ type: 'pass', team: player.side, player, target, through });
-    if (offside) {
-      refereeSignal(1.3);
-      emit({ type: 'offside', team: opponentOf(player.side), player: target, minute: clock.minutes });
-      setRestart('freekick', opponentOf(player.side), target.x, target.z);
-    }
   }
 
-  /** Impedimento: o recebedor está à frente da bola e do último defensor. */
-  function isOffside(passer, target) {
-    const sign = attackSign(passer.side);
-    if (sign * (target.x - passer.x) < 1.5) return false;
-    const rivals = members(opponentOf(passer.side)).filter(player => player.active);
-    let secondLast = -Infinity;
-    for (const rival of rivals) {
-      secondLast = Math.max(secondLast, sign * rival.x);
+  function isOffside(passer,target){
+    return offsidePosition(target,ball.state.position,members(opponentOf(passer.side)),attackSign(passer.side));
+  }
+  function receiveBall(player,from,wasPass,offside){
+    if(offside?.side===player.side&&offside.players.includes(player.id)){
+      player.offsideFlagUntil=elapsedWorldTime+2;
+      emit({type:'offside',team:opponentOf(player.side),player,minute:clock.minutes});
+      setRestart('freekick',opponentOf(player.side),player.x,player.z,{foulKind:'offside'});
+      return;
     }
-    return sign * target.x > secondLast + 0.4;
+    if(wasPass&&from&&from!==player&&from.side===player.side)stats[player.side].passesOn++;
+    player.model.receive?.();
+    if(player.side===userSide)selectControlled(player);
   }
 
   /**
@@ -544,6 +545,7 @@ export function createMatch(options = {}) {
     );
     ball.state.lastTouch = player;
     ball.state.lastIntentionalTouch = player;
+    ball.state.offside={side:player.side,players:members(player.side).filter(p=>p!==player&&isOffside(player,p)).map(p=>p.id)};
     ball.state.lastShotKind = kind;
     if (training.enabled && player.side === userSide) {
       training.player = player;
@@ -844,6 +846,7 @@ export function createMatch(options = {}) {
 
   /** Prepara uma retomada de jogo. */
   function setRestart(type, side, x, z, options = {}) {
+    ball.state.offside=null;ball.state.reception=null;
     ball.state.goalPocket = 0;
     ball.state.rainbow = ball.state.recovery = null;
     if (phase.name === 'fulltime' || phase.name === 'halftime') return;
@@ -1872,12 +1875,11 @@ export function createMatch(options = {}) {
     requestPass() {
       if(paused||phase.name!=='play'||!options.playerLockId)return false;
       const hero=controlled[userSide],owner=ball.state.owner;
-      if(!hero?.active||elapsedWorldTime<(hero.passRequestUntil||0))return false;
-      hero.passRequestUntil=elapsedWorldTime+1.2;
-      const decision=evaluatePassRequest({owner,receiver:hero,rivals:members(opponentOf(userSide)),attackSign:attackSign(userSide),offside:owner&&owner!==hero?isOffside(owner,hero):false});
+      if(!hero?.active)return false;
+      const decision=evaluatePassRequest({owner,receiver:hero});
       if(owner&&owner!==hero&&owner.side===userSide)hero.model.signal?.(.7);
       emit({type:'pass-request',...decision,player:hero});
-      if(decision.accepted)kickBall(owner,hero,{power:decision.power});
+      if(decision.accepted)kickBall(owner,hero,{power:decision.power,requested:true});
       return decision.accepted;
     },
 
@@ -2078,6 +2080,13 @@ export function createMatch(options = {}) {
 
   markerRing.visible = markerDisc.visible = markerChevron.visible = carrierRing.visible = false;
   engine.scene.add(markerRing, markerDisc, markerChevron, carrierRing, previewTrajectory, previewTarget);
+  // Bandeirinha separada do triângulo de seleção: todos os atletas impedidos.
+  const flagCanvas=document.createElement('canvas');flagCanvas.width=64;flagCanvas.height=64;
+  const fc=flagCanvas.getContext('2d');fc.fillStyle='#fff';fc.fillRect(13,8,4,48);
+  for(let y=0;y<2;y++)for(let x=0;x<3;x++){fc.fillStyle=(x+y)%2?'#ff7b00':'#ffe44b';fc.fillRect(17+x*13,8+y*13,13,13);}
+  const flagTexture=new THREE.CanvasTexture(flagCanvas);
+  const flagMaterial=new THREE.SpriteMaterial({map:flagTexture,depthTest:false,depthWrite:false,toneMapped:false});
+  const offsideFlags=allPlayers.map(player=>{const flag=new THREE.Sprite(flagMaterial);flag.name=`offside-flag-${player.id}`;flag.visible=false;flag.renderOrder=90;engine.scene.add(flag);return{player,flag};});
   let markerPulse = 0;
   let markerTime = 0;
   let lastControlledId = null;
@@ -2085,6 +2094,12 @@ export function createMatch(options = {}) {
 
   function updateMarker(dt) {
     markerTime += dt;
+    const carrier=ball.state.owner, snapshot=ball.state.offside;
+    for(const {player:p,flag} of offsideFlags){
+      const warned=phase.name==='play'&&(snapshot?.players.includes(p.id)||(carrier&&p!==carrier&&p.side===carrier.side&&isOffside(carrier,p)));
+      flag.visible=p.active&&!training.enabled&&Boolean(warned||p.offsideFlagUntil>elapsedWorldTime);
+      if(flag.visible){flag.position.set(p.x,2.65,p.z);const d=engine.camera.position.distanceTo(flag.position);flag.scale.setScalar(Math.max(.65,d*.025));}
+    }
     const player = controlled[userSide];
     if (!player || !player.active) {
       markerRing.visible = markerDisc.visible = markerChevron.visible = false;
@@ -2808,7 +2823,7 @@ export function createMatch(options = {}) {
       if (phase.name === 'play') {
         if(!updateRainbow(dt))ball.update(dt, allPlayers);
         handlePossession();
-        handleBoundaries();
+        if(phase.name==='play')handleBoundaries();
       }
     }
 
@@ -2974,13 +2989,15 @@ export function createMatch(options = {}) {
 
   /** Quem está perto da bola assume o domínio. */
   function handlePossession() {
+    if(ball.state.reception){const r=ball.state.reception;ball.state.reception=null;receiveBall(r.player,r.from,r.wasPass,r.offside);if(phase.name!=='play')return;}
     if (ball.state.owner) {
       if (!ball.state.owner.active) ball.state.owner = null;
       return;
     }
     const position = ball.state.position;
     if (position.y > 2.1 || elapsedWorldTime<(ball.state.skillUntil||0)) return;
-    // Uma bola rápida não é "dominada": ela voa até parar ou até o gol.
+    // Contatos rápidos já são resolvidos por varredura em ball.update.
+    // Aqui recolhemos apenas bolas próximas que ainda não cruzaram o corpo.
     const speed = Math.hypot(ball.state.velocity.x, ball.state.velocity.z);
     if (speed > 18) return;
 
@@ -2995,6 +3012,7 @@ export function createMatch(options = {}) {
     let best = null;
     let bestDistance = Infinity;
     for (const player of candidates) {
+      if(player===ball.state.lastIntentionalTouch&&ball.state.flightTime<.2)continue;
       const distance = Math.hypot(player.x - position.x, player.z - position.z);
       // Primeiro toque no passe dirigido: não precisa esperar a bola quase parar.
       // Chutes/interceptações continuam com o limite anterior de domínio.
@@ -3009,14 +3027,9 @@ export function createMatch(options = {}) {
       }
     }
     if (best) {
-      // Passe certo: o recebedor domina a bola do próprio time.
-      const last = ball.state.lastTouch;
-      if (last && last !== best && last.side === best.side) stats[best.side].passesOn += 1;
-      ball.attachTo(best);
-      ball.state.lastTouch = best;
-      ball.state.lastIntentionalTouch = best;
-      best.model.receive?.();
-      if (best.side === userSide) selectControlled(best);
+      const from=ball.state.lastIntentionalTouch,wasPass=!!ball.state.passTarget,offside=ball.state.offside;
+      ball.attachTo(best);ball.state.offside=null;ball.state.lastTouch=best;
+      receiveBall(best,from,wasPass,offside);
     }
   }
 
@@ -3315,6 +3328,7 @@ export function createMatch(options = {}) {
       previewTrajectory.material.dispose();
       previewTarget.geometry.dispose();
       previewTarget.material.dispose();
+      for(const {flag} of offsideFlags)engine.scene.remove(flag);flagTexture.dispose();flagMaterial.dispose();
       markerRing.geometry.dispose();
       markerRing.material.dispose();
       markerDisc.geometry.dispose();

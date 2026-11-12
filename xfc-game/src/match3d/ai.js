@@ -20,6 +20,7 @@ const KEEPER_POSITION_SPEED = 5.8;
 const KEEPER_REACTION_SPEED = 7.2;
 
 export function createTeamAI({ side, world }) {
+  let movementTime=0;
   const attackSign = attackSignOf(side);
   const goalX = attackedGoalX(side);
   const tactics=world.teams?.[side]?.info?.tactics||{height:0,press:1,pass:1};
@@ -260,6 +261,7 @@ export function createTeamAI({ side, world }) {
   }
 
   function update(dt) {
+    if(world.isPlayable())movementTime+=dt;
     const ball = world.ball.state;
     const owner = ball.owner;
 
@@ -276,7 +278,7 @@ export function createTeamAI({ side, world }) {
     let chaser = null;
     let chaserDistance = Infinity;
     for (const player of members()) {
-      if (!player.active || player === owner) continue;
+      if (!player.active || player === owner || world.isUserControlled(player)) continue;
       const d = distance(player.x, player.z, ball.position.x, ball.position.z);
       // O goleiro só busca a bola quando ela está perto do seu gol.
       const weight = player.isKeeper ? d * 2.2 : d;
@@ -396,6 +398,18 @@ export function createTeamAI({ side, world }) {
         }
       }
 
+      // Apoio e cobertura em movimento, não quatro defensores estacionados
+      // nas coordenadas iniciais. Reajustes curtos e defasados preservam a linha.
+      if(world.isPlayable()&&player!==chaser&&!player.tacticalCustom){
+        const phase=movementTime*.65+player.index*1.7;
+        const back=['CB','LB','RB'].includes(shape.role),keeper=player.isGK||player.isKeeper;
+        if(back&&owner?.side===side&&player.instruction!=='hold'){
+          const supportLine=Math.max(-32,Math.min(8,ball.position.x*attackSign-23));
+          targetX=targetX*.55+supportLine*attackSign*.45;
+        }
+        targetX+=Math.sin(phase)*(keeper?.35:back?1.8:1.3)*attackSign;
+        targetZ+=Math.cos(phase*.83)*(keeper?.35:back?1.6:1.2);
+      }
       // Um único perseguidor pressiona a bola; os demais mantêm distância dos
       // companheiros e ocupam os canais laterais/centrais da formação.
       const spaced = addTeamSpacing(player, { x: targetX, z: targetZ }, owner, chaser);
@@ -404,7 +418,7 @@ export function createTeamAI({ side, world }) {
       targetX = Math.max(-PITCH.halfLength - 4, Math.min(PITCH.halfLength + 4, targetX));
       targetZ = Math.max(-PITCH.halfWidth - 4, Math.min(PITCH.halfWidth + 4, targetZ));
 
-      steerPlayer(player, targetX, targetZ, dt, speed, { arrive: 1.4 });
+      steerPlayer(player, targetX, targetZ, dt, speed, { arrive: .45 });
       if (!player.gkDiving && !faceVelocity(player, dt, 10)) faceTowards(player, ball.position.x, ball.position.z, dt);
     }
   }

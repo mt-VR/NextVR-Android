@@ -1,3 +1,4 @@
+import {createHairFibers} from './hair-fibers.js';
 // Modelo externo Innerscene/Micah CC0, vestido e texturizado na origem.
 //
 // O palco do jogo é um WebView offline: o pacote precisa carregar rápido e não
@@ -20,7 +21,7 @@ import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
 import { BONE_KEYS, maskBones } from './animation.js';
 
-import { applyCareerSurface, recolorSurface, hairstyleGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
+import { applyCareerSurface, recolorSurface, smoothSkinGeometry, hairstyleGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
 
 const MODEL_URL = 'assets/players/models/footballer.glb';
 /** Nome sem o prefixo do Mixamo (o arquivo pode vir como `mixamorig:Hips`). */
@@ -255,6 +256,7 @@ export function createGltfPlayer(options = {}) {
     object.receiveShadow=Boolean(options.graphics?.shadows);
     object.frustumCulled = false;
     shadowMeshes.push(object);
+    if (materialList(object).some(m=>m.name==='Micah | anatomical body.body'))object.geometry=smoothSkinGeometry(object);
     if (object.name === 'short01') object.geometry = hairstyleGeometry(object, hairStyle);
     if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
@@ -280,6 +282,9 @@ export function createGltfPlayer(options = {}) {
     });
     object.material = Array.isArray(object.material) ? list : list[0];
   });
+
+  const importedHair=model.getObjectByName('short01');
+  if(importedHair){const fibers=createHairFibers(importedHair,hairStyle,hairColor);if(fibers){importedHair.parent.add(fibers);materials.push(fibers.material);}}
 
   // Sombra de contato (a mesma do rig procedural): barata e sempre presente.
   const shadow = new THREE.Mesh(

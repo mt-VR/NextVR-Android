@@ -74,6 +74,7 @@ test('partida real: gol desviado no goleiro celebra o atacante, HUD e jogador co
       m.ball.attachTo(scorer); // Records the intentional possessor, separate from the deflection.
       m.ball.state.owner=null;
       keeper.active=true;
+      keeper.x=51.7;keeper.z=0;
       keeper.root.position.set(51.7,0,0);
       m.ball.state.position.set(52.0,1.0,0);
       m.ball.state.velocity.set(20,0,0);

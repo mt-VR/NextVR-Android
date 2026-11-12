@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -184,20 +184,18 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.34
+          TAG=xfc-gameplay-v0.5.35
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.34 (versionCode 40), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.35 (versionCode 41), commit ${GITHUB_SHA}." \
             "" \
-            "Pênalti com espera a 5 metros e aproximação de 1,35 s após CHUTE. Mira congelada e escolha independente do goleiro." \
-            "" \
-            "Correção visual: artes integrais do usuário. Entrada/carregar → Continue sua jornada (Neymar) → central do jogador (Mbappé). Personalização usa a quarta arte e encaminha ao editor 3D existente. Saves e sistemas preservados." \
-            "" \
-            "Kick Off separado: seleção por país e uniformes dos dois lados conforme as referências enviadas; Jogo Rápido anterior preservado. Câmera Pro do jogador preservada. PEDIR PASSE avalia a jogada. Só botões e joystick recebem o novo visual; placar e relógio intactos. Sem teste em telefone físico. Detalhes: docs/v0.5.34.md. Saves anteriores preservados.")
+            "Menus aprovados preservados, com continuidade das bordas em tela larga e sem deformar a arte central." \
+            "PEDIR PASSE obedece mesmo de longe. Contato contínuo impede bolas atravessando jogadores. Bandeirinha de impedimento e decisão no toque do passe, aplicada na recepção. Defesa se reposiciona." \
+            "Micah conserva o rig, ganha mais detalhe facial e mechas de cabelo. Melhoria parcial: não é um modelo fotorrealista. Sem teste em telefone físico. Detalhes: docs/v0.5.35.md. Saves preservados.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — menus de carreira nas artes e na ordem correta v0.5.34" \
+            gh release create "$TAG" --title "XFC 27 — passes, domínio, impedimento e defesa ativa v0.5.35" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — menus de carreira nas artes e na ordem correta v0.5.34" \
+            gh release edit "$TAG" --title "XFC 27 — passes, domínio, impedimento e defesa ativa v0.5.35" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

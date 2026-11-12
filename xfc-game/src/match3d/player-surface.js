@@ -10,11 +10,23 @@ export function recolorSurface(map, color, reference=.29) {
   const target=new THREE.Color(color);const rgb=[target.r,target.g,target.b].map(v=>Math.round(THREE.MathUtils.clamp(v<=.0031308?v*12.92:1.055*Math.pow(v,1/2.4)-.055,0,1)*255));
   for(let i=0;i<p.length;i+=4){
     const l=(p[i]*.3+p[i+1]*.59+p[i+2]*.11)/255;
-    const shade=Math.min(1.5,Math.max(.22,Math.pow(l/reference,.72)));
-    for(let j=0;j<3;j++)p[i+j]=Math.min(255,rgb[j]*shade);
+    const shade=Math.min(2.8,Math.max(.06,Math.pow(l/reference,.9)));
+    for(let j=0;j<3;j++)p[i+j]=Math.min(255,rgb[j]*shade*(reference===.29?(.65+.35*p[i+j]/Math.max(1,l*255)):1));
   }
   c.putImageData(data,0,0);const texture=map.clone();texture.source=new THREE.Source(canvas);texture.needsUpdate=true;
   tones.set(key,texture);return texture;
+}
+// Suaviza juntas de UV no rosto sem alterar a anatomia/skin weights do GLB.
+const skinShapes=new Map();
+export function smoothSkinGeometry(mesh){
+ if(skinShapes.has(mesh.geometry.uuid))return skinShapes.get(mesh.geometry.uuid);
+ const g=mesh.geometry.clone();g.computeVertexNormals();
+ const p=g.attributes.position,n=g.attributes.normal,groups=new Map();
+ const key=i=>[p.getX(i),p.getY(i),p.getZ(i)].map(v=>Math.round(v*100000)).join(',');
+ for(let i=0;i<p.count;i++){const k=key(i),v=groups.get(k)||new THREE.Vector3();v.add(new THREE.Vector3().fromBufferAttribute(n,i));groups.set(k,v);}
+ for(const v of groups.values())v.normalize();
+ for(let i=0;i<p.count;i++){const v=groups.get(key(i));n.setXYZ(i,v.x,v.y,v.z);}n.needsUpdate=true;
+ skinShapes.set(mesh.geometry.uuid,g);return g;
 }
 const hairShapes=new Map();
 export function hairstyleGeometry(mesh,style='short') {
@@ -24,7 +36,7 @@ export function hairstyleGeometry(mesh,style='short') {
   for(let i=0;i<pos.count;i++){
     const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);
     const rise=Math.max(0,y-1.70);
-    const ridge=(style==='braids'||style==='dreads')?Math.sin(x*(style==='braids'?200:110))*.009:style==='curly'?Math.sin(x*120)*Math.cos(z*140)*.006:0;
+    const ridge=(style==='braids'||style==='dreads')?Math.sin(x*(style==='braids'?200:110))*.009:style==='curly'?Math.sin(x*70)*Math.cos(z*80)*.003:0;
     const drop=style==='long'&&z<.02?Math.min(.12,Math.abs(z)*.65):0;
     pos.setXYZ(i,x*(style==='afro'?1.22:style==='mohawk'?.4:1),y+Math.min(.075,rise*(height-1))+ridge-drop,z*(style==='afro'?1.1:1));
   }
@@ -113,9 +125,9 @@ export function refinePlayerMaterial(material,{surface=true}={}){
     material.roughness=.88;
     if(surface){material.bumpMap=surfaceDetail('cloth');material.bumpScale=/socks/i.test(name)?.0014:.003;}
   }else if(/body\.body/.test(name)){
-    material.roughness=.64;
-    if(surface){material.roughnessMap=surfaceDetail('skin');material.roughness=.94;}
-  }else if(/short01/.test(name))material.roughness=.96;
+    material.roughness=.76;
+    if(surface){material.bumpMap=surfaceDetail('skin');material.bumpScale=.0006;}
+  }else if(/short01/.test(name)){material.roughness=.68;material.alphaTest=.42;material.side=THREE.DoubleSide;if(surface){material.bumpMap=material.map;material.bumpScale=.0012;}}
   else if(/shoe|boot/i.test(name))material.roughness=.58;
   material.userData.surfaceDetail=Boolean(surface);return material;
 }

@@ -196,3 +196,14 @@ sobre botões DOM. Origem e processo em `assets/ui/pause/CREDITS.md`. Campo e
 placar não são imagens estáticas: preservam a partida/dados reais. O placar ao
 vivo segue `IMG_20261111_001747.jpg` em DOM/CSS (escudos existentes e siglas
 variáveis); na pausa usa a faixa preta da segunda referência.
+
+## Ajustes v0.5.35
+
+- `assets/ui/season/backdrops/*.jpg`: derivados das mesmas quatro artes de
+  carreira fornecidas pelo usuário; extensão das colunas de borda para preencher
+  telas largas sem cortar controles, repetir texto ou deformar atletas. Processo
+  reproduzível em `tools/career-backdrops.mjs`. Mesmos direitos das artes originais.
+- `footballer.glb`: reprocessado a partir do mesmo arquivo Micah CC0 fixado no
+  manifest. Simplificação menos agressiva (.42/.001), sem substituir corpo/rig.
+  Normais suaves e mechas leves são adaptações locais; não são escaneamentos,
+  cabelo capturado ou modelos fotorrealistas licenciados de terceiros.

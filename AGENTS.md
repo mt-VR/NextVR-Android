@@ -633,3 +633,27 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   Dados variáveis sobrepostos não podem repetir estatísticas falsas da arte.
 - Escopo desta correção: UI/navegação. Nenhuma alteração em motor, modelos,
   animações, HUD, joystick, câmera, formato de save ou regras da carreira.
+
+### v0.5.35 — pedido explícito, contato e apresentação (supera as recusas da v033)
+
+- O usuário aprovou os quatro menus. Não redesenhar. `backdrops/*.jpg` prolonga
+  as bordas, sem duplicar texto nem esticar a arte central. Regenerar com
+  `node xfc-game/tools/career-backdrops.mjs` (ImageMagick).
+- Pedido explícito de passe NÃO faz avaliação tática nem recusa distância,
+  marcação ou impedimento. Só exige jogo ativo e posse de outro companheiro.
+  Passe solicitado usa velocidade/assistência com alcance longo, sem teleporte.
+- `ball-contact.js` faz interseção contínua com volumes dos jogadores, em x/z
+  físicos (root.position ainda é do frame anterior). Primeiro contato domina;
+  goleiros conservam defesas e rebatem fisicamente. Não restaurar simples perda
+  de velocidade que deixa a bola atravessar o corpo.
+- `offside.js`: penúltimo adversário, bola, campo de ataque e isenções de
+  reposição. Congelar IDs no passe/chute; apitar no contato, não na solicitação.
+  Bandeirinha independente da seleção, com material/textura compartilhados.
+- IA faz ajustes curtos de cobertura/apoio. Nunca conduzir o humano por IA;
+  respeitar posições personalizadas e manter largura/linha defensiva.
+- Mesmo Micah CC0 reotimizado com ratio .42/error .001; atualizar hash do
+  manifest ao regenerar. Normais da pele suavizadas, mechas skinned extras
+  compartilhadas por corte. Melhoria visual parcial, sem alegação fotorrealista.
+- `tests/xfc-reception-offside.test.mjs` cobre 95m nos dois sentidos,
+  interceptação, linha congelada/bandeira/reinício, varredura 3D e quatro
+  defensores em movimento. CI inclui esta suíte. Não alegar teste em telefone.

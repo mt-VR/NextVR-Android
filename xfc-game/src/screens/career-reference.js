@@ -10,7 +10,7 @@ import {STADIUMS} from '../match3d/stadiums.js';
 const ARTS={entry:'entry',journey:'agenda',hub:'hub',custom:'customise'};
 const place=([x,y,w,h])=>({left:`${x/1568*100}%`,top:`${y/882*100}%`,width:`${w/1568*100}%`,height:`${h/882*100}%`});
 export function careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo='hub'}){
- const file=ARTS[view],node=el('div',{class:`screen screen--career career-reference season-${view}`,style:{backgroundImage:`url("assets/ui/season/${file}.png")`}});
+ const file=ARTS[view],node=el('div',{class:`screen screen--career career-reference season-${view}`,style:{backgroundImage:`url("assets/ui/season/backdrops/${file}.jpg")`}});
  const frame=el('div',{class:'career-reference-frame'},el('img',{class:'career-reference-art',src:`assets/ui/season/${file}.png`,alt:({entry:'Modo Carreira — entrada e carregamento',journey:'Continue sua jornada — Neymar',hub:'Central do jogador — Mbappé',custom:'Personalizar jogador — seis categorias'})[view],draggable:'false'}));node.append(frame);
  const buttons=[];
  const need=(target,extra={})=>()=>{if(c)go(target==='custom'&&kind==='manager'?'settings':target,extra);else ctx.toast('Escolha Carreira de Jogador ou Carreira de Técnico para começar.');};
