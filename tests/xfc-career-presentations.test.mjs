@@ -27,7 +27,7 @@ test('coloração: render da pele/rosto/sobrancelhas idêntico nas cinco cores, 
    const current=pixels();if(baseline){pairs++;for(let i=0;i<current.length;i++)if(current[i]!==baseline[i])changed++;}else baseline=current;
    m.body.traverse(o=>{if(o.isMesh&&o!==hair)for(const mat of [].concat(o.material))separate&&=mat!==hair.material&&mat.map!==hair.material.map;});scene.remove(m.root);m.dispose();
   }}renderer.dispose();renderer.forceContextLoss();return{pairs,changed,separate};
- });assert.equal(result.pairs,48);assert.equal(result.changed,0,'nenhum pixel de pele/rosto muda com a tintura');assert.ok(result.separate);assert.deepEqual(errors,[]);
+ });assert.equal(result.pairs,52,'4 tons de pele x 14 cores de cabelo, menos a primeira referência');assert.equal(result.changed,0,'nenhum pixel de pele/rosto muda com a tintura');assert.ok(result.separate);assert.deepEqual(errors,[]);
  }finally{await b.close();server.close();}
 });
 

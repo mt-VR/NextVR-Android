@@ -51,7 +51,11 @@ export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,
  const kit=select('Uniforme',{},String(c?.kitIndex||0));controls.kit=kit;kit.disabled=blocked;
  function rebuildKit(){kit.replaceChildren(...kitsOf(editing?c.clubId:clubs.value).map((k,i)=>el('option',{value:i,text:k.name||`Uniforme ${i+1}`,selected:i===(draft.kitIndex||0)})));}rebuildKit();kit.addEventListener('change',()=>{sync();showPreview();});
  const appearance=[label('Nome',name),choose('position','Posição',CAREER_POSITIONS,draft.player.position),number('height','Altura (cm)',look.height,160,200),number('weight','Peso (kg)',look.weight,55,100),choose('body','Corpo',CAREER_BODY,look.body),choose('skinTone','Tom de pele',CAREER_SKIN,look.skinTone)];
- const head=[el('p',{text:'Laboratório: novos cortes são protótipos deste atleta. Não alteram o elenco automaticamente.'}),choose('hairStyle','Cabelo',LAB_HAIR,CAREER_HAIR_ALIAS[look.hairStyle]||look.hairStyle),choose('hairColor','Cor do cabelo',CAREER_HAIR_COLORS,look.hairColor),choose('face','Rosto',CAREER_FACE,look.face),choose('beard','Barba',CAREER_BEARD,look.beard),choose('moustache','Bigode',{none:'Sem bigode',classic:'Clássico'},look.moustache),choose('brows','Sobrancelhas',{natural:'Naturais',thick:'Espessas'},look.brows)];
+ const hairStyle=choose('hairStyle','Cabelo',LAB_HAIR,CAREER_HAIR_ALIAS[look.hairStyle]||look.hairStyle);
+ // O <select> mostra o corte RENDERIZADO (ex.: lab-reference-mohawk), mas o
+ // save continua no id apelidado (ex.: 'mohawk'), como nos saves antigos.
+ hairStyle.querySelector('select').dataset.saveId=look.hairStyle;
+ const head=[el('p',{text:'Laboratório: novos cortes são protótipos deste atleta. Não alteram o elenco automaticamente.'}),hairStyle,choose('hairColor','Cor do cabelo',CAREER_HAIR_COLORS,look.hairColor),choose('face','Rosto',CAREER_FACE,look.face),choose('beard','Barba',CAREER_BEARD,look.beard),choose('moustache','Bigode',{none:'Sem bigode',classic:'Clássico'},look.moustache),choose('brows','Sobrancelhas',{natural:'Naturais',thick:'Espessas'},look.brows)];
  const uniform=[label('Uniforme',kit),number('number','Número da camisa',draft.player.number,1,99),choose('socks','Meião',{long:'Longo',short:'Curto'},look.socks)];
  const accessories=[choose('bootColor','Chuteira',CAREER_BOOTS,look.bootColor),choose('gloveModel','Modelo de luva',{winter:'Frio · jogador de linha',pro:'Goleiro · acolchoada'},look.gloveModel),choose('gloves','Luvas',GLOVE_LABELS,look.gloves),choose('wristband','Munhequeira',ACCESSORY_LABELS,look.wristband),choose('wristbandSide','Pulsos',{left:'Esquerdo',right:'Direito',both:'Os dois'},look.wristbandSide)];
  const animation=[choose('celebration','Comemoração',{arms:'Braços erguidos',fist:'Punho no alto',wide:'Braços abertos'},look.celebration),button('Testar comemoração',()=>preview?.celebrate())];
@@ -60,7 +64,12 @@ export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,
  function sync(){
   if(!editing)draft.clubId=clubs.value;
   draft.player.name=name.value;draft.player.number=Number(controls.number.value);draft.player.position=controls.position.value;draft.player.foot=controls.foot.value;draft.player.nationality=controls.nationality.value;
-  draft.player.appearance=careerAppearance(Object.fromEntries(Object.entries(controls).map(([k,input])=>[k,input.value])));draft.kitIndex=Number(kit.value)||0;
+  // O select de cabelo mostra o id RENDERIZADO; o save só perde o apelido
+  // antigo quando o usuário troca o corte de verdade.
+  const hairInput=controls.hairStyle, savedHair=hairInput.dataset.saveId||'';
+  const initialRendered=CAREER_HAIR_ALIAS[savedHair]||savedHair;
+  const hairValue=hairInput.value===initialRendered?savedHair:hairInput.value;
+  draft.player.appearance=careerAppearance(Object.fromEntries(Object.entries(controls).map(([k,input])=>[k,k==='hairStyle'?hairValue:input.value])));draft.kitIndex=Number(kit.value)||0;
  }
  async function showPreview(){if(!preview)return;const r=++revision;sync();const team=careerTeam(draft);await preview.show([{team,kit:kitsOf(team.id)[draft.kitIndex]||kitsOf(team.id)[0],player:team.players.find(p=>p.id==='career-player')}]);if(r===revision)canvas.dataset.appearance=JSON.stringify(draft.player.appearance);}
  function showGroup(id){preview?.focus(id==='head'?'head':id==='accessories'?'hands':'body');fields.replaceChildren(...groups[id]);for(const b of categories.children)b.classList.toggle('is-active',b.dataset.category===id);}

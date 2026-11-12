@@ -4,7 +4,7 @@ import {LAB_HAIR,GLOVE_LABELS,ACCESSORY_LABELS} from './player-customization.js'
 import {TEAMS,getTeam} from './teams.js';
 export const CAREER_POSITIONS={ST:'Atacante',LW:'Ponta',CM:'Meio-campista',CB:'Zagueiro'};
 export const CAREER_HAIR={short:'Curto',curly:'Cacheado',afro:'Afro',mohawk:'Moicano',neymar:'Neymar',side:'Lateral',fade:'Degradê',long:'Longo',braids:'Tranças',dreads:'Dreads',bald:'Raspado',...LAB_HAIR};
-export const CAREER_HAIR_COLORS={'#24180f':'Preto','#66452d':'Castanho claro','#432c20':'Castanho escuro','#c3a16a':'Loiro','#a3442b':'Ruivo','#eeeeee':'Loiro platinado','#ffffff':'Branco','#92969b':'Cinza','#ca2237':'Vermelho','#245dda':'Azul','#288b43':'Verde','#e85aaa':'Rosa','#8349b9':'Roxo'};
+export const CAREER_HAIR_COLORS={'#24180f':'Preto','#66452d':'Castanho claro','#432c20':'Castanho escuro','#c3a16a':'Loiro','#a3442b':'Ruivo','#eeeeee':'Loiro platinado','#ffffff':'Branco','#92969b':'Cinza','#5f6469':'Cinza escuro','#ca2237':'Vermelho','#245dda':'Azul','#288b43':'Verde','#e85aaa':'Rosa','#8349b9':'Roxo'};
 export const CAREER_BOOTS={'#171b20':'Preta','#f3f3ed':'Branca','#ee4235':'Vermelha','#b3ef36':'Verde-lima'};
 export const CAREER_SKIN={'#e0b18d':'Tom 1','#bd8868':'Tom 2','#96613f':'Tom 3','#603d2c':'Tom 4'};
 export const CAREER_NATIONS=['Brasil','Espanha','Argentina','Portugal','França','Inglaterra','Itália','Alemanha'];
@@ -12,8 +12,11 @@ export const CAREER_BEARD={none:'Sem barba',stubble:'Por fazer',full:'Cheia',goa
 export const CAREER_FACE={natural:'Natural',slim:'Fino',broad:'Largo'};
 export const CAREER_BODY={normal:'Equilibrado',lean:'Magro',strong:'Atlético'};
 const pick=(list,value,fallback)=>Object.hasOwn(list,value)?value:fallback;
+// O laboratório deixou de ter o moicano de crista (retirado a pedido): um save
+// antigo com `lab-mohawk` cai no moicano da referência, não em "careca".
+const hairId=value=>value==='lab-mohawk'?'lab-reference-mohawk':value;
 export function careerAppearance(value={}){return {
- hairStyle:pick(CAREER_HAIR,value.hairStyle,'short'),hairColor:pick(CAREER_HAIR_COLORS,value.hairColor,'#24180f'),
+ hairStyle:pick(CAREER_HAIR,hairId(value.hairStyle),'short'),hairColor:pick(CAREER_HAIR_COLORS,value.hairColor,'#24180f'),
  bootColor:pick(CAREER_BOOTS,value.bootColor,'#171b20'),skinTone:pick(CAREER_SKIN,value.skinTone,'#bd8868'),
  beard:pick(CAREER_BEARD,value.beard,'none'),face:pick(CAREER_FACE,value.face,'natural'),body:pick(CAREER_BODY,value.body,'normal'),
  moustache:pick({none:1,classic:1},value.moustache,'none'),brows:pick({natural:1,thick:1},value.brows,'natural'),

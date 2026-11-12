@@ -146,7 +146,7 @@ export function playScreen(ctx, params = {}) {
   let lastSnapshot = { score: [0, 0], display: "0'00", half: 1, phase: 'kickoff' };
   // Replay automático + expulsão do herói da carreira.
   let replayCooldownUntil = 0, goalSuppressUntil = 0;
-  let replayPending = false, replayActive = false, replayTimeout = 0;
+  let replayPending = false, replayActive = false, replayTimeout = 0, replayWatchdog = 0;
   let skipAutoReplayFn = null, spectatorMode = false, dismissalShown = false;
 
   const canvas = el('canvas', {
@@ -445,7 +445,7 @@ export function playScreen(ctx, params = {}) {
           name: scorerName,
           score: `${homeScore} × ${awayScore}`
         });
-        hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${scorerName}`, 'goal');
+        hud.pushEvent(`⚽ ${Math.floor(event.minute)}' ${team.name} — ${scorerName}`, 'goal');
         // A câmera fecha no autor, que corre com os braços erguidos; o nome
         // permanece sob a cabeça e no cartão da HUD durante a comemoração.
         try {
@@ -470,7 +470,7 @@ export function playScreen(ctx, params = {}) {
         const color = event.color === 'red' ? '🟥' : '🟨';
         if (event.color === 'red') boo();
         else whistle('short');
-        hud.pushEvent(`${color} ${event.minute}' ${team.name} — ${event.player.name}`, event.color);
+        hud.pushEvent(`${color} ${Math.floor(event.minute)}' ${team.name} — ${event.player.name}`, event.color);
         break;
       }
       case 'offside': {
@@ -816,17 +816,24 @@ export function playScreen(ctx, params = {}) {
 
   // ------------------------------------------------ replay automático --------
 
-  const REPLAY_COOLDOWN_MS = 11000;
-  const REPLAY_CLIP_SECONDS = 3;
+  // Cooldown curto: o replay é o "melhor ângulo" do jogo, não um evento raro.
+  // Clipes grandes (gol, pênalti, defesa, chute perigoso) esperam mais; lances
+  // menores (drible, escanteio, desarme) podem repetir em sequência.
+  const REPLAY_COOLDOWN_MS = 4200;
+  const REPLAY_COOLDOWN_HEAVY_MS = 6500;
+  const REPLAY_CLIP_SECONDS = 4.5;
 
   function scheduleReplay(event) {
-    // Um gol já tem a comemoração: cancela replay pendente e dá uma folga.
+    // O gol não é mais descartado: a comemoração continua na tela e o replay
+    // entra logo depois dela (por isso o atraso maior).
     if (event.type === 'goal') {
-      goalSuppressUntil = performance.now() + 6500;
-      clearTimeout(replayTimeout); replayPending = false;
-      return;
+      goalSuppressUntil = performance.now() + 3600;
     }
     if (replayActive || replayPending || stage !== 'live' || !match) return;
+    // Replay nunca por cima dos painéis: se o jogo já está no intervalo/fim,
+    // o lance fica para o próximo.
+    const livePhase = () => { try { return match.world.snapshot().phase; } catch { return null; } };
+    if (['halftime', 'fulltime'].includes(livePhase())) return;
     const now = performance.now();
     if (now < replayCooldownUntil || now < goalSuppressUntil) return;
     const trigger = replayTrigger(event);
@@ -844,13 +851,19 @@ export function playScreen(ctx, params = {}) {
       }
       replayPending = false;
       if (phase === 'halftime' || phase === 'fulltime' || (trigger.awaitPlay && phase === 'restart')) return;
-      startAutoReplay(trigger.label);
+      // Gol: espera a comemoração/celebração terminar para o clipe não brigar
+      // com a câmera de gol. Fora isso, o clipe entra assim que o buffer tem
+      // o desfecho.
+      const extra = trigger.afterGoal ? 2600 : 0;
+      if (extra) { replayTimeout = setTimeout(() => { if (stage === 'live' && !replayActive) startAutoReplay(trigger.label, trigger); }, extra); return; }
+      startAutoReplay(trigger.label, trigger);
     };
     replayTimeout = setTimeout(() => attempt(), trigger.delay);
   }
 
-  function startAutoReplay(label) {
+  function startAutoReplay(label, trigger = {}) {
     if (replayActive || !match || !match.world.replay.available) return;
+    if (stage !== 'live' && stage !== 'replay') return;
     match.stop();                       // replay visual exige motor parado
     match.world.setPaused(true);
     controls?.setEnabled(false);
@@ -867,8 +880,10 @@ export function playScreen(ctx, params = {}) {
       replayOverlay.remove();
       overlay.style.visibility = '';
       stageBox.classList.remove('is-replay');
-      replayCooldownUntil = performance.now() + REPLAY_COOLDOWN_MS;
+      replayCooldownUntil = performance.now() +
+        ((trigger.importance || 1) >= 3 ? REPLAY_COOLDOWN_HEAVY_MS : REPLAY_COOLDOWN_MS);
       skipAutoReplayFn = null;
+      clearTimeout(replayWatchdog);
       if (unmounted || !match) return;
       stage = 'live';
       setPauseButtonVisible(true);
@@ -877,6 +892,11 @@ export function playScreen(ctx, params = {}) {
       match.resumeRender();
     };
     skipAutoReplayFn = () => { try { match.world.replay.stop(); } catch {} finish(); };
+    // Rede de segurança: se o quadro parar (aparelho lento, aba em segundo
+    // plano, WebView travada) o clipe nunca chamaria `finish` e a partida
+    // ficaria congelada. O limite é o tempo do clipe em velocidade real + folga.
+    clearTimeout(replayWatchdog);
+    replayWatchdog = setTimeout(() => { if (replayActive) skipAutoReplayFn?.(); }, REPLAY_CLIP_SECONDS / .65 * 1000 + 2500);
     overlay.style.visibility = 'hidden';
     stageBox.classList.add('is-replay');
     stageBox.append(replayOverlay);

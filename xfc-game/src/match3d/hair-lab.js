@@ -77,7 +77,6 @@ const BUILDERS={
  'lab-curly':c=>[c.scalp({density:.9}),...curls(c,{count:45,extent:.98,radius:.010,coil:1.8})],
  'lab-wavy':c=>[c.scalp({density:.85}),...swept(c,{count:14,start:1.0,end:-1.15,volume:.020,wave:.008,width:.012})],
  'lab-straight':c=>[c.scalp({density:.85}),...swept(c,{count:17,start:-.85,end:1.09,volume:.014,width:.010,part:-.013})],
- 'lab-mohawk':c=>{const parts=[c.scalp({density:.24,raise:.008})];for(let i=0;i<12;i++){const t=-1.1+i*.18,a=t<0?Math.PI:0;const p=c.surface(a,Math.abs(t),.003),q=c.surface(a,Math.abs(t),.055+.018*Math.cos(t));parts.push(strand([p,q,q.clone().add(V(-.006,.008,-.014))],.016,.009,6,5));}return parts;},
  'lab-dreads':c=>{const parts=[c.scalp({density:.85})];for(let i=0;i<24;i++){const a=i*2.4,t=.30+Math.sqrt(i/24)*.85,p=c.surface(a,t,.004),d=V(Math.sin(a),0,Math.cos(a)),side=Math.cos(a)>.5;parts.push(strand([p,p.clone().addScaledVector(d,.024).add(V(0,.014,0)),c.surface(a,1.13,.028),c.surface(a,1.13,.028).add(V(.007*Math.sin(i),side?-.025:-.085,.004))],.008,.008,11,6));}return parts;},
  'lab-braids':c=>{const parts=[c.scalp({density:.4})];for(let row=0;row<7;row++)for(const phase of [0,Math.PI]){const pts=[];for(let j=0;j<=22;j++){const t=1.04-j/22*2.45,x=(row-3)*.20,q=c.surface(Math.atan2(x,t),Math.min(1.42,Math.hypot(x,t)),.005);q.x+=Math.sin(j*1.7+phase)*.003;q.y+=Math.cos(j*1.7+phase)*.002;pts.push(q);}parts.push(strand(pts,.0037,.0037,22,5));}return parts;},
  'lab-shaved':c=>[c.scalp({density:.47})],

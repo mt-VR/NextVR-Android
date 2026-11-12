@@ -6,13 +6,15 @@ import {TEAMS} from '../xfc-game/src/data/teams.js';
 import {startXfcServer} from '../xfc-game/serve.mjs';
 import {launchOrSkip} from './support/chromium.mjs';
 test('catálogo opt-in, cores/pulsos normalizados e elenco não modificado',()=>{
- const before=JSON.stringify(TEAMS);assert.equal(Object.keys(LAB_HAIR).filter(k=>k!=='lab-none').length,18);
+ const before=JSON.stringify(TEAMS);assert.equal(Object.keys(LAB_HAIR).filter(k=>k!=='lab-none').length,17,'moicano crista removido');
+ assert.equal(Object.hasOwn(LAB_HAIR,'lab-mohawk'),false,'crista não volta ao catálogo');
+ assert.equal(Object.hasOwn(LAB_HAIR,'lab-reference-mohawk'),true,'moicano da referência permanece');
  const c=createCareer({appearance:{hairStyle:'lab-dreads',gloves:'red',gloveModel:'pro',wristband:'purple',wristbandSide:'both'}});
  const team=careerTeam(c);assert.equal(team.players.filter(p=>p.appearance?.hairStyle==='lab-dreads').length,1);assert.equal(JSON.stringify(TEAMS),before);
  assert.equal(careerAppearance({wristband:'white'}).wristbandSide,'left');assert.equal(careerAppearance({gloveModel:'invalid',wristbandSide:'invalid'}).gloveModel,'winter');
  assert.equal(careerAppearance({hairStyle:'lab-none'}).hairStyle,'lab-none');
 });
-test('18 cortes: topologias distintas no mesmo corpo; luvas skinned sem caixas azuis e pulseiras laterais',{timeout:90000},async t=>{
+test('17 cortes: topologias distintas no mesmo corpo; luvas skinned sem caixas azuis e pulseiras laterais',{timeout:90000},async t=>{
  const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
  try{const p=await b.newPage();await p.goto(url);const r=await p.evaluate(async()=>{
   const T=await import('/vendor/three.module.min.js'),{preloadFootballerPack,createGltfPlayer}=await import('/src/match3d/models.js'),{LAB_HAIR}=await import('/src/data/player-customization.js');await preloadFootballerPack();
@@ -33,7 +35,7 @@ test('18 cortes: topologias distintas no mesmo corpo; luvas skinned sem caixas a
   const variants=[];for(const side of ['left','right','both']){const m=createGltfPlayer({...options,gloves:'black',gloveModel:'winter',wristband:'white',wristbandSide:side});variants.push({side,left:!!m.root.getObjectByName('xfc-career-wristband'),right:!!m.root.getObjectByName('xfc-career-wristband-right'),type:m.root.getObjectByName('xfc-fitted-gloves').userData.type});m.dispose();}
   const none=createGltfPlayer({...options,hairStyle:'lab-none',gloves:'none',wristband:'none'});const removed=!none.root.getObjectByName('xfc-fitted-gloves')&&!none.body.getObjectByName('short01').visible;none.dispose();base.dispose();return{records,bodies,finite,rig,variants,removed};
  });
- assert.ok(r.bodies&&r.finite&&r.rig&&r.removed,JSON.stringify({bodies:r.bodies,finite:r.finite,rig:r.rig,removed:r.removed}));assert.equal(new Set(r.records.map(x=>x.normalized)).size,18);assert.ok(new Set(r.records.map(x=>x.triangles)).size>=10);
+ assert.ok(r.bodies&&r.finite&&r.rig&&r.removed,JSON.stringify({bodies:r.bodies,finite:r.finite,rig:r.rig,removed:r.removed}));assert.equal(new Set(r.records.map(x=>x.normalized)).size,17,'cada corte tem sua própria topologia (crista removida)');assert.ok(new Set(r.records.map(x=>x.triangles)).size>=10);
  for(const row of r.records)assert.ok(row.triangles<4500&&row.parts>=1,JSON.stringify({...row,normalized:undefined}));
  assert.deepEqual(r.variants,[{side:'left',left:true,right:false,type:'winter'},{side:'right',left:false,right:true,type:'winter'},{side:'both',left:true,right:true,type:'winter'}]);
  }finally{await b.close();server.close();}

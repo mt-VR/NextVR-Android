@@ -274,3 +274,12 @@ replay ou asset de outro jogo foi adicionado. O GLB Micah CC0, o rig de 22 ossos
 as artes de entrada/ícone enviadas e os quatro menus de referência permanecem
 inalterados; a rede do gol usa a física procedural já existente. Sem nova
 aprovação de acabamento artístico ou licença inferida.
+
+## Corrida, replay e cabelo — v0.5.42
+
+Ciclo de corrida, câmera do replay e gatilhos automáticos são código local.
+O moicano de crista foi REMOVIDO do catálogo (pedido do usuário); o moicano da
+referência continua sendo geometria procedural própria, sem extrair malha ou
+textura do jogo mostrado. Nenhum asset externo novo, nenhuma captura de vídeo ou
+mocap. GLB Micah CC0, rig de 22 ossos, artes enviadas e menus permanecem
+inalterados; sem nova aprovação artística.

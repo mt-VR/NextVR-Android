@@ -12,7 +12,10 @@ export function runningLegPose(phase, stride = 1, running = 1) {
   // Corrida tem apoio < metade do ciclo: duas fases aéreas por passada.
   // Recuperação alta do joelho, com alcance traseiro curto (21 cm).
   const smooth = t * t * (3 - 2 * t);
-  const front=.25+.13*running,back=.12+.09*running;
+  // Passada de corrida mais longa (a caminhada quase não muda): o pé percorre
+  // no apoio o que o corpo anda naquele intervalo, então a perna precisa de
+  // alcance suficiente para cadência e velocidade combinarem sem deslizar.
+  const front=.25+.30*running,back=.12+.16*running;
   const z = (stance ? front-(front+back)*t : -back+(front+back)*smooth)*stride;
   const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.275*running);
   // O pé de apoio quase estende a perna; retirar o encurtamento constante
@@ -50,15 +53,46 @@ export function runningFlight(phase,running=1){
   return p>=support&&other>=support;
 }
 
+/** Passada máxima que o rig desenha (mesmo limite de `runningLegPose`). */
+const REACH=1.05;
+
 /** Distância de um ciclo compatível com a velocidade local do pé no apoio.
- * Número/altura modulam apenas discretamente o estilo, nunca identidade/rosto. */
+ * Número/altura modulam apenas discretamente o estilo, nunca identidade/rosto.
+ *
+ * O pé de apoio NÃO pode deslizar: durante o apoio o corpo anda
+ * `distance * support` e o pé recua exatamente isso. A versão 0.5.41 usava um
+ * ciclo fixo (5,6 m na corrida) com uma passada de ~0,6 m, então o atleta
+ * "patinava" para frente — mais visível ao correr de lado, porque o corpo já
+ * gira para o lado da corrida. Agora a distância do ciclo é derivada do
+ * contato desenhado, limitada pelo alcance das pernas (passo compacto em vez
+ * de pernas abertas demais).
+ */
 export function runningCycle(running=1,height=1,number=10){
   const r=clamp(running,0,1),style=1+((Math.abs(Number(number)||10)%7)-3)*.012;
-  const stride=(.65+.35*r)*style;
-  // O cálculo antigo dava ciclos de apenas ~0,4 m ao andar (até 6 ciclos/s),
-  // fazendo as pernas tremerem/parecerem rígidas. Cadência humana por distância.
-  const distance=(1.15+2.05*r)*style*Math.max(.5,height);
-  return {stride,distance,style};
+  const stride=Math.min(REACH, (.65+.35*r)*style*Math.max(.5,height));
+  const support=runningSupport(r);
+  const contact=contactTravel(r,stride);
+  // A cadência antiga (5,6 m por ciclo na corrida) fazia o corpo andar quase
+  // três vezes o que o pé percorria no apoio: daí o "patinar", bem visível ao
+  // correr de lado. A cadência nova fica 80% presa ao contato desenhado e 20%
+  // na antiga — o pé quase não escorrega e a passada continua humana (não vira
+  // corridinha de passinhos curtos).
+  const contactDistance=contact/support;
+  const legacyDistance=(1.15+2.05*r)*style*Math.max(.5,height);
+  const distance=contactDistance*.8+legacyDistance*.2;
+  return {stride,distance,style,support,contact,contactDistance};
+}
+
+/** Fração do ciclo com o pé no chão (a corrida tem fase aérea maior). */
+export function runningSupport(running=1){
+  return .62-.30*clamp(running,0,1);
+}
+
+/** Quanto o pé de apoio recua, em metros, durante o apoio. */
+export function contactTravel(running=1,stride=1){
+  const r=clamp(running,0,1),s=clamp(stride,0,1.05*Math.max(1,stride));
+  const front=.25+.13*r,back=.12+.09*r;
+  return (front+back)*s;
 }
 
 /** O joystick horizontal é relativo à câmera atrás do batedor. */

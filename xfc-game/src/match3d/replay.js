@@ -103,19 +103,22 @@ export function createVisualReplay(engine, players, ball) {
       const wanted = Number.isFinite(seconds) && seconds > 0
         ? Math.max(2, Math.ceil(seconds / interval)) : total;
       const count = Math.min(total, wanted), first = total - count;
-      const duration = count * interval;
+      // O clipe nunca fica mais curto que ~1,2 s, mesmo com buffer curto.
+      const duration = Math.max(1.2, count * interval);
       function step(now) {
         const time = Math.max(0, (now - begin) / 1000) * .65;
         if (time >= duration) { stop(); return; }
         const f = time / interval, index = Math.min(count - 1, Math.floor(f));
         apply(frames[first + index], frames[first + index + 1], f - index);
         const p = ball.mesh.position;
+        // Câmera de "melhor ângulo": mais baixa e mais perto da bola, com um
+        // leve recuo lateral para o lance não ficar de frente para a arquibancada.
         engine.camera.position.set(
-          Math.max(-54, Math.min(54, p.x - 9)), 5.5,
-          Math.max(-40, Math.min(40, p.z + 10))
+          Math.max(-54, Math.min(54, p.x - 6.2)), 3.4,
+          Math.max(-40, Math.min(40, p.z + 6.4))
         );
-        engine.camera.lookAt(p.x, Math.max(.6, p.y), p.z);
-        engine.camera.fov = 48;
+        engine.camera.lookAt(p.x, Math.max(.55, p.y - .2), p.z);
+        engine.camera.fov = 52;
         engine.camera.updateProjectionMatrix();
         if(engine.renderer.shadowMap)engine.renderer.shadowMap.needsUpdate=true;
         engine.renderer.render(engine.scene, engine.camera);

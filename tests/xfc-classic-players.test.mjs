@@ -53,7 +53,7 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
  const baseline={
   "src/match3d/hud.js": "7d44e045209b64b67c2afb846ce69cb18242f6d64f73aa2ee2ab24da09a668e3",
   "src/match3d/controls.js": "9a014bf4045165c7a6ed023021a49a1ebf8242b9b99ef580947dc8f4d41b7eec",
-  "src/match3d/match.js": "7493ff58e58c34b4a508fc84aa383b26a7aeede46c66a0f6bcfdad7d052fabe7",
+  "src/match3d/match.js": "77f26c1076f5608b5792ed5a113778814338e26bfd6f4cf0aa2fd238fa675fb5",
   "src/screens/career-reference.js": "c1dac4158ad6d164f875f03459b42d2617d4e2bacd6906556a23666ab9d7b2cd",
   "styles/career-reference.css": "85eebda817ec4e48c3badd1e9dc6be6310495f16f0462ffe6f878a201429888d",
   "styles/match3d.css": "b60b94e0bec11bb2da8430a707de7606cdda7dc5dfb5d3eb238f5d0a8b8ee3eb"

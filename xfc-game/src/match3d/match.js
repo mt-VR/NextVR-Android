@@ -2997,7 +2997,10 @@ export function createMatch(options = {}) {
       engine.camera.lookAt(...manualCamera.target);
     } else updateCamera(dt);
     markerChevron.quaternion.copy(engine.camera.quaternion);
-    if(phase.name==='play')replay.capture(dt);
+    // O replay também grava as PARADAS (falta, escanteio, pênalti, lateral,
+    // saída de bola): antes só o jogo corrido entrava no buffer e o clipe
+    // automático pegava justamente o instante em que a bola saía.
+    if(phase.name!=='entrance'&&phase.name!=='halftime'&&phase.name!=='fulltime')replay.capture(dt);
   }
 
   /** Câmera cinematográfica: uma volta sobre o estádio. */

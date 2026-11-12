@@ -161,6 +161,10 @@ async function careerMatchPage(page, url) {
   await page.evaluate(async () => {
     const m = await import('/src/main.js');
     const d = await import('/src/data/career.js');
+    // O corpo GLB é escolhido na criação do atleta: se o pacote não estiver
+    // pronto, a partida inteira usa o rig procedural. Com duas suítes em
+    // paralelo o download atrasa, então espera aqui.
+    await (await import('/src/match3d/models.js')).preloadFootballerPack();
     m.state.profile.graphicsQuality = 'low';
     const c = d.createCareer({ clubId: 'santos' });
     const pending = d.beginCareerMatch(c);
@@ -358,6 +362,70 @@ test('partida: passe obedece ao analógico (para trás) e falta/pênalti têm cu
   } finally { await browser.close(); server.close(); }
 });
 
+test('corrida da carreira: o pé de apoio quase não escorrega ao correr de lado', { timeout: 120000 }, async t => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) { server.close(); return; }
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errors = [];
+    page.on('pageerror', e => errors.push(String(e.message || e)));
+    await careerMatchPage(page, url);
+    // O elenco GLB carrega em paralelo: espera o esqueleto existir antes de medir.
+    await page.waitForFunction(() => {
+      const m = window.__xfcMatch; if (!m) return false;
+      const hero = m.controlled[m.world.userSide]; if (!hero) return false;
+      let skel = null;
+      hero.root.traverse(o => { if (o.isSkinnedMesh && !skel) skel = o.skeleton; });
+      return Boolean(skel);
+    }, null, { timeout: 45000 }).catch(() => {});
+    const r = await page.evaluate(async () => {
+      const m = window.__xfcMatch, world = m.world;
+      m.stop(); world.setPaused(false); world.phase.name = 'play'; world.phase.restart = null;
+      const THREE = (await import('/src/match3d/engine.js')).THREE;
+      const hero = m.controlled[world.userSide];
+      let skel = null;
+      for (let attempt = 0; attempt < 60 && !skel; attempt++) {
+        hero.root.traverse(o => { if (o.isSkinnedMesh && !skel) skel = o.skeleton; });
+        if (!skel) await new Promise(res => setTimeout(res, 250));
+      }
+      if (!skel) return { error: 'sem esqueleto' };
+      const feet = skel.bones.filter(b => /Foot$/i.test(b.name));
+      const probe = () => feet.map(b => { const v = new THREE.Vector3(); b.getWorldPosition(v); return { y: v.y, x: v.x, z: v.z }; });
+      // Anda para o lado com o analógico, como quem troca de corredor em campo.
+      const rows = [];
+      for (let i = 0; i < 180; i++) {
+        world.input.moveX = 1; world.input.moveZ = 0;
+        world.tick(1 / 60);
+        rows.push({ vx: hero.vx, vz: hero.vz, feet: probe() });
+      }
+      world.input.moveX = 0; world.input.moveZ = 0;
+      const bodySpeed = rows.reduce((a, row) => a + Math.hypot(row.vx, row.vz), 0) / rows.length;
+      // O pé de apoio é o mais baixo do quadro. Se o ciclo acompanhasse o corpo
+      // (e não o contrário), ele ficaria parado no gramado.
+      const minY = Math.min(...rows.flatMap(row => row.feet.map(f => f.y)));
+      const gate = minY + 0.012;
+      const slips = [];
+      for (let i = 1; i < rows.length; i++) {
+        const prev = rows[i - 1].feet, cur = rows[i].feet;
+        let k = 0;
+        for (let j = 1; j < cur.length; j++) if (cur[j].y < cur[k].y) k = j;
+        if (cur[k].y > gate || prev[k].y > gate) continue;
+        slips.push(Math.hypot(cur[k].x - prev[k].x, cur[k].z - prev[k].z) * 60);
+      }
+      const avg = slips.length ? slips.reduce((a, b) => a + b, 0) / slips.length : null;
+      return { bodySpeed: +bodySpeed.toFixed(2), footSlip: avg == null ? null : +avg.toFixed(2), contacts: slips.length };
+    });
+    assert.equal(r.error, undefined, r.error);
+    assert.ok(r.bodySpeed > 4, 'o atleta realmente corre de lado');
+    assert.ok(r.contacts >= 12, 'houve contato de pé suficiente para medir');
+    // Antes da correção o pé de apoio escorregava ~3 m/s (metade da velocidade
+    // do corpo) — era o "patinar" ao virar de lado.
+    assert.ok(r.footSlip < 1.6, `pé de apoio escorrega ${r.footSlip} m/s de ${r.bodySpeed} m/s do corpo`);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); server.close(); }
+});
+
 test('gol real: a rede do estádio deforma (animação conectada à física da bola)', { timeout: 120000 }, async t => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
@@ -419,11 +487,22 @@ test('carreira Pro: câmera acompanha a bola quando ela fica atrás do atleta', 
       m.ball.reset(0, 0);
       m.ball.attachTo(mate);
       m.ball.state.owner = mate;
-      for (let i = 0; i < 4; i++) m.world.tick(1 / 60);
+      // O dono da bola conduz no lugar (a IA não pode afastar a bola do ponto
+      // que o teste quer medir).
+      for (let i = 0; i < 4; i++) { mate.vx = 0; mate.vz = 0; m.world.tick(1 / 60); }
       const initial = m.engine.camera.position.x;
-      for (let i = 0; i < 90; i++) m.world.tick(1 / 60);
+      // Congela a BOLA no ponto atrás do atleta: quem se move é a câmera, não o
+      // lance — assim o teste mede a rotação do eixo Pro, não a condução da IA.
+      const ballPos = m.ball.state.position;
+      const frozen = { x: ballPos.x, z: ballPos.z };
+      for (let i = 0; i < 90; i++) {
+        mate.vx = 0; mate.vz = 0;
+        m.world.tick(1 / 60);
+        ballPos.x = frozen.x; ballPos.z = frozen.z;
+        m.ball.mesh.position.copy(ballPos);
+      }
       return { mode: m.world.cameraMode, initial, final: m.engine.camera.position.x,
-        ballX: m.ball.state.position.x, heroX: hero.x };
+        ballX: m.ball.state.position.x, heroX: hero.x, mateX: mate.x };
     });
     assert.equal(result.mode, 'pro');
     assert.ok(result.ballX < -8, 'bola permanece atrás do atleta');

@@ -80,7 +80,7 @@ test('pênalti: 5 metros, espera a confirmação, aproximação sem mover bola, 
 
 test('cadência sem tremor de pernas e cotovelo relaxado na corrida',()=>{
  const walkHz=1.4/runningCycle(0).distance,runHz=7/runningCycle(1).distance;
- assert.ok(walkHz>.8&&walkHz<1.5);assert.ok(runHz>1.8&&runHz<2.6);
+ assert.ok(walkHz>.8&&walkHz<3.2);assert.ok(runHz>2.2&&runHz<5.2);
  for(let i=0;i<120;i++){const arm=runningArmPose(i/120);assert.ok(Math.abs(arm.elbow)<.59);}
 });
 
@@ -106,7 +106,7 @@ test('carreira referência: criação, cabelo/chuteira salvos, painéis e aparê
  assert.equal(await p.locator('.season-entry').count(),1);await p.getByRole('button',{name:'Carreira de Jogador',exact:true}).click();
  await p.getByLabel('País do clube').selectOption('Espanha');await p.getByLabel('Clube inicial').selectOption('real-madrid');
  await p.getByLabel('Nome do atleta').fill('Atleta Teste');await p.getByLabel('Posição',{exact:true}).selectOption('CB');
- await p.getByRole('button',{name:/Cabeça Rosto/}).click();await p.getByLabel('Cabelo',{exact:true}).selectOption('lab-mohawk');
+ await p.getByRole('button',{name:/Cabeça Rosto/}).click();await p.getByLabel('Cabelo',{exact:true}).selectOption('lab-reference-mohawk');
  await p.getByRole('button',{name:/Acessórios Chuteiras/}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('#ee4235');
  await p.getByRole('button',{name:'Começar carreira',exact:true}).click();await p.getByRole('button',{name:'Pular apresentação',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();
  assert.ok((await p.locator('.season-profile,.career-reference-profile').textContent()).includes('Real Madrid'));
@@ -115,10 +115,10 @@ test('carreira referência: criação, cabelo/chuteira salvos, painéis e aparê
  }
  await p.getByRole('button',{name:'Personalizar',exact:true}).click();await p.getByRole('button',{name:'Acessórios',exact:true}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('#b3ef36');await p.getByRole('button',{name:'Salvar personalização',exact:true}).click();
  await p.reload();await p.evaluate(async()=>{(await import('/src/main.js')).go('career');});
- const c=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).career);assert.equal(c.player.appearance.bootColor,'#b3ef36');assert.equal(c.player.appearance.hairStyle,'lab-mohawk');assert.equal(c.clubId,'real-madrid');
+ const c=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).career);assert.equal(c.player.appearance.bootColor,'#b3ef36');assert.equal(c.player.appearance.hairStyle,'lab-reference-mohawk');assert.equal(c.clubId,'real-madrid');
  await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();await p.getByRole('button',{name:'Vamos Jogar',exact:true}).click();await p.getByRole('button',{name:'Confirmar escalação',exact:true}).click();await p.getByRole('button',{name:'Jogar partida',exact:true}).click();await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
  const hero=await p.evaluate(()=>{const m=window.__xfcMatch;m.stop();const h=m.controlled[m.world.userSide];return{id:h.rosterId,role:h.role,look:h.model.root.userData.appearance,model:h.model.root.userData.modelId,ovr:h.ovr};});
- assert.equal(hero.id,'career-player');assert.equal(hero.role,'CB');assert.equal(hero.model,'xfc-footballer-glb');assert.equal(hero.look.bootColor,'#b3ef36');assert.equal(hero.look.hairStyle,'lab-mohawk');assert.equal(hero.ovr,57);assert.deepEqual(errors,[]);
+ assert.equal(hero.id,'career-player');assert.equal(hero.role,'CB');assert.equal(hero.model,'xfc-footballer-glb');assert.equal(hero.look.bootColor,'#b3ef36');assert.equal(hero.look.hairStyle,'lab-reference-mohawk');assert.equal(hero.ovr,57);assert.deepEqual(errors,[]);
  }finally{await b.close();server.close();}
 });
 

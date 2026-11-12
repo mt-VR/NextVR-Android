@@ -814,3 +814,41 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
 - 165/165 testes (22 suítes, 17 novos), zero skips. Sem FPS em telefone, sem
   aprovação artística nova, sem medição de partida completa com 22 jogadores.
   Detalhes em `xfc-game/docs/v0.5.41.md`.
+
+### v0.5.42 — corrida, replay e cabelo pedidos pelo usuário
+
+- Escopo: (1) tirar o "deslizar" ao correr de lado na carreira, (2) remover o
+  moicano de crista, (3) nova cor de cabelo cinza, (4) replay não pode passar
+  só chute/gol nem só quando a bola sai. Preservar HUD, controles, menus e arte.
+- Corrida: `runningCycle()` agora deriva a distância do ciclo do CONTATO do pé
+  (`contact/support`), com 20% da cadência antiga. A passada de corrida cresceu
+  em `runningLegPose` (`front .25+.30r`, `back .12+.16r`). Não reintroduzir
+  cadência fixa: era ela que fazia o pé patinar. Escorregamento medido no
+  navegador (corpo a 6,47 m/s): 2,38→1,03 (frente), 2,96→1,13 (lado),
+  3,03→1,13 (trás) m/s; antes era 37–47% da velocidade do corpo, agora 16–17%.
+- Cabelo: `lab-mohawk` (crista) REMOVIDO do catálogo e do `BUILDERS` de
+  `hair-lab.js`; 17 cortes + sem cabelo. `CAREER_HAIR_ALIAS['lab-mohawk']` e
+  `careerAppearance()` mapeiam saves antigos para `lab-reference-mohawk`.
+  A réplica da referência (`lab-reference-mohawk`) NÃO pode ser removida.
+  Cores: 14, com `#92969b` Cinza e `#5f6469` Cinza escuro.
+- Replay: `replay-triggers.js` cobre finalização, gol (afterGoal), defesa,
+  falta, desarme, drible, escanteio, impedimento e passe em profundidade, com
+  `importance`. Cooldowns 4,2 s/6,5 s e clipe 4,5 s em `play.js`. O buffer grava
+  as paradas (`match.js`) — sem isso o clipe pega só a bola saindo.
+- Replay nunca abre por cima de painel: `scheduleReplay` e `startAutoReplay` em
+  `play.js` checam a fase (`halftime`/`fulltime`) e o `stage`.
+- Com o replay mais frequente, testes que dirigem a partida por `world.tick`
+  precisam fechar o clipe: motor pausado ignora comandos. Em
+  `xfc-game.test.mjs` há `closeAutoReplay(page)` e o laço do intervalo fecha o
+  clipe dentro do próprio laço síncrono. Não remover — sem isso o teste de
+  "partidas rápidas" falha de forma intermitente.
+- Replay tem WATCHDOG (`replayWatchdog`): se o quadro parar no meio do clipe
+  (aba em segundo plano, WebView lenta), ele fecha sozinho em
+  `REPLAY_CLIP_SECONDS / .65 * 1000 + 2500` ms. Não remover: sem isso a partida
+  fica congelada para sempre (foi o que quebrou `partidas rápidas` na
+  regressão).
+- Testes que fixavam o ciclo antigo (`xfc-career-penalty`, `xfc-football-actions`,
+  `xfc-customization-lab`) foram atualizados com o critério físico, não com
+  números arbitrários. Suíte de navegador nova mede o escorregamento.
+- 10/10 navegador, 8/8 puros, 9/9 carreira-pênalti, 3/3 laboratório, 5/5 ações.
+  Sem FPS em telefone. Detalhes em `xfc-game/docs/v0.5.42.md`.
