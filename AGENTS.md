@@ -873,5 +873,10 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   do XFC — o log de build é apagado junto com o outro run e o `gh api` do passo
   falhava. O passo não tinha `continue-on-error`, então `steps.build.completion`
   não chegava e o `if` de validação derrubava o job.
-- Correção: `continue-on-error: true` no passo de diagnóstico (a validação de
+- Correção 1: `continue-on-error: true` no passo de diagnóstico (a validação de
   verdade continua sendo build/verify/sign). Não remover.
+- Correção 2: o gate `Fail if any validation failed` só olha
+  `ui/build/verify/sign.outcome`. Ele antes também exigia
+  `steps.build.completion == 'success'`, campo que o Actions preenche de forma
+  intermitente — build, ABIs e assinatura verdes e job vermelho. O passo agora
+  imprime os quatro outcomes, para o log dizer qual falhou.

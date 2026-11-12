@@ -260,9 +260,15 @@ jobs:
 
       # Diagnostics are best-effort, but validation is not: the build/test steps use
       # continue-on-error so their logs can be published before the job fails.
+      # Só o que valida o app decide o job. Antes o gate também exigia
+      # `steps.build.completion == 'success'`, um campo que os workflows do
+      # GitHub preenchem de forma intermitente: o build, as ABIs e a assinatura
+      # saíam verdes e o job ainda assim ficava vermelho.
       - name: Fail if any validation failed
         if: steps.ui.outcome != 'success' || steps.build.outcome != 'success' || steps.verify.outcome != 'success' || steps.sign.outcome != 'success'
-        run: exit 1
+        run: |
+          echo "ui=${{ steps.ui.outcome }} build=${{ steps.build.outcome }} verify=${{ steps.verify.outcome }} sign=${{ steps.sign.outcome }}"
+          exit 1
 
       - name: Publish debug APK to apk-dist branch
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository

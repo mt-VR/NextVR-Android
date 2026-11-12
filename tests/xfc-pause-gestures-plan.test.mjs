@@ -26,7 +26,11 @@ test('toque: carga imóvel completa gera superchute; sprint distingue gestos e c
      const host=document.createElement('div');host.style.cssText='position:fixed;inset:0;z-index:100';document.body.appendChild(host);
      window.ctrl=createControls({root:host,onCommand:(name,opts)=>calls.push({name,opts}),onSprint:x=>sprints.push(x),onMove(){}});
    });
-   const shot=p.locator('.ctrl-btn--shoot');const r=await shot.boundingBox();await p.mouse.move(r.x+r.width/2,r.y+r.height/2);await p.mouse.down();await p.waitForTimeout(1150);
+   const shot=p.locator('.ctrl-btn--shoot');const r=await shot.boundingBox();await p.mouse.move(r.x+r.width/2,r.y+r.height/2);await p.mouse.down();
+   // A carga cheia é desenhada por um timer de 40 ms; sob carga no CI o timer
+   // pode atrasar. Espera o estado chegar em vez de cravar o relógio.
+   await p.waitForTimeout(1150);
+   await p.waitForFunction(()=>document.querySelector('.ctrl-btn--shoot')?.dataset.shotType==='power',null,{timeout:8000}).catch(()=>{});
    assert.equal(await shot.getAttribute('data-shot-type'),'power');await p.mouse.up();
    assert.equal(await p.evaluate(()=>calls[0].opts.kind),'power');assert.equal(await p.evaluate(()=>calls[0].opts.strength),1);
    await shot.click();assert.equal(await p.evaluate(()=>calls[1].opts.kind),'normal');
