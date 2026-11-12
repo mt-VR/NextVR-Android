@@ -1,3 +1,4 @@
+import {careerReference} from './career-reference.js';
 // Telas distintas; apenas dados/roteamento compartilhados. Nenhum placar da arte é usado.
 import {el} from '../ui/dom.js';
 import {button,select,label,crest,panel,tile,shell,fixtureNode,dateLabel} from '../ui/career-ui.js';
@@ -12,14 +13,14 @@ export function careerScreen(ctx,params={}){
  const profile=ctx.state.profile,kind=careerKind(params.kind||profile.careerKind),c=getCareer(profile,kind);
  const view=params.view||'entry';
  const persist=()=>{if(!saveProfile(ctx.state)){ctx.toast('Não foi possível salvar neste dispositivo.',{variant:'warn'});return false;}return true;};
- const go=(target,extra={})=>ctx.go('career',{kind,view:target,back:target==='hub'?'entry':view,...extra});
- const back=()=>view==='entry'?ctx.go('menu'):go(params.back||(['create','load','objectives','settings'].includes(view)&&params.fromEntry?'entry':'hub'));
- if(view==='create'||view==='custom')return careerEditor(ctx,{...params,kind,career:c,go,persist,back:view==='create'?()=>go(params.back||'entry'):back});
+ const go=(target,extra={})=>ctx.go('career',{kind,view:target,back:target==='hub'?'journey':target==='journey'?'entry':view,...extra});
+ const back=()=>view==='entry'?ctx.go('menu'):view==='custom-edit'?go('custom',{back:params.customReturnTo||'hub'}):go(params.back||({journey:'entry',hub:'journey','custom-edit':'custom'}[view])||(['create','load','objectives','settings'].includes(view)&&params.fromEntry?'entry':'hub'));
+ if(view==='entry'||c&&(view==='journey'||kind==='player'&&['hub','custom'].includes(view)))return careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo:params.back||'hub'});
+ if(view==='create'||view==='custom-edit')return careerEditor(ctx,{...params,kind,career:c,go,persist,back:view==='create'?()=>go(params.back||'entry'):back});
  if(view==='plan'&&c)return careerPreparation(ctx,{career:c,kind,go,persist,back});
  const titles={entry:'Modo Carreira',hub:'Central da Carreira',agenda:'Agenda de Jogos',table:'Classificação',club:'Meu Clube',transfers:'Transferências',office:'Escritório',objectives:'Objetivos',settings:'Configurações',load:'Carregar Carreira',stats:'Estatísticas'};
  const {node,content}=shell(ctx,{title:titles[view]||titles.entry,subtitle:view==='entry'?'Construa sua história como jogador ou treinador.':c?`${kind==='manager'?'Carreira de Técnico':'Carreira de Jogador'} · Temporada ${c.season} · Liga local de 8 clubes`:'Progresso salvo neste dispositivo',career:c,view,back,go});
  const next=c&&careerFixture(c),schedule=c?careerSchedule(c):[],fixture=schedule.find(g=>g.id===next?.id);
- const openKind=k=>{profile.careerKind=k;persist();ctx.go('career',{kind:k,view:getCareer(profile,k)?'hub':'create'});};
  const play=()=>go(next?'plan':'office');
  function standings(limit=8){return el('table',{class:'season-table'},el('thead',{},el('tr',{},...['Clube','J','PTS','SG'].map(text=>el('th',{text})))),el('tbody',{},...careerTable(c).slice(0,limit).map((r,i)=>el('tr',{class:r.id===c.clubId?'is-club':''},el('td',{},el('span',{text:`${i+1}. `}),crest(r.id),el('span',{text:getTeam(r.id).name})),el('td',{text:r.played}),el('td',{text:r.points}),el('td',{text:r.gf-r.ga})))));}
  function nextPanel(){return panel('PRÓXIMO JOGO',fixture?fixtureNode(fixture):el('p',{text:'Temporada encerrada'}),fixture&&el('p',{text:`${dateLabel(fixture.date)} · 18:00 UTC · RODADA ${fixture.round+1}`}),fixture&&el('small',{text:`Liga da carreira · ${STADIUMS[fixture.stadiumIndex].name}`}),button(fixture?(c.pending?'Retomar preparação':'Vamos Jogar'):'Próxima temporada',play,{class:'season-primary'}));}
@@ -29,16 +30,10 @@ export function careerScreen(ctx,params={}){
   const goals=kind==='manager'?[['Disputar a temporada',c.round,14],['Pontos na liga',careerTable(c).find(r=>r.id===c.clubId).points,30]]:[['Jogar partidas',c.totals.matches,5],['Marcar gols',c.totals.goals,3],['Completar passes',c.totals.passes,30],['Chegar ao nível 5',c.player.level,5]];
   content.append(panel('Objetivos da carreira',el('p',{text:`Posição atual: ${rank}º. Marcos de acompanhamento; XP vem das partidas, sem prêmio extra duplicado.`}),...goals.map(([text,n,target])=>el('div',{class:'season-objective'},el('p',{text:`${text} · ${Math.min(n,target)} / ${target}`}),el('progress',{max:target,value:Math.min(n,target)})))));
  }
- if(view==='entry'){
-  const choices=el('div',{class:'season-choices'});
-  for(const [k,title,text]of [['player','Carreira de Jogador','Viva a jornada de um jogador dentro e fora de campo.'],['manager','Carreira de Técnico','Comande o elenco, negocie e prepare seu clube.']])choices.append(el('button',{class:`season-choice season-choice-${k}`,type:'button',onClick:()=>openKind(k)},el('img',{src:`assets/ui/season/${k}-tile.png`,alt:'',draggable:'false'}),el('h2',{text:title}),el('p',{text}),el('b',{text:getCareer(profile,k)?'Continuar ›':'Criar carreira ›'})));
-  content.append(choices,c?panel('Seu Clube',crest(c.clubId),el('h2',{text:getTeam(c.clubId).name}),el('p',{text:kind==='manager'?c.managerName:c.player.name}),nextPanel()):panel('Seu Clube',el('p',{text:'Escolha seu clube ao criar uma carreira. Jogador e técnico têm saves independentes.'})));
-  const actions=el('div',{class:'season-actions'},tile('Continuar Carreira',c?getTeam(c.clubId).name:'Escolha um modo acima','play',()=>go('hub'),{disabled:!c}),tile('Iniciar Nova Carreira','Escolher clube e perfil','player',()=>go('create')),tile('Carregar Carreira','Até cinco cópias locais','save',()=>go('load',{fromEntry:true})),tile('Objetivos','Sua jornada','target',()=>go('objectives',{fromEntry:true})),tile('Configurações','Opções e salvamento','settings',()=>go('settings',{fromEntry:true})));
-  content.append(actions);
- }else if(view==='load'){
+ if(view==='load'){
   content.append(panel('Cópias salvas',el('p',{text:'Carregar restaura a cópia selecionada. Uma cópia automática do progresso atual é preservada.'}),...(profile.careerSlots||[]).map((s,i)=>tile(`${s.kind==='manager'?'Técnico':'Jogador'} · ${getTeam(s.career.clubId)?.name}`,`Temporada ${s.career.season} · rodada ${s.career.round+1} · ${new Date(s.savedAt).toLocaleString('pt-BR')}`,'save',()=>{
    // Guarda a referência antes de criar a cópia de segurança (muda os índices).
-   const slot=JSON.parse(JSON.stringify(s));saveCareerSlot(profile,s.kind);profile.careerSlots.unshift(slot);if(loadCareerSlot(profile,0)){profile.careerSlots.shift();persist();ctx.go('career',{kind:s.kind,view:'hub'});}
+   const slot=JSON.parse(JSON.stringify(s));saveCareerSlot(profile,s.kind);profile.careerSlots.unshift(slot);if(loadCareerSlot(profile,0)){profile.careerSlots.shift();persist();ctx.go('career',{kind:s.kind,view:'journey'});}
   })),!(profile.careerSlots||[]).length&&el('p',{text:'Nenhuma cópia manual ainda. A carreira atual é salva automaticamente.'}),button('Voltar',back)));
  }else if(view==='settings'){
   content.append(panel('Opções',el('p',{text:'Salvamento automático neste dispositivo. Cada modo de carreira mantém seu próprio progresso.'}),c&&button('Salvar cópia da carreira',()=>{saveCareerSlot(profile,kind);if(persist())ctx.toast('Cópia salva. Acesse Carregar Carreira na entrada.');}),button('Configurações do jogo',()=>ctx.go('customise',{returnTo:'career',returnParams:{kind,view:'settings',fromEntry:params.fromEntry}})),button('Nova carreira',()=>go('create')),button('Carregar cópia',()=>go('load',{back:'settings'}))));

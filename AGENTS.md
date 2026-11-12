@@ -616,3 +616,20 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   no CREDITS. DOM traz dados do save. Nunca `100% 100%` nestas imagens.
 - CSS novo dos controles escopado a `.screen--play`; não alterar HUD/cronômetro.
   `tests/xfc-season.test.mjs` integra o CI junto das regressões existentes.
+
+### v0.5.34 — correção expressa dos menus, não refazer sistemas
+
+- O usuário REJEITOU a reinterpretação visual da v0.5.33. Usar as próprias
+  quatro artes inteiras via `screens/career-reference.js`, com hotspots DOM.
+  Não restaurar os cartões redesenhados nem substituir Mbappé por Neymar.
+- Ordem obrigatória: `entry` (entrada/carregar) → `journey` ("Continue sua
+  jornada", arquivo histórico `agenda.png`, Neymar) → `hub` (central do
+  JOGADOR, `hub.png`, Mbappé). Criar/carregar também chegam primeiro em journey.
+- `custom` é a quarta arte com as seis categorias. `custom-edit` reutiliza o
+  editor funcional existente; Salvar/Cancelar voltam para custom. Preservar
+  `customReturnTo` para voltar corretamente à central ou à jornada depois.
+- `career-reference.css` tem palco proporcional 1672×941 centralizado, sem
+  `object-fit:fill` nem escala não uniforme. Fundo externo só preenche ultrawide.
+  Dados variáveis sobrepostos não podem repetir estatísticas falsas da arte.
+- Escopo desta correção: UI/navegação. Nenhuma alteração em motor, modelos,
+  animações, HUD, joystick, câmera, formato de save ou regras da carreira.

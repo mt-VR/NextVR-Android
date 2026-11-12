@@ -20,8 +20,13 @@ da imagem de entrada, e `neymar.png` da referência anterior em
 As coordenadas de revisão 1568×882 são convertidas para os arquivos originais
 1672×941. Não há upscale. CSS usa `object-fit: cover/contain`, sem esticar.
 
-As seis imagens completas são referências preservadas; a interface é DOM,
-não hotspots sobre saldos, resultados ou notícias impressos. Fundos de estádio
-são os assets já existentes do jogo. Ícones de navegação são SVG locais.
+Correção v0.5.34: `entry.png`, `agenda.png`, `hub.png` e `customise.png` são
+usadas INTEIRAS como a apresentação dos respectivos menus, com hotspots DOM.
+`agenda.png` é o nome histórico do arquivo de **Continue sua jornada**, não a
+agenda detalhada. `hub.png` é a **central do jogador com Mbappé**, não Neymar.
+Somente os campos de clube/XP/resultado/calendário/notícia/tabela recebem dados
+do save por cima; os números impressos não são usados como estado real.
+A arte de personalização é a entrada para as categorias do editor 3D existente.
+Os antigos recortes continuam preservados, mas não substituem essas quatro artes.
 Não foi obtido um modelo novo: a prévia e a partida continuam usando o Micah
 CC0, com variações de material, escala limitada e cabelo sobre a malha existente.

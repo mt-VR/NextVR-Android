@@ -1,11 +1,11 @@
 # XFC — o jogo de futebol da XF Esports
 
-**v0.5.33:** entrada, central, agenda, personalização e preparação separadas;
-carreiras de jogador e técnico com saves independentes. Plano com escalação,
-reservas, posições livres, funções e táticas aplicadas à partida. PEDIR PASSE
-avalia a jogada. Botões/joystick com novo visual, sem mudar placar/relógio.
-Modelo masculino Micah importado, câmera Pro, OVR 57 e pênalti a 5 m preservados.
-[Detalhes e validação](docs/v0.5.33.md).
+**v0.5.34:** correção dos menus conforme os arquivos enviados, sem redesenhar:
+entrada/carregar → **Continue sua jornada** (Neymar) → **central do jogador**
+(Mbappé). Personalização usa a quarta arte; categorias abrem o editor 3D já
+existente. Artes inteiras, proporcionais, com botões reais e dados do save.
+Gameplay, HUD, câmera, modelos e sistemas da v0.5.33 não foram refeitos.
+[Detalhes e validação](docs/v0.5.34.md).
 
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de
