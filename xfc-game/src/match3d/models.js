@@ -1,3 +1,5 @@
+import {labHairGeometry} from './hair-lab.js';
+import {addPlayerAccessories} from './player-accessories.js';
 import {classicIdentity,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
 // Adaptação low poly clássica do Micah CC0; roupa/rig/UVs preservados.
 // Cabelos sólidos e variantes faciais locais, sem assets extraídos de PES.
@@ -248,10 +250,11 @@ export function createGltfPlayer(options = {}) {
 
   const primary = new THREE.Color(isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary);
   const secondary = new THREE.Color(isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary);
-  root.userData.appearance = { skinTone, hairColor, hairStyle, bootColor, source: options.appearanceSource, ...Object.fromEntries(['height','weight','body','face','beard','moustache','brows','socks','gloves','wristband','celebration'].map(k=>[k,options[k]])) };
+  root.userData.appearance = { skinTone, hairColor, hairStyle, bootColor, source: options.appearanceSource, ...Object.fromEntries(['height','weight','body','face','beard','moustache','brows','socks','gloves','gloveModel','wristband','wristbandSide','celebration'].map(k=>[k,options[k]])) };
   const ownedTextures = [];
   const shadowMeshes = [];
   const materials = [];
+  let scalpBody;model.traverse(o=>{if(o.isMesh&&materialList(o).some(m=>m.name==='Micah | anatomical body.body'))scalpBody=o;});
   model.traverse(object => {
     if (!object.isMesh) return;
     object.castShadow = true;
@@ -259,10 +262,10 @@ export function createGltfPlayer(options = {}) {
     object.frustumCulled = false;
     shadowMeshes.push(object);
     if (materialList(object).some(m=>m.name==='Micah | anatomical body.body'))object.geometry=smoothSkinGeometry({geometry:classicFaceGeometry({geometry:smoothSkinGeometry(object)},identity)});
-    if (object.name === 'short01') {object.geometry=classicHairGeometry(object,hairStyle);object.userData.classicHair=hairStyle;}
+    if (object.name === 'short01') {object.geometry=labHairGeometry(object,hairStyle,scalpBody)||classicHairGeometry(object,hairStyle);object.userData.classicHair=hairStyle;object.visible=hairStyle!=='lab-none';}
     if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
-      const clone = object.name==='short01'?classicHairMaterial(hairStyle,hairColor,skinTone):material.clone();
+      const clone = object.name==='short01'?classicHairMaterial(hairStyle==='lab-shaved'?'bald':hairStyle.startsWith('lab-')?hairStyle.slice(4):hairStyle,hairColor,skinTone):material.clone();
       const name = String(material.name || '');
       // Recolour only the existing cloth materials. Never tint skin/face/hair.
       if (name === 'Micah | top') {
@@ -325,47 +328,7 @@ export function createGltfPlayer(options = {}) {
 
   if(bones.head&&options.face)bones.head.scale.x*=({slim:.95,broad:1.05,natural:1}[options.face]||1);
   const gloveGeometries=[];
-  if(isKeeper||options.gloves&&options.gloves!=='none'){
-    // Luva acompanha os dedos da MALHA importada: capa de látex no shader,
-    // com espessura pequena. Evita uma esfera solta deixando dedos de fora.
-    model.traverse(mesh=>{
-      if(!mesh.isSkinnedMesh||!materialList(mesh).some(m=>m.name==='Micah | anatomical body.body'))return;
-      const geometry=mesh.geometry.clone(),indices=geometry.attributes.skinIndex,weights=geometry.attributes.skinWeight;
-      const mask=new Float32Array(indices.count);
-      for(let i=0;i<indices.count;i++){
-        let influence=0;
-        for(let j=0;j<4;j++)if(/Hand$/.test(mesh.skeleton.bones[indices.getComponent(i,j)]?.name||''))influence+=weights.getComponent(i,j);
-        mask[i]=influence>.5?1:0;
-      }
-      geometry.setAttribute('gloveMask',new THREE.BufferAttribute(mask,1));mesh.geometry=geometry;gloveGeometries.push(geometry);
-      for(const material of materialList(mesh)){
-        if(material.name!=='Micah | anatomical body.body')continue;
-        const surfaceCompile=material.onBeforeCompile,surfaceKey=material.customProgramCacheKey();
-        material.onBeforeCompile=shader=>{
-          surfaceCompile(shader);
-          shader.vertexShader='attribute float gloveMask; varying float vGloveMask;\n'+shader.vertexShader;
-          shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvGloveMask=gloveMask; transformed+=normal*.006*gloveMask;');
-          shader.fragmentShader='varying float vGloveMask;\n'+shader.fragmentShader;
-          const color=options.gloves==='black'?'vec3(.025,.03,.035)':'vec3(.88,.93,.94)';
-          shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>\ndiffuseColor.rgb=mix(diffuseColor.rgb,${color},vGloveMask);`);
-        };
-        material.customProgramCacheKey=()=> 'xfc-keeper-latex-v2:'+surfaceKey+':'+(options.gloves||'keeper');
-      }
-    });
-    const cuffMaterial=new THREE.MeshLambertMaterial({color:0x16bdb6});
-    const cuffGeometry=new THREE.BoxGeometry(.085,.04,.07);
-    materials.push(cuffMaterial);gloveGeometries.push(cuffGeometry);
-    for(const side of ['Left','Right']){
-      const hand=findBone(model,side+'Hand');if(!hand)continue;
-      const cuff=new THREE.Mesh(cuffGeometry,cuffMaterial);cuff.name='xfc-keeper-glove-'+side;
-      cuff.position.set(0,.04,.018);hand.add(cuff);
-    }
-  }
-  if(options.wristband&&options.wristband!=='none'){
-    const geometry=new THREE.BoxGeometry(.075,.038,.065),material=new THREE.MeshLambertMaterial({color:options.wristband==='black'?'#17191b':'#eeeede'});
-    gloveGeometries.push(geometry);materials.push(material);
-    const band=new THREE.Mesh(geometry,material);band.name='xfc-career-wristband';band.position.set(0,.05,0);bones.leftHand?.add(band);
-  }
+  addPlayerAccessories(model,{...options,isKeeper},materials,gloveGeometries);
   const mixer = new THREE.AnimationMixer(model);
   mixer.timeScale = 1;
 

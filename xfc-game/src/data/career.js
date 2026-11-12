@@ -1,7 +1,8 @@
+import {LAB_HAIR,GLOVE_LABELS,ACCESSORY_LABELS} from './player-customization.js';
 // Carreira local de UM atleta. Nunca muta o catálogo global nem as moedas do UT.
 import {TEAMS,getTeam} from './teams.js';
 export const CAREER_POSITIONS={ST:'Atacante',LW:'Ponta',CM:'Meio-campista',CB:'Zagueiro'};
-export const CAREER_HAIR={short:'Curto',curly:'Cacheado',afro:'Afro',mohawk:'Moicano',neymar:'Neymar',side:'Lateral',fade:'Degradê',long:'Longo',braids:'Tranças',dreads:'Dreads',bald:'Raspado'};
+export const CAREER_HAIR={short:'Curto',curly:'Cacheado',afro:'Afro',mohawk:'Moicano',neymar:'Neymar',side:'Lateral',fade:'Degradê',long:'Longo',braids:'Tranças',dreads:'Dreads',bald:'Raspado',...LAB_HAIR};
 export const CAREER_HAIR_COLORS={'#24180f':'Preto','#66452d':'Castanho','#c3a16a':'Loiro','#a3442b':'Ruivo','#eeeeee':'Platinado'};
 export const CAREER_BOOTS={'#171b20':'Preta','#f3f3ed':'Branca','#ee4235':'Vermelha','#b3ef36':'Verde-lima'};
 export const CAREER_SKIN={'#e0b18d':'Tom 1','#bd8868':'Tom 2','#96613f':'Tom 3','#603d2c':'Tom 4'};
@@ -16,8 +17,8 @@ export function careerAppearance(value={}){return {
  beard:pick(CAREER_BEARD,value.beard,'none'),face:pick(CAREER_FACE,value.face,'natural'),body:pick(CAREER_BODY,value.body,'normal'),
  moustache:pick({none:1,classic:1},value.moustache,'none'),brows:pick({natural:1,thick:1},value.brows,'natural'),
  height:Math.round(cap(value.height??175,160,200)),weight:Math.round(cap(value.weight??68,55,100)),
- socks:pick({long:1,short:1},value.socks,'long'),gloves:pick({none:1,black:1,white:1},value.gloves,'none'),
- wristband:pick({none:1,white:1,black:1},value.wristband,'none'),celebration:pick({arms:1,fist:1,wide:1},value.celebration,'arms')
+ socks:pick({long:1,short:1},value.socks,'long'),gloves:pick(GLOVE_LABELS,value.gloves,'none'),gloveModel:pick({winter:1,pro:1},value.gloveModel,'winter'),
+ wristband:pick(ACCESSORY_LABELS,value.wristband,'none'),wristbandSide:pick({left:1,right:1,both:1},value.wristbandSide,'left'),celebration:pick({arms:1,fist:1,wide:1},value.celebration,'arms')
 };}
 export function careerOverall(c){return Math.round(Object.values(c.player.stats).reduce((a,b)=>a+b,0)/6);}
 export function customiseCareer(c,values={}){

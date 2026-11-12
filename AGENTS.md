@@ -695,3 +695,30 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   ou FPS medido. Trata-se de adaptação estilística do CC0 + geometria autoral.
 - `tests/xfc-classic-players.test.mjs`: hash/orçamento, cortes únicos, cache/rig,
   faces, materiais, animações no WebGL e escopo preservado. CI inclui esta suíte.
+
+### v0.5.38 — laboratório opt-in, não acabamento profissional concluído
+
+- Usuário exige 10+ cabelos de geometria própria ANTES de aplicar ao elenco.
+  Catálogo `player-customization.js` tem 15 IDs `lab-*` + remoção `lab-none`.
+  Não migrar estilos legados nem substituir automaticamente os atletas.
+- `hair-lab.js`: construções por mechas, tufos, tubos/cachos, cordões, tranças,
+  crista e topo plano; suporte recortado da cabeça real, sem alterar corpo/rosto.
+  Mesh única por corte, cache por corte/cabeça; <=4.500 triângulos no teste.
+  São PROTÓTIPOS; não alegar acabamento profissional, ausência universal de
+  interpenetração, aprovação visual do usuário ou FPS de telefone medido.
+- `player-accessories.js`: casca das mãos com pesos originais e margem normal,
+  recortada no pulso; modelo pro adiciona acolchoamento dorsal. Sem shader de
+  inflação da pele e sem caixas ciano de punho. Pulseiras ajustadas por amostras
+  do pulso, em Left/Right/both, cores independentes das luvas.
+- Rig continua com 22 juntas, SEM ossos individuais dos dedos. Geometria segue
+  os dedos existentes, mas articulação independente não foi implementada.
+- Editor mantém seções Cabeça e Acessórios, acrescenta catálogo/cores/lado e
+  foco na cabeça/mãos, rotação e ciclo de movimentos. Salvar altera só o herói;
+  Cancelar não muda o save. Defaults dos campos novos preservam saves antigos.
+- GLB, variantes faciais/corpos, HUD, controles, estádios e gameplay intactos.
+  `tests/xfc-customization-lab.test.mjs` testa catálogo, topologias normalizadas
+  distintas, mesmo corpo/rig, remoção/composição, cores/lados e editor/save.
+- Revisão real reproduzível: `LD_LIBRARY_PATH=/tmp/lib node
+  xfc-game/tools/review-customization-lab.mjs /home/user/customization-review`.
+  Ainda necessária revisão artística e teste no telefone antes de promover
+  os novos cortes ao elenco inteiro. Release v038 é explicitamente de testes.

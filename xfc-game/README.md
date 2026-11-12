@@ -1,10 +1,12 @@
 # XFC — o jogo de futebol da XF Esports
 
-**v0.5.37:** somente os jogadores recebem uma direção low poly clássica,
-inspirada nas referências Bomba Patch/PES PS2. Seis variações de rosto, cabelos
-em volumes 3D, textura difusa e rig completo. GLB de 457 KB, aproximadamente
-7,9 mil triângulos por atleta. **HUD, controles, menus e estádios intactos.**
-[Detalhes, limites e validação](docs/v0.5.37.md).
+**v0.5.38 — versão de testes:** laboratório com 15 protótipos de cabelo de
+construções distintas, ainda em refinamento visual. Luvas skinned coloridas e
+munhequeiras nos dois pulsos, prévia com foco/rotação/movimentos. Caixas azuis da
+luva removidas. Novos cortes são opt-in por atleta; não substituem o elenco.
+**Não é uma entrega de acabamento profissional concluído.** Rostos, corpos,
+rig, HUD, controles e estádios preservados.
+[Detalhes, limites e validação](docs/v0.5.38.md).
 
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de

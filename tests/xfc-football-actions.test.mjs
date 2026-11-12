@@ -103,11 +103,11 @@ test(
         const velocity = m.ball.state.velocity.toArray();
         const gloves = [];
         gk.root.traverse((o) => {
-          if (o.name.startsWith('xfc-keeper-glove-')) gloves.push(o.name);
+          if (o.name==='xfc-fitted-gloves') gloves.push(o.name);
         });
         let gloveVertices=0,fieldMask=false;
-      gk.root.traverse(o=>{if(o.geometry?.attributes.gloveMask)gloveVertices+=o.geometry.attributes.gloveMask.array.filter(x=>x>0).length;});
-      p.root.traverse(o=>{if(o.geometry?.attributes.gloveMask)fieldMask=true;});
+      gk.root.traverse(o=>{if(o.name==='xfc-fitted-gloves')gloveVertices+=o.geometry.attributes.position.count;});
+      p.root.traverse(o=>{if(o.name==='xfc-fitted-gloves')fieldMask=true;});
       const foundation = m.engine.scene.getObjectByName(
           'xfc-stadium-foundation'
         );
@@ -189,7 +189,7 @@ test(
       assert.equal(result.superShot, true);
       assert.ok(Math.hypot(result.velocity[0], result.velocity[2]) > 45);
       assert.ok(result.velocity[1] < 2.5);
-      assert.equal(result.gloves.length, 2);
+      assert.equal(result.gloves.length, 1,'uma casca skinned cobre as duas mãos, sem os antigos blocos azuis');
     assert.ok(result.gloveVertices>20);assert.equal(result.fieldMask,false,"luvas não contaminam jogadores de linha");
       assert.equal(result.foundation, true);
       assert.deepEqual(result.names, ['BAR', 'RMA']);

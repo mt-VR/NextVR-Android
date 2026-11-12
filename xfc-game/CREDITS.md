@@ -230,3 +230,12 @@ Cortes sólidos em `classic-player.js` são geometria local autoral; variações
 rosto são deformações locais, não escaneamentos de atletas reais. O arquivo
 `hair-fibers.js` da tentativa de realismo anterior foi retirado. As marcas dos
 uniformes existentes continuam com a procedência já documentada.
+
+## Laboratório experimental — v0.5.38
+
+Geometrias de cabelo em `hair-lab.js` são construções procedurais locais em
+famílias diferentes (mechas, cordões, cachos, cristas, tufos e topo plano), com
+suporte recortado da cabeça CC0 existente. As luvas derivam da geometria das mãos
+e dos pesos desse mesmo modelo; munhequeiras são volumes locais ajustados ao
+pulso. Nenhum asset externo novo, extração de PES ou alteração de licença.
+Protótipos não aprovados como acabamento artístico final.
