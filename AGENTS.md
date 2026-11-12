@@ -852,3 +852,12 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   números arbitrários. Suíte de navegador nova mede o escorregamento.
 - 10/10 navegador, 8/8 puros, 9/9 carreira-pênalti, 3/3 laboratório, 5/5 ações.
   Sem FPS em telefone. Detalhes em `xfc-game/docs/v0.5.42.md`.
+
+### v0.5.42 — correção de teste pré-existente no `npm test` (Android CI)
+
+- `tests/xfc-shirt-collection.test.mjs` exigia 47 clubes `squadSource:'generated'`
+  e que TODOS tivessem estádio `'Elenco fictício'`. O dado real (já na base) é
+  **61**: 47 fictícios com esse estádio + 14 clubes identificados do pacote de
+  camisas com estádio real. Era o único teste vermelho do `npm test`, que roda no
+  workflow `Android CI` e derrubava o job. Agora o teste confere 61, 47 fictícios
+  e estádio preenchido em todos.
