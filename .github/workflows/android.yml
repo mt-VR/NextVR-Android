@@ -219,6 +219,12 @@ jobs:
 
       - name: Publish build diagnostics
         if: always()
+        # Best-effort de verdade: quando o workflow do XFC termina no mesmo instante,
+        # o log de build deste passo some (é apagado junto com o outro run) e o passo
+        # falhava sozinho — o `if` abaixo então via `build.completion` != success e
+        # derrubava um build com APK, ABIs e assinatura todos verdes. O resultado do
+        # job é decidido pelos passos de validação, não pela publicação do log.
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OUTCOME: ${{ steps.ui.outcome == 'success' && steps.build.outcome == 'success' && steps.verify.outcome == 'success' && steps.sign.outcome == 'success' && 'success' || 'failure' }}

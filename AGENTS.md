@@ -862,3 +862,16 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   camisas com estádio real. Era o único teste vermelho do `npm test`, que roda no
   workflow `Android CI` e derrubava o job. Agora o teste confere 61, 47 fictícios
   e estádio preenchido em todos.
+
+### v0.5.42 — Android CI vermelho com build verde
+
+- Sintoma: no commit do XFC, o job "Build NextVR debug APK" falhava apenas em
+  "Fail if any validation failed", com `Validate and bundle reference UI`,
+  `Build Cardboard SDK and NextVR`, verificação de ABIs e de assinatura todos
+  **success**. Já acontecia no commit anterior à v0.5.42.
+- Causa: `Publish build diagnostics` (best-effort) perdia a corrida para o run
+  do XFC — o log de build é apagado junto com o outro run e o `gh api` do passo
+  falhava. O passo não tinha `continue-on-error`, então `steps.build.completion`
+  não chegava e o `if` de validação derrubava o job.
+- Correção: `continue-on-error: true` no passo de diagnóstico (a validação de
+  verdade continua sendo build/verify/sign). Não remover.
