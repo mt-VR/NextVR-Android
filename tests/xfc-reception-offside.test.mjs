@@ -64,14 +64,14 @@ test('partida: passes de 95m chegam, adversário intercepta, bandeira acompanha 
  }finally{await b.close();server.close();}
 });
 
-test('detalhe do atleta: pele suavizada, mechas skinned compartilhadas e orçamento limitado',{timeout:60000},async t=>{
+test('detalhe do atleta: pele low poly, cabelo sólido compartilhado e orçamento limitado',{timeout:60000},async t=>{
  const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
  try{const p=await b.newPage();await p.goto(url);const r=await p.evaluate(async()=>{
   const {preloadFootballerPack,createGltfPlayer}=await import('/src/match3d/models.js');await preloadFootballerPack();
   const models=['short','curly','bald','curly'].map(hairStyle=>createGltfPlayer({hairStyle,skinTone:'#bd8868',kit:{primary:'#fff',secondary:'#111'},graphics:{surface:true}}));
-  const a=models[1].root.getObjectByName('xfc-hair-fibers'),b=models[3].root.getObjectByName('xfc-hair-fibers');let body;models[1].root.traverse(o=>{if(o.isMesh&&[].concat(o.material).some(m=>m.name==='Micah | anatomical body.body'))body=o;});
-  const result={shared:a.geometry===b.geometry,bones:a.skeleton.bones.length,count:a.geometry.attributes.position.count,bodyCount:body.geometry.attributes.position.count,bald:!!models[2].root.getObjectByName('xfc-hair-fibers'),finite:[...a.geometry.attributes.position.array,...a.geometry.attributes.skinWeight.array,...body.geometry.attributes.normal.array].every(Number.isFinite)};
+  const a=models[1].root.getObjectByName('short01'),b=models[3].root.getObjectByName('short01');let body;models[1].root.traverse(o=>{if(o.isMesh&&[].concat(o.material).some(m=>m.name==='Micah | anatomical body.body'))body=o;});
+  const result={shared:a.geometry===b.geometry,bones:a.skeleton.bones.length,count:a.geometry.attributes.position.count,bodyCount:body.geometry.attributes.position.count,bald:models[2].root.getObjectByName('short01').geometry.boundingBox.max.y<a.geometry.boundingBox.max.y,finite:[...a.geometry.attributes.position.array,...a.geometry.attributes.skinWeight.array,...body.geometry.attributes.normal.array].every(Number.isFinite)};
   for(const m of models)m.dispose();return result;
- });assert.ok(r.shared&&r.finite);assert.equal(r.bones,22);assert.ok(r.count>0&&r.count<=3600);assert.ok(r.bodyCount>5924);assert.equal(r.bald,false);
+ });assert.ok(r.shared&&r.finite);assert.equal(r.bones,22);assert.ok(r.count>0&&r.count<=500);assert.ok(r.bodyCount<5924);assert.equal(r.bald,true);
  }finally{await b.close();server.close();}
 });

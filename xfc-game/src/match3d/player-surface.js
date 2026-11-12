@@ -11,7 +11,7 @@ export function recolorSurface(map, color, reference=.29) {
   for(let i=0;i<p.length;i+=4){
     const l=(p[i]*.3+p[i+1]*.59+p[i+2]*.11)/255;
     const shade=Math.min(2.8,Math.max(.06,Math.pow(l/reference,.9)));
-    for(let j=0;j<3;j++)p[i+j]=Math.min(255,rgb[j]*shade*(reference===.29?(.65+.35*p[i+j]/Math.max(1,l*255)):1));
+    for(let j=0;j<3;j++)p[i+j]=Math.min(255,rgb[j]*shade*(reference===.29?(.9+.1*p[i+j]/Math.max(1,l*255)):1));
   }
   c.putImageData(data,0,0);const texture=map.clone();texture.source=new THREE.Source(canvas);texture.needsUpdate=true;
   tones.set(key,texture);return texture;
@@ -46,13 +46,17 @@ export function hairstyleGeometry(mesh,style='short') {
 const shirtGeometries=new Map();
 export function shirtGeometry(mesh){
   if(shirtGeometries.has(mesh.geometry.uuid))return shirtGeometries.get(mesh.geometry.uuid);
-  const g=mesh.geometry.clone(),p=g.attributes.position,n=g.attributes.normal;
+  // Costura de UV por triângulo: não atravessar frente/costas no mesmo triângulo
+  // para não interpolar letras/números entre as duas metades do atlas.
+  const g=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone(),p=g.attributes.position,n=g.attributes.normal;
   const uv=new Float32Array(p.count*2);
-  for(let i=0;i<p.count;i++){
-    const front=n.getZ(i)>=0;
-    const u=THREE.MathUtils.clamp((p.getX(i)+.40)/.8,0,1);
-    uv[i*2]=(front?u:1-u)*.5+(front?0:.5);
-    uv[i*2+1]=THREE.MathUtils.clamp((p.getY(i)-.95)/.61,0,1);
+  for(let i=0;i<p.count;i+=3){
+    const front=n.getZ(i)+n.getZ(i+1)+n.getZ(i+2)>=0;
+    for(let j=i;j<i+3;j++){
+      const u=THREE.MathUtils.clamp((p.getX(j)+.40)/.8,0,1);
+      uv[j*2]=(front?u:1-u)*.5+(front?0:.5);
+      uv[j*2+1]=THREE.MathUtils.clamp((p.getY(j)-.95)/.61,0,1);
+    }
   }
   g.setAttribute('uv',new THREE.BufferAttribute(uv,2));shirtGeometries.set(mesh.geometry.uuid,g);return g;
 }

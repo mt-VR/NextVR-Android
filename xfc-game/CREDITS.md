@@ -214,3 +214,19 @@ Os derivados `season/backdrops` e seu gerador foram removidos após rejeição d
 preenchimento lateral. As quatro PNG originais são apresentadas diretamente em
 todo o quadro, com expansão horizontal autorizada pelo usuário. Sem imagem nova,
 recorte, blur ou alteração de autoria/licença.
+
+## Jogadores clássicos — v0.5.37
+
+Direção visual baseada SOMENTE nos atletas das capturas fornecidas pelo usuário:
+`Screenshot_2026-11-09-12-24-38-173_com.igpsp.jpg`,
+`Screenshot_2026-11-09-12-44-59-089_com.igpsp.jpg` e
+`Screenshot_2026-11-09-12-47-08-655_com.igpsp.jpg`.
+Não foram extraídos/embutidos modelos, texturas, HUD, anúncios ou controles de
+Bomba Patch/PES/emulador. As capturas não viraram assets do jogo.
+
+A base continua derivada do Micah CC0 creditado no manifest; reotimização por
+`tools/classic-footballer.mjs`, texturas difusas reduzidas e rig/UVs preservados.
+Cortes sólidos em `classic-player.js` são geometria local autoral; variações de
+rosto são deformações locais, não escaneamentos de atletas reais. O arquivo
+`hair-fibers.js` da tentativa de realismo anterior foi retirado. As marcas dos
+uniformes existentes continuam com a procedência já documentada.

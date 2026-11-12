@@ -1,5 +1,6 @@
-import {createHairFibers} from './hair-fibers.js';
-// Modelo externo Innerscene/Micah CC0, vestido e texturizado na origem.
+import {classicIdentity,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
+// Adaptação low poly clássica do Micah CC0; roupa/rig/UVs preservados.
+// Cabelos sólidos e variantes faciais locais, sem assets extraídos de PES.
 //
 // O palco do jogo é um WebView offline: o pacote precisa carregar rápido e não
 // pode quebrar se o modelo faltar. Por isso este módulo:
@@ -15,13 +16,12 @@ import {createHairFibers} from './hair-fibers.js';
 // motor (`match.js`) não sabe — nem precisa saber — qual modelo está em campo.
 
 import { runningLegPose, runningArmPose, runningFlight, runningCycle, kickPose } from './football-actions.js';
-import {refinePlayerMaterial} from './player-surface.js';
 import { THREE, softShadowTexture } from './engine.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
 import { BONE_KEYS, maskBones } from './animation.js';
 
-import { applyCareerSurface, recolorSurface, smoothSkinGeometry, hairstyleGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
+import { applyCareerSurface, recolorSurface, smoothSkinGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
 
 const MODEL_URL = 'assets/players/models/footballer.glb';
 /** Nome sem o prefixo do Mixamo (o arquivo pode vir como `mixamorig:Hips`). */
@@ -214,6 +214,8 @@ export function createGltfPlayer(options = {}) {
   root.name = 'xfc-footballer-glb';
   root.userData.modelId = 'xfc-footballer-glb';
   root.userData.detailLevel = simplified ? 'mobile' : 'full';
+  root.userData.visualStyle='classic-ps2';
+  const identity=classicIdentity(options.name);root.userData.faceVariant=identity;
 
   const model = cloneSkeleton(pack.scene);
   model.name = 'xfc-footballer-glb-body';
@@ -256,11 +258,11 @@ export function createGltfPlayer(options = {}) {
     object.receiveShadow=Boolean(options.graphics?.shadows);
     object.frustumCulled = false;
     shadowMeshes.push(object);
-    if (materialList(object).some(m=>m.name==='Micah | anatomical body.body'))object.geometry=smoothSkinGeometry(object);
-    if (object.name === 'short01') object.geometry = hairstyleGeometry(object, hairStyle);
+    if (materialList(object).some(m=>m.name==='Micah | anatomical body.body'))object.geometry=smoothSkinGeometry({geometry:classicFaceGeometry({geometry:smoothSkinGeometry(object)},identity)});
+    if (object.name === 'short01') {object.geometry=classicHairGeometry(object,hairStyle);object.userData.classicHair=hairStyle;}
     if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
-      const clone = material.clone();
+      const clone = object.name==='short01'?classicHairMaterial(hairStyle,hairColor,skinTone):material.clone();
       const name = String(material.name || '');
       // Recolour only the existing cloth materials. Never tint skin/face/hair.
       if (name === 'Micah | top') {
@@ -271,20 +273,17 @@ export function createGltfPlayer(options = {}) {
         }
       }
       if(name === 'Micah | anatomical body.body' && skinTone) clone.map=recolorSurface(material.map,skinTone);
-      if(name === 'Micah | anatomical body.short01') clone.map=recolorSurface(material.map,hairColor,.08);
+
       if(name === 'Micah | anatomical body.shoes06' && bootColor) clone.map=recolorSurface(material.map,bootColor,.08);
       if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
       applyCareerSurface(clone,options);
-      refinePlayerMaterial(clone,{surface:options.graphics?.surface??!simplified});
+      classicMaterial(clone);
       materials.push(clone);
       return clone;
     });
     object.material = Array.isArray(object.material) ? list : list[0];
   });
-
-  const importedHair=model.getObjectByName('short01');
-  if(importedHair){const fibers=createHairFibers(importedHair,hairStyle,hairColor);if(fibers){importedHair.parent.add(fibers);materials.push(fibers.material);}}
 
   // Sombra de contato (a mesma do rig procedural): barata e sempre presente.
   const shadow = new THREE.Mesh(
@@ -671,7 +670,7 @@ export function createGltfPlayer(options = {}) {
   /** Locomoção: mistura idle/jog/run pela velocidade (blend tree). */
   let gaitPhase=0;
   let gaitGroundOffset=0,previousX=null,previousZ=null,previousSpeed=0,gaitAcceleration=0;
-  let gaitStride=.65,shieldWeight=0,breathing=0,effort=0;
+  let gaitStride=.65,shieldWeight=0,dribbleWeight=0,breathing=0,effort=0;
   function updateLocomotion(speed, dt, movement) {
     const value = Math.max(0, Number(speed) || 0);
     let idle = 0;
@@ -864,7 +863,13 @@ export function createGltfPlayer(options = {}) {
       // Proteção e preparação são camadas contextuais, sem mexer no controle.
       shieldWeight+=((movement.protecting?.7:0)-shieldWeight)*(1-Math.exp(-step*8));
       effort+=((speed>5?1:0)-effort)*(1-Math.exp(-step*.18));breathing+=step*(1.3+effort*.6);
+      dribbleWeight+=((movement.ownsBall?gaitWeight*Math.min(1,speed/2.5):0)-dribbleWeight)*(1-Math.exp(-step*9));
       if(!gesture.name){
+        // Condução clássica: ombros contrabalançam toques curtos sem mudar o pé/bola.
+        const dribble=dribbleWeight;
+        addBoneRotation(bones.spine2,.025,Math.sin(gaitPhase*Math.PI*2)*.055,0,dribble);
+        addBoneRotation(bones.leftForeArm,-.12,0,0,dribble);
+        addBoneRotation(bones.rightForeArm,-.12,0,0,dribble);
         addBoneRotation(bones.spine2,.035*effort*Math.sin(breathing*Math.PI*2),shieldWeight*.1,0,1);
         addBoneRotation(bones.leftArm,-.16,0,.32,shieldWeight);
         addBoneRotation(bones.rightArm,-.12,0,-.32,shieldWeight);

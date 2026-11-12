@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -184,17 +184,18 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.36
+          TAG=xfc-gameplay-v0.5.37
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.36 (versionCode 42), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.37 (versionCode 43), commit ${GITHUB_SHA}." \
             "" \
-            "Correção dos menus de carreira: a arte inteira ocupa toda a largura, sem blur, bordas estendidas ou fundo duplicado. Hotspots e dados acompanham o quadro expandido; textos e escudos DOM mantêm proporções." \
-            "Fluxos aprovados e gameplay da v0.5.35 preservados. Nenhuma alteração de física, IA, cabelo, modelo ou save nesta versão. Sem teste em telefone físico. Detalhes: docs/v0.5.36.md.")
+            "Reformulação SOMENTE dos jogadores, inspirada nas referências Bomba Patch/PES PS2: malha low poly, seis variações de rosto, cabelos sólidos 3D e materiais difusos." \
+            "Rig de 22 juntas e ações existentes preservados; condução com transição suave. GLB de 457 KB, cerca de 7,9 mil triângulos por atleta renderizado. HUD, controles, estádios, menus, câmera, física e saves intactos." \
+            "134 testes locais aprovados, sem skips. Sem teste/FPS em telefone físico. Não utiliza modelos ou texturas extraídos de PES. Detalhes: docs/v0.5.37.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — menu de carreira de ponta a ponta v0.5.36" \
+            gh release create "$TAG" --title "XFC 27 — jogadores low poly clássicos v0.5.37" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — menu de carreira de ponta a ponta v0.5.36" \
+            gh release edit "$TAG" --title "XFC 27 — jogadores low poly clássicos v0.5.37" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

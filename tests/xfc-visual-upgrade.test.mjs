@@ -39,7 +39,7 @@ test('materiais, luz/relva e quatro perfis compilam no WebGL sem trocar o corpo'
         m.dispose();stadium.dispose();engine.dispose();
       }return reports;
     });
-    for(const row of r){const q=GRAPHICS_PRESETS[row.quality];assert.equal(row.pixel,q.pixelRatio);assert.equal(row.shadows,q.shadows);assert.equal(row.grass,q.grass);assert.equal(row.pitchBump,q.surface);assert.equal(row.cloth,q.surface);assert.deepEqual(row.parts,r[0].parts);}
+    for(const row of r){const q=GRAPHICS_PRESETS[row.quality];assert.equal(row.pixel,q.pixelRatio);assert.equal(row.shadows,q.shadows);assert.equal(row.grass,q.grass);assert.equal(row.pitchBump,q.surface);assert.equal(row.cloth,false,'uniforme clássico usa difusa, não microrelevo PBR');assert.deepEqual(row.parts,r[0].parts);}
     assert.deepEqual(errors,[]);
   }finally{await b.close();server.close();}
 });

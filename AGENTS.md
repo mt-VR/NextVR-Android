@@ -671,3 +671,27 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
 - Teste de carreira agora exige arte de ponta a ponta, ausência de fundo,
   centros dos hotspots clicáveis e escudos DOM proporcionais em 1280×720,
   1600×720, 1920×720 e 844×390.
+
+### v0.5.37 — jogadores clássicos, não fotorrealistas (direção atual)
+
+- O usuário substituiu explicitamente o objetivo de realismo por Bomba Patch/
+  PES de PS2 e enviou três capturas. Usar somente a direção dos ATLETAS.
+  Não copiar HUD do emulador/referência e NÃO alterar HUD, controles, menus,
+  estádios, câmera, física ou formato de saves. Suíte nova tem baselines de hash.
+- Base CC0 reotimizada por `tools/classic-footballer.mjs` após rig-footballer.py:
+  ratio .10/error .006, difusas <=256, sem texturas PBR; 457.232 bytes,
+  8.371 triângulos no GLB, 22 juntas, UVs e idle/walk/run preservados.
+- `classic-player.js` fornece seis variações de mandíbula/nariz/queixo estáveis
+  por nome e 11 cortes sólidos (inclui raspado). Cabelo é a malha `short01`
+  com geometria nova de 768 triângulos/429 vértices, ligada 100% ao Head.
+  Sem hair cards ou fibras extras. Geometrias/texturas compartilhadas por corte.
+  Aproximadamente 7.904 triângulos renderizados por jogador, sem mudar por perfil.
+- `models.js` mantém API/rig/máscaras/gestos e acrescenta contrabalanço suave
+  para condução, sem modificar a física. Face de carreira ainda escala a cabeça.
+- Pele oculta sob meias retirada offline para evitar interpenetração da malha
+  simplificada; meião curto conserva pigmentação. UV da camisa separa frente/
+  costas por triângulo, evitando interpolação entre metades do atlas.
+- Não alegar escaneamento, identidade facial exata, modelos licenciados do PES
+  ou FPS medido. Trata-se de adaptação estilística do CC0 + geometria autoral.
+- `tests/xfc-classic-players.test.mjs`: hash/orçamento, cortes únicos, cache/rig,
+  faces, materiais, animações no WebGL e escopo preservado. CI inclui esta suíte.
