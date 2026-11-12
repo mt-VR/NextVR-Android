@@ -1,3 +1,4 @@
+import {addWarmup} from './warmup.js';
 // O estádio: gramado com as linhas, arquibancadas com torcida, placas de
 // publicidade, traves com rede e refletores.
 //
@@ -552,16 +553,16 @@ function drawSky(context, width, height, timeOfDay = 'night') {
 
 /** Pequenos espectadores instanciados: silhuetas e roupas em cores variadas. */
 function addStandCrowd(group, width, depth, height, lowPower = false) {
-  const rows = lowPower ? 3 : 5;
-  const columns = Math.max(16, Math.floor(width / (lowPower ? 4.6 : 3.5)));
+  const rows = lowPower ? 5 : 8;
+  const columns = Math.max(16, Math.floor(width / (lowPower ? 3.8 : 2.8)));
   const count = rows * columns;
   const bodies = new THREE.InstancedMesh(
-    new THREE.CapsuleGeometry(0.115, 0.23, 2, 6),
+    new THREE.CapsuleGeometry(0.115, 0.23, 1, 5),
     new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10151c }),
     count
   );
   const heads = new THREE.InstancedMesh(
-    new THREE.SphereGeometry(0.105, lowPower ? 6 : 8, lowPower ? 5 : 7),
+    new THREE.SphereGeometry(0.105, 5, 4),
     new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10110f }),
     count
   );
@@ -572,10 +573,10 @@ function addStandCrowd(group, width, depth, height, lowPower = false) {
   const shirts = [0xe8edf0, 0xd54b40, 0x256bd0, 0x21a982, 0xe3b944, 0x30363e, 0xf2f2e8, 0x842f75];
   const skin = [0xe4b995, 0xc98e64, 0x9e6849, 0xf0ccaa, 0x784c37, 0xd6a17b];
   const pose = new THREE.Object3D();
-  const slopeAngle = 0.46;
+  const slopeAngle = Math.atan2(height-2.4,depth);
   const wallHeight = 2.4;
   const seatHeight = height - wallHeight;
-  const slopeCenterY = wallHeight + Math.hypot(depth,seatHeight*Math.tan(slopeAngle))*Math.sin(slopeAngle)/2 + .55/Math.cos(slopeAngle);
+  const slopeCenterY = wallHeight + Math.hypot(depth,seatHeight)*Math.sin(slopeAngle)/2 + .55/Math.cos(slopeAngle);
   const slopeCenterZ = -0.6;
   let instance = 0;
   let seed = (Math.round(width * 23) ^ Math.round(depth * 89)) >>> 0;
@@ -584,7 +585,7 @@ function addStandCrowd(group, width, depth, height, lowPower = false) {
     return seed / 4294967296;
   };
   for (let row = 0; row < rows; row += 1) {
-    const z = depth * 0.42 - row * (depth * 0.205);
+    const z = depth * 0.42 - row * (depth * .84 / (rows-1));
     const surfaceY = slopeCenterY + 0.55 * Math.cos(slopeAngle)
       - (z - slopeCenterZ) * Math.tan(slopeAngle);
     for (let column = 0; column < columns; column += 1) {
@@ -702,7 +703,7 @@ function buildLockerRoom() {
   const foundation = new THREE.Mesh(new THREE.BoxGeometry(23, 0.24, 6), dark);
   foundation.position.set(0, 0.06, 0);
   group.add(foundation);
-  group.position.set(0, 0, -(PITCH.halfWidth + 6.8));
+  group.position.set(0, 0, -(PITCH.halfWidth + 17.8));
   return group;
 }
 
@@ -725,8 +726,8 @@ function buildStand(width, depth, height, texture, options = {}) {
 
   const wallHeight = 2.4;
   const seatHeight = height - wallHeight;
-  const angle = 0.46;
-  const slopeLength = Math.hypot(depth, seatHeight * Math.tan(angle));
+  const angle = Math.atan2(seatHeight,depth);
+  const slopeLength = Math.hypot(depth, seatHeight);
 
   // Muro baixo na frente do gramado (não esconde a torcida).
   const wall = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, 1), concreteMaterial);
@@ -789,7 +790,7 @@ function buildStand(width, depth, height, texture, options = {}) {
     group.add(roof);
     for (const column of [-0.42, 0.42]) {
       const tower = new THREE.Mesh(new THREE.BoxGeometry(1.2, height + 3, 1.2), concreteMaterial);
-      tower.position.set(column * width, height + 1.5, depth / 2 - 0.5);
+      tower.position.set(column * width, (height + 3) / 2, depth / 2 - 0.5);
       group.add(tower);
     }
   } else if (roofMode === 'arch') {
@@ -914,7 +915,8 @@ export function buildStadium(scene, options = {}) {
 
   // Modelo do estádio: cobertura, fachada, altura, ambiente e LED mudam por praça.
   const model = STADIUMS[options.stadium]?.model || {};
-  const standHeight = model.height || 17;
+  const standHeight = Math.max(25,(model.height || 17)*1.45);
+  const standDepth=36,standOffset=38;
   const timeOfDay = options.timeOfDay || model.timeOfDay || 'night';
   const lighting = lightingProfileFor(timeOfDay);
   const graphics=options.graphics||graphicsPreset(null,lowPower);
@@ -985,7 +987,7 @@ export function buildStadium(scene, options = {}) {
   foundation.name='xfc-stadium-foundation';foundation.position.y=-.42;group.add(foundation);
   // Faixa de grama fora das linhas.
   const surround = new THREE.Mesh(
-    new THREE.PlaneGeometry(PITCH.length + 22, PITCH.width + 22),
+    new THREE.PlaneGeometry(PITCH.length + 44, PITCH.width + 44),
     new THREE.MeshLambertMaterial({ color: 0x1f5c28 })
   );
   surround.rotation.x = -Math.PI / 2;
@@ -1005,10 +1007,10 @@ export function buildStadium(scene, options = {}) {
   });
 
   const standOptions = [
-    { width: PITCH.length + 26, depth: 17, height: standHeight, rotation: 0, position: [0, 0, -(PITCH.halfWidth + 12)] },
-    { width: PITCH.length + 26, depth: 17, height: standHeight, rotation: Math.PI, position: [0, 0, PITCH.halfWidth + 12] },
-    { width: PITCH.width + 26, depth: 17, height: standHeight, rotation: Math.PI / 2, position: [-(PITCH.halfLength + 12), 0, 0] },
-    { width: PITCH.width + 26, depth: 17, height: standHeight, rotation: -Math.PI / 2, position: [PITCH.halfLength + 12, 0, 0] }
+    { width: PITCH.length + 76, depth: standDepth, height: standHeight, rotation: 0, position: [0, 0, -(PITCH.halfWidth + standOffset)] },
+    { width: PITCH.length + 76, depth: standDepth, height: standHeight, rotation: Math.PI, position: [0, 0, PITCH.halfWidth + standOffset] },
+    { width: PITCH.width + 76, depth: standDepth, height: standHeight, rotation: Math.PI / 2, position: [-(PITCH.halfLength + standOffset), 0, 0] },
+    { width: PITCH.width + 76, depth: standDepth, height: standHeight, rotation: -Math.PI / 2, position: [PITCH.halfLength + standOffset, 0, 0] }
   ];
   for (const option of standOptions) {
     group.add(buildStand(option.width, option.depth, option.height, crowdTexture, {
@@ -1024,18 +1026,28 @@ export function buildStadium(scene, options = {}) {
   group.add(buildLockerRoom());
   for (const side of [-1, 1]) {
     for (const x of [-18, 18]) {
-      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 7.2), side));
+      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 13.2), side));
     }
   }
+
+  // Corredor livre (rotas em ±61/±42), bancos em ±47.2 e arquibancada
+  // começando a ~20 m das linhas. Túnel e áreas técnicas fora da rota.
+  const tunnel=new THREE.Group();tunnel.name='xfc-player-tunnel';
+  const tunnelMat=new THREE.MeshLambertMaterial({color:0x263441});
+  for(const x of [-1.8,1.8]){const wall=new THREE.Mesh(new THREE.BoxGeometry(.18,3.2,6),tunnelMat);wall.position.set(x,1.6,-48.2);tunnel.add(wall);}
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(3.8,.18,6),tunnelMat);roof.position.set(0,3.2,-48.2);tunnel.add(roof);group.add(tunnel);
+  const technicalMat=new THREE.LineBasicMaterial({color:0xf1f1e4});
+  for(const side of [-1,1])for(const x of [-18,18]){const points=[[-9,9.9],[9,9.9],[9,6.9],[-9,6.9],[-9,9.9]].map(([dx,dz])=>new THREE.Vector3(x+dx,.025,side*(PITCH.halfWidth+dz)));const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),technicalMat);line.name='xfc-technical-area';group.add(line);}
+  const warmup=addWarmup(group,options.warmupTeams||[],lowPower||graphics.id==='low');
 
   // Cobertura de anel (Maracanã): coroa inclinada sobre as
   // arquibancadas, sem cobrir o gramado.
   if (!lowPower && model.roof === 'ring') {
     const ring = new THREE.Mesh(
-      new THREE.CylinderGeometry(78, 66, 7, 40, 1, true),
+      new THREE.CylinderGeometry(110, 91, 7, 40, 1, true),
       new THREE.MeshLambertMaterial({ color: 0xe2e0d8, side: THREE.DoubleSide })
     );
-    ring.scale.z = 0.73;
+    ring.scale.z = 0.80;
     ring.position.set(0, standHeight + 8.5, 0);
     ring.rotation.x = 0.1;
     group.add(ring);
@@ -1045,7 +1057,7 @@ export function buildStadium(scene, options = {}) {
   // arquibancada sustentando um cabo de anel no topo.
   if (!lowPower && model.poles) {
     const poleMaterial = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
-    const radius = 64;
+    const radius = 100;
     const poleTop = standHeight + 9;
     for (let i = 0; i < 16; i += 1) {
       const angle = (i / 16) * Math.PI * 2;
@@ -1129,8 +1141,8 @@ export function buildStadium(scene, options = {}) {
     }
   }
   const floodlightPositions = [];
-  for (const x of [-(PITCH.halfLength + 22), PITCH.halfLength + 22]) {
-    for (const z of [-(PITCH.halfWidth + 22), PITCH.halfWidth + 22]) {
+  for (const x of [-(PITCH.halfLength + 47), PITCH.halfLength + 47]) {
+    for (const z of [-(PITCH.halfWidth + 47), PITCH.halfWidth + 47]) {
       group.add(buildFloodlight(x, z, lighting.lampsOn));
       floodlightPositions.push([x, z]);
     }
@@ -1200,10 +1212,13 @@ export function buildStadium(scene, options = {}) {
   return {
     group,
     goals,
+    warmup,
+    dimensions:{standHeight,standDepth,standOffset,pitch:PITCH,goal:GOAL},
     hitNet(event){goals[event.side>0?'away':'home'].userData.net.impact(event);},
-    update(dt){goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);},
+    update(dt){warmup.update(dt);goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);},
     /** O gol que o time da casa defende fica em -X. */
     dispose() {
+      warmup.dispose();
       turfDetail.dispose();
       disposeObject(group);
     }

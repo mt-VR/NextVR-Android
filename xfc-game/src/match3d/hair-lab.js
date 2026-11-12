@@ -44,7 +44,21 @@ function curls(c,{count,extent,radius,coil}){
   parts.push(strand(points,radius*.49,radius*.42,8,5));
  }return parts;
 }
+// Mecha angular da referência: seção larga na raiz, planos facetados e ponta
+// deslocada. Sem touca/volume de suporte, cada lâmina nasce no couro cabeludo.
+function blade(root,tip,width,depth,lean=0){
+ const p=[],uv=[],idx=[],ring=6;
+ for(let r=0;r<3;r++){const t=[0,.46,.78][r],c=root.clone().lerp(tip,t);c.x+=Math.sin(Math.PI*t)*lean;const f=[1,.70,.31][r];for(let j=0;j<ring;j++){const a=j/ring*Math.PI*2;p.push(c.x+Math.cos(a)*width*f,c.y,c.z+Math.sin(a)*depth*f);uv.push(j/ring,t);if(r>0){const k=r*ring+j,b=(r-1)*ring+j,n=(j+1)%ring;idx.push(b,(r-1)*ring+n,k,k,(r-1)*ring+n,r*ring+n);}}}
+ const end=p.length/3;p.push(...tip.toArray());uv.push(.5,1);for(let j=0;j<ring;j++)idx.push(12+j,12+(j+1)%ring,end);
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);const flat=g.toNonIndexed();g.dispose();flat.computeVertexNormals();return flat;
+}
 const BUILDERS={
+ 'lab-reference-mohawk':c=>{
+  const parts=[];for(let i=0;i<9;i++){const t=1.10-i*.32,a=t<0?Math.PI:0,root=c.surface(a,Math.abs(t),.002),height=.065+.060*Math.sin((i+.5)/9*Math.PI);parts.push(blade(root,root.clone().add(V((i%2?1:-1)*.007,height,-.032)),.030,.027,.006));}
+  for(const side of [-1,1])for(let i=0;i<4;i++){const t=.57-i*.34,x=side*.30,root=c.surface(Math.atan2(x,t),Math.hypot(x,t),.002);parts.push(blade(root,root.clone().add(V(side*.025,.060+i*.003,-.024)),.021,.022,side*.005));}return parts;
+ },
+ 'lab-ragnarok':c=>{const parts=[c.scalp({raise:.012,density:.35})];for(let i=0;i<13;i++){const a=-1.25+i*.19,t=.30+(i%4)*.17,root=c.surface(a,t,.004),tip=c.surface(a+.8,t+.12,.02);tip.add(V(.035,.037+(i%3)*.009,-.045));parts.push(blade(root,tip,.017,.024,.026));}return parts;},
+ 'lab-long':c=>{const parts=[c.scalp({density:.85})];for(let i=0;i<20;i++){const a=i/20*Math.PI*2,front=Math.cos(a)>.55,root=c.surface(a,.23,.003),part=Math.sin(a)>=0?1:-1,flow=front?part*.95:a,side=c.surface(flow,1.15,.018),end=side.clone();end.y=front?1.60:1.49+.025*Math.sin(i*2.4);end.x+=Math.sin(flow)*.017;end.z+=Math.cos(flow)*.014;parts.push(strand([root,c.surface(flow,.7,.026),side,end],.017,.006,12,5));}return parts;},
  'lab-low-fade':c=>[c.scalp({density:.93}),...swept(c,{count:14,rows:1,start:.75,end:-.95,volume:.008,width:.008})],
  'lab-mid-fade':c=>[c.scalp({raise:.009,density:.8}),...swept(c,{count:12,start:.82,end:-.55,volume:.018,width:.012,part:.018})],
  'lab-high-fade':c=>[c.scalp({raise:.024,density:.7}),...curls(c,{count:29,extent:.88,radius:.009,coil:1.4})],

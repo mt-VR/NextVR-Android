@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -184,18 +184,18 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.39
+          TAG=xfc-gameplay-v0.5.40
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.39 (versionCode 45), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.40 (versionCode 46), commit ${GITHUB_SHA}." \
             "" \
-            "Cor do cabelo isolada da pele, barba e sobrancelhas. 15 construções revisadas, raízes na cabeça real; editor sem duplicatas legadas. Catálogo global, rostos, corpos e rig de jogo preservados." \
-            "Carreira: apresentações de primeira assinatura, transferência e renovação. Chegada, sala de imprensa, contrato/caneta, camisa com nome e número, fotógrafos e identidade automática do clube. Pular/Escape, persistência sem repetição e fallback sem WebGL." \
-            "143 testes locais aprovados, sem skips; 9 testes específicos repetidos após os últimos ajustes visuais. HUD, controles, estádios e gameplay preservados. Acabamento artístico ainda em evolução, mãos de preensão específicas da cena (sem rig digital), sem FPS medido em telefone. Detalhes: docs/v0.5.39.md.")
+            "Entrada e ícone derivados das artes enviadas, sem redesenho. 18 cortes opt-in, 13 cores isoladas, munhequeiras no pulso e seleção inicial com cartão de clubes europeus." \
+            "Mãos locais com juntas digitais, detalhes de materiais, sombra e foco opcional nas apresentações; arquibancadas ampliadas e reservas em aquecimento. Campo, gols, HUD, controles e quatro menus aprovados preservados." \
+            "148 testes locais aprovados, sem skips. Versão de testes: pegada de escrita, cabelos e acabamento artístico ainda em evolução; sem FPS medido em telefone. Detalhes: xfc-game/docs/v0.5.40.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — cabelos e apresentações da carreira v0.5.39" \
+            gh release create "$TAG" --title "XFC 27 — carreira, personalização e estádios v0.5.40" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — cabelos e apresentações da carreira v0.5.39" \
+            gh release edit "$TAG" --title "XFC 27 — carreira, personalização e estádios v0.5.40" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

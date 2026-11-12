@@ -753,3 +753,34 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
   cena <40.000 tri e <110 draw calls nos casos testados, não benchmark de FPS.
 - Revisão: tools/review-career-cinematic.mjs e review-customization-lab.mjs.
   Nenhuma alteração do GLB, HUD, controles, gameplay ou artes de referência.
+
+### v0.5.40 — expansão autorizada de estádio e artes, ainda versão de testes
+
+- Usuário autorizou ampliar estádio/aquecimento e substituir entrada/ícone pelos
+  uploads, NÃO redesenhar os quatro menus. `launch-xfc27.png` é o upload exato;
+  original do ícone em `design/brand`, derivação Pillow em `prepare-brand.py`.
+- LAB_HAIR agora tem 18 cortes + remover, 13 cores. Moicano da referência usa
+  lâminas facetadas separadas; Ragnarok tem construção própria; longo repartido.
+  Opt-in continua: não migrar elenco inteiro. Qualidade artística não aprovada.
+- Munhequeira Y bind 1.040, altura .022, orientação da matriz inversa do osso e
+  folga adicional ao combinar com luvas. Não modificar GLB/rig para esse ajuste.
+- `presentation-hand.js`: quinze juntas LOCAIS por mão, instâncias de falanges,
+  unhas e pulso. Exceção ao v039: há articulação digital na cena, NÃO no GLB.
+  Pegada ainda simplificada; não declarar naturalidade/ausência universal de
+  clipping. `cinematic-detail.js`: mapas 128² e DOF por depth só em Alta/Ultra.
+- `warmup.js`: reservas não-GK distintos, dois/quatro atores, rota arredondada
+  ±61/±42, 2.2 m/s, alongamento em ±32/45.5, atualização 20/30 Hz. Só cenário;
+  não inserir na IA/colisões/escalados. Descarte remove atores antes do estádio
+  e impede adição depois de resolução assíncrona. Campo e gol inalterados.
+- Estádio: altura mínima25, profundidade36, offset38; bancos ±47.2, túnel e
+  áreas técnicas. Regressão antiga de hash do estádio foi retirada POR escopo
+  autorizado; match.js só ganhou passagem dos times/kits para aquecimento.
+- Cartão inicial mostra escudo/bandeira/liga/kit local; sete países europeus já
+  existiam no catálogo. Não inventar elencos oficiais atualizados.
+- `xfc-career-upgrade.test.mjs` adicionado ao CI. 148/148 regressões, zero skips;
+  pele isolada em 48 pares/13 cores. Testes de percurso, descarte, juntas, DOF,
+  altura/corpo/peso e pulso não equivalem a aprovação visual/FPS no celular.
+- Review isolado Baixa: 251 chamadas/86070 tri com dois reservas, SEM jogadores
+  de partida. Não extrapolar essa medida para partida completa ou telefone.
+- Scripts: review-v040, review-career-cinematic, review-customization-lab.
+  Artefatos de revisão fora do Git. Detalhes/limitações em docs/v0.5.40.md.

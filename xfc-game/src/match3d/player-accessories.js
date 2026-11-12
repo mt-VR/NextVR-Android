@@ -33,12 +33,12 @@ export function addPlayerAccessories(model,options,materials,ownedGeometries){
   for(const side of sides){
    const hand=body.skeleton.bones.find(b=>b.name.endsWith(side+'Hand'));if(!hand)continue;
    const pos=body.geometry.attributes.position,sign=side==='Left'?1:-1,points=[];
-   for(let i=0;i<pos.count;i++)if(pos.getX(i)*sign>.22&&Math.abs(pos.getY(i)-1.074)<.018)points.push([pos.getX(i),pos.getZ(i)]);
+   for(let i=0;i<pos.count;i++)if(pos.getX(i)*sign>.22&&Math.abs(pos.getY(i)-1.040)<.018)points.push([pos.getX(i),pos.getZ(i)]);
    const xs=points.map(p=>p[0]),zs=points.map(p=>p[1]),loX=xs.length?Math.min(...xs):sign*.29-.027,hiX=xs.length?Math.max(...xs):sign*.29+.027,loZ=zs.length?Math.min(...zs):.01,hiZ=zs.length?Math.max(...zs):.07;
-   const rx=(hiX-loX)/2+.003,rz=(hiZ-loZ)/2+.003;
-   const g=new T.CylinderGeometry(1,1,.026,12,1,true);g.scale(rx,1,rz);
+   const padding=gloveColor&&gloveColor!=='none'?.009:.003,rx=(hiX-loX)/2+padding,rz=(hiZ-loZ)/2+padding;
+   const g=new T.CylinderGeometry(1,1,.022,16,1,true);g.scale(rx,1,rz);
    const material=new T.MeshStandardMaterial({color:ACCESSORY_COLORS[options.wristband]||'#eeeede',roughness:1,metalness:0,side:T.DoubleSide}),band=new T.Mesh(g,material);
-   band.name=side==='Left'?'xfc-career-wristband':'xfc-career-wristband-right';const index=body.skeleton.bones.indexOf(hand);band.position.set((loX+hiX)/2,1.074,(loZ+hiZ)/2).applyMatrix4(body.skeleton.boneInverses[index]);band.rotation.z=side==='Left'?-.13:.13;hand.add(band);materials.push(material);ownedGeometries.push(g);
+   band.name=side==='Left'?'xfc-career-wristband':'xfc-career-wristband-right';const index=body.skeleton.bones.indexOf(hand);const bind=new T.Matrix4().makeTranslation((loX+hiX)/2,1.040,(loZ+hiZ)/2);body.skeleton.boneInverses[index].clone().multiply(bind).decompose(band.position,band.quaternion,band.scale);band.userData.bindWristY=1.040;hand.add(band);materials.push(material);ownedGeometries.push(g);
   }
  }
 }

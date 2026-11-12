@@ -1,6 +1,7 @@
 // Catálogo opt-in do laboratório: não migra nem troca cortes do elenco.
 export const LAB_HAIR={
  'lab-none':'Sem cabelo',
+ 'lab-reference-mohawk':'Moicano espetado · referência enviada','lab-ragnarok':'Ragnarok · mechas assimétricas','lab-long':'Longo · camadas soltas',
  'lab-low-fade':'Degradê baixo · topo curto','lab-mid-fade':'Degradê médio · penteado','lab-high-fade':'Degradê alto · topo separado',
  'lab-american':'Corte americano · topo plano','lab-afro':'Crespo · volume texturizado','lab-curly':'Cacheado · cachos 3D','lab-wavy':'Ondulado · ondas',
  'lab-straight':'Liso · mechas','lab-mohawk':'Moicano · crista','lab-dreads':'Dreads · cordões','lab-braids':'Tranças · fileiras',

@@ -79,6 +79,7 @@ export function createMatch(options = {}) {
   const engine = createEngine(canvas,{graphicsQuality:options.graphicsQuality});
   const stadiumMesh = buildStadium(engine.scene, {
     stadium,
+    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],
     lowPower: engine.lowPower,
     graphics:engine.graphics,
     timeOfDay: options.timeOfDay

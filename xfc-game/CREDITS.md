@@ -248,3 +248,19 @@ Reutilizam o ator CC0 já creditado, as cores/escudos e os uniformes existentes
 no projeto. Nenhum vídeo, mocap, modelo ou textura de outro jogo foi extraído.
 As mãos de preensão são específicas da cena; o rig e o GLB das partidas não
 foram alterados. Acabamento estilizado ainda em evolução.
+
+## Atualização de carreira e marca — v0.5.40
+
+- Entrada e ícone fornecidos pelo usuário, utilizados diretamente (sem geração
+  ou redesenho). Entrada: `assets/brand/launch-xfc27.png`, SHA256
+  `67bcab1206e7ec23cf422bbefa0a35043f8c30b10659025f912df0891c6e927d`.
+  Original do ícone: `../design/brand/xfc27-icon-original.png`, SHA256
+  `3a3dec6cb59d28fd2ecabf558bd046864eab24edd6d5725df3e188803ef2ae0c`.
+  Recorte, padding proporcional e densidades: `tools/prepare-brand.py`.
+  Não foi inferida licença pública/CC0 para essas imagens fornecidas.
+- Referência de moicano enviada pelo usuário: somente referência visual;
+  geometria procedural própria, sem extrair malha/textura do jogo mostrado.
+  Ragnarok é interpretação independente, não asset oficial do Neymar.
+- Mãos cinematográficas, textura procedural de materiais, foco por profundidade
+  e aquecimento: código/geometria do projeto; GLB Micah CC0 e sua licença
+  permanecem inalterados. Juntas digitais são locais à apresentação.
