@@ -657,3 +657,17 @@ em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
 - `tests/xfc-reception-offside.test.mjs` cobre 95m nos dois sentidos,
   interceptação, linha congelada/bandeira/reinício, varredura 3D e quatro
   defensores em movimento. CI inclui esta suíte. Não alegar teste em telefone.
+
+### v0.5.36 — rejeição das laterais estendidas; menu realmente de ponta a ponta
+
+- O usuário rejeitou o preenchimento lateral da v035 e autorizou ampliar/
+  esticar a arte. NÃO restaurar backdrops, blur ou quadro estreito centralizado.
+- `career-reference-frame` agora cobre 100% do palco e a imagem usa `fill`.
+  Hotspots/dados continuam em porcentagens do mesmo quadro. Texto e escudos
+  DOM não sofrem `scaleX`; as figuras/textos impressos na arte acompanham a
+  expansão horizontal (não alegar preservação absoluta da proporção da foto).
+- As quatro imagens, sua ordem e rotas permanecem; mudança somente de UI.
+- Removidos os quatro derivados laterais e seu gerador rejeitado.
+- Teste de carreira agora exige arte de ponta a ponta, ausência de fundo,
+  centros dos hotspots clicáveis e escudos DOM proporcionais em 1280×720,
+  1600×720, 1920×720 e 844×390.

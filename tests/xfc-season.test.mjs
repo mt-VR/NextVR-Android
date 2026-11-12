@@ -79,10 +79,18 @@ test('arquivos de carreira: entrada → jornada → central Mbappé, personaliza
  await p.getByRole('button',{name:'Cabeça',exact:true}).click();await p.waitForSelector('canvas[data-ready=true]');assert.ok(await p.getByLabel('Cabelo',{exact:true}).isVisible());await p.getByRole('button',{name:'Cancelar',exact:true}).click();assert.equal(await art(),'assets/ui/season/customise.png');
  await p.keyboard.press('Escape');assert.equal(await art(),'assets/ui/season/hub.png');await p.keyboard.press('Escape');assert.equal(await art(),'assets/ui/season/agenda.png');await p.keyboard.press('Escape');assert.equal(await art(),'assets/ui/season/entry.png');
  assert.equal(await p.evaluate(async()=>JSON.stringify((await import('/src/main.js')).state.profile.career)),saved,'navegação não recria nem altera o save');
- // Mesmo arquivo e mesma proporção em palco 16:9, ultrawide e celular.
- for(const viewport of [{width:1920,height:720},{width:844,height:390}]){
+ // A arte inteira ocupa o palco, inclusive nas laterais; sem fundo estendido.
+ for(const viewport of [{width:1280,height:720},{width:1600,height:720},{width:1920,height:720},{width:844,height:390}]){
   await p.setViewportSize(viewport);await p.waitForFunction(w=>innerWidth===w&&Math.abs(parseFloat(document.querySelector('.app').style.getPropertyValue('--stage-scale'))-Math.min(innerWidth/1280,innerHeight/720))<.001&&parseInt(document.querySelector('.app').style.getPropertyValue('--stage-w'))===Math.round(innerWidth/Math.min(innerWidth/1280,innerHeight/720)),viewport.width);
-  for(const view of ['entry','journey','hub','custom']){await p.evaluate(async view=>(await import('/src/main.js')).go('career',{view}),view);await p.waitForFunction(()=>document.querySelector('.career-reference-art')?.complete);const r=await p.locator('.career-reference-art').evaluate(img=>{const b=img.getBoundingClientRect();return{ratio:b.width/b.height,source:img.naturalWidth/img.naturalHeight,left:b.left,right:b.right,bottom:b.bottom,fit:getComputedStyle(img).objectFit};});assert.ok(Math.abs(r.ratio-r.source)<.002,JSON.stringify(r));assert.equal(r.fit,'contain');assert.ok(r.left>=-1&&r.right<=viewport.width+1&&r.bottom<=viewport.height+1,JSON.stringify(r));}
+  for(const view of ['entry','journey','hub','custom']){
+   await p.evaluate(async view=>(await import('/src/main.js')).go('career',{view}),view);await p.waitForFunction(()=>document.querySelector('.career-reference-art')?.complete);
+   const r=await p.locator('.career-reference-art').evaluate(img=>{const b=img.getBoundingClientRect(),screen=img.closest('.career-reference'),cs=getComputedStyle(screen);return{left:b.left,top:b.top,right:b.right,bottom:b.bottom,fit:getComputedStyle(img).objectFit,background:cs.backgroundImage,filter:cs.filter};});
+   assert.equal(r.fit,'fill');assert.equal(r.background,'none');assert.equal(r.filter,'none');
+   assert.ok(Math.abs(r.left)<1&&Math.abs(r.right-viewport.width)<1&&Math.abs(r.top)<1&&Math.abs(r.bottom-viewport.height)<1,JSON.stringify(r));
+   const hits=await p.locator('.career-reference-hit').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return{label:n.getAttribute('aria-label'),inside:x>=0&&x<=innerWidth&&y>=0&&y<=innerHeight,aligned:document.elementFromPoint(x,y)===n};}));
+   for(const hit of hits)assert.ok(hit.inside&&hit.aligned,JSON.stringify(hit));
+   if(view!=='custom'){const crest=await p.locator('.career-reference-profile>.season-crest').evaluate(img=>{const r=img.getBoundingClientRect();return r.width/r.height;});assert.ok(Math.abs(crest-55/65)<.001,'escudo DOM não sofre alongamento');}
+  }
  }
  assert.deepEqual(errors,[]);
  }finally{await b.close();server.close();}

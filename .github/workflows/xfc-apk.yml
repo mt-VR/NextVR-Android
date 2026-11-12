@@ -184,18 +184,17 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.35
+          TAG=xfc-gameplay-v0.5.36
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.35 (versionCode 41), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.36 (versionCode 42), commit ${GITHUB_SHA}." \
             "" \
-            "Menus aprovados preservados, com continuidade das bordas em tela larga e sem deformar a arte central." \
-            "PEDIR PASSE obedece mesmo de longe. Contato contínuo impede bolas atravessando jogadores. Bandeirinha de impedimento e decisão no toque do passe, aplicada na recepção. Defesa se reposiciona." \
-            "Micah conserva o rig, ganha mais detalhe facial e mechas de cabelo. Melhoria parcial: não é um modelo fotorrealista. Sem teste em telefone físico. Detalhes: docs/v0.5.35.md. Saves preservados.")
+            "Correção dos menus de carreira: a arte inteira ocupa toda a largura, sem blur, bordas estendidas ou fundo duplicado. Hotspots e dados acompanham o quadro expandido; textos e escudos DOM mantêm proporções." \
+            "Fluxos aprovados e gameplay da v0.5.35 preservados. Nenhuma alteração de física, IA, cabelo, modelo ou save nesta versão. Sem teste em telefone físico. Detalhes: docs/v0.5.36.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — passes, domínio, impedimento e defesa ativa v0.5.35" \
+            gh release create "$TAG" --title "XFC 27 — menu de carreira de ponta a ponta v0.5.36" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — passes, domínio, impedimento e defesa ativa v0.5.35" \
+            gh release edit "$TAG" --title "XFC 27 — menu de carreira de ponta a ponta v0.5.36" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

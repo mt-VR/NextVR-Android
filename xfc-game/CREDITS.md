@@ -207,3 +207,10 @@ variáveis); na pausa usa a faixa preta da segunda referência.
   manifest. Simplificação menos agressiva (.42/.001), sem substituir corpo/rig.
   Normais suaves e mechas leves são adaptações locais; não são escaneamentos,
   cabelo capturado ou modelos fotorrealistas licenciados de terceiros.
+
+## Correção v0.5.36
+
+Os derivados `season/backdrops` e seu gerador foram removidos após rejeição do
+preenchimento lateral. As quatro PNG originais são apresentadas diretamente em
+todo o quadro, com expansão horizontal autorizada pelo usuário. Sem imagem nova,
+recorte, blur ou alteração de autoria/licença.
