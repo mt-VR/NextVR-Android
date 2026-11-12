@@ -938,11 +938,11 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       const style = getComputedStyle(node);
       return [style.left, style.bottom];
     });
-    assert.deepEqual(stickStyle, ['96px', '118px'], 'o joystick permanece na posição original');
+    assert.deepEqual(stickStyle, ['76px', '92px'], 'o joystick usa a posição da nova referência de controles');
     const passBox = await page.locator('.ctrl-btn--pass').boundingBox();
     const runBox = await page.locator('.ctrl-btn--sprint').boundingBox();
-    assert.ok(passBox && runBox && passBox.width >= 96 && runBox.width >= 96,
-      'PASSE e CORRER têm botões maiores');
+    assert.ok(passBox && runBox && passBox.width >= 90 && passBox.width <= 120 && runBox.width >= 96 && runBox.width <= 140,
+      'PASSE e CORRER mantêm alvos proporcionais sem ocupar o campo');
     assert.ok(passBox.x < runBox.x && runBox.x - passBox.x < 145,
       'PASSE e CORRER trocaram de lado e ficaram próximos');
     assert.ok(await page.locator('.hud__foe').isVisible(),

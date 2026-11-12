@@ -22,6 +22,7 @@ const KEEPER_REACTION_SPEED = 7.2;
 export function createTeamAI({ side, world }) {
   const attackSign = attackSignOf(side);
   const goalX = attackedGoalX(side);
+  const tactics=world.teams?.[side]?.info?.tactics||{height:0,press:1,pass:1};
   const ownGoalX = ownGoalXOf(side);
 
   function members() {
@@ -55,6 +56,9 @@ export function createTeamAI({ side, world }) {
     const hasPossession = owner?.side === side;
     const ballProgress = Math.max(-31, Math.min(31, ball.x * attackSign));
     let x = base.x * attackSign + attackSign * ballProgress * (hasPossession ? 0.19 : 0.24);
+    x+=attackSign*(tactics.height||0);
+    if(hasPossession&&player.instruction==='forward')x+=attackSign*6;
+    if(player.instruction==='hold')x=base.x*attackSign;
     let z = base.z;
 
     // A largura do 4-3-3 é preservada: a bola desloca o bloco apenas alguns
@@ -152,7 +156,7 @@ export function createTeamAI({ side, world }) {
     }
 
     // Passe quando alguém chega perto (sem passar a bola o tempo todo).
-    if (pressure < 2.8 && chance(0.025, dt)) {
+    if (pressure < 2.8*tactics.pass && chance(0.025*tactics.pass, dt)) {
       const target = bestPassTarget(player);
       if (target) {
         world.kickBall(player, target, { power: 16 + world.rng() * 6 });
@@ -331,19 +335,19 @@ export function createTeamAI({ side, world }) {
           // mais bem colocado; não larga o gol para disputar uma bola distante.
           targetX = ball.position.x + ball.velocity.x * 0.16;
           targetZ = ball.position.z + ball.velocity.z * 0.16;
-          speed = CHASE_SPEED;
+          speed = Math.min(8.1,CHASE_SPEED*(.9+.1*tactics.press));
         }
       } else if (player === chaser && !owner) {
         // Persegue a bola com uma pequena antecipação.
         targetX = ball.position.x + ball.velocity.x * 0.18;
         targetZ = ball.position.z + ball.velocity.z * 0.18;
-        speed = CHASE_SPEED;
+        speed = Math.min(8.1,CHASE_SPEED*(.9+.1*tactics.press));
       } else if (player === chaser && owner && owner.side !== side) {
         // O marcador mais próximo tenta o desarme, mas fica atrás da bola:
         // se ficasse na frente, bloquearia todo chute.
         targetX = owner.x - attackSign * 2.3;
         targetZ = owner.z;
-        speed = CHASE_SPEED;
+        speed = Math.min(8.1,CHASE_SPEED*(.9+.1*tactics.press));
         if (world.isPlayable() && chance(0.005, dt)) world.tackle(player);
       } else {
         const supports = owner?.side === side;

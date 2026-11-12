@@ -20,7 +20,7 @@ import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
 import { BONE_KEYS, maskBones } from './animation.js';
 
-import { recolorSurface, hairstyleGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
+import { applyCareerSurface, recolorSurface, hairstyleGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
 
 const MODEL_URL = 'assets/players/models/footballer.glb';
 /** Nome sem o prefixo do Mixamo (o arquivo pode vir como `mixamorig:Hips`). */
@@ -235,16 +235,17 @@ export function createGltfPlayer(options = {}) {
     box = bindPoseBounds(model);
     size = box.getSize(new THREE.Vector3());
   }
-  const targetHeight = 1.75;
+  const targetHeight = options.height ? Math.max(1.6,Math.min(2,options.height/100)) : 1.75;
   root.userData.targetHeight=targetHeight;
   root.userData.limbRadialGain={arms:1.07,legs:1.09};
   const scale = size.y > 0.01 ? targetHeight / size.y : 1;
   model.scale.setScalar(scale);
+  if(options.body){const width=({lean:.96,normal:1,strong:1.04}[options.body]||1)*Math.max(.95,Math.min(1.07,1+((options.weight||68)-68)*.002));model.scale.x*=width;model.scale.z*=width;}
   model.position.y = -box.min.y * scale;
 
   const primary = new THREE.Color(isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary);
   const secondary = new THREE.Color(isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary);
-  root.userData.appearance = { skinTone, hairColor, hairStyle, bootColor, source: options.appearanceSource };
+  root.userData.appearance = { skinTone, hairColor, hairStyle, bootColor, source: options.appearanceSource, ...Object.fromEntries(['height','weight','body','face','beard','moustache','brows','socks','gloves','wristband','celebration'].map(k=>[k,options[k]])) };
   const ownedTextures = [];
   const shadowMeshes = [];
   const materials = [];
@@ -272,6 +273,7 @@ export function createGltfPlayer(options = {}) {
       if(name === 'Micah | anatomical body.shoes06' && bootColor) clone.map=recolorSurface(material.map,bootColor,.08);
       if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
+      applyCareerSurface(clone,options);
       refinePlayerMaterial(clone,{surface:options.graphics?.surface??!simplified});
       materials.push(clone);
       return clone;
@@ -317,8 +319,9 @@ export function createGltfPlayer(options = {}) {
     rightFoot: findBone(model, 'RightFoot')
   };
 
+  if(bones.head&&options.face)bones.head.scale.x*=({slim:.95,broad:1.05,natural:1}[options.face]||1);
   const gloveGeometries=[];
-  if(isKeeper){
+  if(isKeeper||options.gloves&&options.gloves!=='none'){
     // Luva acompanha os dedos da MALHA importada: capa de látex no shader,
     // com espessura pequena. Evita uma esfera solta deixando dedos de fora.
     model.traverse(mesh=>{
@@ -333,13 +336,16 @@ export function createGltfPlayer(options = {}) {
       geometry.setAttribute('gloveMask',new THREE.BufferAttribute(mask,1));mesh.geometry=geometry;gloveGeometries.push(geometry);
       for(const material of materialList(mesh)){
         if(material.name!=='Micah | anatomical body.body')continue;
+        const surfaceCompile=material.onBeforeCompile,surfaceKey=material.customProgramCacheKey();
         material.onBeforeCompile=shader=>{
+          surfaceCompile(shader);
           shader.vertexShader='attribute float gloveMask; varying float vGloveMask;\n'+shader.vertexShader;
           shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvGloveMask=gloveMask; transformed+=normal*.006*gloveMask;');
           shader.fragmentShader='varying float vGloveMask;\n'+shader.fragmentShader;
-          shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\ndiffuseColor.rgb=mix(diffuseColor.rgb,vec3(.88,.93,.94),vGloveMask);');
+          const color=options.gloves==='black'?'vec3(.025,.03,.035)':'vec3(.88,.93,.94)';
+          shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>\ndiffuseColor.rgb=mix(diffuseColor.rgb,${color},vGloveMask);`);
         };
-        material.customProgramCacheKey=()=> 'xfc-keeper-latex-v1';
+        material.customProgramCacheKey=()=> 'xfc-keeper-latex-v2:'+surfaceKey+':'+(options.gloves||'keeper');
       }
     });
     const cuffMaterial=new THREE.MeshLambertMaterial({color:0x16bdb6});
@@ -350,6 +356,11 @@ export function createGltfPlayer(options = {}) {
       const cuff=new THREE.Mesh(cuffGeometry,cuffMaterial);cuff.name='xfc-keeper-glove-'+side;
       cuff.position.set(0,.04,.018);hand.add(cuff);
     }
+  }
+  if(options.wristband&&options.wristband!=='none'){
+    const geometry=new THREE.BoxGeometry(.075,.038,.065),material=new THREE.MeshLambertMaterial({color:options.wristband==='black'?'#17191b':'#eeeede'});
+    gloveGeometries.push(geometry);materials.push(material);
+    const band=new THREE.Mesh(geometry,material);band.name='xfc-career-wristband';band.position.set(0,.05,0);bones.leftHand?.add(band);
   }
   const mixer = new THREE.AnimationMixer(model);
   mixer.timeScale = 1;
@@ -528,7 +539,7 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'celebrate': {
-        const lift=Math.sin(Math.PI*Math.min(1,p*1.25)),style=Number(number)%3;
+        const lift=Math.sin(Math.PI*Math.min(1,p*1.25)),style=({arms:0,fist:1,wide:2}[options.celebration]??Number(number)%3);
         addBoneRotation(bones.leftArm,style===1?-.5*lift:-1.9*lift,0,style===2?.85*lift:0,w);
         addBoneRotation(bones.rightArm,-1.9*lift,0,style===2?-.85*lift:0,w);
         addBoneRotation(bones.leftForeArm,-.45*lift,0,0,w);

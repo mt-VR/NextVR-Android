@@ -1,4 +1,6 @@
-import {currentCareer,careerTeam,settleCareer} from '../data/career.js';
+import {getCareer,careerRoster,settleManager,managerTeam} from '../data/career-services.js';
+import {plannedTeam} from '../data/game-plan.js';
+import {settleCareer} from '../data/career.js';
 import {graphicsSettings} from '../ui/graphics-settings.js';
 // Tela da partida: a apresentação pré-jogo (cinematográfica), o jogo 3D em
 // si e o resultado final.
@@ -120,11 +122,12 @@ function projectToStage(camera, position) {
 }
 
 export function playScreen(ctx, params = {}) {
-  const career=params.careerMatchId?currentCareer(ctx.state.profile):null;
-  const careerClub=career&&career.pending?.id===params.careerMatchId?careerTeam(career):null;
+  const career=params.careerMatchId?getCareer(ctx.state.profile,params.careerKind||'player'):null;
+  const careerManager=career?.kind==='manager';
+  const careerClub=career&&career.pending?.id===params.careerMatchId?plannedTeam(careerRoster(career,careerManager?'manager':'player'),career.plan,careerManager?null:career.player.id):null;
   const careerPerformance={goals:0,shots:0,passes:0};
-  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || resolvePlayableTeam(params.home || ctx.state.selection.home);
-  const away = (careerClub?.id===params.away?careerClub:null) || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
+  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || (careerManager&&managerTeam(career,params.home)) || resolvePlayableTeam(params.home || ctx.state.selection.home);
+  const away = (careerClub?.id===params.away?careerClub:null) || (careerManager&&managerTeam(career,params.away)) || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
   const homeKit = kitForTeam(home, params.homeKit ?? 0);
   const awayKit = kitForTeam(away, params.awayKit ?? 0);
   const userSide = params.userSide === 'away' ? 'away' : 'home';
@@ -294,7 +297,7 @@ export function playScreen(ctx, params = {}) {
 
   function buildMatch() {
     match = createMatch({
-      playerLockId:careerClub?career.player.id:null,
+      playerLockId:careerClub&&!careerManager?career.player.id:null,
       graphicsQuality:ctx.state.profile.graphicsQuality,
       canvas,
       home,
@@ -305,7 +308,7 @@ export function playScreen(ctx, params = {}) {
       difficulty,
       userSide,
       onEvent: handleEvent,
-      gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:ctx.state.profile.gamePlans?.[away.id]},
+      gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:away.plan || ctx.state.profile.gamePlans?.[away.id]},
       stadium: stadiumIndex
     });
     hud = createHud({
@@ -316,6 +319,7 @@ export function playScreen(ctx, params = {}) {
       onSetPieceChange: options => match?.world.setPieceOptions(options)
     });
     controls = createControls({
+      playerCareer:!!careerClub&&!careerManager,
       root: stageBox,
       onCharge:value=>match?.world.setShotCharge(value),
       onCommand: (name, payload) => {
@@ -356,7 +360,7 @@ export function playScreen(ctx, params = {}) {
     const userGoals = userSide === 'home' ? event.score[0] : event.score[1];
     const rivalGoals = userSide === 'home' ? event.score[1] : event.score[0];
     if(careerClub){
-      const result=settleCareer(career,params.careerMatchId,event.score,careerPerformance);
+      const result=careerManager?settleManager(career,params.careerMatchId,event.score):settleCareer(career,params.careerMatchId,event.score,careerPerformance);
       matchReward={coins:0,goals:result?.goals||0};saveProfile(ctx.state);return;
     }
     if(params.ultimateMatchId){
@@ -390,6 +394,7 @@ export function playScreen(ctx, params = {}) {
   }
 
   function handleEvent(event) {
+    if(event.type==='pass-request')controls?.passFeedback(event.reason,event.accepted);
     if(careerClub&&(event.player||event.scorer)?.rosterId===career.player.id){
       if(event.type==='goal')careerPerformance.goals++;
       if(event.type==='shot')careerPerformance.shots++;
@@ -664,7 +669,7 @@ export function playScreen(ctx, params = {}) {
               returnTo: params.worldCupReturnTo || 'modes'
             })
           }, 'CONTINUAR COPA')
-          : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career')},'VOLTAR À CARREIRA')
+          : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career',{view:'hub',kind:careerManager?'manager':'player'})},'VOLTAR À CARREIRA')
           : params.ultimateMatchId ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('ultimate')},'VOLTAR AO CLUBE')
           : el('button', {
             class: 'btn btn--primary',
@@ -734,7 +739,7 @@ export function playScreen(ctx, params = {}) {
       }
       panel('PLANO DE JOGO',el('p',{text:'Arraste as cartinhas livremente. No teclado, selecione uma carta e use as setas. As novas posições orientam a equipe ao retomar, sem teletransportar o lance.'}),pitch);
     }
-    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go(careerClub?'career':params.ultimateMatchId?'ultimate':'menu');
+    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go(careerClub?'career':params.ultimateMatchId?'ultimate':'menu',careerClub?{view:'hub',kind:careerManager?'manager':'player'}:{});
     const confirm=(title,message,action)=>panel(title,el('p',{text:message}),el('button',{type:'button',class:'pause-reference__confirm',onClick:action,text:'CONFIRMAR'}));
     const actions=[
       ['resume','▶','CONTINUAR PARTIDA',resumeMatch],
@@ -750,7 +755,7 @@ export function playScreen(ctx, params = {}) {
           pausePanel=()=>match.world.replay.stop();
         }}),
         el('p',{text:'CHUTE: segure até a carga completa para superchute. CORRER: segure para correr; arraste para cima para chapéu ou para baixo para pedalada.'}),
-        careerClub ? el('p',{text:'Câmera Pro · acompanha seu atleta, como nos treinos.'}) : el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
+        careerClub&&!careerManager ? el('p',{text:'Câmera Pro · acompanha seu atleta, como nos treinos.'}) : el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
           el('option',{value:'1',selected:match.world.cameraZoom===1,text:'Padrão'}),el('option',{value:'1.2',selected:match.world.cameraZoom===1.2,text:'Mais aberta'}))),
         el('p',{text:'Teclado: WASD/setas para mover, Shift para correr, J/E para passar, K para carregar o chute e F para carrinho.'}),
         el('button',{type:'button',class:'pause-reference__back',dataset:{pauseAction:'plan'},onClick:showPlan,text:'PLANO DE JOGO'}))],

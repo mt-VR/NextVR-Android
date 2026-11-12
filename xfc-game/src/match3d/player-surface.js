@@ -20,11 +20,13 @@ const hairShapes=new Map();
 export function hairstyleGeometry(mesh,style='short') {
   const key=`${mesh.geometry.uuid}:${style}`;if(hairShapes.has(key))return hairShapes.get(key);
   const g=mesh.geometry.clone();const pos=g.attributes.position;
-  const height={short:1,curly:1.25,afro:1.55,mohawk:1.65,neymar:1.2,side:1.05,bald:.5}[style]||1;
+  const height={short:1,curly:1.25,afro:1.55,mohawk:1.65,neymar:1.2,side:1.05,fade:.85,long:1.6,braids:1.12,dreads:1.45,bald:.18}[style]||1;
   for(let i=0;i<pos.count;i++){
     const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);
     const rise=Math.max(0,y-1.70);
-    pos.setXYZ(i,x*(style==='afro'?1.22:style==='mohawk'?.4:1),y+Math.min(.075,rise*(height-1)),z*(style==='afro'?1.1:1));
+    const ridge=(style==='braids'||style==='dreads')?Math.sin(x*(style==='braids'?200:110))*.009:style==='curly'?Math.sin(x*120)*Math.cos(z*140)*.006:0;
+    const drop=style==='long'&&z<.02?Math.min(.12,Math.abs(z)*.65):0;
+    pos.setXYZ(i,x*(style==='afro'?1.22:style==='mohawk'?.4:1),y+Math.min(.075,rise*(height-1))+ridge-drop,z*(style==='afro'?1.1:1));
   }
   pos.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();hairShapes.set(key,g);return g;
 }
@@ -116,4 +118,30 @@ export function refinePlayerMaterial(material,{surface=true}={}){
   }else if(/short01/.test(name))material.roughness=.96;
   else if(/shoe|boot/i.test(name))material.roughness=.58;
   material.userData.surfaceDetail=Boolean(surface);return material;
+}
+
+// Pigmentação diretamente no material do rosto/meião importado. Coordenadas
+// de bind do Micah; não substitui rosto, rig nem textura original do catálogo.
+export function applyCareerSurface(material,look){
+ const body=material.name==='Micah | anatomical body.body',socks=/socks/i.test(material.name);
+ if(!body&&!socks)return;
+ const enabled=body&&(look.beard&&look.beard!=='none'||look.moustache==='classic'||look.brows==='thick')||socks&&look.socks==='short';
+ if(!enabled)return;
+ const hair=new THREE.Color(look.hairColor||'#24180f'),skin=new THREE.Color(look.skinTone||'#bd8868');
+ material.onBeforeCompile=shader=>{
+  shader.vertexShader='varying vec3 vCareerBind; varying vec3 vCareerNormal;\n'+shader.vertexShader;
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvCareerBind=position; vCareerNormal=normal;');
+  shader.fragmentShader='varying vec3 vCareerBind; varying vec3 vCareerNormal;\n'+shader.fragmentShader;
+  const beard=look.beard==='full'?1:look.beard==='stubble'?.55:look.beard==='goatee'?.9:0;
+  const mask=body?`
+    float faceFront=smoothstep(.15,.6,vCareerNormal.z);
+    float jaw=(1.-smoothstep(1.66,1.69,vCareerBind.y))*smoothstep(1.57,1.60,vCareerBind.y)*(1.-smoothstep(${look.beard==='goatee'?'.025,.04':'.07,.095'},abs(vCareerBind.x)));
+    float moustache=(1.-smoothstep(.025,.045,abs(vCareerBind.x)))*(1.-smoothstep(.006,.012,abs(vCareerBind.y-1.685)))*${look.moustache==='classic'?'1.':'0.'};
+    float brows=smoothstep(.012,.022,abs(vCareerBind.x))*(1.-smoothstep(.06,.075,abs(vCareerBind.x)))*(1.-smoothstep(.003,.008,abs(vCareerBind.y-1.741)))*${look.brows==='thick'?'1.':'0.'};
+    float pigment=clamp(jaw*${beard.toFixed(2)}+moustache+brows,0.,.92)*faceFront;
+    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(${hair.r.toFixed(4)},${hair.g.toFixed(4)},${hair.b.toFixed(4)}),pigment);
+  `:`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(${skin.r.toFixed(4)},${skin.g.toFixed(4)},${skin.b.toFixed(4)}),smoothstep(.30,.315,vCareerBind.y));`;
+  shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n'+mask);
+ };
+ material.customProgramCacheKey=()=>JSON.stringify({careerSurface:2,body,beard:look.beard,moustache:look.moustache,brows:look.brows,hair:look.hairColor,skin:look.skinTone,socks:look.socks});
 }

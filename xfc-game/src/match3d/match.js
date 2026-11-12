@@ -1,3 +1,4 @@
+import {evaluatePassRequest} from './pass-request.js';
 import {portraitFor} from '../data/asset-library.js';
 import {createVisualReplay} from './replay.js';
 import {selectShadowCasters} from './quality.js';
@@ -361,7 +362,7 @@ export function createMatch(options = {}) {
   function buildTeam(team) {
     const lineup = team.info?.players || [];
     assignSlots(lineup).forEach(({ data, index, slot, slotIndex }) => {
-      const role = slot.role;
+      const role = team.info?.savedPlan ? data.pos : slot.role;
       const isKeeper = role === 'GK';
       const look = appearanceFor(data);
       const model = makePlayerModel({
@@ -382,6 +383,7 @@ export function createMatch(options = {}) {
         hairStyle: look.hairStyle,
         bootColor: look.bootColor,
         heightScale: look.heightScale,
+        ...look,
         // O retrato pode enriquecer o rosto 3D; corpo e uniforme continuam em 3D.
         photo: portraitFor(data) || null
       });
@@ -399,6 +401,7 @@ export function createMatch(options = {}) {
         order: index,
         rosterId:data.id||String(index),
         captain:Boolean(data.captain),
+        instruction:data.instruction||'support',
         tacticalCustom:Number.isFinite(options.gamePlans?.[team.side]?.[data.id||String(index)]?.x)&&Number.isFinite(options.gamePlans?.[team.side]?.[data.id||String(index)]?.z),
         tacticalBase:{...base,...validatedPlan(options.gamePlans?.[team.side]?.[data.id||String(index)])},
         role,
@@ -440,6 +443,7 @@ export function createMatch(options = {}) {
   buildTeam(teams.home);
   buildTeam(teams.away);
   if(options.playerLockId)selectControlled(null);
+  else selectControlled(members(userSide).find(p=>!p.isKeeper)||members(userSide)[0]);
 
   // ------------------------------------------------------------------ ações --
 
@@ -1860,20 +1864,26 @@ export function createMatch(options = {}) {
         }
         return true;
       }
-      if (name === 'switch') {
-        world.switchPlayer();
-        return true;
-      }
+      if (name === 'request-pass') return world.requestPass();
+      if (name === 'switch') return world.switchPlayer();
       return false;
+    },
+
+    requestPass() {
+      if(paused||phase.name!=='play'||!options.playerLockId)return false;
+      const hero=controlled[userSide],owner=ball.state.owner;
+      if(!hero?.active||elapsedWorldTime<(hero.passRequestUntil||0))return false;
+      hero.passRequestUntil=elapsedWorldTime+1.2;
+      const decision=evaluatePassRequest({owner,receiver:hero,rivals:members(opponentOf(userSide)),attackSign:attackSign(userSide),offside:owner&&owner!==hero?isOffside(owner,hero):false});
+      if(owner&&owner!==hero&&owner.side===userSide)hero.model.signal?.(.7);
+      emit({type:'pass-request',...decision,player:hero});
+      if(decision.accepted)kickBall(owner,hero,{power:decision.power});
+      return decision.accepted;
     },
 
     /** Troca o jogador controlado para o mais próximo da bola. */
     switchPlayer() {
-      if(options.playerLockId){
-        const hero=controlled[userSide],owner=ball.state.owner;
-        if(phase.name==='play'&&hero?.active&&owner?.side===userSide&&owner!==hero){kickBall(owner,hero,{power:16});return true;}
-        return false;
-      }
+      if(options.playerLockId)return world.requestPass();
       const list = members(userSide).filter(player => player.active && player !== controlled[userSide]);
       let best = null;
       let bestDistance = Infinity;
@@ -1888,7 +1898,9 @@ export function createMatch(options = {}) {
       if (best) {
         selectControlled(best);
         if (training.enabled && training.drill === 'team') training.player = best;
+        return true;
       }
+      return false;
     },
 
     /** Ajusta a mira, força e técnica da bola parada sob controle humano. */

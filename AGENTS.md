@@ -592,3 +592,27 @@ modo `play` retornar à câmera `pro`; a função dos treinos é compartilhada c
 orientação `attackSign(userSide)` e entrada relativa ao mesmo eixo. Não restaurar
 a câmera de transmissão na carreira ao terminar a entrada. Testes em casa/fora
 em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
+
+### v0.5.33 — carreiras integradas sem reescrever o motor
+
+- `screens/career.js` roteia vistas separadas em `params.view`: entrada (padrão),
+  central, agenda, clube, tabela, escritório, mercado, objetivos e opções.
+  `career-editor.js` / `career-preparation.js` cuidam do editor 3D e do pré-jogo.
+- `profile.career` v1 não migra nem perde XP. `managerCareer` é independente;
+  `careerKind` escolhe o modo; cinco `careerSlots` guardam cópias profundas.
+  `career-services.js` usa a mesma liga/liquidação idempotente; orçamento do
+  técnico nunca toca as moedas do UT. Transferências só alteram elencos locais.
+- `data/game-plan.js` resolve formação, onze titulares, reservas, capitão,
+  funções, instruções e posições. A partida recebe `savedPlan`, `plan` e
+  `tactics`; IA aplica altura/pressão/passe. Técnico controla o time inteiro;
+  jogador mantém `playerLockId` e a câmera Pro. Visitante ganha controle inicial.
+- `pass-request.js` avalia posse, distância, marcação, linha de passe,
+  impedimento e opção de finalização; pedido tem cooldown e sinal curto.
+  TROCAR no teclado continua compatível, botão móvel chama `request-pass`.
+- Aparência validada inclui medidas, corpo/rosto, barba/bigode/sobrancelhas,
+  cabelos, botas, meiões, luvas, munhequeira e comemoração. Mesmo Micah,
+  sem novos corpos/GLBs. Shaders preservam texturas/UV e caches compartilhados.
+- Seis referências em `assets/ui/season`, derivados reproduzíveis/procedência
+  no CREDITS. DOM traz dados do save. Nunca `100% 100%` nestas imagens.
+- CSS novo dos controles escopado a `.screen--play`; não alterar HUD/cronômetro.
+  `tests/xfc-season.test.mjs` integra o CI junto das regressões existentes.

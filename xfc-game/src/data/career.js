@@ -1,15 +1,23 @@
 // Carreira local de UM atleta. Nunca muta o catálogo global nem as moedas do UT.
 import {TEAMS,getTeam} from './teams.js';
 export const CAREER_POSITIONS={ST:'Atacante',LW:'Ponta',CM:'Meio-campista',CB:'Zagueiro'};
-export const CAREER_HAIR={short:'Curto',curly:'Cacheado',afro:'Afro',mohawk:'Moicano',neymar:'Neymar',side:'Lateral',bald:'Raspado'};
-export const CAREER_HAIR_COLORS={'#24180f':'Preto','#66452d':'Castanho','#c3a16a':'Loiro'};
+export const CAREER_HAIR={short:'Curto',curly:'Cacheado',afro:'Afro',mohawk:'Moicano',neymar:'Neymar',side:'Lateral',fade:'Degradê',long:'Longo',braids:'Tranças',dreads:'Dreads',bald:'Raspado'};
+export const CAREER_HAIR_COLORS={'#24180f':'Preto','#66452d':'Castanho','#c3a16a':'Loiro','#a3442b':'Ruivo','#eeeeee':'Platinado'};
 export const CAREER_BOOTS={'#171b20':'Preta','#f3f3ed':'Branca','#ee4235':'Vermelha','#b3ef36':'Verde-lima'};
 export const CAREER_SKIN={'#e0b18d':'Tom 1','#bd8868':'Tom 2','#96613f':'Tom 3','#603d2c':'Tom 4'};
 export const CAREER_NATIONS=['Brasil','Espanha','Argentina','Portugal','França','Inglaterra','Itália','Alemanha'];
+export const CAREER_BEARD={none:'Sem barba',stubble:'Por fazer',full:'Cheia',goatee:'Cavanhaque'};
+export const CAREER_FACE={natural:'Natural',slim:'Fino',broad:'Largo'};
+export const CAREER_BODY={normal:'Equilibrado',lean:'Magro',strong:'Atlético'};
 const pick=(list,value,fallback)=>Object.hasOwn(list,value)?value:fallback;
 export function careerAppearance(value={}){return {
  hairStyle:pick(CAREER_HAIR,value.hairStyle,'short'),hairColor:pick(CAREER_HAIR_COLORS,value.hairColor,'#24180f'),
- bootColor:pick(CAREER_BOOTS,value.bootColor,'#171b20'),skinTone:pick(CAREER_SKIN,value.skinTone,'#bd8868')
+ bootColor:pick(CAREER_BOOTS,value.bootColor,'#171b20'),skinTone:pick(CAREER_SKIN,value.skinTone,'#bd8868'),
+ beard:pick(CAREER_BEARD,value.beard,'none'),face:pick(CAREER_FACE,value.face,'natural'),body:pick(CAREER_BODY,value.body,'normal'),
+ moustache:pick({none:1,classic:1},value.moustache,'none'),brows:pick({natural:1,thick:1},value.brows,'natural'),
+ height:Math.round(cap(value.height??175,160,200)),weight:Math.round(cap(value.weight??68,55,100)),
+ socks:pick({long:1,short:1},value.socks,'long'),gloves:pick({none:1,black:1,white:1},value.gloves,'none'),
+ wristband:pick({none:1,white:1,black:1},value.wristband,'none'),celebration:pick({arms:1,fist:1,wide:1},value.celebration,'arms')
 };}
 export function careerOverall(c){return Math.round(Object.values(c.player.stats).reduce((a,b)=>a+b,0)/6);}
 export function customiseCareer(c,values={}){
@@ -48,7 +56,7 @@ export function careerTeam(c){
  const base=getTeam(c.clubId),player=c.player;const players=base.players.map(p=>({...p,stats:{...p.stats}}));
  let index=players.findIndex(p=>p.pos===player.position);if(index<0)index=players.findIndex(p=>p.pos!=='GK');
  const ovr=careerOverall(c);
- players[index]={...players[index],id:player.id,name:player.name,fullName:player.name,number:player.number,pos:player.position,foot:player.foot,ovr,rating:ovr,photo:null,appearance:careerAppearance(player.appearance),height:175,weight:68,stats:{...player.stats}};
+ players[index]={...players[index],id:player.id,name:player.name,fullName:player.name,number:player.number,pos:player.position,foot:player.foot,ovr,rating:ovr,photo:null,appearance:careerAppearance(player.appearance),height:careerAppearance(player.appearance).height,weight:careerAppearance(player.appearance).weight,stats:{...player.stats}};
  return {...base,players,substitutes:[...(base.substitutes||[])]};
 }
 export function beginCareerMatch(c){const g=careerFixture(c);if(!g||g.score)return null;c.pending||={id:g.id,clubId:c.clubId};return c.pending;}

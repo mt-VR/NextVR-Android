@@ -27,5 +27,5 @@ export function playerPreview(canvas){
   canvas.dataset.ready='true';resize();
  }
  function resize(){if(!renderer||dead)return;const w=canvas.clientWidth,h=canvas.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();if(models.length===2){const spread=Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*camera.position.z*camera.aspect*.8;models[0].root.position.x=-spread;models[1].root.position.x=spread;}}
- return {show,dispose(){dead=true;revision++;cancelAnimationFrame(frame);observer?.disconnect();if(renderer){disposeModels();renderer.dispose();renderer.forceContextLoss();}}};
+ return {show,celebrate(){models.forEach(m=>m.celebrate());},dispose(){dead=true;revision++;cancelAnimationFrame(frame);observer?.disconnect();if(renderer){disposeModels();renderer.dispose();renderer.forceContextLoss();}}};
 }
