@@ -182,9 +182,7 @@ async function careerMatchPage(page, url) {
     m.phase.name = 'play';
     m.phase.restart = null;
     m.world.input.moveX = 0; m.world.input.moveZ = 0;
-    // Enche o buffer circular do replay sem depender de quadros reais.
-    for (let i = 0; i < 8; i++) m.world.replay.capture(.1);
-    return { frames: m.world.replay.frameCount, hero: m.controlled[m.world.userSide]?.rosterId };
+    return { hero: m.controlled[m.world.userSide]?.rosterId };
   });
 }
 
@@ -221,7 +219,7 @@ async function commitHeroFoul(page, { dangerous }) {
   }, { dangerous });
 }
 
-test('carreira: replay automático aparece após falta grave e pode ser pulado', { timeout: 120000 }, async t => {
+test('partida sem replay: falta grave não abre clipe e a pausa não oferece REVER ÚLTIMO LANCE', { timeout: 120000 }, async t => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
   if (!browser) { server.close(); return; }
@@ -230,27 +228,21 @@ test('carreira: replay automático aparece após falta grave e pode ser pulado',
     const errors = [];
     page.on('pageerror', e => errors.push(String(e.message || e)));
     const setup = await careerMatchPage(page, url);
-    assert.ok(setup.frames >= 3, 'buffer de replay preenchido');
     assert.equal(setup.hero, 'career-player');
     const foul = await commitHeroFoul(page, { dangerous: false });
     assert.equal(foul.started, true, 'carrinho aceito');
-    await page.waitForSelector('.play-replay', { timeout: 8000 });
-    const label = await page.locator('.play-replay__label').innerText();
-    assert.ok(label.includes('FALTA') || label.includes('PÊNALTI'), label);
-    assert.equal(await page.getByRole('button', { name: 'PULAR', exact: true }).count(), 1);
-    // O clipe automático tem ~3 s e termina sozinho. Num runner lento o painel
-    // pode se desconectar durante o clique; nesse caso o próprio replay já
-    // fechou, o que é o comportamento esperado — basta validar o estado final.
-    const skip = page.getByRole('button', { name: 'PULAR', exact: true });
-    try {
-      await skip.click({ timeout: 5000 });
-    } catch (e) {
-      if (!/detached|not attached|Timeout/i.test(String(e.message || e))) throw e;
-    }
-    await page.waitForSelector('.play-replay', { state: 'detached', timeout: 15000 });
-    assert.equal(await page.locator('.play-replay').count(), 0, 'replay fechado após PULAR/fim do clipe');
-    assert.equal(await page.evaluate(() => document.querySelector('.play__stage')?.classList.contains('is-replay')), false,
-      'classe de replay removida da partida');
+    // O replay foi removido a pedido: nada de clipe automático depois da falta.
+    await page.waitForTimeout(3500);
+    assert.equal(await page.locator('.play-replay').count(), 0, 'nenhum clipe automático abre');
+    assert.equal(await page.evaluate(() => document.querySelector('.play__stage')?.classList.contains('is-replay')), false);
+    assert.equal(await page.evaluate(() => Boolean(window.__xfcMatch.world.replay)), false,
+      'o motor não mantém mais buffer de replay');
+    // E o menu de pausa não tem mais a opção de rever o último lance.
+    await page.evaluate(() => { const m = window.__xfcMatch; m.phase.name = 'play'; m.phase.restart = null; });
+    await page.click('.play__pause-button');
+    await page.getByRole('button', { name: 'CONFIGURAÇÕES', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'REVER ÚLTIMO LANCE', exact: true }).count(), 0,
+      'REVER ÚLTIMO LANCE saiu das configurações');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); server.close(); }
 });

@@ -184,19 +184,20 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.42
+          TAG=xfc-gameplay-v0.5.43
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.42 (versionCode 48), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.43 (versionCode 49), commit ${GITHUB_SHA}." \
             "" \
-            "Corrida sem deslize: cadência e passada acompanham o contato do pé, inclusive correndo de lado. Moicano de crista removido e nova cor Cinza escuro no cabelo." \
-            "Replay automático cobre finalização comum, gol, defesa, falta, desarme, drible, escanteio, impedimento e passe em profundidade, com cooldown curto, clipe de 4,5 s e câmera mais próxima do lance." \
-            "Passe direcional, bola parada com rebote, câmera Pro, nota ao vivo 0-10, expulsão com ASSISTIR/ENCERRAR e editor rolável da v0.5.41 continuam." \
-            "166 testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.42.md.")
+            "Replay removido do jogo: nenhuma repetição automática e a opção REVER ÚLTIMO LANCE saiu da pausa." \
+            "Corrida refeita: passada mais longa (4,7-5,3 passos/s no sprint em vez de 7,7), calcanhar sobe atrás antes de chicotear a perna, tronco inclinado e braços soltos." \
+            "Ragnarok refeito: cabelo na cabeça inteira, penteado de frente para trás, topo com volume e laterais baixas." \
+            "Passe direcional, bola parada, câmera Pro, nota ao vivo, expulsão com ASSISTIR/ENCERRAR e editor continuam." \
+            "164 testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.43.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — corrida, replay e personalização v0.5.42" \
+            gh release create "$TAG" --title "XFC 27 — corrida e Ragnarok v0.5.43" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — corrida, replay e personalização v0.5.42" \
+            gh release edit "$TAG" --title "XFC 27 — corrida e Ragnarok v0.5.43" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

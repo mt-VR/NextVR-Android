@@ -1,7 +1,6 @@
 import {offsidePosition,offsideExempt} from './offside.js';
 import {evaluatePassRequest} from './pass-request.js';
 import {portraitFor} from '../data/asset-library.js';
-import {createVisualReplay} from './replay.js';
 import {selectShadowCasters} from './quality.js';
 import {directionalPassTarget} from './directional-pass.js';
 // O mundo da partida: monta o estádio, os dois times, a bola e o relógio;
@@ -120,7 +119,6 @@ export function createMatch(options = {}) {
   };
 
   const allPlayers = [];
-  const replay=createVisualReplay(engine,allPlayers,ball);
   const stats = {
     home: { shots: 0, corners: 0, fouls: 0, cards: 0, passes: 0, passesOn: 0, shotsOn: 0, saves: 0 },
     away: { shots: 0, corners: 0, fouls: 0, cards: 0, passes: 0, passesOn: 0, shotsOn: 0, saves: 0 }
@@ -611,7 +609,7 @@ export function createMatch(options = {}) {
     }
     if(contactHeight>1.5)player.model.header();else player.model.kick(contactHeight>.7?'volley':kind);
     // "Chute perigoso": trajetória que entraria no gol (no alvo). Usado pela
-    // nota da carreira e pelo replay automático. Estimativa pela velocidade
+    // nota da carreira. Estimativa pela velocidade
     // já aplicada em ball.kick, projetada até a linha do gol.
     const dangerous = shotIsOnTarget(sign);
     emit({ type: 'shot', team: player.side, player, kind, dangerous });
@@ -1845,7 +1843,6 @@ export function createMatch(options = {}) {
   // ------------------------------------------------------------------ mundo --
 
   const world = {
-    replay,
     ball,
     teams,
     clock,
@@ -2997,10 +2994,6 @@ export function createMatch(options = {}) {
       engine.camera.lookAt(...manualCamera.target);
     } else updateCamera(dt);
     markerChevron.quaternion.copy(engine.camera.quaternion);
-    // O replay também grava as PARADAS (falta, escanteio, pênalti, lateral,
-    // saída de bola): antes só o jogo corrido entrava no buffer e o clipe
-    // automático pegava justamente o instante em que a bola saía.
-    if(phase.name!=='entrance'&&phase.name!=='halftime'&&phase.name!=='fulltime')replay.capture(dt);
   }
 
   /** Câmera cinematográfica: uma volta sobre o estádio. */
@@ -3439,7 +3432,6 @@ export function createMatch(options = {}) {
       engine.stop();
     },
     dispose() {
-      replay.dispose();
       world.dispose?.();
       if(trainingCones.length){trainingCones[0].geometry.dispose();trainingCones[0].material.dispose();}
       trainingCones.forEach(cone=>engine.scene.remove(cone));

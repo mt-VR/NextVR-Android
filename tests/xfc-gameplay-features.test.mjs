@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { directionalPassTarget } from '../xfc-game/src/match3d/directional-pass.js';
 import { createCareerRating, RATING_START, RATING_WEIGHTS } from '../xfc-game/src/data/career-rating.js';
-import { replayTrigger } from '../xfc-game/src/match3d/replay-triggers.js';
 import { createCareer, beginCareerMatch, settleCareer, customiseCareer, careerTable, careerFixture } from '../xfc-game/src/data/career.js';
 import { createManagerCareer, settleManager } from '../xfc-game/src/data/career-services.js';
 
@@ -60,34 +59,11 @@ test('nota da carreira: começa em 6, pesos por lance e limite 0–10', () => {
   assert.equal(Number.isInteger(Math.round(fresh.value * 10)), true);
 });
 
-test('replay automático cobre finalização, defesa, falta, drible, desarme, escanteio e gol', () => {
-  const dangerous = replayTrigger({ type: 'shot', dangerous: true });
-  assert.equal(dangerous.label, 'CHUTE PERIGOSO');
-  assert.equal(dangerous.importance, 3);
-  // Antes, só o chute perigoso entrava: a finalização comum (que quase sempre
-  // termina em tiro de meta/lateral) ficava de fora e o replay "só passava
-  // quando a bola saía".
-  assert.equal(replayTrigger({ type: 'shot', dangerous: false }).label, 'FINALIZAÇÃO');
-  assert.equal(replayTrigger({ type: 'save' }).label, 'DEFESA');
-  assert.equal(replayTrigger({ type: 'foul', card: 'red' }).label, 'FALTA');
-  assert.equal(replayTrigger({ type: 'foul', severity: 0.9 }).label, 'FALTA');
-  assert.equal(replayTrigger({ type: 'foul', severity: 0.2 }).label, 'FALTA');
-  assert.equal(replayTrigger({ type: 'tackle', clean: true }).label, 'DESARME');
-  assert.equal(replayTrigger({ type: 'tackle', clean: false }), null);
-  assert.equal(replayTrigger({ type: 'dribble' }).label, 'DRIBLE');
-  assert.equal(replayTrigger({ type: 'restart', kind: 'corner' }).label, 'ESCANTEIO');
-  assert.equal(replayTrigger({ type: 'offside' }).label, 'IMPEDIMENTO');
-  assert.equal(replayTrigger({ type: 'pass-completed', through: true }).label, 'PASSE EM PROFUNDIDADE');
-  assert.equal(replayTrigger({ type: 'pass-completed' }), null);
-  const goal = replayTrigger({ type: 'goal' });
-  assert.equal(goal.label, 'GOL');
-  assert.equal(goal.afterGoal, true, 'gol espera a comemoração');
-  const penalty = replayTrigger({ type: 'restart', kind: 'penalty' });
-  assert.equal(penalty.label, 'PÊNALTI');
-  assert.equal(penalty.awaitPlay, true, 'só congela depois da cobrança');
-  assert.equal(replayTrigger({ type: 'shot', dangerous: true }).awaitPlay, undefined);
-  assert.equal(replayTrigger({ type: 'restart', kind: 'freekick' }), null);
-  assert.equal(replayTrigger(null), null);
+test('replay removido do jogo: não há gatilhos nem buffer de replay', async () => {
+  // O replay foi retirado a pedido do usuário. Garante que os módulos não
+  // voltem por engano em um import esquecido.
+  await assert.rejects(() => import('../xfc-game/src/match3d/replay-triggers.js'));
+  await assert.rejects(() => import('../xfc-game/src/match3d/replay.js'));
 });
 
 test('carreira: nota ao vivo vira nota oficial; fallback preservado', () => {

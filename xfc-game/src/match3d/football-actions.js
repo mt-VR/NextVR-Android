@@ -1,23 +1,42 @@
 // Mecânicas pequenas e determinísticas, compartilhadas pelos testes e pelo jogo.
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const smoothstep = (x, a, b) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const T_MathUtils_smoothstep = (x, a, b) => smoothstep(x, a, b);
 
 /** IK de duas pernas: o pé percorre o solo e volta pela frente, não chuta atrás. */
 export function runningLegPose(phase, stride = 1, running = 1) {
   const p = ((phase % 1) + 1) % 1;
   stride = clamp(stride, 0, 1.05);
   running=clamp(running,0,1);
-  const support=.62-.30*running;
+  // Pressão no chão cai com a velocidade (corrida tem mais fase aérea). O valor
+  // é o denominador da cadência: apoio curto = passada longa = menos passos por
+  // segundo. A 0.5.42 usava .62-.30r e a 6,5 m/s dava 7,7 passos/s (passinho
+  // de boneco, o "patinar" de pernas girando).
+  const support=.66-.28*running;
   const stance = p < support;
   const t = stance ? p / support : (p - support) / (1-support);
   // Corrida tem apoio < metade do ciclo: duas fases aéreas por passada.
   // Recuperação alta do joelho, com alcance traseiro curto (21 cm).
-  const smooth = t * t * (3 - 2 * t);
+  // No voo o pé fica atrás primeiro (calcanhar sobe) e só no fim chicoteia para
+  // a frente. Com a curva simétrica ele ia cedo demais para a frente e a perna
+  // se dobrava no ar — o joelho alto de "marcha".
+  const smooth = Math.pow(t * t * (3 - 2 * t), 1.7);
   // Passada de corrida mais longa (a caminhada quase não muda): o pé percorre
   // no apoio o que o corpo anda naquele intervalo, então a perna precisa de
   // alcance suficiente para cadência e velocidade combinarem sem deslizar.
-  const front=.25+.30*running,back=.12+.16*running;
+  // Passada mais longa no sprint: é o alcance do pé que permite cadência
+  // humana. A caminhada continua curta.
+  const front=.25+.38*running,back=.12+.22*running;
   const z = (stance ? front-(front+back)*t : -back+(front+back)*smooth)*stride;
-  const lift = stance ? 0 : Math.sin(Math.PI*t)**2*(.055+.275*running);
+  // Recuperação em duas fases: primeiro o calcanhar sobe atrás (chute no
+  // glúteo), depois a perna vem à frente. Só o sino simples deixava o joelho
+  // parado no alto e a corrida virava marcha no lugar.
+  // Envelope que zera nas duas pontas do voo: sem isso a elevação salta no
+  // instante do apoio e a perna "estala" (o teste de salto entre amostras pega).
+  const env = stance ? 0 : T_MathUtils_smoothstep(t, 0, .16) * (1 - T_MathUtils_smoothstep(t, .82, 1));
+  const heelKick = env * Math.exp(-Math.pow((t - .22) / .24, 2)) * (.075 + .115 * running);
+  const swingLift = env * Math.sin(Math.PI * Math.min(1, t * 1.25)) ** 2 * (.030 + .105 * running);
+  const lift = heelKick + swingLift;
   // O pé de apoio quase estende a perna; retirar o encurtamento constante
   // de 6 cm elimina o agachamento durante toda a passada.
   const compression=stance?.018*running*Math.sin(Math.PI*t)**2:0;
@@ -45,11 +64,18 @@ export function runningArmPose(phase, running=1) {
   const r=clamp(running,0,1),blend=r*r*(3-2*r);
   const swing=Math.cos(phase*Math.PI*2);
   // Caminhada: braços soltos e quietos. Corrida: balanço contralateral.
-  return { shoulder:.80*blend*swing,
-    elbow:-.08-(.30-.20*Math.sin(phase*Math.PI*2-.35))*blend, twist:.025*blend*Math.sin(phase*Math.PI*2) };
+  // Corrida de verdade: braço abre à frente e vai atrás, cotovelo em ~90°.
+  // Corrida real: cotovelo fica dobrado (~85°) e quem balança é o ombro. Antes
+  // o braço ia quase esticado à frente, com cara de autômato.
+  // Braço solto: quem balança é o ombro (~35° para cada lado, como um corredor);
+  // cotovelo em ~30°. Acima de ~0,8 rad o braço fica esticado para a frente e
+  // parece autômato.
+  return { shoulder:.60*blend*swing,
+    elbow:-(.08+.40*blend)*(1-.15*Math.max(0,-swing)),
+    twist:.028*blend*Math.sin(phase*Math.PI*2) };
 }
 export function runningFlight(phase,running=1){
-  const support=.62-.30*clamp(running,0,1),p=((phase%1)+1)%1,other=(p+.5)%1;
+  const support=.66-.28*clamp(running,0,1),p=((phase%1)+1)%1,other=(p+.5)%1;
   return p>=support&&other>=support;
 }
 
@@ -78,20 +104,25 @@ export function runningCycle(running=1,height=1,number=10){
   // na antiga — o pé quase não escorrega e a passada continua humana (não vira
   // corridinha de passinhos curtos).
   const contactDistance=contact/support;
+  // Só na corrida a cadência fica presa ao contato do pé; andar e trote mantêm
+  // o ciclo antigo (que já era natural) — senão a caminhada fica com passos
+  // longos demais, de "patinação".
   const legacyDistance=(1.15+2.05*r)*style*Math.max(.5,height);
-  const distance=contactDistance*.8+legacyDistance*.2;
+  const blend=r*r*(3-2*r);
+  const target=legacyDistance+(contactDistance-legacyDistance)*blend;
+  const distance=target*.85+legacyDistance*.15;
   return {stride,distance,style,support,contact,contactDistance};
 }
 
 /** Fração do ciclo com o pé no chão (a corrida tem fase aérea maior). */
 export function runningSupport(running=1){
-  return .62-.30*clamp(running,0,1);
+  return .66-.28*clamp(running,0,1);
 }
 
 /** Quanto o pé de apoio recua, em metros, durante o apoio. */
 export function contactTravel(running=1,stride=1){
   const r=clamp(running,0,1),s=clamp(stride,0,1.05*Math.max(1,stride));
-  const front=.25+.13*r,back=.12+.09*r;
+  const front=.25+.38*r,back=.12+.22*r;
   return (front+back)*s;
 }
 

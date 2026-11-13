@@ -1,14 +1,15 @@
 # XFC — o jogo de futebol da XF Esports
 
-**v0.5.42 — atualização de corrida e replay:** o ciclo de corrida passou a
-acompanhar o contato do pé (escorregamento no apoio caiu de ~2,4–3,0 m/s para
-~1,0–1,1 m/s, inclusive correndo de lado). Replay automático agora cobre
-finalização comum, gol, defesa, falta, desarme, drible, escanteio, impedimento e
-passe em profundidade, com cooldown curto e clipe de 4,5 s. Moicano de crista
-removido, nova cor Cinza escuro e feed do HUD sem minuto cru. Passe direcional,
-bola parada, câmera Pro, nota ao vivo e editor da v0.5.41 continuam. 166 testes
-de regressão aprovados, sem skips. Sem benchmark em telefone físico.
-[Detalhes e limites](docs/v0.5.42.md).
+**v0.5.43 — replay fora, corrida e Ragnarok refeitos:** o replay saiu inteiro do
+jogo (nada de clipe automático e a opção REVER ÚLTIMO LANCE deixou a pausa). A
+corrida foi reanimada: passada longa de 4,7–5,3 passos/s no sprint (antes eram
+7,7 passos de marionete), calcanhar sobe atrás antes de chicotear a perna, quadril
+com curva suave, tronco inclinado e braços soltos — o pé de apoio continua sem
+escorregar (0,51 m/s contra o limite de 1,6). O Ragnarok virou cabelo na cabeça
+inteira, penteado de frente para trás, topo com volume e laterais baixas, em vez
+de mechas nos lados. Passe direcional, bola parada, câmera Pro, nota ao vivo e
+editor da v0.5.41 continuam. 164 testes de regressão aprovados, sem skips. Sem
+benchmark em telefone físico. [Detalhes e limites](docs/v0.5.43.md).
 
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de
@@ -98,14 +99,14 @@ CI e publica uma release com download direto:
 
 | Arquivo | Link |
 | --- | --- |
-| APK direto (Android) | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.6/xfc.apk` |
-| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.6/xfc-game.zip` |
+| APK direto (Android) | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.43/xfc.apk` |
+| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.43/xfc-game.zip` |
 
-A release [`xfc-gameplay-v0.5.6`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.6)
-reúne o rig humanoide compartilhado e os modos anteriores, corrige o analógico do Treino Livre para seguir a câmera sem alterar partidas comuns, suaviza o acompanhamento da câmera e acrescenta animação de recepção. O perfil completo usa materiais com reflexos discretos para tecido e chuteiras; no celular, a tesselação e os materiais econômicos são mantidos. Também refina gramado, torcida, publicidade, fachadas e sombras para reduzir ruído visual (versionCode 12). O APK roda offline e o CI anexa o jogo web completo.
-
-A versão [`xfc-gameplay-v0.5.5`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.5)
-continua disponível, assim como a release anterior [`xfc-gameplay-v0.5.4`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.4).
+A release [`xfc-gameplay-v0.5.43`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.43)
+tira o replay do jogo, refaz a corrida e reconstrói o Ragnarok. A
+[`v0.5.42`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.42)
+e a [`v0.5.41`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.41)
+continuam disponíveis.
 
 ## Controles
 

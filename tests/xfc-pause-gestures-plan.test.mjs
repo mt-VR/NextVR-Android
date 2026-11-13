@@ -12,7 +12,12 @@ test('postura: apoio quase estendido e recuperação distinta de caminhada/corri
    if(pose.stance)assert.ok(pose.knee<.50,'flexão de amortecimento pequena na perna de apoio');
    assert.ok(Number.isFinite(pose.hip));assert.ok(pose.knee<1.85);
  }
- assert.ok(runningLegPose(.78,1,1).lift>runningLegPose(.78,1,0).lift);
+ // A elevação da perna é medida pelo pico da recuperação: na v0.5.43 o
+ // calcanhar sobe mais cedo no voo (pico antes do meio do balanço), então
+ // comparar um único instante não distingue mais corrida de caminhada.
+ const peakLift=running=>{let peak=0;for(let i=0;i<240;i++)peak=Math.max(peak,runningLegPose(i/240,1,running).lift);return peak;};
+ assert.ok(peakLift(1)>.22&&peakLift(0)<.13,'picos de elevação de corrida e caminhada');
+ assert.ok(peakLift(1)>peakLift(0)*2,'corrida recupera bem mais alto que a caminhada');
  for(const point of [{x:0,z:0},{x:20,z:-12},{x:-35,z:25}]){
    const round=pitchToPlan(planToPitch(point));assert.ok(Math.hypot(round.x-point.x,round.z-point.z)<1e-8);
  }

@@ -14,12 +14,13 @@ test('passadas: tornozelo segue trajetória limitada, joelho não lança pé par
     const p = runningLegPose(i / 240);
     const y = -0.44 * Math.cos(p.hip) - 0.42 * Math.cos(p.hip + p.knee);
     const z = -0.44 * Math.sin(p.hip) - 0.42 * Math.sin(p.hip + p.knee);
-    // Passada de corrida mais longa (contato acompanha o corpo); caminhada
-    // mantém o alcance curto medido antes.
-    assert.ok(z >= -.281 && z <= .551);
+    // Passada de corrida mais longa (contato acompanha o corpo): o pé vai de
+    // -0,34 m atrás a +0,63 m à frente para a cadência ficar humana (~4,7
+    // passos/s no sprint) sem voltar a patinar.
+    assert.ok(z >= -.345 && z <= .635);
     assert.ok(Math.abs(z - p.z) < 0.005);
     assert.ok(p.knee >= 0 && p.knee < 1.85);
-    assert.ok(y >= -.856 && y <= -.5095);
+    assert.ok(y >= -.856 && y <= -.515);
     assert.ok(Math.abs(p.hip + p.knee + p.ankle) <= .221, 'rolagem do tornozelo limitada ao contato');
     if (last)
       assert.ok(Math.abs(p.hip - last.hip) < 0.06, 'sem salto entre ciclos');

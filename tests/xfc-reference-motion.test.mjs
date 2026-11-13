@@ -19,8 +19,14 @@ test('andar mantém braços quietos; correr alterna braços, recupera joelho e t
     assert.ok(Math.abs(runningArmPose(i/120,1).shoulder+runningArmPose(i/120+.5,1).shoulder)<1e-9);
     knee=Math.max(knee,runningLegPose(i/120,1,1).knee);if(runningFlight(i/120,1))air++;
   }
-  assert.equal(Math.max(...walk)-Math.min(...walk),0);assert.ok(Math.max(...run)-Math.min(...run)>1.5);
-  assert.ok(knee>1.7&&knee<1.85);assert.ok(air>20&&air<60);
+  assert.equal(Math.max(...walk)-Math.min(...walk),0);
+  // Balanço de ombro na corrida: 1,2 rad de amplitude (~70° total). Acima disso
+  // o braço esticava à frente e a corrida parecia autômato.
+  assert.ok(Math.max(...run)-Math.min(...run)>1.1);
+  // Recuperação do joelho: o modelo novo levanta o calcanhar e chicoteia a perna
+  // à frente, então o pico do joelho fica em ~1,63 rad (antes exigia 1,7+, que
+  // era o "joelho alto de marcha"). O voo cobre ~40% do ciclo, não 17–50%.
+  assert.ok(knee>1.55&&knee<1.85);assert.ok(air>20&&air<60);
 });
 test('menus de referência: setas, uniformes, configurações, sorteio sem duplicar e retorno',{timeout:90000},async t=>{
   const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}

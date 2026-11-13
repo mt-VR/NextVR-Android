@@ -32,9 +32,9 @@ function strand(points,width,depth,steps=9,sides=5){
  for(let i=0;i<=steps;i++){const t=i/steps,c=curve.getPointAt(t),taper=.12+.88*Math.pow(Math.sin(Math.PI*(.12+.88*t)),.55);for(let j=0;j<=sides;j++){const a=j/sides*Math.PI*2,q=c.clone().addScaledVector(frames.normals[i],Math.cos(a)*width*taper).addScaledVector(frames.binormals[i],Math.sin(a)*depth*taper);p.setXYZ(i*(sides+1)+j,q.x,q.y,q.z);}}
  g.computeVertexNormals();return g;
 }
-function swept(c,{count,rows=1,start=.8,end=-.75,volume=.018,wave=0,width=.012,part=0}){
+function swept(c,{count,rows=1,start=.8,end=-.75,volume=.018,wave=0,width=.012,part=0,steps=8,sides=5}){
  const out=[];for(let row=0;row<rows;row++)for(let i=0;i<count;i++){
-  const x=(i-(count-1)/2)/count*1.3+.015*Math.sin(i*3.7),points=[];for(let k=0;k<6;k++){const u=k/5,t=start+(end-start)*u+.03*Math.sin(i*2.3)*(1-u),polar=Math.hypot(x,t),a=Math.atan2(x,t);const q=c.surface(a,polar,.003+volume*Math.sin(Math.PI*u)+row*.006);q.x+=wave*Math.sin(u*Math.PI*3+i*.45)+part*Math.sin(Math.PI*u);points.push(q);}out.push(strand(points,width*(.9+.12*Math.sin(i*2.7)),.004+volume*.10,8,5));
+  const x=(i-(count-1)/2)/count*1.3+.015*Math.sin(i*3.7),points=[];for(let k=0;k<6;k++){const u=k/5,t=start+(end-start)*u+.03*Math.sin(i*2.3)*(1-u),polar=Math.hypot(x,t),a=Math.atan2(x,t);const q=c.surface(a,polar,.003+volume*Math.sin(Math.PI*u)+row*.006);q.x+=wave*Math.sin(u*Math.PI*3+i*.45)+part*Math.sin(Math.PI*u);points.push(q);}out.push(strand(points,width*(.9+.12*Math.sin(i*2.7)),.004+volume*.10,steps,sides));
  }return out;
 }
 function curls(c,{count,extent,radius,coil}){
@@ -57,7 +57,49 @@ const BUILDERS={
   const parts=[];for(let i=0;i<9;i++){const t=1.10-i*.32,a=t<0?Math.PI:0,root=c.surface(a,Math.abs(t),.002),height=.065+.060*Math.sin((i+.5)/9*Math.PI);parts.push(blade(root,root.clone().add(V((i%2?1:-1)*.007,height,-.032)),.030,.027,.006));}
   for(const side of [-1,1])for(let i=0;i<4;i++){const t=.57-i*.34,x=side*.30,root=c.surface(Math.atan2(x,t),Math.hypot(x,t),.002);parts.push(blade(root,root.clone().add(V(side*.025,.060+i*.003,-.024)),.021,.022,side*.005));}return parts;
  },
- 'lab-ragnarok':c=>{const parts=[c.scalp({raise:.012,density:.35})];for(let i=0;i<13;i++){const a=-1.25+i*.19,t=.30+(i%4)*.17,root=c.surface(a,t,.004),tip=c.surface(a+.8,t+.12,.02);tip.add(V(.035,.037+(i%3)*.009,-.045));parts.push(blade(root,tip,.017,.024,.026));}return parts;},
+ 'lab-ragnarok':c=>{
+  // Ragnarok de verdade: cabelo na cabeça INTEIRA, penteado de frente para
+  // trás, topo com volume e laterais mais baixas. A base são as mechas do
+  // `lab-wavy` (as que leem como cabelo penteado); o Ragnarok ganha mais
+  // camadas, onda e um topete na frente.
+  const parts=[c.scalp({raise:.010,density:.96})];
+  // Topo: 3 camadas de mechas compridas, com onda — o comprimento que o
+  // Ragnarok tem em cima.
+  parts.push(...swept(c,{count:14,rows:3,start:1.02,end:-1.04,volume:.030,wave:.012,width:.015,steps:5,sides:4}));
+  // Camada curta por cima: quebra as faixas de pente e dá o "despenteado".
+  parts.push(...swept(c,{count:10,rows:1,start:.84,end:-.70,volume:.026,wave:.014,width:.012,steps:5,sides:4}));
+  // Contorno da testa: fios que nascem na linha do cabelo e sobem para trás,
+  // com altura irregular (é o topete do Ragnarok).
+  const seed=(i,f)=>Math.sin(i*12.9898+f*78.233)*.5+.5;
+  for(let i=0;i<11;i++){
+   const a=-1.00+i*.20,jit=seed(i,1),
+    t0=.88+jit*.14,
+    root=c.surface(a,t0,.004),
+    mid=c.surface(a*.99,t0-.18,.034),
+    end=c.surface(a*.97,t0-.40,.040);
+   end.y+=.012+jit*.016;end.x+=.008*(seed(i,2)-.5);
+   parts.push(strand([root,mid,end],.014,.0045,5,4));
+  }
+  // Laterais: mechas curtas acompanhando a orelha, sem cobrir o rosto.
+  for(const side of [-1,1])for(let i=0;i<5;i++){
+   const a=side*(1.05+i*.16),t=.20+i*.14,
+    root=c.surface(a,t,.003),
+    mid=c.surface(a,t+.22,.016),
+    end=c.surface(a,t+.34,.008);
+   end.x+=side*.006;end.y-=.010;
+   parts.push(strand([root,mid,end],.015,.0045,5,4));
+  }
+  // Nuca: fios mais longos caindo um pouco, dá o peso do corte.
+  for(let i=0;i<8;i++){
+   const a=Math.PI-.85+i*.22,
+    root=c.surface(a,.30,.004),
+    mid=c.surface(a,.78,.020),
+    end=c.surface(a,.96,.010);
+   end.y-=.022;end.z-=.004;
+   parts.push(strand([root,mid,end],.016,.005,5,4));
+  }
+  return parts;
+ },
  'lab-long':c=>{const parts=[c.scalp({density:.85})];for(let i=0;i<20;i++){const a=i/20*Math.PI*2,front=Math.cos(a)>.55,root=c.surface(a,.23,.003),part=Math.sin(a)>=0?1:-1,flow=front?part*.95:a,side=c.surface(flow,1.15,.018),end=side.clone();end.y=front?1.60:1.49+.025*Math.sin(i*2.4);end.x+=Math.sin(flow)*.017;end.z+=Math.cos(flow)*.014;parts.push(strand([root,c.surface(flow,.7,.026),side,end],.017,.006,12,5));}return parts;},
  'lab-low-fade':c=>[c.scalp({density:.93}),...swept(c,{count:14,rows:1,start:.75,end:-.95,volume:.008,width:.008})],
  'lab-mid-fade':c=>[c.scalp({raise:.009,density:.8}),...swept(c,{count:12,start:.82,end:-.55,volume:.018,width:.012,part:.018})],
