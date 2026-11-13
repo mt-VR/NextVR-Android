@@ -17,6 +17,22 @@ import { createBall } from './ball.js';
 import { resolveGoalCredit } from './scoring.js';
 import { appearanceFor } from '../data/appearance.js';
 import { createPlayer3D } from './player.js';
+import {
+  PREMATCH_TOTAL,
+  TUNNEL,
+  WALKOUT,
+  lineupSlot,
+  pathLength,
+  prematchBeatAt,
+  prematchCameraPose,
+  refereeLineupSlot,
+  refereeTunnelSlot,
+  samplePath,
+  smoothstep,
+  tunnelSlot,
+  walkoutPath
+} from './prematch.js';
+import { cheer } from '../audio.js';
 import { createGltfPlayer, gltfPlayersEnabled } from './models.js';
 import { installAnimationApi } from './animation.js';
 import { createTeamAI } from './ai.js';
@@ -1369,6 +1385,36 @@ export function createMatch(options = {}) {
       })[0] || null;
   }
 
+  /**
+   * Onde cada atleta fica na saída de bola (sem efeito colateral). A cerimônia
+   * usa a mesma tabela para levar os times da linha de apresentação até as
+   * posições do apito — assim o fim da cerimônia não teletransporta ninguém.
+   */
+  function kickoffPlacement(side) {
+    const sign = attackSign(side);
+    const available = members(side).filter(player => player.active);
+    const kicker = (side===userSide&&options.playerLockId?available.find(p=>p.rosterId===options.playerLockId):null)
+      || available.find(player => player.role === 'ST' && !player.isKeeper)
+      || available.find(player => !player.isKeeper)
+      || available[0];
+    if (!kicker) return null;
+    const positions = new Map();
+    for (const player of members(side)) {
+      if (!player.active || player === kicker) continue;
+      const base = player.tacticalBase || FORMATION_433[player.index] || FORMATION_433[1];
+      // Os companheiros do cobrador ficam no próprio campo durante a saída.
+      positions.set(player, { x: sign * Math.min(-1.2, base.x), z: base.z });
+    }
+    for (const player of members(opponentOf(side))) {
+      if (!player.active) continue;
+      const base = player.tacticalBase || FORMATION_433[player.index] || FORMATION_433[1];
+      // O adversário permanece no próprio campo e fora do círculo central.
+      positions.set(player, { x: sign * Math.max(9.5, Math.abs(base.x)), z: base.z });
+    }
+    positions.set(kicker, { x: -0.6 * sign, z: 0.4 });
+    return { sign, kicker, positions };
+  }
+
   /** Saída de bola. */
   function kickoff(side) {
     penaltyRunup=null;
@@ -1386,40 +1432,21 @@ export function createMatch(options = {}) {
     referee.vx = 0;
     referee.vz = 0;
     refereeSignal(side === 'home' ? 1.4 : 0.9);
-    const sign = attackSign(side);
-    const available = members(side).filter(player => player.active);
-    const kicker = (side===userSide&&options.playerLockId?available.find(p=>p.rosterId===options.playerLockId):null) || available.find(player => player.role === 'ST' && !player.isKeeper)
-      || available.find(player => !player.isKeeper)
-      || available[0];
-    if (!kicker) return;
-    const partners = available.filter(player => player !== kicker);
-    partners.forEach(player => {
-      const base = player.tacticalBase || FORMATION_433[player.index] || FORMATION_433[1];
-      // Os companheiros do cobrador ficam no próprio campo durante a saída.
-      player.x = sign * Math.min(-1.2, base.x);
-      player.z = base.z;
-      player.vx = 0;
-      player.vz = 0;
-      player.sprint = false;
-    });
-    for (const player of members(opponentOf(side))) {
-      if (!player.active) continue;
-      const base = player.tacticalBase || FORMATION_433[player.index] || FORMATION_433[1];
-      // O adversário permanece no próprio campo e fora do círculo central.
-      player.x = sign * Math.max(9.5, Math.abs(base.x));
-      player.z = base.z;
+    const placement = kickoffPlacement(side);
+    if (!placement) return;
+    const { kicker, positions } = placement;
+    for (const [player, target] of positions) {
+      player.x = target.x;
+      player.z = target.z;
       player.vx = 0;
       player.vz = 0;
       player.sprint = false;
     }
-    kicker.x = -0.6 * sign;
-    kicker.z = 0.4;
-    kicker.vx = 0;
-    kicker.vz = 0;
     ball.state.position.set(0, BALL.radius, 0);
     ball.state.velocity.set(0, 0, 0);
     ball.state.noAttachment=0;ball.state.assistProvider=null;ball.state.lastPass=null;
     ball.attachTo(kicker);
+    ball.mesh.position.set(kicker.x - kicker.facing.x * 0.45, BALL.radius, kicker.z - kicker.facing.z * 0.45);
     ball.state.lastTouch = kicker;
     ball.state.lastIntentionalTouch = kicker;
     if (side === userSide) selectControlled(kicker);
@@ -2004,7 +2031,34 @@ export function createMatch(options = {}) {
       return entrancePlayed;
     },
     get entranceProgress() {
-      return entrance ? Math.min(1, entrance.time / entrance.duration) : 0;
+      return entrance ? Math.min(1, entrance.time / PREMATCH_TOTAL) : 0;
+    },
+    /** Cena atual da cerimônia ('tunnel' | 'walkout' | 'anthem' | 'handoff'). */
+    get entranceBeat() {
+      return entrance ? prematchBeatAt(entrance.time).id : null;
+    },
+    /** Rótulo, legenda e índice da cena (a interface usa no painel). */
+    get entranceScene() {
+      if (!entrance) return null;
+      const beat = prematchBeatAt(entrance.time);
+      return { id: beat.id, index: beat.index, label: beat.label, caption: beat.caption, progress: beat.progress, total: beat.total };
+    },
+
+    /** Pula para o fim da cerimônia (testes e capturas; não é botão do jogo). */
+    skipEntrance() {
+      if (!entrance) return false;
+      entrance.time = PREMATCH_TOTAL;
+      return true;
+    },
+    /**
+     * Avança a cerimônia por um passo de motor fixo (capturas e testes que
+     * precisam de um instante exato). O jogo usa o relógio de parede.
+     */
+    advanceEntrance(step = 0, mode = 'exact') {
+      if (!entrance) return false;
+      if (mode === 'accumulate') entrance.extraTime = (entrance.extraTime || 0) + Math.max(0, step);
+      else entrance.override = Math.max(0, step);
+      return true;
     },
 
     /** Alterna entre a câmera de transmissão e a cinematográfica. */
@@ -2727,16 +2781,114 @@ export function createMatch(options = {}) {
     };
   }
 
-  function startEntrance({ duration = 4 } = {}) {
+  /** Os cordeiros da cerimônia: três árbitros (o principal é o `referee`). */
+  let ceremonyRefs = [];
+
+  /** Garante o grupo de árbitros da cerimônia (criado uma vez por partida). */
+  function ensureCeremonyReferees() {
+    if (ceremonyRefs.length) return ceremonyRefs;
+    // O árbitro principal já existe no motor; os dois assistentes são
+    // figurantes da cerimônia e ficam escondidos durante o jogo.
+    ceremonyRefs.push({ actor: referee, model: refereeModel, main: true });
+    for (let index = 0; index < 2; index += 1) {
+      const model = createPlayer3D({
+        kit: { primary: '#161a20', secondary: '#101319', accent: '#f5c518', pattern: 'solid' },
+        number: 2 + index,
+        isKeeper: false,
+        simplified: options.simplifiedPlayers ?? engine.lowPower,
+        skinTone: index ? '#8d5a34' : '#c98d5f',
+        hairColor: '#1f1712',
+        hairStyle: 'short',
+        heightScale: 1.02
+      });
+      model.root.name = `xfc-referee-assistant-${index + 1}`;
+      model.root.visible = false;
+      engine.scene.add(model.root);
+      ceremonyRefs.push({ actor: { x: 0, z: 0, vx: 0, vz: 0, facingAngle: 0, facing: new THREE.Vector3(0, 0, 1), root: model.root, turnLean: 0 }, model, main: false });
+    }
+    return ceremonyRefs;
+  }
+
+  /** Túnel: os times esperam; os árbitros ficam na frente, de costas para a luz. */
+  function placeCeremonyStart() {
+    ensureCeremonyReferees();
+    const groups = { home: teams.home.players.slice(), away: teams.away.players.slice() };
+    for (const side of ['home', 'away']) {
+      groups[side].forEach((player, index) => {
+        const slot = tunnelSlot(side, index);
+        player.x = slot.x;
+        player.z = slot.z;
+        player.vx = 0;
+        player.vz = 0;
+        player.facingAngle = slot.angle;
+        player.facing.set(Math.sin(slot.angle), 0, Math.cos(slot.angle));
+        player.root.position.set(slot.x, 0, slot.z);
+        player.root.rotation.y = slot.angle;
+        player.entrancePath = walkoutPath(side, index);
+        player.entranceLength = pathLength(player.entrancePath);
+        player.entranceStart = null;
+        player.anthemQueued = false;
+        player.handoffFrom = null;
+      });
+    }
+    ceremonyRefs.forEach((entry, index) => {
+      const slot = refereeTunnelSlot(index);
+      entry.actor.x = slot.x;
+      entry.actor.z = slot.z;
+      entry.actor.vx = 0;
+      entry.actor.vz = 0;
+      entry.actor.facingAngle = slot.angle;
+      entry.actor.facing.set(Math.sin(slot.angle), 0, Math.cos(slot.angle));
+      entry.model.root.position.set(slot.x, 0, slot.z);
+      entry.model.root.rotation.y = slot.angle;
+      entry.model.root.visible = true;
+      entry.entrancePath = refereeWalkoutPath(index);
+      entry.entranceStart = null;
+    });
+    // Bola fora de cena até o apito (os jogadores não a carregam no desfile).
+    ball.state.owner = null;
+    ball.state.velocity.set(0, 0, 0);
+    ball.state.position.set(0, BALL.radius, 0);
+    ball.mesh.position.copy(ball.state.position);
+    ball.mesh.visible = false;
+    if (ball.shadow) ball.shadow.visible = false;
+  }
+
+  /** Caminho dos árbitros: saem na frente, em fila pelo corredor. */
+  function refereeWalkoutPath(index) {
+    const start = refereeTunnelSlot(index);
+    // O árbitro principal fica no meio do corredor; os assistentes abrem a fila
+    // um passo à frente, um de cada lado.
+    const lane = index === 2 ? 0 : (index ? 0.85 : -0.85);
+    return [
+      { x: start.x, z: start.z },
+      { x: lane * 0.6, z: TUNNEL.throatZ + 0.4 },
+      { x: lane, z: TUNNEL.mouthZ + 0.4 },
+      { x: lane, z: WALKOUT.pitchZ },
+      { x: -7 + index * 0.9, z: -25.4 }
+    ];
+  }
+  function startEntrance({ duration } = {}) {
     if (entrance) return false;
     if (phase.name !== 'kickoff') return false;
-    entrance = { time: 0, duration, side: phase.side, startedAt: globalThis.performance?.now?.() ?? Date.now() };
-    for (const player of allPlayers) {
-      player.entranceBase = { x: player.x, z: player.z };
-    }
+    entrance = {
+      time: 0,
+      duration: 0,
+      durationOverride: Number.isFinite(duration) && duration > 0 ? duration : 0,
+      side: phase.side,
+      startedAt: globalThis.performance?.now?.() ?? Date.now(),
+      beat: -1,
+      sung: false,
+      walked: false
+    };
     phase.name = 'entrance';
     phase.timer = 0;
     paused = false;
+    // A bola sai de cena para o desfile e o relógio não corre na apresentação.
+    ball.state.owner = null;
+    placeCeremonyStart();
+    // Posições do apito, calculadas antes: a cena 4 caminha até elas.
+    entrance.placement = kickoffPlacement(phase.side || 'home');
     emit({ type: 'entrance-start' });
     return true;
   }
@@ -2744,18 +2896,30 @@ export function createMatch(options = {}) {
   function finishEntrance() {
     const side = entrance?.side || 'home';
     for (const player of allPlayers) {
-      if (player.entranceBase) {
-        player.x = player.entranceBase.x;
-        player.z = player.entranceBase.z;
-        player.entranceBase = null;
-      }
       player.vx = 0;
       player.vz = 0;
-      player.root.position.set(player.x, 0, player.z);
+      player.model.stopAnthem?.();
+      player.entrancePath = null;
     }
+    const refereeSlot = refereeLineupSlot(1);
+    referee.x = refereeSlot.x;
+    referee.z = refereeSlot.z;
+    referee.vx = 0;
+    referee.vz = 0;
+    referee.root.position.set(referee.x, 0, referee.z);
+    referee.facingAngle = 0;
+    referee.facing.set(0, 0, 1);
+    referee.root.rotation.y = 0;
+    for (const entry of ceremonyRefs) {
+      if (!entry.main) entry.model.root.visible = false;
+    }
+    ball.mesh.visible = true;
+    if (ball.shadow) ball.shadow.visible = true;
     entrance = null;
     entrancePlayed = true;
-    phase.name = 'kickoff';
+    // A cerimônia termina com o jogo já armado: o time do usuário sai com a bola
+    // no círculo central e o primeiro PASSE/CHUTE é do jogador, como sempre.
+    kickoff(side);
     phase.side = side;
     phase.timer = 0;
     cameraMode = options.playerLockId ? 'pro' : 'play';
@@ -2764,53 +2928,199 @@ export function createMatch(options = {}) {
     emit({ type: 'entrance-end', side });
   }
 
-  function updateEntrance(dt) {
-    // O relógio da entrada usa o tempo real: em aparelhos lentos a caminhada
-    // não pode durar o dobro por causa do passo limitado da física.
-    const now = globalThis.performance?.now?.() ?? Date.now();
-    entrance.time = Math.max(entrance.time + dt, (now - entrance.startedAt) / 1000);
-    const total = Math.min(1, entrance.time / entrance.duration);
-    const stagger = 0.3;
+  function updateCeremonyActors(dt, beat) {
+    const moving = beat.id === 'walkout';
+    // Jogadores.
     for (const player of allPlayers) {
-      const gate = (player.order / 10) * stagger;
-      const local = Math.max(0, Math.min(1, (total - gate) / (1 - stagger)));
-      const eased = local * local * (3 - 2 * local);
-      const pose = entrancePose(player, eased);
-      const previousX = player.x;
-      const previousZ = player.z;
-      player.x = pose.x;
-      player.z = pose.z;
-      const dx = player.x - previousX;
-      const dz = player.z - previousZ;
-      if (Math.hypot(dx, dz) > 0.0005) {
-        player.facingAngle = Math.atan2(dx, dz);
-        player.facing.set(Math.sin(player.facingAngle), 0, Math.cos(player.facingAngle));
+      const path = player.entrancePath;
+      if (!path) continue;
+      if (beat.id === 'tunnel') {
+        const slot = tunnelSlot(player.side, player.order);
+        player.x = slot.x;
+        player.z = slot.z;
+        player.facingAngle = slot.angle;
+      } else if (moving) {
+        // Os times só começam a andar depois que os árbitros abrem a fila.
+        // Cada jogador tem um atraso próprio: a fila sai da sala, não em bloco.
+        const startAt = 0.55 + player.order * 0.055 + (player.side === 'away' ? 0.18 : 0);
+        const walk = smoothstep((beat.local - startAt) / Math.max(0.5, beat.duration - startAt - 0.45));
+        // Velocidade constante na maior parte do trajeto, desacelerando só no fim.
+        const eased = smoothstep(walk);
+        const point = samplePath(path, eased);
+        const previousX = player.x;
+        const previousZ = player.z;
+        player.x = point.x;
+        player.z = point.z;
+        const dx = player.x - previousX;
+        const dz = player.z - previousZ;
+        if (Math.hypot(dx, dz) > 0.0008) {
+          player.facingAngle = Math.atan2(dx, dz);
+          player.facing.set(Math.sin(player.facingAngle), 0, Math.cos(player.facingAngle));
+        }
+        player.walkSpeed = dt > 0 ? Math.hypot(dx, dz) / dt : 0;
+        player.root.position.set(player.x, 0, player.z);
+        player.root.rotation.y = player.facingAngle;
+        player.model.update(dt, {
+          moving: player.walkSpeed > 0.12,
+          speed: Math.max(1.9, Math.min(3.4, player.walkSpeed * 1.35)),
+          x: player.x,
+          z: player.z,
+          lean: 0
+        });
+        continue;
+      } else if (beat.id === 'anthem') {
+        const slot = lineupSlot(player.side, player.order);
+        player.x = slot.x;
+        player.z = slot.z;
+        player.facingAngle = slot.angle;
+        player.root.position.set(player.x, 0, player.z);
+        player.root.rotation.y = player.facingAngle;
+        if (!player.anthemQueued) {
+          player.anthemQueued = true;
+          player.model.anthem?.(beat.duration + 0.6, player.isKeeper ? 0.65 : 1);
+        }
+        player.entranceSinging = true;
+      } else if (beat.id === 'handoff') {
+        // A apresentação acaba em movimento: ninguém some da linha e aparece
+        // no meio de campo. O time anda junto até as posições do apito.
+        player.entranceSinging = false;
+        const target = entrance.placement?.positions.get(player)
+          || lineupSlot(player.side, player.order);
+        if (!player.handoffFrom) player.handoffFrom = { x: player.x, z: player.z };
+        const k = smoothstep(beat.local / Math.max(0.3, beat.duration * 0.94));
+        const from = player.handoffFrom;
+        const previousX = player.x;
+        const previousZ = player.z;
+        player.x = from.x + (target.x - from.x) * k;
+        player.z = from.z + (target.z - from.z) * k;
+        const dx = player.x - previousX;
+        const dz = player.z - previousZ;
+        if (Math.hypot(dx, dz) > 0.0006) {
+          player.facingAngle = Math.atan2(dx, dz);
+          player.facing.set(Math.sin(player.facingAngle), 0, Math.cos(player.facingAngle));
+        }
+        const step = dt > 0 ? Math.hypot(dx, dz) / dt : 0;
+        player.walkSpeed = step;
+        player.root.position.set(player.x, 0, player.z);
+        player.root.rotation.y = player.facingAngle;
+        player.model.update(dt, {
+          moving: step > 0.15,
+          speed: Math.max(1.7, Math.min(4.2, step * 1.3)),
+          x: player.x,
+          z: player.z
+        });
+        continue;
       }
+      player.facing.set(Math.sin(player.facingAngle), 0, Math.cos(player.facingAngle));
       player.root.position.set(player.x, 0, player.z);
       player.root.rotation.y = player.facingAngle;
-      player.model.update(dt, { moving: local > 0.02 && local < 0.98, speed: 1.7, ownsBall: false });
+      player.model.update(dt, { moving: false, speed: 0, x: player.x, z: player.z });
+      // Na cerimônia ninguém fica girando a cabeça olhando a bola: o olhar vai
+      // para a câmera/mastro, como na apresentação de verdade.
+      player.model.lookAt?.({ x: player.x * 0.2, y: 1.65, z: player.z + 12 });
     }
-    updateEntranceCamera(total);
-    if (total >= 1) finishEntrance();
+
+    // Árbitros.
+    for (const entry of ceremonyRefs) {
+      const actor = entry.actor;
+      if (moving) {
+        const startAt = entry.main ? 0.0 : 0.3 + (entry.main ? 0 : 0.2);
+        const path = entry.entrancePath || refereeWalkoutPath(0);
+        const walk = smoothstep((beat.local - startAt) / Math.max(0.4, beat.duration - startAt - 0.7));
+        const point = samplePath(path, walk);
+        const previousX = actor.x;
+        const previousZ = actor.z;
+        actor.x = point.x;
+        actor.z = point.z;
+        const dx = actor.x - previousX;
+        const dz = actor.z - previousZ;
+        const speed = dt > 0 ? Math.hypot(dx, dz) / dt : 0;
+        if (Math.hypot(dx, dz) > 0.001) {
+          actor.facingAngle = Math.atan2(dx, dz);
+          actor.facing.set(Math.sin(actor.facingAngle), 0, Math.cos(actor.facingAngle));
+        }
+        entry.model.root.position.set(actor.x, 0, actor.z);
+        entry.model.root.rotation.y = actor.facingAngle;
+        entry.model.update(dt, { speed: Math.max(1.8, Math.min(3.2, speed * 1.3)), moving: speed > 0.15, x: actor.x, z: actor.z });
+      } else if (beat.id === 'anthem' || beat.id === 'handoff') {
+        // Ordem na linha: assistente, principal (no meio), assistente.
+        const lineupIndex = entry.main ? 1 : (ceremonyRefs.indexOf(entry) === 0 ? 0 : 2);
+        const slot = refereeLineupSlot(lineupIndex);
+        actor.x = slot.x;
+        actor.z = slot.z;
+        actor.vx = 0;
+        actor.vz = 0;
+        actor.facingAngle = 0;
+        actor.facing.set(0, 0, 1);
+        entry.model.root.position.set(actor.x, 0, actor.z);
+        entry.model.root.rotation.y = actor.facingAngle;
+        entry.model.update(dt, { speed: 0, moving: false, x: actor.x, z: actor.z });
+      } else {
+        actor.vx = 0;
+        actor.vz = 0;
+        entry.model.update(dt, { speed: 0, moving: false });
+      }
+      entry.model.lookAt?.({ x: actor.x * 0.2, y: 1.65, z: actor.z + 12 });
+    }
   }
 
-  function updateEntranceCamera(progress) {
+  /** Uma câmera só para as quatro cenas: curva contínua, sem corte. */
+  function updateEntranceCamera(time) {
+    const pose = prematchCameraPose(time, {
+      home: teams.home.players,
+      away: teams.away.players,
+      referees: ceremonyRefs.map(entry => entry.actor),
+      broadcast: (() => {
+        const hero = controlled[userSide]?.active ? controlled[userSide] : null;
+        const target = hero ? { x: hero.x, z: hero.z } : { x: 0, z: 0 };
+        return broadcastCameraPose({ x: target.x, y: 0, z: target.z }, cameraSide, null);
+      })(),
+      focus: (() => {
+        const list = allPlayers.filter(player => player.active);
+        if (!list.length) return null;
+        return {
+          x: list.reduce((total, player) => total + player.x, 0) / list.length,
+          z: list.reduce((total, player) => total + player.z, 0) / list.length
+        };
+      })()
+    });
+    if (!pose) return;
     const camera = engine.camera;
-    const ease = progress * progress * (3 - 2 * progress);
-    // A câmera acompanha o grupo que sai do túnel: desloca-se com o centro
-    // do time, mantendo o enquadramento de transmissão até o alinhamento.
-    const group = members(entrance.side).filter(player => player.active);
-    const count = group.length || 1;
-    const centerX = group.reduce((total, player) => total + player.x, 0) / count;
-    const centerZ = group.reduce((total, player) => total + player.z, 0) / count;
-    const positionX = centerX + 7 + 4 * ease;
-    const positionY = 4.6 + 4.4 * ease;
-    const positionZ = Math.min(centerZ + 10, -8);
-    camera.position.set(positionX, positionY, positionZ);
-    camera.lookAt(centerX - 1.2, 1.5 + 0.8 * ease, centerZ + 1.2);
+    camera.position.set(pose.position.x, pose.position.y, pose.position.z);
+    cameraTarget.set(pose.target.x, pose.target.y, pose.target.z);
+    camera.fov = pose.fov;
+    camera.updateProjectionMatrix();
+    camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
   }
-
-  // ----------------------------------------------------------------- update --
+  function updateEntrance(dt) {
+    // Dois relógios, um resultado: o passo do motor (que mantém os modelos
+    // sincronizados e é o que `world.tick` usa nos testes) e o relógio de parede.
+    // Se a página for estrangulada (rAF a 1 Hz em segundo plano), o passo vira
+    // uma cena de 176 s — então o relógio de parede puxa a cerimônia de volta.
+    // Quando o motor avança mais rápido que o relógio real (testes), o passo manda.
+    const now = globalThis.performance?.now?.() ?? Date.now();
+    const wall = Math.max(0, (now - entrance.startedAt) / 1000) + (entrance.extraTime || 0);
+    // Dois relógios, cada um no seu papel:
+    //  · Página normal: quem manda é o de PAREDE — a cerimônia tem tempo de
+    //    leitura e um aparelho lento não pode transformar 18,4 s em um minuto.
+    //  · Captura/teste (`advanceEntrance(..., 'exact')`): o instante pedido manda.
+    if (entrance.override !== undefined) {
+      entrance.time = entrance.override;
+      entrance.override = entrance.time + Math.max(0, dt);
+    } else {
+      entrance.time = Math.max(entrance.time, wall);
+    }
+    const beat = prematchBeatAt(entrance.time);
+    entrance.beat = beat.index;
+    entrance.progress = beat.progress;
+    if (beat.index !== entrance.lastBeat) {
+      entrance.lastBeat = beat.index;
+      emit({ type: 'entrance-beat', beat: beat.id, index: beat.index, label: beat.label, caption: beat.caption, total: PREMATCH_TOTAL });
+    }
+    updateCeremonyActors(dt, beat);
+    updateEntranceCamera(entrance.time);
+    if (entrance.time >= PREMATCH_TOTAL) finishEntrance();
+  }
 
   function update(dt) {
     // Com o jogo pausado (intervalo, menu de pausa) nada anda no campo.

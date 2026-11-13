@@ -44,7 +44,7 @@ test('partida: passes de 95m chegam, adversário intercepta, bandeira acompanha 
  const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
  try{
   const p=await b.newPage({viewport:{width:1280,height:720}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
-  await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.graphicsQuality='low';m.go('play',{home:'fc-barcelona',away:'real-madrid'});});await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+  await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.graphicsQuality='low';m.go('play',{home:'fc-barcelona',away:'real-madrid'});});await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible',{timeout:60000});
   const result=await p.evaluate(()=>{
    const m=__xfcMatch;m.stop();m.world.setPaused(false);m.world.isUserControlled=()=>true;
    const all=[...m.teams.home.players,...m.teams.away.players],home=m.teams.home.players.filter(p=>!p.isKeeper),away=m.teams.away.players.filter(p=>!p.isKeeper),passes=[];

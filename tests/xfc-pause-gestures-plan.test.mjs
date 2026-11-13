@@ -54,7 +54,7 @@ test('toque: carga imóvel completa gera superchute; sprint distingue gestos e c
 test('pausa real: congela simulação/render; plano arrasta sem teleporte, persiste e retoma',{timeout:120000},async t=>{
  const {server,url}=await startXfcServer({port:0});const b=await launchOrSkip(t);if(!b){server.close();return;}
  try{
-   const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.keyboard.press('Enter');await p.click('.launch__enter');await p.click('[data-menu-item="quick"]');await p.click('.quick__actions .continue-btn');await p.click('.stadiums__card:first-child');await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+   const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.keyboard.press('Enter');await p.click('.launch__enter');await p.click('[data-menu-item="quick"]');await p.click('.quick__actions .continue-btn');await p.click('.stadiums__card:first-child');await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible',{timeout:60000});
    await p.evaluate(()=>{const m=__xfcMatch;m.phase.name='play';m.phase.restart=null;m.world.command('pass');});
    await p.click('.play__pause-button');
    const capture=()=>p.evaluate(()=>{const m=__xfcMatch;return{clock:{...m.clock},ball:m.ball.state.position.toArray(),velocity:m.ball.state.velocity.toArray(),players:[...m.teams.home.players,...m.teams.away.players].map(x=>[x.x,x.z,x.vx,x.vz]),frames:m.engine.state.frames,camera:m.engine.camera.position.toArray(),phase:m.phase.name};});
@@ -94,7 +94,7 @@ test('referências: placar ao vivo branco/lima, pausa preta com cinco ações e 
  const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
  try{
   const p=await b.newPage({viewport:{width:1280,height:720}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
-  await p.evaluate(async()=>(await import('/src/main.js')).go('play',{home:'palmeiras',away:'santos'}));await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+  await p.evaluate(async()=>(await import('/src/main.js')).go('play',{home:'palmeiras',away:'santos'}));await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible',{timeout:60000});
   await p.evaluate(()=>{const m=__xfcMatch;m.teams.home.score=3;m.teams.away.score=0;m.clock.minutes=61+7.1/60;m.clock.half=2;m.world.setPaused(true);m.stop();document.querySelector('.hud__scoreboard').dataset.sameBoard='original';});
   await p.waitForFunction(()=>document.querySelector('.hud__clock').textContent==='61:07');
   assert.deepEqual(await p.locator('.hud__team').allTextContents(),['PAL','SAN']);assert.deepEqual(await p.locator('.hud__score').allTextContents(),['3','0']);

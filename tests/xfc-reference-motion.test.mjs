@@ -74,7 +74,7 @@ test('Micah mede 1,75 m em bind, mantém topologia/UV/rig e braços quietos na c
 });
 test('pênaltis nos dois gols: somente cobrador/goleiro na área, árbitro fora e marcador plano vermelho',{timeout:120000},async t=>{
   const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
-  try{const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.graphicsQuality='low';m.go('play',{home:'fc-barcelona',away:'real-madrid'});});await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+  try{const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.graphicsQuality='low';m.go('play',{home:'fc-barcelona',away:'real-madrid'});});await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible',{timeout:60000});
     const r=await p.evaluate(()=>{
       const m=__xfcMatch;m.stop();m.world.setPaused(false);m.world.entrancePlayed=true;
       const all=[...m.teams.home.players,...m.teams.away.players],rows=[];

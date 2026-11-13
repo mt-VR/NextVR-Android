@@ -703,7 +703,9 @@ function buildLockerRoom() {
   const foundation = new THREE.Mesh(new THREE.BoxGeometry(23, 0.24, 6), dark);
   foundation.position.set(0, 0.06, 0);
   group.add(foundation);
-  group.position.set(0, 0, -(PITCH.halfWidth + 17.8));
+  // Deslocado para a esquerda: o túnel (que agora tem interior habitável)
+  // ocupa o centro do fundo. O bloco continua fechando a arquibancada.
+  group.position.set(-17.5, 0, -(PITCH.halfWidth + 17.8));
   return group;
 }
 
@@ -1032,10 +1034,59 @@ export function buildStadium(scene, options = {}) {
 
   // Corredor livre (rotas em ±61/±42), bancos em ±47.2 e arquibancada
   // começando a ~20 m das linhas. Túnel e áreas técnicas fora da rota.
+  // Túnel com INTERIOR de verdade: a boca continua a do jogo, mas o corredor
+  // agora desce para uma sala fechada atrás da arquibancada. É lá que a
+  // cerimônia pré-jogo começa (cena 1) — os dois times lado a lado, os
+  // árbitros na frente — e de lá os jogadores saem andando para o gramado.
   const tunnel=new THREE.Group();tunnel.name='xfc-player-tunnel';
-  const tunnelMat=new THREE.MeshLambertMaterial({color:0x263441});
+  const tunnelMat=new THREE.MeshLambertMaterial({color:0x263441,emissive:0x0b141b});
+  const tunnelInner=new THREE.MeshLambertMaterial({color:0x1b2833,side:THREE.BackSide});
+  const tunnelFloorMat=new THREE.MeshLambertMaterial({color:0x2b3a30});
+  const tunnelLightMat=new THREE.MeshBasicMaterial({color:0xfff2c8});
   for(const x of [-1.8,1.8]){const wall=new THREE.Mesh(new THREE.BoxGeometry(.18,3.2,6),tunnelMat);wall.position.set(x,1.6,-48.2);tunnel.add(wall);}
-  const roof=new THREE.Mesh(new THREE.BoxGeometry(3.8,.18,6),tunnelMat);roof.position.set(0,3.2,-48.2);tunnel.add(roof);group.add(tunnel);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(3.8,.18,6),tunnelMat);roof.position.set(0,3.2,-48.2);tunnel.add(roof);
+  // Sala do túnel (cena do vestiário): 7,2 m de largura, 5,4 m de fundo.
+  const hall=new THREE.Group();hall.name='xfc-tunnel-hall';
+  const hallWalls=[];
+  const hallBack=new THREE.Mesh(new THREE.BoxGeometry(7.6,4.2,.2),tunnelMat);hallBack.position.set(0,2.05,-53.02);hallWalls.push(hallBack);
+  for(const side of [-1,1]){
+    const wall=new THREE.Mesh(new THREE.BoxGeometry(.2,4.2,6.0),tunnelMat);
+    wall.position.set(side*3.75,2.05,-50.3);hallWalls.push(wall);
+  }
+  const hallCeiling=new THREE.Mesh(new THREE.BoxGeometry(7.7,.2,6.0),tunnelMat);hallCeiling.position.set(0,4.15,-50.3);hallWalls.push(hallCeiling);
+  // Corredor de ligação entre a sala e a boca do túnel.
+  for(const side of [-1,1]){
+    const wall=new THREE.Mesh(new THREE.BoxGeometry(.16,3.4,2.2),tunnelMat);
+    wall.position.set(side*1.85,1.7,-46.2);hallWalls.push(wall);
+  }
+  const connectorRoof=new THREE.Mesh(new THREE.BoxGeometry(3.9,.16,2.2),tunnelMat);connectorRoof.position.set(0,3.4,-46.2);hallWalls.push(connectorRoof);
+  const hallFloor=new THREE.Mesh(new THREE.BoxGeometry(7.7,.1,6.1),new THREE.MeshLambertMaterial({color:0x39463a,emissive:0x0a0f0b}));hallFloor.position.set(0,.01,-50.3);hallWalls.push(hallFloor);
+  // Parede de fundo iluminada (placa do túnel): dá profundidade ao plano aberto
+  // sem depender de luz que a arquibancada bloqueia.
+  const hallSignTexture=canvasTexture(512,256,(context,width,height)=>{
+    const gradient=context.createLinearGradient(0,0,0,height);
+    gradient.addColorStop(0,'#12222e');gradient.addColorStop(1,'#0a141c');
+    context.fillStyle=gradient;context.fillRect(0,0,width,height);
+    context.strokeStyle='rgba(70,209,178,.55)';context.lineWidth=6;context.strokeRect(14,14,width-28,height-28);
+    context.fillStyle='#ecfffa';context.textAlign='center';context.textBaseline='middle';
+    context.font='900 54px Inter, sans-serif';context.fillText('XFC',width/2,height*.42);
+    context.font='900 22px Inter, sans-serif';context.fillStyle='rgba(214,236,255,.7)';
+    context.fillText('TÚNEL DOS VESTIÁRIOS',width/2,height*.66);
+  });
+  const hallSign=new THREE.Mesh(new THREE.PlaneGeometry(6.2,3.1),new THREE.MeshBasicMaterial({map:hallSignTexture}));
+  hallSign.position.set(0,2.0,-52.9);hallWalls.push(hallSign);
+  // Luz das lâmpadas do túnel: só brilho (sem custo de sombra) e o suficiente
+  // para os rostos aparecerem nos closes.
+  for(const z of [-47.6,-49.4,-51.2,-52.8]){
+    const lamp=new THREE.Mesh(new THREE.BoxGeometry(1.6,.06,.24),tunnelLightMat);
+    lamp.position.set(0,4.02,z);hallWalls.push(lamp);
+  }
+  const tunnelGlow=new THREE.PointLight(0xffeec2, lowPower?9:16, 18, 2);
+  tunnelGlow.position.set(0,3.55,-50.0);hallWalls.push(tunnelGlow);
+  const tunnelFill=new THREE.PointLight(0xcfe6ff, lowPower?4:7, 14, 2);
+  tunnelFill.position.set(0,2.4,-48.2);hallWalls.push(tunnelFill);
+  for(const mesh of hallWalls)tunnel.add(mesh);
+  group.add(tunnel);
   const technicalMat=new THREE.LineBasicMaterial({color:0xf1f1e4});
   for(const side of [-1,1])for(const x of [-18,18]){const points=[[-9,9.9],[9,9.9],[9,6.9],[-9,6.9],[-9,9.9]].map(([dx,dz])=>new THREE.Vector3(x+dx,.025,side*(PITCH.halfWidth+dz)));const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),technicalMat);line.name='xfc-technical-area';group.add(line);}
   const warmup=addWarmup(group,options.warmupTeams||[],lowPower||graphics.id==='low');

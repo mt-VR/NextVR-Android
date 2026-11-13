@@ -1,6 +1,7 @@
 import {labHairGeometry,labHairMaterial,CAREER_HAIR_ALIAS} from './hair-lab.js';
 import {addPlayerAccessories} from './player-accessories.js';
 import {classicIdentity,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
+import {anthemMouth,anthemSway} from './prematch.js';
 // Adaptação low poly clássica do Micah CC0; roupa/rig/UVs preservados.
 // Cabelos sólidos e variantes faciais locais, sem assets extraídos de PES.
 //
@@ -327,6 +328,30 @@ export function createGltfPlayer(options = {}) {
     rightFoot: findBone(model, 'RightFoot')
   };
 
+  // ------------------------------------------------------------- boca do hino --
+  // O esqueleto Mixamo não tem mandíbula: em vez de girar um osso que não
+  // existe, a boca é UMA peça escura presa à cabeça (orçamento: +1 malha). Fica
+  // escondida o jogo inteiro e só no hino abre na vertical, entre os lábios que
+  // o modelo já tem esculpidos.
+  const mouthRig = bones.head ? (() => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0x3a1412 })
+    );
+    mesh.name = 'xfc-glb-mouth';
+    // Medido na malha: a superfície dos lábios está em z ≈ 0,179 na altura
+    // 1,533. A peça entra rasa (frente só 0,4 mm à frente) para não virar bola.
+    const anchor = new THREE.Vector3(0, 1.5335, 0.1762);
+    root.updateMatrixWorld(true);
+    bones.head.worldToLocal(anchor);
+    mesh.position.copy(anchor);
+    mesh.scale.set(0.0146, 0.0007, 0.0038);
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.visible = false;
+    bones.head.add(mesh);
+    return { mesh, baseScale: mesh.scale.clone() };
+  })() : null;
   if(bones.head&&options.face)bones.head.scale.x*=({slim:.95,broad:1.05,natural:1}[options.face]||1);
   const gloveGeometries=[];
   addPlayerAccessories(model,{...options,isKeeper},materials,gloveGeometries);
@@ -685,6 +710,51 @@ export function createGltfPlayer(options = {}) {
     }
   }
 
+  // ------------------------------------------------------------- canto do hino --
+  // Estado contínuo: quem canta tem a boca abrindo/fechando e o corpo balançando
+  // no ritmo. Fica desligado o resto do jogo (nada de boca mexendo à toa).
+  const anthem = { timer: 0, elapsed: 0, seed: 0, intensity: 0 };
+  function setMouthOpen(openness) {
+    if (!mouthRig) return;
+    const open = Math.max(0, Math.min(1, openness));
+    const visible = open > 0.02;
+    mouthRig.mesh.visible = visible;
+    if (!visible) {
+      mouthRig.mesh.scale.copy(mouthRig.baseScale);
+      return;
+    }
+    // Fechada: um traço. Aberta: elipse de ~1 cm de altura com o lábio
+    // esticando um pouco para os lados, como numa vogal cantada.
+    mouthRig.mesh.scale.set(
+      mouthRig.baseScale.x * (0.9 + open * 0.2),
+      mouthRig.baseScale.y + open * 0.0092,
+      mouthRig.baseScale.z
+    );
+  }
+  function applyAnthemLayer(step) {
+    if (!anthem.timer) return;
+    anthem.elapsed += step;
+    anthem.timer = Math.max(0, anthem.timer - step);
+    if (anthem.timer <= 0 || anthem.intensity <= 0.001) {
+      anthem.timer = 0;
+      setMouthOpen(0);
+      return;
+    }
+    setMouthOpen(anthemMouth(anthem.elapsed, anthem.seed) * anthem.intensity);
+    const sway = anthemSway(anthem.elapsed, anthem.seed);
+    if (bones.spine2) {
+      bones.spine2.rotation.z += sway.side * 0.5 * anthem.intensity;
+      bones.spine2.rotation.x += Math.abs(sway.side) * 0.2 * anthem.intensity;
+    }
+    if (bones.head) {
+      bones.head.rotation.x -= sway.nod * 0.8 * anthem.intensity;
+      bones.head.rotation.y += sway.side * 1.4 * anthem.intensity;
+    }
+    for (const side of ['left', 'right']) {
+      if (bones[side + 'Arm']) bones[side + 'Arm'].rotation.x -= 0.08 * anthem.intensity;
+    }
+  }
+
   const api = {
     root,
     body: model,
@@ -738,6 +808,33 @@ export function createGltfPlayer(options = {}) {
     },
     signal(duration = 1.1) {
       return startGesture('signal', duration);
+    },
+    /** Canto do hino: abre a boca nas sílabas e balança o corpo. */
+    anthem(duration = 5, intensity = 1) {
+      anthem.timer = Math.max(0.2, Number(duration) || 5);
+      anthem.elapsed = 0;
+      anthem.seed = ((number % 7) / 7) + ((String(options.name || '').length % 5) / 5);
+      anthem.intensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+      return true;
+    },
+    stopAnthem() {
+      anthem.timer = 0;
+      anthem.intensity = 0;
+      setMouthOpen(0);
+    },
+    /** Abre/fecha a boca à mão (testes e capturas; o jogo usa `anthem`). */
+    setMouthOpen(openness) {
+      setMouthOpen(openness);
+    },
+    get singing() {
+      return anthem.timer > 0;
+    },
+    /** Ponto da boca no espaço do mundo (a câmera do hino enquadra nele). */
+    mouthPoint(target) {
+      if (!mouthRig) return null;
+      const point = target?.isVector3 ? target : new THREE.Vector3();
+      mouthRig.group.getWorldPosition(point);
+      return point;
     },
     prepareCard() {},
     showCard() {},
@@ -862,6 +959,7 @@ export function createGltfPlayer(options = {}) {
           gestureTimers.splice(index, 1);
         }
       }
+      applyAnthemLayer(step);
     },
 
     dispose() {

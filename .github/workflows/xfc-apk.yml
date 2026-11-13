@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,gameplay-features,gameplay-features-browser}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,gameplay-features,gameplay-features-browser}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -184,20 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.43
+          TAG=xfc-gameplay-v0.5.44
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.43 (versionCode 49), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.44 (versionCode 50), commit ${GITHUB_SHA}." \
             "" \
-            "Replay removido do jogo: nenhuma repetição automática e a opção REVER ÚLTIMO LANCE saiu da pausa." \
-            "Corrida refeita: passada mais longa (4,7-5,3 passos/s no sprint em vez de 7,7), calcanhar sobe atrás antes de chicotear a perna, tronco inclinado e braços soltos." \
-            "Ragnarok refeito: cabelo na cabeça inteira, penteado de frente para trás, topo com volume e laterais baixas." \
-            "Passe direcional, bola parada, câmera Pro, nota ao vivo, expulsão com ASSISTIR/ENCERRAR e editor continuam." \
-            "164 testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.43.md.")
+            "Toda partida agora abre com a mesma cerimônia de quatro cenas: túnel com os rostos, árbitros na frente e os times em duas colunas até o gramado, hino com a boca abrindo e fechando de verdade, e passagem contínua para a câmera de transmissão com o controle só no fim." \
+            "São 18,4 s de cerimônia em uma curva de câmera só — nenhum passo acima de 0,6 m por quadro e o último ponto é exatamente a câmera do apito." \
+            "Replay continua fora; corrida, Ragnarok, passe direcional, bola parada, câmera Pro, nota ao vivo e expulsão seguem como na v0.5.43." \
+            "Testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — corrida e Ragnarok v0.5.43" \
+            gh release create "$TAG" --title "XFC 27 — cerimônia pré-jogo v0.5.44" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — corrida e Ragnarok v0.5.43" \
+            gh release edit "$TAG" --title "XFC 27 — cerimônia pré-jogo v0.5.44" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

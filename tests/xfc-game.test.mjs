@@ -926,7 +926,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.showcase__enter', { timeout: 30000 });
     assert.ok(await page.locator('.showcase__enter').isVisible(), 'a partida abre no pré-jogo');
     await page.click('.showcase__enter');
-    await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    await page.waitForSelector('.hud.is-visible', { timeout: 30000 });
     const boardBox = await page.locator('.hud__scoreboard').boundingBox();
     assert.ok(boardBox && boardBox.x < 100, 'o placar ao vivo fica no canto superior esquerdo da referência');
     const stickBox = await page.locator('.controls__stick').boundingBox();
@@ -1149,7 +1149,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.click('.showcase__enter');
 
     // Partida: HUD, radar e controles na tela.
-    await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    await page.waitForSelector('.hud.is-visible', { timeout: 30000 });
     // Os blocos abaixo conduzem a partida por `world.tick` e medem o motor (chute
     // defendido, gol, carrinho, intervalo). Com a cobertura de replay da v0.5.42
     // um clipe automático pode abrir no meio e pausar o motor, que então ignora
@@ -2055,7 +2055,7 @@ test('os menus das competições são próprios e todas as opções abrem telas 
 
     // Entrada cinematográfica: a partida só começa depois do túnel.
     await page.click('.showcase__enter');
-    await page.waitForSelector('.hud.is-visible', { timeout: 20000 });
+    await page.waitForSelector('.hud.is-visible', { timeout: 30000 });
     const entrancePlayed = await page.evaluate(() => window.__xfcMatch.world.entrancePlayed);
     assert.equal(entrancePlayed, true, 'os times entram em campo pelo túnel antes do apito');
     assert.equal(await page.locator('.entrance').count(), 0, 'a entrada termina quando o jogo começa');

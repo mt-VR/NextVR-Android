@@ -46,19 +46,17 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
  }finally{await b.close();server.close();}
 });
 
-// Baselines v043: a v0.5.41 liberou os acréscimos pedidos (nota ao vivo,
-// indicador de expulsão, passe direcional e câmera Pro) e a v0.5.43 tirou o
-// replay do jogo — match.js e match3d.css mudam só por isso (saíram o buffer e
-// as regras .play-replay). Controles, menus de referência e a arte de entrada
-// continuam iguais.
+// Baselines v044: os mesmos arquivos da v0.5.43, agora com a cerimônia pré-jogo
+// de quatro cenas (match.js) e as regras do painel da cerimônia (match3d.css).
+// Controles, HUD, menus de referência e a arte de entrada continuam iguais.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "7d44e045209b64b67c2afb846ce69cb18242f6d64f73aa2ee2ab24da09a668e3",
   "src/match3d/controls.js": "9a014bf4045165c7a6ed023021a49a1ebf8242b9b99ef580947dc8f4d41b7eec",
-  "src/match3d/match.js": "0ea90c788689974819b5b918800ebedaab44f7e2fc7085902c248b019bcbd1ae",
+  "src/match3d/match.js": "55bb77789dfeca3306bdb0b62ab6c65119ede756158c33423e07c9a1e44ed8d0",
   "src/screens/career-reference.js": "c1dac4158ad6d164f875f03459b42d2617d4e2bacd6906556a23666ab9d7b2cd",
   "styles/career-reference.css": "85eebda817ec4e48c3badd1e9dc6be6310495f16f0462ffe6f878a201429888d",
-  "styles/match3d.css": "fa6814c36e0708c2304508beb451c4381b37ec8a047d5a0f57c22c207a3df5ca"
+  "styles/match3d.css": "765d37188b349cf58abaae9dec83f996745ce1518ce6e594eee4a68dd7c6b6a2"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });

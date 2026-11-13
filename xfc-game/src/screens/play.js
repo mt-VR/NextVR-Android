@@ -31,6 +31,7 @@ import { createHud } from '../match3d/hud.js';
 import * as THREE from '../../vendor/three.module.min.js';
 import { cheer, whistle, kickSound, applause, boo } from '../audio.js';
 import { STADIUMS, attachStadiumDome } from '../match3d/stadiums.js';
+import { PREMATCH_BEATS } from '../match3d/prematch.js';
 
 const STAGE_WIDTH = 1280;
 const STAGE_HEIGHT = 720;
@@ -142,6 +143,9 @@ export function playScreen(ctx, params = {}) {
 
   let stage = 'prematch';
   let paused = false;
+  // Painel da cerimônia (cena atual + legenda). Recriado a cada partida.
+  let entranceCaption = null;
+  let entranceSteps = [];
   let lastSnapshot = { score: [0, 0], display: "0'00", half: 1, phase: 'kickoff' };
   // Expulsão do herói da carreira.
   let spectatorMode = false, dismissalShown = false;
@@ -425,6 +429,20 @@ export function playScreen(ctx, params = {}) {
     if(isPlayerCareer&&event.type==='card'&&event.color==='red'&&event.player?.rosterId===heroId)showDismissal(event);
     if (!hud) return;
     switch (event.type) {
+      case 'entrance-beat': {
+        if (!entranceCaption) break;
+        entranceCaption.textContent = event.caption || '';
+        entranceCaption.classList.remove('is-fresh');
+        // Reflow curto para a legenda entrar com fade a cada virada de cena.
+        void entranceCaption.offsetWidth;
+        entranceCaption.classList.add('is-fresh');
+        for (const step of entranceSteps) {
+          const index = PREMATCH_BEATS.findIndex(beat => beat.id === step.dataset.beat);
+          step.classList.toggle('is-current', index === event.index);
+          step.classList.toggle('is-done', index < event.index);
+        }
+        break;
+      }
       case 'entrance-end': {
         beginLive();
         break;
@@ -531,6 +549,14 @@ export function playScreen(ctx, params = {}) {
     stage = 'entrance';
     paused = false;
     overlay.classList.add('is-visible', 'is-entrance');
+    // Painel da cerimônia: a cena, a legenda do momento e os quatro capítulos.
+    // A ordem é fixa e o marcador anda junto com o motor (`entrance-beat`).
+    entranceCaption = el('span', { class: 'entrance__caption', text: PREMATCH_BEATS[0].caption });
+    entranceSteps = PREMATCH_BEATS.map((beat, index) => el('span', {
+      class: `entrance__step${index === 0 ? ' is-current' : ''}`,
+      dataset: { beat: beat.id },
+      text: beat.label
+    }));
     overlay.replaceChildren(
       el('div', { class: 'entrance' },
         el('span', { class: 'entrance__eyebrow', text: STADIUMS[stadiumIndex]?.name || 'ESTÁDIO XFC' }),
@@ -545,7 +571,8 @@ export function playScreen(ctx, params = {}) {
             el('b', { text: away.name })
           )
         ),
-        el('span', { class: 'entrance__caption', text: 'OS TIMES ESTÃO ENTRANDO EM CAMPO' })
+        el('div', { class: 'entrance__steps' }, ...entranceSteps),
+        entranceCaption
       )
     );
     match?.world.setPaused(false);
@@ -557,6 +584,8 @@ export function playScreen(ctx, params = {}) {
   /** Fim da entrada: HUD, controles e a saída de bola. */
   function beginLive() {
     stage = 'live';
+    entranceCaption = null;
+    entranceSteps = [];
     overlay.replaceChildren();
     overlay.classList.remove('is-visible', 'is-entrance');
     setPauseButtonVisible(true);

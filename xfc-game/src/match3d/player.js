@@ -5,6 +5,7 @@
 
 import { THREE, canvasTexture, softShadowTexture } from './engine.js';
 import { createAnimationController, rigFromModel } from './animation.js';
+import { anthemMouth, anthemSway } from './prematch.js';
 
 const SKIN_TONES = [0xf0c8a0, 0xd9a066, 0xb87a4a, 0x8d5a34, 0x6b4226, 0xf5d9b8];
 const HAIR_COLORS = [0x1b1310, 0x2e2018, 0x4a3222, 0x6b4a2c, 0x8f6a3c, 0xd8c08a, 0x2b2b2b];
@@ -252,12 +253,14 @@ function buildStylizedFace(head, { lowDetail = false, skinTone = 0xd9a066 } = {}
   }
 
   const mouth = new THREE.Mesh(eyeball, lip);
+  mouth.name = 'xfc-player-mouth';
   mouth.position.set(0, -0.0495, 0.0708);
   mouth.scale.set(0.0168, 0.0052, 0.0052);
   group.add(mouth);
 
   if (!lowDetail) {
     const lowerLip = new THREE.Mesh(eyeball, new THREE.MeshLambertMaterial({ color: 0xa9584a }));
+    lowerLip.name = 'xfc-player-lower-lip';
     lowerLip.position.set(0, -0.0552, 0.0698);
     lowerLip.scale.set(0.0144, 0.0036, 0.0044);
     group.add(lowerLip);
@@ -1234,7 +1237,13 @@ export function createPlayer3D(options = {}) {
     innerEar.scale.set(0.009, 0.018, 0.006);
     head.add(innerEar);
   }
-  if (stylized) buildStylizedFace(head, { lowDetail, skinTone });
+  // Rosto estilizado: guarda boca e lábio para o hino (a boca abre e fecha).
+  const stylizedFace = stylized ? buildStylizedFace(head, { lowDetail, skinTone }) : null;
+  const mouthMesh = stylizedFace?.getObjectByName('xfc-player-mouth') || null;
+  const lowerLipMesh = stylizedFace?.getObjectByName('xfc-player-lower-lip') || null;
+  const mouthBase = mouthMesh ? mouthMesh.scale.clone() : null;
+  const mouthBaseZ = mouthMesh ? mouthMesh.position.z : 0;
+  const lowerLipBaseY = lowerLipMesh ? lowerLipMesh.position.y : 0;
   const hair = buildHair(hairStyle, hairMaterial);
   if (hair) {
     hair.name = 'xfc-player-hair';
@@ -1588,9 +1597,20 @@ export function createPlayer3D(options = {}) {
   let reactionTimer = 0;
   let reactionDuration = 0;
   let reactionKind = '';
+  // Canto do hino: abre/fecha a boca e dá o balanço do corpo. `0` = desligado.
+  let anthemTimer = 0;
+  let anthemElapsed = 0;
+  let anthemSeed = 0;
+  let anthemIntensity = 0;
 
   /** Pose neutra do rig: base de todo quadro (as camadas somam sobre ela). */
   function resetRigPose() {
+    // O hino é a única camada que mexe na boca: fora dele a boca fica fechada.
+    if (!anthemTimer && mouthMesh) {
+      mouthMesh.scale.copy(mouthBase);
+      mouthMesh.position.z = mouthBaseZ;
+      if (lowerLipMesh) lowerLipMesh.position.y = lowerLipBaseY;
+    }
     body.position.set(0, 0, 0);
     body.rotation.set(0, 0, 0);
     head.rotation.set(0, 0, 0);
@@ -1605,6 +1625,44 @@ export function createPlayer3D(options = {}) {
     }
   }
 
+  /** Abre a boca e balança o corpo no ritmo do hino (camada final do quadro). */
+  function applyAnthem(dt, state) {
+    if (!anthemTimer) return;
+    anthemElapsed += dt;
+    anthemTimer = Math.max(0, anthemTimer - dt);
+    const intensity = anthemIntensity;
+    if (anthemTimer <= 0 || intensity <= 0.001) {
+      anthemTimer = 0;
+      if (mouthMesh) {
+        mouthMesh.scale.copy(mouthBase);
+        mouthMesh.position.z = mouthBaseZ;
+        if (lowerLipMesh) lowerLipMesh.position.y = lowerLipBaseY;
+      }
+      return;
+    }
+    const time = anthemElapsed;
+    const seed = anthemSeed;
+    if (mouthMesh) {
+      const openness = anthemMouth(time, seed) * intensity;
+      // Boca: abre na vertical, alarga um pouco e o lábio de baixo desce.
+      mouthMesh.scale.set(
+        mouthBase.x * (1 + openness * 0.16),
+        mouthBase.y * (1 + openness * 2.35),
+        mouthBase.z * (1 + openness * 0.3)
+      );
+      mouthMesh.position.z = mouthBaseZ + openness * 0.0012;
+      if (lowerLipMesh) lowerLipMesh.position.y = lowerLipBaseY - openness * 0.0075;
+    }
+    const sway = anthemSway(time, seed);
+    // Balanço pequeno: ombro, tronco e cabeça, sem quebrar a caminhada.
+    body.rotation.z += sway.side * 0.35 * intensity;
+    body.rotation.x += Math.abs(sway.side) * 0.16 * intensity;
+    head.rotation.x -= sway.nod * 0.9 * intensity;
+    head.rotation.y += sway.side * 1.5 * intensity;
+    arms[0].shoulder.rotation.x -= 0.1 * intensity;
+    arms[1].shoulder.rotation.x -= 0.1 * intensity;
+  }
+
   const api = {
     root,
     body,
@@ -1616,6 +1674,29 @@ export function createPlayer3D(options = {}) {
       celebrateTimer = duration;
       celebrateStyle = CELEBRATION_STYLES.has(style) ? style : 'classic';
       celebrateElapsed = 0;
+    },
+    /**
+     * Canto do hino: a boca abre nas sílabas (rig clássico) e o corpo balança
+     * devagar. `intensity` 0..1 controla o quanto o atleta "canta junto".
+     */
+    anthem(duration = 5, intensity = 1) {
+      anthemTimer = Math.max(0.2, Number(duration) || 5);
+      anthemElapsed = 0;
+      anthemSeed = (number % 7) / 7 + (name?.length % 5) / 5;
+      anthemIntensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+    },
+    /** Encerra o canto (a boca volta a fechar na pose neutra). */
+    stopAnthem() {
+      anthemTimer = 0;
+      anthemIntensity = 0;
+      if (mouthMesh) {
+        mouthMesh.scale.copy(mouthBase);
+        mouthMesh.position.z = mouthBaseZ;
+        if (lowerLipMesh) lowerLipMesh.position.y = lowerLipBaseY;
+      }
+    },
+    get singing() {
+      return anthemTimer > 0;
     },
     /** Sinal de arbitragem: o braço direito sobe apitando. */
     header(duration = 0.38) { headerDuration = duration; headerTimer = duration; },
@@ -1964,6 +2045,7 @@ export function createPlayer3D(options = {}) {
         kickLeg: kickLegIndex === 0 ? 'L' : 'R',
         facingAngle: root.rotation.y
       });
+      applyAnthem(dt, state);
     },
     dispose() {
       disposePlayerObject(root);
