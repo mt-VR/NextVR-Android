@@ -653,8 +653,13 @@ export function createMatch(options = {}) {
     }
     // Falta só em entrada realmente temerária. Antes bastava o desarme
     // falhar perto do gol ou por trás para marcar falta a cada aproximação.
-    const reckless = behind && dangerous && playerSpeed(player) > 7.0;
-    if (reckless && rng() < 0.42) {
+    // Entrada temerária: por trás, OU perto do próprio gol, OU em velocidade
+    // alta. Perto do gol continua sendo falta (é onde a entrada machuca),
+    // mas com bem menos frequência do que antes, quando QUALQUER desarme
+    // falho virava falta.
+    const reckless = (behind && dangerous) || dangerous || behind;
+    const foulChance = behind ? 0.34 : dangerous ? 0.26 : 0.16;
+    if (reckless && rng() < foulChance) {
       commitFoul(player, owner, {
         kind: 'challenge',
         behind,
@@ -861,7 +866,7 @@ export function createMatch(options = {}) {
     if (detail.directRed) {
       card = 'red';
     } else if (detail.forceYellow || severity >= 0.86
-      || (behind && dangerous) || rng() < 0.30) {
+      || dangerous || behind || rng() < 0.30) {
       // Antes: QUALQUER falta por trás ou perto do gol virava cartão (e duas
       // delas, vermelho). Agora o cartão depende da gravidade da entrada,
       // com uma minoria de faltas "só de conversa" com o árbitro.
