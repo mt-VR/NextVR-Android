@@ -184,19 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.44
+          TAG=xfc-gameplay-v0.5.45
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.44 (versionCode 50), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.45 (versionCode 51), commit ${GITHUB_SHA}." \
             "" \
-            "Toda partida agora abre com a mesma cerimônia de quatro cenas: túnel com os rostos, árbitros na frente e os times em duas colunas até o gramado, hino com a boca abrindo e fechando de verdade, e passagem contínua para a câmera de transmissão com o controle só no fim." \
-            "São 18,4 s de cerimônia em uma curva de câmera só — nenhum passo acima de 0,6 m por quadro e o último ponto é exatamente a câmera do apito." \
-            "Replay continua fora; corrida, Ragnarok, passe direcional, bola parada, câmera Pro, nota ao vivo e expulsão seguem como na v0.5.43." \
+            "Câmera de transmissão mais perto: a lente desceu de 26 m para 14 m e se aproximou do eixo do campo, então os jogadores ficam ~20% maiores e a linha lateral de baixo entra no quadro — uma faixa fina logo acima do HUD, com o gramado ocupando a tela inteira." \
+            "As duas laterais e os dois gols continuam visíveis, também no zoom Mais aberta. O banco técnico mudou de lugar para não aparecer na frente do campo." \
+            "O resto está como na v0.5.44: cerimônia de quatro cenas, corrida, passe direcional, bola parada, câmera Pro, nota ao vivo e expulsão." \
             "Testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — cerimônia pré-jogo v0.5.44" \
+            gh release create "$TAG" --title "XFC 27 — câmera de transmissão v0.5.45" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — cerimônia pré-jogo v0.5.44" \
+            gh release edit "$TAG" --title "XFC 27 — câmera de transmissão v0.5.45" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

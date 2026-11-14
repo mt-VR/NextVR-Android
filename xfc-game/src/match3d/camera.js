@@ -51,32 +51,45 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
  * O que o usuário pediu é a câmera de PES: **lateral, no eixo do meio-campo,
  * quase horizontal, panorâmica acompanhando a bola**. Ela é montada assim:
  *
- *   • no vão livre da lateral — 26 m de altura e 53 m do eixo do campo, entre
+ *   • no vão livre da lateral — 14 m de altura e 48 m do eixo do campo, entre
  *     a linha (34) e a arquibancada (54). Em `z ≥ 54` a lente ficaria DENTRO
  *     da torcida (já aconteceu numa versão deste arquivo: a tela mostrava só
- *     as cadeiras). Acima das placas (1,25 m), do LED (3,1 m) e da cobertura
- *     do banco (4,1 m), então nada do estádio cruza a frente do gramado.
- *   • alvo 40 m à frente, no chão: dá inclinação de 33° — bem menos que os 59°
- *     da vista aérea — e é o suficiente para as duas linhas laterais caberem.
- *   • `fov = 62`: cobre a largura do gramado à distância da lente.
+ *     as cadeiras). Acima das placas (1,25 m) e do LED (3,1 m), então nada do
+ *     estádio cruza a frente do gramado. O banco técnico fica em `z = 50`,
+ *     atrás da lente — ver `buildSidelineBench` em `stadium.js`.
+ *   • alvo 24 m à frente, no chão: dá inclinação de 30° e, com esta lente
+ *     baixa, é o que faz a linha lateral de baixo entrar no quadro.
+ *   • `fov = 67`: cobre a largura do gramado à distância da lente. A 14 m de
+ *     altura a lente está perto do chão, e é a objetiva aberta que segura as
+ *     duas laterais e os dois gols no enquadramento.
  *   • panorâmica de 80% do deslocamento da bola, amortecida pelo
  *     `updateCamera`, sem zoom nem corte brusco: é o movimento do PES.
  *
- * Medido com o `three` do vendor em 1280×720, para a bola em todo o campo:
- * lateral próxima em `ndc.y = 0,63`, oposta em `0,49`, a bola em `|ndc| ≤ 0,20`
- * e 83% de todas as posições do gramado dentro do quadro. O resto entra pelo
- * pan — o que sai é sempre a lateral oposta ao lance, nunca o jogador da bola.
+ * A versão anterior (26 m de altura, `z = 53`, fov 62) era mais alta e mais
+ * aberta: as laterais cabiam, mas a linha de baixo caía em `ndc.y = -0,63`
+ * (588 px) — atrás dos botões de comando. Baixar a lente aproxima o chão da
+ * lente e encurta a distância do alvo, então a mesma lateral sobe para
+ * `ndc.y = -0,40` (504 px), acima do HUD, com o gramado ocupando a tela toda.
+ * A lente também ficou 15% mais perto do centro do campo (59 → 49 m).
  *
- * Comparação honesta com a versão anterior (diagonal a 34°): aquela mantinha
- * os 22 atletas no quadro em 100% dos instantes, mas de cima. Esta é a câmera
- * de transmissão lateral que foi pedida, e paga por isso com ~1 atleta na
- * borda em jogada de ponta.
+ * Medido com o `three` do vendor em 1280×720, para a bola em todo o campo:
+ * lateral próxima em `ndc.y = -0,40`, oposta em `0,57`, os dois gols em
+ * `|ndc.x| ≤ 0,92` e 100% das posições do gramado dentro do quadro quando a
+ * bola está no meio-campo. Jogador de linha no meio-campo: 21 px de altura
+ * (era 17). O resto entra pelo pan — o que sai é sempre a lateral oposta ao
+ * lance, nunca o jogador da bola.
+ *
+ * O zoom "mais aberta" do menu de pausa (`cameraZoom = 1,2`, que sobe a lente
+ * para 16,8 m e recua 1,2 m por metro de alvo) continua dentro do vão: as
+ * duas laterais e os dois gols seguem no quadro e o banco continua atrás da
+ * lente. Não confundir com a versão de `z = 53`, que no zoom aberto ia parar
+ * dentro da arquibancada.
  */
-const CAMERA_Z = 53;
-const CAMERA_HEIGHT = 26;
-const CAMERA_FOV = 62;
-/** Distância em Z do alvo: define a inclinação (33° com a altura de 26 m). */
-const CAMERA_TARGET_AHEAD = 40;
+const CAMERA_Z = 48;
+const CAMERA_HEIGHT = 14;
+const CAMERA_FOV = 67;
+/** Distância em Z do alvo: define a inclinação (30° com a altura de 14 m). */
+const CAMERA_TARGET_AHEAD = 24;
 /** Fração do deslocamento da bola aplicada à câmera (movimento do PES). */
 const CAMERA_PAN_FACTOR = 0.8;
 

@@ -653,7 +653,11 @@ test('todo import estático do jogo resolve para um arquivo do pacote', async ()
     'a checagem do APK precisa exigir o three.js dentro do pacote');
 });
 
-test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco', { timeout: 180000 }, async (t) => {
+// Teto de tempo com folga: em paralelo (--test-concurrency) esta navegação
+// inteira chega perto dos 180 s numa máquina carregada e estourava o timeout,
+// embora sozinha rode em ~133 s. O orçamento não estava pegando regressão
+// nenhuma, só a concorrência da suíte.
+test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco', { timeout: 300000 }, async (t) => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
   if (!browser) {

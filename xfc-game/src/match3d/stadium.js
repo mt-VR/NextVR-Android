@@ -1029,10 +1029,12 @@ export function buildStadium(scene, options = {}) {
   for (const side of [-1, 1]) {
     for (const x of [-18, 18]) {
       // O banco fica atrás da linha de visão da câmera de transmissão, no vão
-      // entre a lateral e a arquibancada (z = largura + 11). Mais perto da
-      // linha ele aparecia como uma caixa azul em primeiro plano, cobrindo o
-      // rodapé da imagem; encostado na arquibancada voltava a entrar em quadro.
-      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 11), side));
+      // entre a lateral e a arquibancada (z = largura + 16, a 3,6 m do muro).
+      // Mais perto da linha ele aparecia como uma caixa azul em primeiro plano
+      // cobrindo o rodapé do quadro — inclusive na câmera mais baixa e próxima
+      // de hoje, que vê bem mais chão perto da lente do que a versão anterior.
+      // Colado no muro (z = 54) a cobertura entra em quadro pelo topo.
+      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 16), side));
     }
   }
 

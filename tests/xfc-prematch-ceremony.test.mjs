@@ -137,24 +137,48 @@ test('cerimônia no navegador: cenas na ordem, hino com boca e controle só no f
       main.state.profile.graphicsQuality = 'low';
       main.go('play', { home: 'fc-barcelona', away: 'real-madrid', stadium: 0 });
     });
-    await page.waitForSelector('.showcase__enter', { timeout: 40000 });
+    await page.waitForSelector('.showcase__enter', { timeout: 60000 });
+    // A cerimônia lê o relógio de PAREDE. Num CI carregado, o primeiro quadro
+    // depois do clique pode valer dezenas de segundos e a cerimônia inteira
+    // passa de uma vez, sumindo com o painel antes da primeira asserção
+    // (acontecia só em paralelo). Congelar `performance.now` prende o relógio
+    // no clique: daqui para baixo a cerimônia só anda nos ticks do teste.
+    await page.evaluate(() => {
+      const frozen = performance.now();
+      performance.now = () => frozen;
+    });
     await page.click('.showcase__enter');
 
     // O painel da cerimônia mostra os quatro capítulos e começa no túnel.
-    await page.waitForSelector('.entrance__steps', { timeout: 20000 });
+    // A espera é pelo elemento EXISTIR, não por estar visível: o painel é
+    // desenhado com opacidade zero no primeiro quadro do fade e, numa máquina
+    // carregada, a cerimônia inteira pode passar antes de ele aparecer.
+    await page.waitForSelector('.entrance__steps', { timeout: 60000, state: 'attached' });
+    // O relógio da cerimônia é o de PAREDE. Se a máquina ficar ocupada (a
+    // suíte roda em paralelo) entre abrir a tela e chegar aqui, a cena já
+    // passou. Parar o laço e armar o relógio do motor prende a cerimônia no
+    // instante zero: daqui para baixo ela só anda quando o teste manda.
+    await page.evaluate(() => {
+      const match = window.__xfcMatch;
+      match.stop();
+      match.world.advanceEntrance(0, 'exact');
+      match.world.tick(1 / 60);
+    });
     assert.equal(await page.locator('.entrance__step').count(), 4, 'quatro capítulos no painel');
-    // A cena corrente é lida do relógio da cerimônia, que avança com o tempo
-    // real: numa máquina de CI carregada a abertura (4 s de túnel) pode ter
-    // passado antes desta linha. O que importa aqui é que o painel está numa
-    // das cenas da abertura e que a ordem completa aparece no laço abaixo.
-    const currentBeat = await page.locator('.entrance__step.is-current').first().getAttribute('data-beat');
-    assert.ok(['tunnel', 'walkout'].includes(currentBeat),
-      `a cerimônia começa na abertura (túnel/saída), não em ${currentBeat}`);
+    // Com o relógio preso no instante zero, a cena corrente é o túnel.
+    assert.equal(await page.locator('.entrance__step.is-current').first().getAttribute('data-beat'), 'tunnel',
+      'a cerimônia abre no túnel');
 
     // Percorre a cerimônia pelo motor, registrando a ordem das cenas.
     const order = await page.evaluate(async () => {
       const match = window.__xfcMatch;
       match.stop();
+      // Relógio do motor, não o de parede: sem isto a cerimônia já pode estar
+      // no hino quando o teste começa a registrar, e as cenas iniciais somem.
+      // O `advanceEntrance` só arma o relógio; o primeiro quadro aplica o
+      // instante zero, então ele vem ANTES da primeira leitura da cena.
+      match.world.advanceEntrance(0, 'exact');
+      match.world.tick(1 / 60);
       const seen = [];
       let guard = 0;
       // Passo fixo: a cerimônia avança por pedido do teste, não pelo relógio
