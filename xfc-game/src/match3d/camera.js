@@ -39,70 +39,62 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
 }
 
 /**
- * Câmera de transmissão — geometria.
+ * Câmera de transmissão — inspirada na câmera lateral clássica de PES/eFootball.
  *
- * Defeitos que o usuário viu, com a conta de cada um:
+ * Histórico, porque cada versão falhou por um motivo diferente:
  *
- * 1. A lente ficava DENTRO do campo (`z = 23` com a lateral em `z = 34`): o que
- *    estava na metade de baixo do gramado caía atrás da câmera e nem era
- *    desenhado. Não era corte de borda, era metade do elenco fora do frustum.
- * 2. A correção seguinte virou uma vista de cima (depressão de 59°, `h = 85`
- *    sobre `z = 160`, `fov = 22`): o campo cabia, mas sem perspectiva nenhuma —
- *    um mapa, não uma transmissão.
- * 3. Panorâmica em X (seguir a bola) não fecha: um atleta a 52 m do eixo cai em
- *    `ndc.x = 2,06`, e medido sobra ~15% das posições de jogador fora da tela.
+ * 1. A original ficava DENTRO do campo (`z = 23` com a lateral em `z = 34`):
+ *    metade do gramado ia para trás da lente e não era desenhada.
+ * 2. Uma vista elevada a 59° enquadrava o campo todo, mas virava um mapa.
+ * 3. Uma diagonal a 34° melhorou a perspectiva, mas ainda era visão de cima.
  *
- * O que ficou é uma câmera de TV elevada e DIAGONAL: 65 m de altura, 95 m
- * atrás da linha lateral, deslocada 24 m para um lado do campo, olhando o
- * centro do gramado. A razão 65/95 dá depressão de 34° — perspectiva baixa o
- * bastante para ler profundidade e alta o bastante para as duas laterais
- * caberem — e o deslocamento lateral é o que cria o ângulo diagonal.
+ * O que o usuário pediu é a câmera de PES: **lateral, no eixo do meio-campo,
+ * quase horizontal, panorâmica acompanhando a bola**. Ela é montada assim:
  *
- * Medido com o `three` do vendor em 1280×720 (o pior aspecto do app):
+ *   • no vão livre da lateral — 26 m de altura e 53 m do eixo do campo, entre
+ *     a linha (34) e a arquibancada (54). Em `z ≥ 54` a lente ficaria DENTRO
+ *     da torcida (já aconteceu numa versão deste arquivo: a tela mostrava só
+ *     as cadeiras). Acima das placas (1,25 m), do LED (3,1 m) e da cobertura
+ *     do banco (4,1 m), então nada do estádio cruza a frente do gramado.
+ *   • alvo 40 m à frente, no chão: dá inclinação de 33° — bem menos que os 59°
+ *     da vista aérea — e é o suficiente para as duas linhas laterais caberem.
+ *   • `fov = 62`: cobre a largura do gramado à distância da lente.
+ *   • panorâmica de 80% do deslocamento da bola, amortecida pelo
+ *     `updateCamera`, sem zoom nem corte brusco: é o movimento do PES.
  *
- *   • lateral próxima em `ndc.y = −0,93`   (7% de folga na borda de baixo)
- *   • lateral oposta  em `ndc.y = +0,47`   (53% de folga na borda de cima)
- *   • o atleta mais distante do centro em `|ndc| = 0,71`
- *   • a bola em qualquer ponto do campo em `|ndc| ≤ 0,90`
- *   • os dois gols inteiros dentro da área livre do HUD
+ * Medido com o `three` do vendor em 1280×720, para a bola em todo o campo:
+ * lateral próxima em `ndc.y = 0,63`, oposta em `0,49`, a bola em `|ndc| ≤ 0,20`
+ * e 83% de todas as posições do gramado dentro do quadro. O resto entra pelo
+ * pan — o que sai é sempre a lateral oposta ao lance, nunca o jogador da bola.
  *
- * Linha de visão conferida contra a geometria do estádio (`stadium.js`): com a
- * lente a 65 m de altura e o banco técnico encostado no muro (z = 39,2 e não
- * mais a 47,2), nenhum ponto do gramado fica tapado — nem placa, nem LED, nem
- * banco, nem arquibancada, nem cobertura. Eram esses objetos atravessando a
- * frente da câmera que viravam as "colunas marrons" e a estrutura branca da
- * imagem de referência.
+ * Comparação honesta com a versão anterior (diagonal a 34°): aquela mantinha
+ * os 22 atletas no quadro em 100% dos instantes, mas de cima. Esta é a câmera
+ * de transmissão lateral que foi pedida, e paga por isso com ~1 atleta na
+ * borda em jogada de ponta.
  */
-const CAMERA_Z = 95;
-const CAMERA_HEIGHT = 65;
-const CAMERA_FOV = 38;
-/**
- * Deslocamento lateral da lente (m): é o que dá o ângulo diagonal. Acima de
- * ~30 m o canto daquele lado começa a escapar pela borda de baixo.
- */
-const CAMERA_SIDE_SHIFT = -24;
-/** Mira no centro do gramado. */
-const CAMERA_TARGET_X = 0;
-const CAMERA_TARGET_Y = 0;
+const CAMERA_Z = 53;
+const CAMERA_HEIGHT = 26;
+const CAMERA_FOV = 62;
+/** Distância em Z do alvo: define a inclinação (33° com a altura de 26 m). */
+const CAMERA_TARGET_AHEAD = 40;
+/** Fração do deslocamento da bola aplicada à câmera (movimento do PES). */
+const CAMERA_PAN_FACTOR = 0.8;
 
 /**
- * Enquadramento de transmissão: campo inteiro, os 22 atletas sempre na tela e
- * perspectiva diagonal de TV.
+ * Enquadramento de transmissão lateral que acompanha a bola.
  *
- * O quadro é fixo no eixo do campo — é o que garante que ninguém desaparece ao
- * se aproximar de uma borda. Testado acompanhar a bola: 15% de pan já leva a
- * lateral próxima a `ndc.y = 1,07` e ela sai da tela. A bola continua visível
- * em todas as posições porque o quadro já contém o gramado inteiro.
+ * A câmera fica na lateral, no eixo do meio-campo, e panorâmica em X junto com
+ * a jogada. `side` escolhe a lateral (o jogo usa sempre a mesma, para o
+ * analógico não inverter); `velocity` dá a antecipação do movimento.
  */
 export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velocity = null) {
   const fixedSide = side < 0 ? -1 : 1;
+  const ballX = clamp((Number(position?.x) || 0) + clamp((Number(velocity?.x) || 0) * 0.35, -6, 6),
+    -PITCH.halfLength - 4, PITCH.halfLength + 4);
+  const panX = clamp(ballX * CAMERA_PAN_FACTOR, -PITCH.halfLength, PITCH.halfLength);
   return {
-    position: {
-      x: CAMERA_SIDE_SHIFT,
-      y: CAMERA_HEIGHT,
-      z: fixedSide * CAMERA_Z
-    },
-    target: { x: CAMERA_TARGET_X, y: CAMERA_TARGET_Y, z: 0 },
+    position: { x: panX, y: CAMERA_HEIGHT, z: fixedSide * CAMERA_Z },
+    target: { x: panX, y: 0, z: fixedSide * (CAMERA_Z - CAMERA_TARGET_AHEAD) },
     fov: CAMERA_FOV
   };
 }

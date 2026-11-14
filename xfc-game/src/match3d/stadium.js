@@ -1028,10 +1028,11 @@ export function buildStadium(scene, options = {}) {
   group.add(buildLockerRoom());
   for (const side of [-1, 1]) {
     for (const x of [-18, 18]) {
-      // O banco fica encostado no muro da lateral (z = largura + 5,2), como
-      // num estádio real. Antes ele ficava a 13,2 m da linha e aparecia em
-      // primeiro plano da câmera de transmissão, tapando o canto do gramado.
-      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 5.2), side));
+      // O banco fica atrás da linha de visão da câmera de transmissão, no vão
+      // entre a lateral e a arquibancada (z = largura + 11). Mais perto da
+      // linha ele aparecia como uma caixa azul em primeiro plano, cobrindo o
+      // rodapé da imagem; encostado na arquibancada voltava a entrar em quadro.
+      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 11), side));
     }
   }
 
