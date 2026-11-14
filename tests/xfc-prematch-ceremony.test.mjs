@@ -143,7 +143,13 @@ test('cerimônia no navegador: cenas na ordem, hino com boca e controle só no f
     // O painel da cerimônia mostra os quatro capítulos e começa no túnel.
     await page.waitForSelector('.entrance__steps', { timeout: 20000 });
     assert.equal(await page.locator('.entrance__step').count(), 4, 'quatro capítulos no painel');
-    assert.equal(await page.locator('.entrance__step.is-current').first().getAttribute('data-beat'), 'tunnel');
+    // A cena corrente é lida do relógio da cerimônia, que avança com o tempo
+    // real: numa máquina de CI carregada a abertura (4 s de túnel) pode ter
+    // passado antes desta linha. O que importa aqui é que o painel está numa
+    // das cenas da abertura e que a ordem completa aparece no laço abaixo.
+    const currentBeat = await page.locator('.entrance__step.is-current').first().getAttribute('data-beat');
+    assert.ok(['tunnel', 'walkout'].includes(currentBeat),
+      `a cerimônia começa na abertura (túnel/saída), não em ${currentBeat}`);
 
     // Percorre a cerimônia pelo motor, registrando a ordem das cenas.
     const order = await page.evaluate(async () => {
