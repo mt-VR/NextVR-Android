@@ -28,8 +28,8 @@ export function launchScreen(ctx) {
   node = el('div', { class: 'screen screen--launch' },
     el('img', {
       class: 'launch__art',
-      src: 'assets/brand/launch-neymar.jpg',
-      alt: 'XFC — Neymar Jr. com a camisa do Brasil, arte XFC 27 fornecida pelo usuário'
+      src: 'assets/brand/launch-xfc27.png',
+      alt: 'XF Esportes · XFC 27 · Entrar — arte original fornecida pelo usuário'
     }),
     el('button', {
       class: 'launch__enter',

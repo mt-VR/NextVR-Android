@@ -338,6 +338,10 @@ const ANKLE_REST = 0.072;
  * @param {string} [options.mask='full'] máscara padrão dos novos disparos
  * @param {number} [options.farDistance=55] distância em metros para desligar o rig
  * @param {number} [options.ikDistance=26] distância em metros para desligar o IK
+ * @param {number} [options.lodBias=0] soma às duas distâncias. É como o
+ *   controlador acompanha a câmera: numa transmissão elevada todos os
+ *   atletas ficam a mais de 100 m da lente, e sem esse deslocamento o
+ *   LOD desligaria animação e IK de todo mundo.
  * @param {boolean} [options.ik=true] IK de pés no gramado
  */
 export function createAnimationController(options = {}) {
@@ -361,7 +365,9 @@ export function createAnimationController(options = {}) {
     },
     lod: {
       farDistance: Number.isFinite(options.farDistance) ? options.farDistance : 55,
-      ikDistance: Number.isFinite(options.ikDistance) ? options.ikDistance : 26
+      ikDistance: Number.isFinite(options.ikDistance) ? options.ikDistance : 26,
+      // Deslocamento somado às duas distâncias (ver `setLodBias`).
+      bias: Number.isFinite(options.lodBias) ? options.lodBias : 0
     },
     lastDistance: 0
   };
@@ -666,6 +672,16 @@ export function createAnimationController(options = {}) {
       return state.lastDistance;
     },
 
+    /**
+     * Desloca os limites de LOD. Usado quando a câmera de transmissão fica
+     * muito afastada: os limites fixos de 55 m/26 m passariam a desligar
+     * animação e IK de todo o elenco, e os atletas ficariam patinando.
+     */
+    setLodBias(bias) {
+      state.lod.bias = Number.isFinite(bias) ? Math.max(0, bias) : 0;
+      return state.lod.bias;
+    },
+
     /** Um quadro de animação: base pronta → camadas → IK → ossos. */
     update(dt, context = {}) {
       const step = Number.isFinite(dt) ? clamp(dt, 0, 0.1) : 0;
@@ -675,9 +691,11 @@ export function createAnimationController(options = {}) {
       state.elapsed += step * state.speed;
 
       const layersActive = state.layers.length > 0;
-      const ikActive = state.ik.enabled && distance <= state.lod.ikDistance;
+      const ikDistance = state.lod.ikDistance + state.lod.bias;
+      const farDistance = state.lod.farDistance + state.lod.bias;
+      const ikActive = state.ik.enabled && distance <= ikDistance;
       // Longe demais: nem lê a pose; o rig base já está animado.
-      if (distance > state.lod.farDistance) return controller;
+      if (distance > farDistance) return controller;
       if (!layersActive && !ikActive) return controller;
 
       updateLayerWeights(step);

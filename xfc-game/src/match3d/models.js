@@ -1,4 +1,9 @@
-// Modelo externo Innerscene/Micah CC0, vestido e texturizado na origem.
+import {labHairGeometry,labHairMaterial,CAREER_HAIR_ALIAS} from './hair-lab.js';
+import {addPlayerAccessories} from './player-accessories.js';
+import {classicIdentity,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
+import {anthemMouth,anthemSway} from './prematch.js';
+// Adaptação low poly clássica do Micah CC0; roupa/rig/UVs preservados.
+// Cabelos sólidos e variantes faciais locais, sem assets extraídos de PES.
 //
 // O palco do jogo é um WebView offline: o pacote precisa carregar rápido e não
 // pode quebrar se o modelo faltar. Por isso este módulo:
@@ -14,13 +19,12 @@
 // motor (`match.js`) não sabe — nem precisa saber — qual modelo está em campo.
 
 import { runningLegPose, runningArmPose, runningFlight, runningCycle, kickPose } from './football-actions.js';
-import {refinePlayerMaterial} from './player-surface.js';
 import { THREE, softShadowTexture } from './engine.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
 import { BONE_KEYS, maskBones } from './animation.js';
 
-import { recolorSurface, hairstyleGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
+import { applyCareerSurface, recolorSurface, paintEyelidShadow, smoothSkinGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
 
 const MODEL_URL = 'assets/players/models/footballer.glb';
 /** Nome sem o prefixo do Mixamo (o arquivo pode vir como `mixamorig:Hips`). */
@@ -206,13 +210,16 @@ export function createGltfPlayer(options = {}) {
     isKeeper = false,
     simplified = false,
     preferredFoot = 'Right',
-    skinTone, hairColor = '#251a12', hairStyle = 'short'
+    skinTone, hairColor = '#251a12', hairStyle = 'short', bootColor = null
   } = options;
 
+  const renderHair=options.careerHair?(CAREER_HAIR_ALIAS[hairStyle]||hairStyle):hairStyle;
   const root = new THREE.Group();
   root.name = 'xfc-footballer-glb';
   root.userData.modelId = 'xfc-footballer-glb';
   root.userData.detailLevel = simplified ? 'mobile' : 'full';
+  root.userData.visualStyle='classic-ps2';
+  const identity=classicIdentity(options.name);root.userData.faceVariant=identity;
 
   const model = cloneSkeleton(pack.scene);
   model.name = 'xfc-footballer-glb-body';
@@ -235,29 +242,32 @@ export function createGltfPlayer(options = {}) {
     box = bindPoseBounds(model);
     size = box.getSize(new THREE.Vector3());
   }
-  const targetHeight = 1.75;
+  const targetHeight = options.height ? Math.max(1.6,Math.min(2,options.height/100)) : 1.75;
   root.userData.targetHeight=targetHeight;
   root.userData.limbRadialGain={arms:1.07,legs:1.09};
   const scale = size.y > 0.01 ? targetHeight / size.y : 1;
   model.scale.setScalar(scale);
+  if(options.body){const width=({lean:.96,normal:1,strong:1.04}[options.body]||1)*Math.max(.95,Math.min(1.07,1+((options.weight||68)-68)*.002));model.scale.x*=width;model.scale.z*=width;}
   model.position.y = -box.min.y * scale;
 
   const primary = new THREE.Color(isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary);
   const secondary = new THREE.Color(isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary);
-  root.userData.appearance = { skinTone, hairColor, hairStyle, source: options.appearanceSource };
+  root.userData.appearance = { skinTone, hairColor, hairStyle, bootColor, source: options.appearanceSource, ...Object.fromEntries(['height','weight','body','face','beard','moustache','brows','socks','gloves','gloveModel','wristband','wristbandSide','celebration'].map(k=>[k,options[k]])) };
   const ownedTextures = [];
   const shadowMeshes = [];
   const materials = [];
+  let scalpBody;model.traverse(o=>{if(o.isMesh&&materialList(o).some(m=>m.name==='Micah | anatomical body.body'))scalpBody=o;});
   model.traverse(object => {
     if (!object.isMesh) return;
     object.castShadow = true;
     object.receiveShadow=Boolean(options.graphics?.shadows);
     object.frustumCulled = false;
     shadowMeshes.push(object);
-    if (object.name === 'short01') object.geometry = hairstyleGeometry(object, hairStyle);
+    if (materialList(object).some(m=>m.name==='Micah | anatomical body.body'))object.geometry=smoothSkinGeometry({geometry:classicFaceGeometry({geometry:smoothSkinGeometry(object)},identity)});
+    if (object.name === 'short01') {object.geometry=labHairGeometry(object,renderHair,scalpBody)||classicHairGeometry(object,hairStyle);object.userData.classicHair=hairStyle;object.visible=hairStyle!=='lab-none';}
     if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
-      const clone = material.clone();
+      const clone = object.name==='short01'?(renderHair.startsWith('lab-')?labHairMaterial(hairColor):classicHairMaterial(hairStyle==='lab-shaved'?'bald':hairStyle.startsWith('lab-')?hairStyle.slice(4):hairStyle,hairColor,skinTone)):material.clone();
       const name = String(material.name || '');
       // Recolour only the existing cloth materials. Never tint skin/face/hair.
       if (name === 'Micah | top') {
@@ -268,10 +278,13 @@ export function createGltfPlayer(options = {}) {
         }
       }
       if(name === 'Micah | anatomical body.body' && skinTone) clone.map=recolorSurface(material.map,skinTone);
-      if(name === 'Micah | anatomical body.short01') clone.map=recolorSurface(material.map,hairColor,.08);
+
+      if(name === 'Micah | anatomical body.low-poly') clone.map=paintEyelidShadow(material.map,skinTone);
+      if(name === 'Micah | anatomical body.shoes06' && bootColor) clone.map=recolorSurface(material.map,bootColor,.08);
       if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
-      refinePlayerMaterial(clone,{surface:options.graphics?.surface??!simplified});
+      applyCareerSurface(clone,options);
+      classicMaterial(clone);
       materials.push(clone);
       return clone;
     });
@@ -316,40 +329,33 @@ export function createGltfPlayer(options = {}) {
     rightFoot: findBone(model, 'RightFoot')
   };
 
+  // ------------------------------------------------------------- boca do hino --
+  // O esqueleto Mixamo não tem mandíbula: em vez de girar um osso que não
+  // existe, a boca é UMA peça escura presa à cabeça (orçamento: +1 malha). Fica
+  // escondida o jogo inteiro e só no hino abre na vertical, entre os lábios que
+  // o modelo já tem esculpidos.
+  const mouthRig = bones.head ? (() => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0x3a1412 })
+    );
+    mesh.name = 'xfc-glb-mouth';
+    // Medido na malha: a superfície dos lábios está em z ≈ 0,179 na altura
+    // 1,533. A peça entra rasa (frente só 0,4 mm à frente) para não virar bola.
+    const anchor = new THREE.Vector3(0, 1.5335, 0.1762);
+    root.updateMatrixWorld(true);
+    bones.head.worldToLocal(anchor);
+    mesh.position.copy(anchor);
+    mesh.scale.set(0.0146, 0.0007, 0.0038);
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.visible = false;
+    bones.head.add(mesh);
+    return { mesh, baseScale: mesh.scale.clone() };
+  })() : null;
+  if(bones.head&&options.face)bones.head.scale.x*=({slim:.95,broad:1.05,natural:1}[options.face]||1);
   const gloveGeometries=[];
-  if(isKeeper){
-    // Luva acompanha os dedos da MALHA importada: capa de látex no shader,
-    // com espessura pequena. Evita uma esfera solta deixando dedos de fora.
-    model.traverse(mesh=>{
-      if(!mesh.isSkinnedMesh||!materialList(mesh).some(m=>m.name==='Micah | anatomical body.body'))return;
-      const geometry=mesh.geometry.clone(),indices=geometry.attributes.skinIndex,weights=geometry.attributes.skinWeight;
-      const mask=new Float32Array(indices.count);
-      for(let i=0;i<indices.count;i++){
-        let influence=0;
-        for(let j=0;j<4;j++)if(/Hand$/.test(mesh.skeleton.bones[indices.getComponent(i,j)]?.name||''))influence+=weights.getComponent(i,j);
-        mask[i]=influence>.5?1:0;
-      }
-      geometry.setAttribute('gloveMask',new THREE.BufferAttribute(mask,1));mesh.geometry=geometry;gloveGeometries.push(geometry);
-      for(const material of materialList(mesh)){
-        if(material.name!=='Micah | anatomical body.body')continue;
-        material.onBeforeCompile=shader=>{
-          shader.vertexShader='attribute float gloveMask; varying float vGloveMask;\n'+shader.vertexShader;
-          shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvGloveMask=gloveMask; transformed+=normal*.006*gloveMask;');
-          shader.fragmentShader='varying float vGloveMask;\n'+shader.fragmentShader;
-          shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\ndiffuseColor.rgb=mix(diffuseColor.rgb,vec3(.88,.93,.94),vGloveMask);');
-        };
-        material.customProgramCacheKey=()=> 'xfc-keeper-latex-v1';
-      }
-    });
-    const cuffMaterial=new THREE.MeshLambertMaterial({color:0x16bdb6});
-    const cuffGeometry=new THREE.BoxGeometry(.085,.04,.07);
-    materials.push(cuffMaterial);gloveGeometries.push(cuffGeometry);
-    for(const side of ['Left','Right']){
-      const hand=findBone(model,side+'Hand');if(!hand)continue;
-      const cuff=new THREE.Mesh(cuffGeometry,cuffMaterial);cuff.name='xfc-keeper-glove-'+side;
-      cuff.position.set(0,.04,.018);hand.add(cuff);
-    }
-  }
+  addPlayerAccessories(model,{...options,isKeeper},materials,gloveGeometries);
   const mixer = new THREE.AnimationMixer(model);
   mixer.timeScale = 1;
 
@@ -365,6 +371,8 @@ export function createGltfPlayer(options = {}) {
   const rigBones = [];
   model.traverse(object => { if (object.isBone) rigBones.push(object); });
   const bindHipY = bones.hips.position.y;
+  // Tipo de queda em curso: 'face' protege o rosto com a mão, 'body' cai de costas.
+  let downKind = 'body';
   const floorJoints = rigBones.filter(bone => /Foot|ToeBase|Hand|Leg$/.test(bone.name));
   const floorPoint = new THREE.Vector3();
   const gesture = { name: null, time: 0, duration: 0, dir: 1, mask: null, maskName: 'full', weight: 1 };
@@ -400,6 +408,8 @@ export function createGltfPlayer(options = {}) {
     tackle: 0.8,
     react: 0.55,
     fall: 0.95,
+    // Queda real: fica no chão até o tempo acabar (não é pulso).
+    down: 2.6,
     signal: 0.9,
     'throw-in': 1.0,
     'carry-ball': .8,
@@ -426,9 +436,12 @@ export function createGltfPlayer(options = {}) {
     const t = gesture.time;
     const total = gesture.duration;
     const fadeIn = Math.min(0.1, total * 0.25);
-    const fadeOut = Math.min(0.18, total * 0.3);
+    // Quem está caído no gramado não "volta" suavemente: fica deitado até o
+    // fim e só então levanta. Sem fade-out para o gesto 'down'.
+    const fadeOut = gesture.name === 'down' ? 0 : Math.min(0.18, total * 0.3);
     const rise = fadeIn > 0 ? Math.min(1, t / fadeIn) : 1;
-    const fall = fadeOut > 0 ? Math.min(1, Math.max(0, (total - t) / fadeOut)) : 1;
+    const fall = fadeOut > 0 ? Math.min(1, Math.max(0, (total - t) / fadeOut))
+      : (gesture.name === 'down' ? Math.min(1, Math.max(0, (total - t) / 0.3)) : 1);
     const smooth = value => value * value * (3 - 2 * value);
     return smooth(Math.min(rise, fall));
   }
@@ -527,7 +540,7 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'celebrate': {
-        const lift=Math.sin(Math.PI*Math.min(1,p*1.25)),style=Number(number)%3;
+        const lift=Math.sin(Math.PI*Math.min(1,p*1.25)),style=({arms:0,fist:1,wide:2}[options.celebration]??Number(number)%3);
         addBoneRotation(bones.leftArm,style===1?-.5*lift:-1.9*lift,0,style===2?.85*lift:0,w);
         addBoneRotation(bones.rightArm,-1.9*lift,0,style===2?-.85*lift:0,w);
         addBoneRotation(bones.leftForeArm,-.45*lift,0,0,w);
@@ -580,6 +593,41 @@ export function createGltfPlayer(options = {}) {
         addBoneRotation(bones.rightLeg, 0.9 * wave, 0, 0, w);
         addBoneRotation(bones.leftArm, -1.2 * wave, 0, 0.2 * wave, w);
         addBoneRotation(bones.rightArm, -1.2 * wave, 0, -0.2 * wave, w);
+        break;
+      }
+      case 'down': {
+        // Deitado no gramado. `lie` sobe rápido (cai em ~0,3 s) e desce só no
+        // final, quando o atleta se levanta. `wave` é o pulso do envelope,
+        // que aqui não é usado: a pose é estável, com um leve contorcer.
+        const t = gesture.time, total = gesture.duration;
+        const lie = Math.min(1, t / 0.3) * Math.min(1, Math.max(0, (total - t) / 0.42));
+        const writhe = Math.sin(t * 5.2) * 0.06 * lie;
+        // Quadril desce quase meio metro: o corpo fica na altura do gramado.
+        bones.hips.position.y = bindHipY - 0.52 * lie;
+        // Deitado de costas, girado em torno do eixo do corpo.
+        addBoneRotation(bones.hips, -1.45 * lie + writhe, 0, 0.12 * lie, lie);
+        // Pernas dobradas, joelhos para cima.
+        addBoneRotation(bones.leftUpLeg, 0.62 * lie + writhe, 0, 0.16 * lie, lie);
+        addBoneRotation(bones.rightUpLeg, 0.92 * lie - writhe, 0, -0.2 * lie, lie);
+        addBoneRotation(bones.leftLeg, -0.95 * lie, 0, 0, lie);
+        addBoneRotation(bones.rightLeg, -0.68 * lie, 0, 0, lie);
+        addBoneRotation(bones.leftFoot, -0.2 * lie, 0, 0, lie);
+        addBoneRotation(bones.rightFoot, -0.26 * lie, 0, 0, lie);
+        if (downKind === 'face') {
+          // Mão no rosto: o braço sobe e cobre a cara.
+          addBoneRotation(bones.rightArm, -0.35 * lie, 0.55 * lie, -1.05 * lie, lie);
+          addBoneRotation(bones.rightForeArm, -1.9 * lie, 0, 0, lie);
+          addBoneRotation(bones.leftArm, -0.2 * lie, 0, 0.62 * lie, lie);
+          addBoneRotation(bones.leftForeArm, -0.5 * lie, 0, 0, lie);
+          addBoneRotation(bones.head, -0.16 * lie, 0.2 * lie, 0, lie);
+          addBoneRotation(bones.spine2, 0.1 * lie, 0, 0, lie);
+        } else {
+          addBoneRotation(bones.leftArm, -0.3 * lie, 0, 0.78 * lie, lie);
+          addBoneRotation(bones.rightArm, -0.26 * lie, 0, -0.72 * lie, lie);
+          addBoneRotation(bones.leftForeArm, -0.42 * lie, 0, 0, lie);
+          addBoneRotation(bones.rightForeArm, -0.4 * lie, 0, 0, lie);
+          addBoneRotation(bones.head, -0.24 * lie, 0, 0, lie);
+        }
         break;
       }
       case 'react': {
@@ -654,7 +702,7 @@ export function createGltfPlayer(options = {}) {
   /** Locomoção: mistura idle/jog/run pela velocidade (blend tree). */
   let gaitPhase=0;
   let gaitGroundOffset=0,previousX=null,previousZ=null,previousSpeed=0,gaitAcceleration=0;
-  let gaitStride=.65,shieldWeight=0,breathing=0,effort=0;
+  let gaitStride=.65,shieldWeight=0,dribbleWeight=0,breathing=0,effort=0;
   function updateLocomotion(speed, dt, movement) {
     const value = Math.max(0, Number(speed) || 0);
     let idle = 0;
@@ -702,6 +750,51 @@ export function createGltfPlayer(options = {}) {
         action.setEffectiveTimeScale(0);
         action.time=gaitPhase*action.getClip().duration;
       }
+    }
+  }
+
+  // ------------------------------------------------------------- canto do hino --
+  // Estado contínuo: quem canta tem a boca abrindo/fechando e o corpo balançando
+  // no ritmo. Fica desligado o resto do jogo (nada de boca mexendo à toa).
+  const anthem = { timer: 0, elapsed: 0, seed: 0, intensity: 0 };
+  function setMouthOpen(openness) {
+    if (!mouthRig) return;
+    const open = Math.max(0, Math.min(1, openness));
+    const visible = open > 0.02;
+    mouthRig.mesh.visible = visible;
+    if (!visible) {
+      mouthRig.mesh.scale.copy(mouthRig.baseScale);
+      return;
+    }
+    // Fechada: um traço. Aberta: elipse de ~1 cm de altura com o lábio
+    // esticando um pouco para os lados, como numa vogal cantada.
+    mouthRig.mesh.scale.set(
+      mouthRig.baseScale.x * (0.9 + open * 0.2),
+      mouthRig.baseScale.y + open * 0.0092,
+      mouthRig.baseScale.z
+    );
+  }
+  function applyAnthemLayer(step) {
+    if (!anthem.timer) return;
+    anthem.elapsed += step;
+    anthem.timer = Math.max(0, anthem.timer - step);
+    if (anthem.timer <= 0 || anthem.intensity <= 0.001) {
+      anthem.timer = 0;
+      setMouthOpen(0);
+      return;
+    }
+    setMouthOpen(anthemMouth(anthem.elapsed, anthem.seed) * anthem.intensity);
+    const sway = anthemSway(anthem.elapsed, anthem.seed);
+    if (bones.spine2) {
+      bones.spine2.rotation.z += sway.side * 0.5 * anthem.intensity;
+      bones.spine2.rotation.x += Math.abs(sway.side) * 0.2 * anthem.intensity;
+    }
+    if (bones.head) {
+      bones.head.rotation.x -= sway.nod * 0.8 * anthem.intensity;
+      bones.head.rotation.y += sway.side * 1.4 * anthem.intensity;
+    }
+    for (const side of ['left', 'right']) {
+      if (bones[side + 'Arm']) bones[side + 'Arm'].rotation.x -= 0.08 * anthem.intensity;
     }
   }
 
@@ -753,11 +846,44 @@ export function createGltfPlayer(options = {}) {
       gesture.dir = dir;
       return startGesture('tackle', duration);
     },
-    react(kind = 'bump', duration) {
+    react(kind = 'bump', duration, opts = {}) {
+      // `down` = vítima de falta: fica caída no gramado, mão no rosto quando
+      // a entrada é dura. Os demais continuam sendo cambaleio curto.
+      if (kind === 'down') {
+        downKind = opts.handOnFace ? 'face' : 'body';
+        return startGesture('down', duration ?? 2.6, { weight: 1 });
+      }
       return startGesture(kind === 'fall' ? 'fall' : 'react', duration);
     },
     signal(duration = 1.1) {
       return startGesture('signal', duration);
+    },
+    /** Canto do hino: abre a boca nas sílabas e balança o corpo. */
+    anthem(duration = 5, intensity = 1) {
+      anthem.timer = Math.max(0.2, Number(duration) || 5);
+      anthem.elapsed = 0;
+      anthem.seed = ((number % 7) / 7) + ((String(options.name || '').length % 5) / 5);
+      anthem.intensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+      return true;
+    },
+    stopAnthem() {
+      anthem.timer = 0;
+      anthem.intensity = 0;
+      setMouthOpen(0);
+    },
+    /** Abre/fecha a boca à mão (testes e capturas; o jogo usa `anthem`). */
+    setMouthOpen(openness) {
+      setMouthOpen(openness);
+    },
+    get singing() {
+      return anthem.timer > 0;
+    },
+    /** Ponto da boca no espaço do mundo (a câmera do hino enquadra nele). */
+    mouthPoint(target) {
+      if (!mouthRig) return null;
+      const point = target?.isVector3 ? target : new THREE.Vector3();
+      mouthRig.group.getWorldPosition(point);
+      return point;
     },
     prepareCard() {},
     showCard() {},
@@ -847,7 +973,13 @@ export function createGltfPlayer(options = {}) {
       // Proteção e preparação são camadas contextuais, sem mexer no controle.
       shieldWeight+=((movement.protecting?.7:0)-shieldWeight)*(1-Math.exp(-step*8));
       effort+=((speed>5?1:0)-effort)*(1-Math.exp(-step*.18));breathing+=step*(1.3+effort*.6);
+      dribbleWeight+=((movement.ownsBall?gaitWeight*Math.min(1,speed/2.5):0)-dribbleWeight)*(1-Math.exp(-step*9));
       if(!gesture.name){
+        // Condução clássica: ombros contrabalançam toques curtos sem mudar o pé/bola.
+        const dribble=dribbleWeight;
+        addBoneRotation(bones.spine2,.025,Math.sin(gaitPhase*Math.PI*2)*.055,0,dribble);
+        addBoneRotation(bones.leftForeArm,-.12,0,0,dribble);
+        addBoneRotation(bones.rightForeArm,-.12,0,0,dribble);
         addBoneRotation(bones.spine2,.035*effort*Math.sin(breathing*Math.PI*2),shieldWeight*.1,0,1);
         addBoneRotation(bones.leftArm,-.16,0,.32,shieldWeight);
         addBoneRotation(bones.rightArm,-.12,0,-.32,shieldWeight);
@@ -876,6 +1008,7 @@ export function createGltfPlayer(options = {}) {
           gestureTimers.splice(index, 1);
         }
       }
+      applyAnthemLayer(step);
     },
 
     dispose() {

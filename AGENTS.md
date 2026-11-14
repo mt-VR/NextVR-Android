@@ -569,3 +569,314 @@ cd xfc-game/android && ./gradlew assembleDebug
 - Gol chega no campo `event.scorer`, não `event.player`: contabilizar corretamente
   o atleta criado. XP do modo não se mistura às moedas/XP gerais ou UT.
 - Novos testes `xfc-career-penalty.test.mjs` no CI; documentação v0.5.30.md.
+
+### v0.5.31 — referências da carreira e Kick Off
+
+- `screens/career.js`: arte original em `assets/ui/career/reference.png`, Neymar
+  fixo; dados e controles DOM por cima. Novas carreiras OVR 57, customização
+  validada em `data/career.js`; saves anteriores conservam atributos/XP.
+- `ui/player-preview.js` reaproveita Micah GLB em canvas transparente; não
+  substituir o corpo nem confundir a arte de Neymar com a prévia 3D editável.
+- `kickoff.js` e `kickoff-kits.js`: referência verde enviada, seleções reais,
+  confirmação por lado. `friendly` mantém Jogo Rápido com `team-selection.js`;
+  `quick` continua Time Aleatório. Não unificar novamente os dois visuais.
+- Pênaltis em treino/partida/IA: 5 m, 1,35 s de aproximação depois de CHUTE.
+  O prazo de encerramento por tempo começa no contato, não no comando.
+- Proveniência nas duas pastas de assets; derivação reproduzível em
+  `tools/prepare-career-kickoff.py`. Sem novas garantias de FPS/celular.
+
+### v0.5.32 — câmera da carreira
+
+Carreira integra `MENU_ITEMS`, sem `.career-entry` solto. `playerLockId` faz o
+modo `play` retornar à câmera `pro`; a função dos treinos é compartilhada com
+orientação `attackSign(userSide)` e entrada relativa ao mesmo eixo. Não restaurar
+a câmera de transmissão na carreira ao terminar a entrada. Testes em casa/fora
+em `xfc-career-penalty.test.mjs`; saves/arte da v0.5.31 continuam os mesmos.
+
+### v0.5.33 — carreiras integradas sem reescrever o motor
+
+- `screens/career.js` roteia vistas separadas em `params.view`: entrada (padrão),
+  central, agenda, clube, tabela, escritório, mercado, objetivos e opções.
+  `career-editor.js` / `career-preparation.js` cuidam do editor 3D e do pré-jogo.
+- `profile.career` v1 não migra nem perde XP. `managerCareer` é independente;
+  `careerKind` escolhe o modo; cinco `careerSlots` guardam cópias profundas.
+  `career-services.js` usa a mesma liga/liquidação idempotente; orçamento do
+  técnico nunca toca as moedas do UT. Transferências só alteram elencos locais.
+- `data/game-plan.js` resolve formação, onze titulares, reservas, capitão,
+  funções, instruções e posições. A partida recebe `savedPlan`, `plan` e
+  `tactics`; IA aplica altura/pressão/passe. Técnico controla o time inteiro;
+  jogador mantém `playerLockId` e a câmera Pro. Visitante ganha controle inicial.
+- `pass-request.js` avalia posse, distância, marcação, linha de passe,
+  impedimento e opção de finalização; pedido tem cooldown e sinal curto.
+  TROCAR no teclado continua compatível, botão móvel chama `request-pass`.
+- Aparência validada inclui medidas, corpo/rosto, barba/bigode/sobrancelhas,
+  cabelos, botas, meiões, luvas, munhequeira e comemoração. Mesmo Micah,
+  sem novos corpos/GLBs. Shaders preservam texturas/UV e caches compartilhados.
+- Seis referências em `assets/ui/season`, derivados reproduzíveis/procedência
+  no CREDITS. DOM traz dados do save. Nunca `100% 100%` nestas imagens.
+- CSS novo dos controles escopado a `.screen--play`; não alterar HUD/cronômetro.
+  `tests/xfc-season.test.mjs` integra o CI junto das regressões existentes.
+
+### v0.5.34 — correção expressa dos menus, não refazer sistemas
+
+- O usuário REJEITOU a reinterpretação visual da v0.5.33. Usar as próprias
+  quatro artes inteiras via `screens/career-reference.js`, com hotspots DOM.
+  Não restaurar os cartões redesenhados nem substituir Mbappé por Neymar.
+- Ordem obrigatória: `entry` (entrada/carregar) → `journey` ("Continue sua
+  jornada", arquivo histórico `agenda.png`, Neymar) → `hub` (central do
+  JOGADOR, `hub.png`, Mbappé). Criar/carregar também chegam primeiro em journey.
+- `custom` é a quarta arte com as seis categorias. `custom-edit` reutiliza o
+  editor funcional existente; Salvar/Cancelar voltam para custom. Preservar
+  `customReturnTo` para voltar corretamente à central ou à jornada depois.
+- `career-reference.css` tem palco proporcional 1672×941 centralizado, sem
+  `object-fit:fill` nem escala não uniforme. Fundo externo só preenche ultrawide.
+  Dados variáveis sobrepostos não podem repetir estatísticas falsas da arte.
+- Escopo desta correção: UI/navegação. Nenhuma alteração em motor, modelos,
+  animações, HUD, joystick, câmera, formato de save ou regras da carreira.
+
+### v0.5.35 — pedido explícito, contato e apresentação (supera as recusas da v033)
+
+- O usuário aprovou os quatro menus. Não redesenhar. `backdrops/*.jpg` prolonga
+  as bordas, sem duplicar texto nem esticar a arte central. Regenerar com
+  `node xfc-game/tools/career-backdrops.mjs` (ImageMagick).
+- Pedido explícito de passe NÃO faz avaliação tática nem recusa distância,
+  marcação ou impedimento. Só exige jogo ativo e posse de outro companheiro.
+  Passe solicitado usa velocidade/assistência com alcance longo, sem teleporte.
+- `ball-contact.js` faz interseção contínua com volumes dos jogadores, em x/z
+  físicos (root.position ainda é do frame anterior). Primeiro contato domina;
+  goleiros conservam defesas e rebatem fisicamente. Não restaurar simples perda
+  de velocidade que deixa a bola atravessar o corpo.
+- `offside.js`: penúltimo adversário, bola, campo de ataque e isenções de
+  reposição. Congelar IDs no passe/chute; apitar no contato, não na solicitação.
+  Bandeirinha independente da seleção, com material/textura compartilhados.
+- IA faz ajustes curtos de cobertura/apoio. Nunca conduzir o humano por IA;
+  respeitar posições personalizadas e manter largura/linha defensiva.
+- Mesmo Micah CC0 reotimizado com ratio .42/error .001; atualizar hash do
+  manifest ao regenerar. Normais da pele suavizadas, mechas skinned extras
+  compartilhadas por corte. Melhoria visual parcial, sem alegação fotorrealista.
+- `tests/xfc-reception-offside.test.mjs` cobre 95m nos dois sentidos,
+  interceptação, linha congelada/bandeira/reinício, varredura 3D e quatro
+  defensores em movimento. CI inclui esta suíte. Não alegar teste em telefone.
+
+### v0.5.36 — rejeição das laterais estendidas; menu realmente de ponta a ponta
+
+- O usuário rejeitou o preenchimento lateral da v035 e autorizou ampliar/
+  esticar a arte. NÃO restaurar backdrops, blur ou quadro estreito centralizado.
+- `career-reference-frame` agora cobre 100% do palco e a imagem usa `fill`.
+  Hotspots/dados continuam em porcentagens do mesmo quadro. Texto e escudos
+  DOM não sofrem `scaleX`; as figuras/textos impressos na arte acompanham a
+  expansão horizontal (não alegar preservação absoluta da proporção da foto).
+- As quatro imagens, sua ordem e rotas permanecem; mudança somente de UI.
+- Removidos os quatro derivados laterais e seu gerador rejeitado.
+- Teste de carreira agora exige arte de ponta a ponta, ausência de fundo,
+  centros dos hotspots clicáveis e escudos DOM proporcionais em 1280×720,
+  1600×720, 1920×720 e 844×390.
+
+### v0.5.37 — jogadores clássicos, não fotorrealistas (direção atual)
+
+- O usuário substituiu explicitamente o objetivo de realismo por Bomba Patch/
+  PES de PS2 e enviou três capturas. Usar somente a direção dos ATLETAS.
+  Não copiar HUD do emulador/referência e NÃO alterar HUD, controles, menus,
+  estádios, câmera, física ou formato de saves. Suíte nova tem baselines de hash.
+- Base CC0 reotimizada por `tools/classic-footballer.mjs` após rig-footballer.py:
+  ratio .10/error .006, difusas <=256, sem texturas PBR; 457.232 bytes,
+  8.371 triângulos no GLB, 22 juntas, UVs e idle/walk/run preservados.
+- `classic-player.js` fornece seis variações de mandíbula/nariz/queixo estáveis
+  por nome e 11 cortes sólidos (inclui raspado). Cabelo é a malha `short01`
+  com geometria nova de 768 triângulos/429 vértices, ligada 100% ao Head.
+  Sem hair cards ou fibras extras. Geometrias/texturas compartilhadas por corte.
+  Aproximadamente 7.904 triângulos renderizados por jogador, sem mudar por perfil.
+- `models.js` mantém API/rig/máscaras/gestos e acrescenta contrabalanço suave
+  para condução, sem modificar a física. Face de carreira ainda escala a cabeça.
+- Pele oculta sob meias retirada offline para evitar interpenetração da malha
+  simplificada; meião curto conserva pigmentação. UV da camisa separa frente/
+  costas por triângulo, evitando interpolação entre metades do atlas.
+- Não alegar escaneamento, identidade facial exata, modelos licenciados do PES
+  ou FPS medido. Trata-se de adaptação estilística do CC0 + geometria autoral.
+- `tests/xfc-classic-players.test.mjs`: hash/orçamento, cortes únicos, cache/rig,
+  faces, materiais, animações no WebGL e escopo preservado. CI inclui esta suíte.
+
+### v0.5.38 — laboratório opt-in, não acabamento profissional concluído
+
+- Usuário exige 10+ cabelos de geometria própria ANTES de aplicar ao elenco.
+  Catálogo `player-customization.js` tem 15 IDs `lab-*` + remoção `lab-none`.
+  Não migrar estilos legados nem substituir automaticamente os atletas.
+- `hair-lab.js`: construções por mechas, tufos, tubos/cachos, cordões, tranças,
+  crista e topo plano; suporte recortado da cabeça real, sem alterar corpo/rosto.
+  Mesh única por corte, cache por corte/cabeça; <=4.500 triângulos no teste.
+  São PROTÓTIPOS; não alegar acabamento profissional, ausência universal de
+  interpenetração, aprovação visual do usuário ou FPS de telefone medido.
+- `player-accessories.js`: casca das mãos com pesos originais e margem normal,
+  recortada no pulso; modelo pro adiciona acolchoamento dorsal. Sem shader de
+  inflação da pele e sem caixas ciano de punho. Pulseiras ajustadas por amostras
+  do pulso, em Left/Right/both, cores independentes das luvas.
+- Rig continua com 22 juntas, SEM ossos individuais dos dedos. Geometria segue
+  os dedos existentes, mas articulação independente não foi implementada.
+- Editor mantém seções Cabeça e Acessórios, acrescenta catálogo/cores/lado e
+  foco na cabeça/mãos, rotação e ciclo de movimentos. Salvar altera só o herói;
+  Cancelar não muda o save. Defaults dos campos novos preservam saves antigos.
+- GLB, variantes faciais/corpos, HUD, controles, estádios e gameplay intactos.
+  `tests/xfc-customization-lab.test.mjs` testa catálogo, topologias normalizadas
+  distintas, mesmo corpo/rig, remoção/composição, cores/lados e editor/save.
+- Revisão real reproduzível: `LD_LIBRARY_PATH=/tmp/lib node
+  xfc-game/tools/review-customization-lab.mjs /home/user/customization-review`.
+  Ainda necessária revisão artística e teste no telefone antes de promover
+  os novos cortes ao elenco inteiro. Release v038 é explicitamente de testes.
+
+### v0.5.39 — cor isolada / eventos cinematográficos da carreira
+
+- `applyCareerSurface` NÃO pode usar hairColor: havia acoplamento com pigmento
+  facial. Teste compara pixels da pele/rosto nas cinco cores × quatro tons,
+  incluindo barba/bigode/sobrancelhas, ocultando só a malha de cabelo.
+- Cabelo novo tem `labHairMaterial`, mapa neutro e coverage próprio. Raízes
+  projetadas na cabeça real; fallback da coroa aberta por vértices reais.
+  Editor só mostra LAB_HAIR; aliases legados preservam saves, resolvidos apenas
+  no protagonista (`appearanceFor.careerHair`). Elenco global não é migrado.
+- `career-presentations.js`: evento por temporada/clube/tipo, snapshot e status
+  pending/played/skipped. Criar rascunho não agenda. Confirmar criação agenda;
+  nextCareerSeason agenda transferência ou renovação, nunca para técnico.
+- `career-presentation.js` interceptado em career.js; Pular/Escape antes/depois
+  da carga, conclusão automática, persistir antes de navegar; falha não consome.
+  Página oculta pausa relógio; não limitar tempo cinematográfico pelo FPS (o
+  renderer de software ficava atrasado e demorava excessivamente para terminar).
+- `career-cinematic.js`: palco isolado de match/stadium, três atores, solver
+  de dois ossos, camisa/contrato/pen/câmeras/fotógrafos autorais, materiais do
+  destino. O rig não tem dedos: mãos de preensão são peças exclusivas da cena,
+  com descarte das mãos originais por máscara no shader durante esses planos.
+  Não alegar articulação digital nova, qualidade profissional final, ausência
+  universal de clipping ou FPS em telefone testado. Acabamento ainda precisa
+  de refinamento, especialmente cabelos e contato fino das mãos/props.
+- 143/143 regressões; mais 9/9 específicas após últimos ajustes visuais.
+  `tests/xfc-career-presentations.test.mjs` cobre eventos, pixels, render/limites,
+  UI, fallback, persistência e conclusão automática. Testes antigos de criação
+  agora pulam a apresentação explicitamente. Orçamentos: cabelo <4.500 tri;
+  cena <40.000 tri e <110 draw calls nos casos testados, não benchmark de FPS.
+- Revisão: tools/review-career-cinematic.mjs e review-customization-lab.mjs.
+  Nenhuma alteração do GLB, HUD, controles, gameplay ou artes de referência.
+
+### v0.5.40 — expansão autorizada de estádio e artes, ainda versão de testes
+
+- Usuário autorizou ampliar estádio/aquecimento e substituir entrada/ícone pelos
+  uploads, NÃO redesenhar os quatro menus. `launch-xfc27.png` é o upload exato;
+  original do ícone em `design/brand`, derivação Pillow em `prepare-brand.py`.
+- LAB_HAIR agora tem 18 cortes + remover, 13 cores. Moicano da referência usa
+  lâminas facetadas separadas; Ragnarok tem construção própria; longo repartido.
+  Opt-in continua: não migrar elenco inteiro. Qualidade artística não aprovada.
+- Munhequeira Y bind 1.040, altura .022, orientação da matriz inversa do osso e
+  folga adicional ao combinar com luvas. Não modificar GLB/rig para esse ajuste.
+- `presentation-hand.js`: quinze juntas LOCAIS por mão, instâncias de falanges,
+  unhas e pulso. Exceção ao v039: há articulação digital na cena, NÃO no GLB.
+  Pegada ainda simplificada; não declarar naturalidade/ausência universal de
+  clipping. `cinematic-detail.js`: mapas 128² e DOF por depth só em Alta/Ultra.
+- `warmup.js`: reservas não-GK distintos, dois/quatro atores, rota arredondada
+  ±61/±42, 2.2 m/s, alongamento em ±32/45.5, atualização 20/30 Hz. Só cenário;
+  não inserir na IA/colisões/escalados. Descarte remove atores antes do estádio
+  e impede adição depois de resolução assíncrona. Campo e gol inalterados.
+- Estádio: altura mínima25, profundidade36, offset38; bancos ±47.2, túnel e
+  áreas técnicas. Regressão antiga de hash do estádio foi retirada POR escopo
+  autorizado; match.js só ganhou passagem dos times/kits para aquecimento.
+- Cartão inicial mostra escudo/bandeira/liga/kit local; sete países europeus já
+  existiam no catálogo. Não inventar elencos oficiais atualizados.
+- `xfc-career-upgrade.test.mjs` adicionado ao CI. 148/148 regressões, zero skips;
+  pele isolada em 48 pares/13 cores. Testes de percurso, descarte, juntas, DOF,
+  altura/corpo/peso e pulso não equivalem a aprovação visual/FPS no celular.
+- Review isolado Baixa: 251 chamadas/86070 tri com dois reservas, SEM jogadores
+  de partida. Não extrapolar essa medida para partida completa ou telefone.
+- Scripts: review-v040, review-career-cinematic, review-customization-lab.
+  Artefatos de revisão fora do Git. Detalhes/limitações em docs/v0.5.40.md.
+
+### v0.5.41 — jogabilidade pedida, sem redesenho (ainda versão de testes)
+
+- Escopo autorizado pelo usuário: passe direcional pelo analógico, contatos de
+  bola parada sem domínio indevido, câmera Pro seguindo a bola, verificação da
+  rede, expulsão com espectador/encerrar, indicador vermelho no placar, editor
+  com espaço/arraste/edição posterior, replay automático e nota ao vivo 0–10.
+  Preservar controles, HUD de transmissão, menus aprovados e GLB de 22 ossos.
+- Novos módulos puros: `src/match3d/directional-pass.js` (cone do stick),
+  `src/data/career-rating.js` (6→10, pesos 2/1/.1), `src/match3d/replay-triggers.js`
+  (atrasos/rótulos). `play.js` orquestra replay/rating/expulsão; `hud.js` só
+  acrescenta badge e cartão vermelho sob a asa do time.
+- `replay.js`: `start(done,{seconds})` limita o clipe automático sem alterar o
+  replay manual da pausa. Replay exige motor parado; `play.js` restaura
+  `setPaused(false)` + `resumeRender()` e nunca reaplica eventos/liquidação.
+- `ball.state.noAttachment`: 2,6 s após chute de falta/pênalti; contato rebate,
+  `handlePossession` não recolhe; 0,28 s depois do rebote volta ao normal.
+  Limpar em reset/kick/attachTo/setRestart/kickoff, junto de `lastPass` e
+  `assistProvider`.
+- `settleCareer` usa `performance.liveRating` quando presente; fallback antigo
+  permanece para técnico/saves. `settleManager` ganhou 4º argumento opcional.
+- Editor: `.season-editor-scroll` é a área rolável/arrastável; ações ficam FORA
+  dela. `flex-shrink:0` nos filhos evita texto sobreposto. `customiseCareer`
+  com `{allowPending:true}` libera edição pós-criação; sem opção continua travada.
+- Baseline de hash em `xfc-classic-players.test.mjs` foi atualizado SOMENTE nos
+  três arquivos alterados por este escopo. Não regenerar hashes de controles ou
+  dos quatro menus de referência.
+- 165/165 testes (22 suítes, 17 novos), zero skips. Sem FPS em telefone, sem
+  aprovação artística nova, sem medição de partida completa com 22 jogadores.
+  Detalhes em `xfc-game/docs/v0.5.41.md`.
+
+### v0.5.42 — corrida, replay e cabelo pedidos pelo usuário
+
+- Escopo: (1) tirar o "deslizar" ao correr de lado na carreira, (2) remover o
+  moicano de crista, (3) nova cor de cabelo cinza, (4) replay não pode passar
+  só chute/gol nem só quando a bola sai. Preservar HUD, controles, menus e arte.
+- Corrida: `runningCycle()` agora deriva a distância do ciclo do CONTATO do pé
+  (`contact/support`), com 20% da cadência antiga. A passada de corrida cresceu
+  em `runningLegPose` (`front .25+.30r`, `back .12+.16r`). Não reintroduzir
+  cadência fixa: era ela que fazia o pé patinar. Escorregamento medido no
+  navegador (corpo a 6,47 m/s): 2,38→1,03 (frente), 2,96→1,13 (lado),
+  3,03→1,13 (trás) m/s; antes era 37–47% da velocidade do corpo, agora 16–17%.
+- Cabelo: `lab-mohawk` (crista) REMOVIDO do catálogo e do `BUILDERS` de
+  `hair-lab.js`; 17 cortes + sem cabelo. `CAREER_HAIR_ALIAS['lab-mohawk']` e
+  `careerAppearance()` mapeiam saves antigos para `lab-reference-mohawk`.
+  A réplica da referência (`lab-reference-mohawk`) NÃO pode ser removida.
+  Cores: 14, com `#92969b` Cinza e `#5f6469` Cinza escuro.
+- Replay: `replay-triggers.js` cobre finalização, gol (afterGoal), defesa,
+  falta, desarme, drible, escanteio, impedimento e passe em profundidade, com
+  `importance`. Cooldowns 4,2 s/6,5 s e clipe 4,5 s em `play.js`. O buffer grava
+  as paradas (`match.js`) — sem isso o clipe pega só a bola saindo.
+- Replay nunca abre por cima de painel: `scheduleReplay` e `startAutoReplay` em
+  `play.js` checam a fase (`halftime`/`fulltime`) e o `stage`.
+- Com o replay mais frequente, testes que dirigem a partida por `world.tick`
+  precisam ficar livres de clipe: motor pausado ignora comandos. Existe o
+  interruptor de diagnóstico `match.world.__noAutoReplay = true` (só desliga o
+  clipe automático; o replay manual da pausa continua). `partidas rápidas` usa
+  esse interruptor — sem ele o teste falha de forma intermitente no runner
+  (foi assim que o job XFC APK ficou vermelho com a suíte local verde).
+- Replay tem WATCHDOG (`replayWatchdog`): se o quadro parar no meio do clipe
+  (aba em segundo plano, WebView lenta), ele fecha sozinho em
+  `REPLAY_CLIP_SECONDS / .65 * 1000 + 2500` ms. Não remover: sem isso a partida
+  fica congelada para sempre (foi o que quebrou `partidas rápidas` na
+  regressão).
+- Testes que fixavam o ciclo antigo (`xfc-career-penalty`, `xfc-football-actions`,
+  `xfc-customization-lab`) foram atualizados com o critério físico, não com
+  números arbitrários. Suíte de navegador nova mede o escorregamento.
+- 10/10 navegador, 8/8 puros, 9/9 carreira-pênalti, 3/3 laboratório, 5/5 ações.
+  Sem FPS em telefone. Detalhes em `xfc-game/docs/v0.5.42.md`.
+
+### v0.5.42 — correção de teste pré-existente no `npm test` (Android CI)
+
+- `tests/xfc-shirt-collection.test.mjs` exigia 47 clubes `squadSource:'generated'`
+  e que TODOS tivessem estádio `'Elenco fictício'`. O dado real (já na base) é
+  **61**: 47 fictícios com esse estádio + 14 clubes identificados do pacote de
+  camisas com estádio real. Era o único teste vermelho do `npm test`, que roda no
+  workflow `Android CI` e derrubava o job. Agora o teste confere 61, 47 fictícios
+  e estádio preenchido em todos.
+
+### v0.5.42 — Android CI vermelho com build verde
+
+- Sintoma: no commit do XFC, o job "Build NextVR debug APK" falhava apenas em
+  "Fail if any validation failed", com `Validate and bundle reference UI`,
+  `Build Cardboard SDK and NextVR`, verificação de ABIs e de assinatura todos
+  **success**. Já acontecia no commit anterior à v0.5.42.
+- Causa: `Publish build diagnostics` (best-effort) perdia a corrida para o run
+  do XFC — o log de build é apagado junto com o outro run e o `gh api` do passo
+  falhava. O passo não tinha `continue-on-error`, então `steps.build.completion`
+  não chegava e o `if` de validação derrubava o job.
+- Correção 1: `continue-on-error: true` no passo de diagnóstico (a validação de
+  verdade continua sendo build/verify/sign). Não remover.
+- Correção 2: o gate `Fail if any validation failed` só olha
+  `ui/build/verify/sign.outcome`. Ele antes também exigia
+  `steps.build.completion == 'success'`, campo que o Actions preenche de forma
+  intermitente — build, ABIs e assinatura verdes e job vermelho. O passo agora
+  imprime os quatro outcomes, para o log dizer qual falhou.

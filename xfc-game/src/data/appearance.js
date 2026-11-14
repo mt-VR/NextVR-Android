@@ -76,7 +76,7 @@ const key = name => String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g
 const profiles = new Map(LOOKS.flatMap(([names,skinTone,hairStyle,hairColor])=>names.map(name=>[key(name),{skinTone,hairStyle,hairColor}])));
 export function appearanceFor(player={}) {
   const known=profiles.get(key(player.fullName)) || profiles.get(key(player.name));
-  return { skinTone:'#ad7955',hairStyle:'short',hairColor:'#2b1d14',
+  return { careerHair:player.id==='career-player',skinTone:'#ad7955',hairStyle:'short',hairColor:'#2b1d14',
     ...(known||{}),...(player.appearance||{}),
     heightScale:player.appearance?.heightScale || (player.height?player.height/182:1),
     source:known?'player-profile':player.appearance?'roster':'default-unverified' };

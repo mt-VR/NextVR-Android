@@ -14,10 +14,13 @@ test('passadas: tornozelo segue trajetória limitada, joelho não lança pé par
     const p = runningLegPose(i / 240);
     const y = -0.44 * Math.cos(p.hip) - 0.42 * Math.cos(p.hip + p.knee);
     const z = -0.44 * Math.sin(p.hip) - 0.42 * Math.sin(p.hip + p.knee);
-    assert.ok(z >= -.211 && z <= .381);
+    // Passada de corrida mais longa (contato acompanha o corpo): o pé vai de
+    // -0,34 m atrás a +0,63 m à frente para a cadência ficar humana (~4,7
+    // passos/s no sprint) sem voltar a patinar.
+    assert.ok(z >= -.345 && z <= .635);
     assert.ok(Math.abs(z - p.z) < 0.005);
     assert.ok(p.knee >= 0 && p.knee < 1.85);
-    assert.ok(y >= -.856 && y <= -.51);
+    assert.ok(y >= -.856 && y <= -.515);
     assert.ok(Math.abs(p.hip + p.knee + p.ankle) <= .221, 'rolagem do tornozelo limitada ao contato');
     if (last)
       assert.ok(Math.abs(p.hip - last.hip) < 0.06, 'sem salto entre ciclos');
@@ -103,11 +106,11 @@ test(
         const velocity = m.ball.state.velocity.toArray();
         const gloves = [];
         gk.root.traverse((o) => {
-          if (o.name.startsWith('xfc-keeper-glove-')) gloves.push(o.name);
+          if (o.name==='xfc-fitted-gloves') gloves.push(o.name);
         });
         let gloveVertices=0,fieldMask=false;
-      gk.root.traverse(o=>{if(o.geometry?.attributes.gloveMask)gloveVertices+=o.geometry.attributes.gloveMask.array.filter(x=>x>0).length;});
-      p.root.traverse(o=>{if(o.geometry?.attributes.gloveMask)fieldMask=true;});
+      gk.root.traverse(o=>{if(o.name==='xfc-fitted-gloves')gloveVertices+=o.geometry.attributes.position.count;});
+      p.root.traverse(o=>{if(o.name==='xfc-fitted-gloves')fieldMask=true;});
       const foundation = m.engine.scene.getObjectByName(
           'xfc-stadium-foundation'
         );
@@ -189,7 +192,7 @@ test(
       assert.equal(result.superShot, true);
       assert.ok(Math.hypot(result.velocity[0], result.velocity[2]) > 45);
       assert.ok(result.velocity[1] < 2.5);
-      assert.equal(result.gloves.length, 2);
+      assert.equal(result.gloves.length, 1,'uma casca skinned cobre as duas mãos, sem os antigos blocos azuis');
     assert.ok(result.gloveVertices>20);assert.equal(result.fieldMask,false,"luvas não contaminam jogadores de linha");
       assert.equal(result.foundation, true);
       assert.deepEqual(result.names, ['BAR', 'RMA']);
@@ -258,7 +261,7 @@ test(
           for(let i=0;i<15;i++)m.world.tick(1/120);
           const retained={...marker.userData.target};
           m.world.command('shoot', { strength: 0.8 });
-          for(let i=0;i<56;i++)m.world.tick(1/120);
+          for(let i=0;i<240&&m.world.penaltyApproach;i++)m.world.tick(1/120);
           const v = m.ball.state.velocity.clone(),
             lane = keeper.penaltyDecision.lane;
           // Atleta/inimigos não redirecionam a mira após o chute.
@@ -284,7 +287,7 @@ test(
         assert.ok(Math.abs(shot.v[2] / shot.v[0] - shot.target.z / 11) < 1e-6);
         assert.ok([-1, 0, 1].includes(shot.lane));
         assert.equal(shot.after, shot.lane);
-        assert.ok(shot.cameraY < 3.1);
+        assert.ok(shot.cameraY >= 4.5 && shot.cameraY <= 5.1, 'câmera central elevada deixa a bola visível além do cobrador a 5 m');
       }
     } finally {
       await browser.close();

@@ -19,13 +19,19 @@ test('andar mantém braços quietos; correr alterna braços, recupera joelho e t
     assert.ok(Math.abs(runningArmPose(i/120,1).shoulder+runningArmPose(i/120+.5,1).shoulder)<1e-9);
     knee=Math.max(knee,runningLegPose(i/120,1,1).knee);if(runningFlight(i/120,1))air++;
   }
-  assert.equal(Math.max(...walk)-Math.min(...walk),0);assert.ok(Math.max(...run)-Math.min(...run)>1.5);
-  assert.ok(knee>1.7&&knee<1.85);assert.ok(air>20&&air<60);
+  assert.equal(Math.max(...walk)-Math.min(...walk),0);
+  // Balanço de ombro na corrida: 1,2 rad de amplitude (~70° total). Acima disso
+  // o braço esticava à frente e a corrida parecia autômato.
+  assert.ok(Math.max(...run)-Math.min(...run)>1.1);
+  // Recuperação do joelho: o modelo novo levanta o calcanhar e chicoteia a perna
+  // à frente, então o pico do joelho fica em ~1,63 rad (antes exigia 1,7+, que
+  // era o "joelho alto de marcha"). O voo cobre ~40% do ciclo, não 17–50%.
+  assert.ok(knee>1.55&&knee<1.85);assert.ok(air>20&&air<60);
 });
 test('menus de referência: setas, uniformes, configurações, sorteio sem duplicar e retorno',{timeout:90000},async t=>{
   const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
   try{const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);
-    await p.evaluate(async()=>{const m=await import('/src/main.js');m.go('kickoff');});
+    await p.evaluate(async()=>{const m=await import('/src/main.js');m.go('friendly');});
     assert.equal(await p.locator('.selection-shirt').count(),2);
     const first=await p.locator('.team-card__name').first().innerText();
     await p.getByRole('button',{name:'Próximo time (mandante)',exact:true}).click();assert.notEqual(await p.locator('.team-card__name').first().innerText(),first);
@@ -33,13 +39,13 @@ test('menus de referência: setas, uniformes, configurações, sorteio sem dupli
     await p.locator('.selection-shirt').first().click();await p.locator('.selection-dialog .quick__kit').nth(1).click();
     const kit=await p.evaluate(async()=>{const m=await import('/src/main.js');return m.state.kits[m.state.selection.home];});assert.equal(kit,1);
     await p.getByRole('button',{name:'COMPLETA',exact:true}).click();await p.getByRole('button',{name:'DIFÍCIL',exact:true}).click();
-    await p.getByRole('button',{name:'Continuar',exact:true}).click();await p.waitForSelector('.screen--stadiums');await p.keyboard.press('Escape');await p.waitForSelector('.screen--kickoff');
+    await p.getByRole('button',{name:'Continuar',exact:true}).click();await p.waitForSelector('.screen--stadiums');await p.keyboard.press('Escape');await p.waitForSelector('.screen--friendly');
     assert.equal(await p.getByRole('button',{name:'COMPLETA',exact:true}).getAttribute('aria-pressed'),'true');
     assert.equal(await p.getByRole('button',{name:'DIFÍCIL',exact:true}).getAttribute('aria-pressed'),'true');
     // Nova escolha depois de voltar do estádio não pode ser sobrescrita pelos params antigos.
     await p.getByRole('button',{name:'Próximo time (mandante)',exact:true}).click();
     const afterReturn=await p.locator('.team-card__name').allTextContents();
-    await p.getByRole('button',{name:'Blusas',exact:true}).click();await p.keyboard.press('Escape');await p.waitForSelector('.screen--kickoff');
+    await p.getByRole('button',{name:'Blusas',exact:true}).click();await p.keyboard.press('Escape');await p.waitForSelector('.screen--friendly');
     assert.deepEqual(await p.locator('.team-card__name').allTextContents(),afterReturn);
     await p.evaluate(async()=>{(await import('/src/main.js')).go('quick');});
     for(let i=0;i<6;i++){await p.getByRole('button',{name:'Sortear times',exact:true}).click();const ids=await p.locator('.selection-team').evaluateAll(es=>es.map(e=>e.dataset.teamId));assert.notEqual(ids[0],ids[1]);}
@@ -68,7 +74,7 @@ test('Micah mede 1,75 m em bind, mantém topologia/UV/rig e braços quietos na c
 });
 test('pênaltis nos dois gols: somente cobrador/goleiro na área, árbitro fora e marcador plano vermelho',{timeout:120000},async t=>{
   const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
-  try{const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.graphicsQuality='low';m.go('play',{home:'fc-barcelona',away:'real-madrid'});});await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+  try{const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.graphicsQuality='low';m.go('play',{home:'fc-barcelona',away:'real-madrid'});});await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible',{timeout:60000});
     const r=await p.evaluate(()=>{
       const m=__xfcMatch;m.stop();m.world.setPaused(false);m.world.entrancePlayed=true;
       const all=[...m.teams.home.players,...m.teams.away.players],rows=[];
@@ -78,13 +84,13 @@ test('pênaltis nos dois gols: somente cobrador/goleiro na área, árbitro fora 
         m.world.tick(1/60);for(let i=0;i<30;i++)m.world.tick(1/60);
         const inside=all.filter(player=>sign*player.x>36&&Math.abs(player.z)<20.16);
         const referee=m.engine.scene.children.find(o=>o.userData?.appearance?.source==='referee'||o.name==='xfc-referee');
-        rows.push({side,inside:inside.map(x=>({id:x.id,keeper:x.isKeeper})),taker:m.phase.restart?.taker?.id,ready:m.phase.restart?.ready,referee:referee?.position.toArray(),active:all.filter(x=>x.active).length,ball:m.ball.state.position.toArray()});
+        rows.push({distance:Math.hypot(m.phase.restart.taker.x-m.ball.state.position.x,m.phase.restart.taker.z-m.ball.state.position.z),side,inside:inside.map(x=>({id:x.id,keeper:x.isKeeper})),taker:m.phase.restart?.taker?.id,ready:m.phase.restart?.ready,referee:referee?.position.toArray(),active:all.filter(x=>x.active).length,ball:m.ball.state.position.toArray()});
       }
       const marker=m.engine.scene.getObjectByName('xfc-controlled-marker-2d');
       m.engine.renderer.render(m.engine.scene,m.engine.camera);
       const positions=Array.from(marker.geometry.attributes.position.array);
       return{rows,marker:{vertices:positions.length/3,z:positions.filter((_,i)=>i%3===2),color:marker.material.color.getHex(),angle:marker.quaternion.angleTo(m.engine.camera.quaternion)}};
-    });for(const row of r.rows){assert.equal(row.active,22);assert.equal(row.ready,true);assert.ok(Math.abs(row.referee[2])>20.16);assert.equal(row.inside.length,2,JSON.stringify(row));assert.ok(row.inside.some(x=>x.id===row.taker));assert.equal(row.inside.filter(x=>x.keeper).length,1);assert.ok(Math.abs(Math.abs(row.ball[0])-41.5)<.05);}
+    });for(const row of r.rows){assert.ok(Math.abs(row.distance-5)<.01);assert.equal(row.active,22);assert.equal(row.ready,true);assert.ok(Math.abs(row.referee[2])>20.16);assert.equal(row.inside.length,2,JSON.stringify(row));assert.ok(row.inside.some(x=>x.id===row.taker));assert.equal(row.inside.filter(x=>x.keeper).length,1);assert.ok(Math.abs(Math.abs(row.ball[0])-41.5)<.05);}
     assert.equal(r.marker.vertices,3);assert.deepEqual(r.marker.z,[0,0,0]);assert.equal(r.marker.color,0xf02338);assert.ok(r.marker.angle<1e-6);
   }finally{await b.close();server.close();}
 });

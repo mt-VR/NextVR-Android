@@ -1,4 +1,7 @@
-import {currentCareer,careerTeam,settleCareer} from '../data/career.js';
+import {getCareer,careerRoster,settleManager,managerTeam} from '../data/career-services.js';
+import {plannedTeam} from '../data/game-plan.js';
+import {settleCareer} from '../data/career.js';
+import {createCareerRating} from '../data/career-rating.js';
 import {graphicsSettings} from '../ui/graphics-settings.js';
 // Tela da partida: a apresentação pré-jogo (cinematográfica), o jogo 3D em
 // si e o resultado final.
@@ -28,6 +31,7 @@ import { createHud } from '../match3d/hud.js';
 import * as THREE from '../../vendor/three.module.min.js';
 import { cheer, whistle, kickSound, applause, boo } from '../audio.js';
 import { STADIUMS, attachStadiumDome } from '../match3d/stadiums.js';
+import { PREMATCH_BEATS } from '../match3d/prematch.js';
 
 const STAGE_WIDTH = 1280;
 const STAGE_HEIGHT = 720;
@@ -120,11 +124,15 @@ function projectToStage(camera, position) {
 }
 
 export function playScreen(ctx, params = {}) {
-  const career=params.careerMatchId?currentCareer(ctx.state.profile):null;
-  const careerClub=career&&career.pending?.id===params.careerMatchId?careerTeam(career):null;
+  const career=params.careerMatchId?getCareer(ctx.state.profile,params.careerKind||'player'):null;
+  const careerManager=career?.kind==='manager';
+  const careerClub=career&&career.pending?.id===params.careerMatchId?plannedTeam(careerRoster(career,careerManager?'manager':'player'),career.plan,careerManager?null:career.player.id):null;
+  const isPlayerCareer=Boolean(careerClub&&!careerManager&&career);
+  const heroId=isPlayerCareer?career.player.id:null;
+  const rating=isPlayerCareer?createCareerRating():null;
   const careerPerformance={goals:0,shots:0,passes:0};
-  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || resolvePlayableTeam(params.home || ctx.state.selection.home);
-  const away = (careerClub?.id===params.away?careerClub:null) || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
+  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || (careerManager&&managerTeam(career,params.home)) || resolvePlayableTeam(params.home || ctx.state.selection.home);
+  const away = (careerClub?.id===params.away?careerClub:null) || (careerManager&&managerTeam(career,params.away)) || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
   const homeKit = kitForTeam(home, params.homeKit ?? 0);
   const awayKit = kitForTeam(away, params.awayKit ?? 0);
   const userSide = params.userSide === 'away' ? 'away' : 'home';
@@ -135,7 +143,12 @@ export function playScreen(ctx, params = {}) {
 
   let stage = 'prematch';
   let paused = false;
+  // Painel da cerimônia (cena atual + legenda). Recriado a cada partida.
+  let entranceCaption = null;
+  let entranceSteps = [];
   let lastSnapshot = { score: [0, 0], display: "0'00", half: 1, phase: 'kickoff' };
+  // Expulsão do herói da carreira.
+  let spectatorMode = false, dismissalShown = false;
 
   const canvas = el('canvas', {
     class: 'play__canvas',
@@ -294,7 +307,7 @@ export function playScreen(ctx, params = {}) {
 
   function buildMatch() {
     match = createMatch({
-      playerLockId:careerClub?career.player.id:null,
+      playerLockId:careerClub&&!careerManager?career.player.id:null,
       graphicsQuality:ctx.state.profile.graphicsQuality,
       canvas,
       home,
@@ -305,7 +318,7 @@ export function playScreen(ctx, params = {}) {
       difficulty,
       userSide,
       onEvent: handleEvent,
-      gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:ctx.state.profile.gamePlans?.[away.id]},
+      gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:away.plan || ctx.state.profile.gamePlans?.[away.id]},
       stadium: stadiumIndex
     });
     hud = createHud({
@@ -313,9 +326,12 @@ export function playScreen(ctx, params = {}) {
       home,
       away,
       userSide,
+      careerRating: isPlayerCareer,
       onSetPieceChange: options => match?.world.setPieceOptions(options)
     });
+    hud?.setRating(rating ? rating.value : 6);
     controls = createControls({
+      playerCareer:!!careerClub&&!careerManager,
       root: stageBox,
       onCharge:value=>match?.world.setShotCharge(value),
       onCommand: (name, payload) => {
@@ -356,7 +372,9 @@ export function playScreen(ctx, params = {}) {
     const userGoals = userSide === 'home' ? event.score[0] : event.score[1];
     const rivalGoals = userSide === 'home' ? event.score[1] : event.score[0];
     if(careerClub){
-      const result=settleCareer(career,params.careerMatchId,event.score,careerPerformance);
+      // Nota ao vivo (6→10) vira a nota oficial da partida na carreira.
+      if(rating)careerPerformance.liveRating=rating.value;
+      const result=careerManager?settleManager(career,params.careerMatchId,event.score):settleCareer(career,params.careerMatchId,event.score,careerPerformance);
       matchReward={coins:0,goals:result?.goals||0};saveProfile(ctx.state);return;
     }
     if(params.ultimateMatchId){
@@ -390,13 +408,41 @@ export function playScreen(ctx, params = {}) {
   }
 
   function handleEvent(event) {
+    if(event.type==='pass-request')controls?.passFeedback(event.reason,event.accepted);
     if(careerClub&&(event.player||event.scorer)?.rosterId===career.player.id){
       if(event.type==='goal')careerPerformance.goals++;
       if(event.type==='shot')careerPerformance.shots++;
       if(event.type==='pass')careerPerformance.passes++;
     }
+    // Nota AO VIVO 0–10 (começa 6): gol +2, assistência +1, passe certo,
+    // chute perigoso e drible concluído valem décimos.
+    if(rating){
+      if(event.type==='goal'){
+        if(event.scorer?.rosterId===heroId)rating.award('goal');
+        else if(event.assist?.rosterId===heroId)rating.award('assist');
+      }else if(event.type==='shot'&&event.dangerous&&event.player?.rosterId===heroId)rating.award('shot');
+      else if(event.type==='pass-completed'&&event.from?.rosterId===heroId)rating.award('pass');
+      else if(event.type==='dribble'&&event.player?.rosterId===heroId)rating.award('dribble');
+      hud?.setRating(rating.value);
+    }
+    // Herói expulso: oferece ENCERRAR ou ASSISTIR.
+    if(isPlayerCareer&&event.type==='card'&&event.color==='red'&&event.player?.rosterId===heroId)showDismissal(event);
     if (!hud) return;
     switch (event.type) {
+      case 'entrance-beat': {
+        if (!entranceCaption) break;
+        entranceCaption.textContent = event.caption || '';
+        entranceCaption.classList.remove('is-fresh');
+        // Reflow curto para a legenda entrar com fade a cada virada de cena.
+        void entranceCaption.offsetWidth;
+        entranceCaption.classList.add('is-fresh');
+        for (const step of entranceSteps) {
+          const index = PREMATCH_BEATS.findIndex(beat => beat.id === step.dataset.beat);
+          step.classList.toggle('is-current', index === event.index);
+          step.classList.toggle('is-done', index < event.index);
+        }
+        break;
+      }
       case 'entrance-end': {
         beginLive();
         break;
@@ -412,7 +458,7 @@ export function playScreen(ctx, params = {}) {
           name: scorerName,
           score: `${homeScore} × ${awayScore}`
         });
-        hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${scorerName}`, 'goal');
+        hud.pushEvent(`⚽ ${Math.floor(event.minute)}' ${team.name} — ${scorerName}`, 'goal');
         // A câmera fecha no autor, que corre com os braços erguidos; o nome
         // permanece sob a cabeça e no cartão da HUD durante a comemoração.
         try {
@@ -437,7 +483,7 @@ export function playScreen(ctx, params = {}) {
         const color = event.color === 'red' ? '🟥' : '🟨';
         if (event.color === 'red') boo();
         else whistle('short');
-        hud.pushEvent(`${color} ${event.minute}' ${team.name} — ${event.player.name}`, event.color);
+        hud.pushEvent(`${color} ${Math.floor(event.minute)}' ${team.name} — ${event.player.name}`, event.color);
         break;
       }
       case 'offside': {
@@ -503,6 +549,14 @@ export function playScreen(ctx, params = {}) {
     stage = 'entrance';
     paused = false;
     overlay.classList.add('is-visible', 'is-entrance');
+    // Painel da cerimônia: a cena, a legenda do momento e os quatro capítulos.
+    // A ordem é fixa e o marcador anda junto com o motor (`entrance-beat`).
+    entranceCaption = el('span', { class: 'entrance__caption', text: PREMATCH_BEATS[0].caption });
+    entranceSteps = PREMATCH_BEATS.map((beat, index) => el('span', {
+      class: `entrance__step${index === 0 ? ' is-current' : ''}`,
+      dataset: { beat: beat.id },
+      text: beat.label
+    }));
     overlay.replaceChildren(
       el('div', { class: 'entrance' },
         el('span', { class: 'entrance__eyebrow', text: STADIUMS[stadiumIndex]?.name || 'ESTÁDIO XFC' }),
@@ -517,7 +571,8 @@ export function playScreen(ctx, params = {}) {
             el('b', { text: away.name })
           )
         ),
-        el('span', { class: 'entrance__caption', text: 'OS TIMES ESTÃO ENTRANDO EM CAMPO' })
+        el('div', { class: 'entrance__steps' }, ...entranceSteps),
+        entranceCaption
       )
     );
     match?.world.setPaused(false);
@@ -529,6 +584,8 @@ export function playScreen(ctx, params = {}) {
   /** Fim da entrada: HUD, controles e a saída de bola. */
   function beginLive() {
     stage = 'live';
+    entranceCaption = null;
+    entranceSteps = [];
     overlay.replaceChildren();
     overlay.classList.remove('is-visible', 'is-entrance');
     setPauseButtonVisible(true);
@@ -664,7 +721,7 @@ export function playScreen(ctx, params = {}) {
               returnTo: params.worldCupReturnTo || 'modes'
             })
           }, 'CONTINUAR COPA')
-          : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career')},'VOLTAR À CARREIRA')
+          : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career',{view:'hub',kind:careerManager?'manager':'player'})},'VOLTAR À CARREIRA')
           : params.ultimateMatchId ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('ultimate')},'VOLTAR AO CLUBE')
           : el('button', {
             class: 'btn btn--primary',
@@ -734,23 +791,15 @@ export function playScreen(ctx, params = {}) {
       }
       panel('PLANO DE JOGO',el('p',{text:'Arraste as cartinhas livremente. No teclado, selecione uma carta e use as setas. As novas posições orientam a equipe ao retomar, sem teletransportar o lance.'}),pitch);
     }
-    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go(careerClub?'career':params.ultimateMatchId?'ultimate':'menu');
+    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go(careerClub?'career':params.ultimateMatchId?'ultimate':'menu',careerClub?{view:'hub',kind:careerManager?'manager':'player'}:{});
     const confirm=(title,message,action)=>panel(title,el('p',{text:message}),el('button',{type:'button',class:'pause-reference__confirm',onClick:action,text:'CONFIRMAR'}));
     const actions=[
       ['resume','▶','CONTINUAR PARTIDA',resumeMatch],
       ['restart','↻','REINICIAR PARTIDA',()=>confirm('REINICIAR PARTIDA','Recomeçar este confronto do zero? O placar atual será descartado.',()=>ctx.go('play',{...params,home:home.id,away:away.id,homeKit:params.homeKit||0,awayKit:params.awayKit||0}))],
       ['settings','⚙','CONFIGURAÇÕES',()=>panel('CONFIGURAÇÕES',
         graphicsSettings(ctx.state),
-        el('button',{type:'button',class:'pause-reference__back',text:'REVER ÚLTIMO LANCE',onClick:()=>{
-          if(!match.world.replay.available){panel('REPLAY',el('p',{text:'Jogue alguns segundos para gravar um lance.'}));return;}
-          const replayOverlay=el('div',{class:'play-replay'},el('span',{text:'REPLAY · último lance · câmera lenta'}),el('button',{type:'button',text:'Voltar à pausa',onClick:()=>match.world.replay.stop()}));
-          const finish=()=>{replayOverlay.remove();overlay.style.visibility='';stageBox.classList.remove('is-replay');pausePanel=closeDetail;};
-          overlay.style.visibility='hidden';stageBox.classList.add('is-replay');stageBox.append(replayOverlay);
-          if(!match.world.replay.start(finish)){finish();return;}
-          pausePanel=()=>match.world.replay.stop();
-        }}),
         el('p',{text:'CHUTE: segure até a carga completa para superchute. CORRER: segure para correr; arraste para cima para chapéu ou para baixo para pedalada.'}),
-        el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
+        careerClub&&!careerManager ? el('p',{text:'Câmera Pro · acompanha seu atleta, como nos treinos.'}) : el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
           el('option',{value:'1',selected:match.world.cameraZoom===1,text:'Padrão'}),el('option',{value:'1.2',selected:match.world.cameraZoom===1.2,text:'Mais aberta'}))),
         el('p',{text:'Teclado: WASD/setas para mover, Shift para correr, J/E para passar, K para carregar o chute e F para carrinho.'}),
         el('button',{type:'button',class:'pause-reference__back',dataset:{pauseAction:'plan'},onClick:showPlan,text:'PLANO DE JOGO'}))],
@@ -777,7 +826,57 @@ export function playScreen(ctx, params = {}) {
     pausePanel=null;stage='live';paused=false;stageBox.classList.remove('is-paused');
     setPauseButtonVisible(true);match?.world.setPaused(false);
     overlay.replaceChildren();overlay.classList.remove('is-visible');
-    controls?.setEnabled(true);match?.resumeRender();
+    if(!spectatorMode)controls?.setEnabled(true);
+    match?.resumeRender();
+  }
+
+  // -------------------------------- expulsão do herói (carreira jogador) ----
+
+  function showDismissal(event) {
+    if (dismissalShown || !match) return;
+    dismissalShown = true;
+    match.stop();
+    match.world.setPaused(true);
+    controls?.setEnabled(false);
+    setPauseButtonVisible(false);
+    stage = 'dismissed';
+    const choose = watch => {
+      if (stage !== 'dismissed') return;
+      if (watch) {
+        spectatorMode = true;
+        match.world.setSpectator(true);
+        stage = 'live';
+        overlay.replaceChildren();
+        overlay.classList.remove('is-visible');
+        setPauseButtonVisible(true);
+        match.world.setPaused(false);
+        match.resumeRender();
+      } else {
+        const snapshot = match.world.snapshot();
+        const endEvent = {
+          score: Array.isArray(snapshot.score) ? snapshot.score.slice() : [0, 0],
+          stats: snapshot.stats,
+          phase: 'fulltime'
+        };
+        match.stop();
+        match.world.setPaused(true);
+        controls?.setEnabled(false);
+        creditMatch(endEvent);
+        showResult(endEvent);
+      }
+    };
+    overlay.replaceChildren(el('div', { class: 'play-dismissal' },
+      el('div', { class: 'play-dismissal__card', 'aria-hidden': 'true' }),
+      el('span', { class: 'play-dismissal__eyebrow', text: 'EXPULSÃO' }),
+      el('h2', { class: 'play-dismissal__title', text: 'CARTÃO VERMELHO' }),
+      el('p', { class: 'play-dismissal__text',
+        text: `${event.player?.name || 'Seu jogador'} foi expulso. Quer encerrar a partida ou assistir o resto do jogo como espectador?` }),
+      el('div', { class: 'play-dismissal__actions' },
+        el('button', { class: 'btn btn--primary', type: 'button', text: 'ASSISTIR', onClick: () => choose(true) }),
+        el('button', { class: 'btn', type: 'button', text: 'ENCERRAR PARTIDA', onClick: () => choose(false) })
+      )
+    ));
+    overlay.classList.add('is-visible');
   }
 
   // ------------------------------------------------------------- montagem --
@@ -865,6 +964,7 @@ export function playScreen(ctx, params = {}) {
         items[(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {
+        if (stage === 'dismissed') { return true; } // exige escolha explícita
         if (stage === 'live') {
           showPause();
           return true;

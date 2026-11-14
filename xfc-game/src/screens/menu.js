@@ -7,6 +7,7 @@ import { xfcWordmark } from '../ui/brand.js';
 import { formatXp } from '../state.js';
 
 const MENU_ITEMS = [
+  {id:'friendly',label:'JOGO RÁPIDO',headline:'Entre direto em campo',subtitle:'O menu clássico do Jogo Rápido.',action:'Jogar',target:'friendly'},
   {
     id: 'news',
     label: 'FC NEWS',
@@ -17,7 +18,7 @@ const MENU_ITEMS = [
   },
   {
     id: 'kickoff',
-    label: 'JOGO RÁPIDO',
+    label: 'KICK OFF',
     headline: 'Dive straight into the action',
     subtitle: 'Quick matches  ·  Couch Co-op  ·  Customise settings',
     action: 'Enter Kick Off',
@@ -39,6 +40,14 @@ const MENU_ITEMS = [
     subtitle: 'Sign players, shape your squad and take it onto the pitch.',
     action: 'Enter Ultimate Team',
     target: 'ultimate'
+  },
+  {
+    id: 'career',
+    label: 'CARREIRA DE JOGADOR',
+    headline: 'Sua carreira. Seu jogador.',
+    subtitle: 'Escolha seu clube, evolua seu atleta e entre em campo com a câmera Pro.',
+    action: 'Entrar na carreira',
+    target: 'career'
   },
   {
     id: 'learn',
@@ -92,7 +101,7 @@ const QUICK_ACTIONS = [
 
 export function menuScreen(ctx) {
   const { profile } = ctx.state;
-  let focusIndex = 1;
+  let focusIndex = MENU_ITEMS.findIndex(item=>item.id==='kickoff');
   const xp = Math.max(0, Number(profile.xp) || 0);
   const xpMax = Math.max(1, Number(profile.xpMax) || 3000);
   const xpPercent = Math.min(100, Math.round((xp / xpMax) * 100));
@@ -211,7 +220,6 @@ export function menuScreen(ctx) {
       src: 'assets/bg/menu-hero.jpg',
       alt: 'Jogador em campo diante de um estádio cheio'
     }),
-    el('button',{type:'button',class:'career-entry',text:'CARREIRA DE JOGADOR',onClick:()=>ctx.go('career')}),
     topbar,
     quickRail,
     nav,

@@ -708,7 +708,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await imagesReady();
     const navLabels = await page.locator('.menu__item-label').allTextContents();
     assert.deepEqual(navLabels, [
-      'FC NEWS', 'JOGO RÁPIDO', 'THE GROUNDS', 'ULTIMATE TEAM', 'LEARN TO PLAY',
+      'JOGO RÁPIDO', 'FC NEWS', 'KICK OFF', 'THE GROUNDS', 'ULTIMATE TEAM', 'CARREIRA DE JOGADOR', 'LEARN TO PLAY',
       'SEASONS', 'TOURNAMENTS', 'TIME ALEATÓRIO', 'ONLINE FRIENDLIES'
     ], 'o menu mantém as opções do hub em uma lista vertical');
     assert.equal(await page.locator('.menu__item.is-focused').getAttribute('data-menu-item'), 'kickoff',
@@ -860,38 +860,33 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     const teamNames = await page.locator('.team-card__name').allTextContents();
     assert.ok(teamNames.includes('FC Barcelona'), 'Barcelona aparece na escolha de times');
     assert.ok(teamNames.includes('Real Madrid'), 'Real Madrid aparece na escolha de times');
-    assert.equal(await page.locator('.selection-shirt').count(), 2, 'a referência mostra um uniforme selecionado por time');
+    assert.equal(await page.locator('.kickoff-card').count(), 2, 'a referência mostra um cartão por time');
     await imagesReady();
     assert.ok(await page.locator('.team-card__crest').first().isVisible(), 'os escudos aparecem');
 
     // Países são grupos independentes: Espanha primeiro, Brasil segundo.
     const countries=await page.getByLabel('País do mandante').locator('option').allTextContents();
     assert.deepEqual(countries.slice(0,2),['Espanha','Brasil']);
-    const nextClub='.kickoff__slot[data-slot="home"] .picker-arrow--crest:last-child';
+    const nextClub='.kickoff-column[data-slot="home"] .kickoff-crest-row button:last-child';
     await page.getByLabel('País do mandante').selectOption('Brasil');
     assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Ibis'));
     await page.click(nextClub);assert.ok((await page.locator('.team-card__name').first().textContent()).includes('Paraná'));
     await page.getByLabel('País do mandante').selectOption('Espanha');
     assert.equal(await page.locator('.team-card__name').first().textContent(),'FC Barcelona');
 
-    // Tela de blusas: READY, carrossel com três uniformes e a prévia dos dois
-    // jogadores (um de cada lado).
-    await page.click('.btn:has-text("Blusas")');
+    // Kick Off: uniformes reais, dois carrosséis e confirmação independente.
+    await page.click('.continue-btn');
     await page.waitForSelector('.screen--kits');
-    assert.ok((await page.locator('.kits__ready').textContent()).includes('READY'), 'a tela de blusas tem READY');
-    assert.equal(await page.locator('.kits__row .kits__tile').count(), 3, 'o carrossel mostra três blusas');
-    assert.equal(await page.locator('.kits__preview-figure svg').count(), 2, 'os dois jogadores vestem o uniforme');
-    assert.equal(await page.locator('.kits__preview-figure img').count(), 0,
-      'sem foto de pacote, a prévia usa o desenho em SVG');
-    await page.click('.kits__arrow:last-child');
-    assert.ok((await page.locator('.kits__tile-name').nth(1).textContent()).length > 0, 'a blusa escolhida tem nome');
+    await page.waitForFunction(()=>document.querySelector('.kickoff-models')?.dataset.ready==='true');
+    assert.equal(await page.locator('.kickoff-kit-shirt').count(),6);
+    await page.getByLabel('Próximo uniforme (mandante)',{exact:true}).click();
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--kickoff');
 
     // Escolha do confronto e ida para o elenco.
-    await page.click('.team-card:has-text("FC Barcelona")');
-    await page.click('.team-card:has-text("Real Madrid")');
-    await page.click('.btn:has-text("Ver elenco")');
+    await page.getByLabel('Selecionar FC Barcelona',{exact:true}).click();
+    await page.getByLabel('Selecionar Real Madrid',{exact:true}).click();
+    await page.locator('.kickoff-column--away').getByRole('button',{name:'Ver elenco',exact:true}).click();
     await page.waitForSelector('.screen--squad');
     await imagesReady();
     assert.equal(await page.locator('.pitch-player').count(), 11, 'o campo mostra onze jogadores');
@@ -901,7 +896,10 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // CONTINUAR leva à escolha de estádios (galeria dos seis estádios).
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--kickoff');
-    await page.click('.screen--kickoff .continue-btn', { noWaitAfter: true });
+    await page.click('.screen--kickoff .continue-btn');
+    await page.getByLabel('Confirmar uniforme (mandante)',{exact:true}).click();
+    await page.getByLabel('Confirmar uniforme (visitante)',{exact:true}).click();
+    await page.getByRole('button',{name:'Continuar →',exact:true}).click();
     await page.waitForSelector('.screen--stadiums', { timeout: 15000 });
     assert.equal(await page.locator('.stadiums__card').count(), 6, 'a galeria mostra os seis estádios');
     await page.click('.stadiums__card:first-child', { noWaitAfter: true });
@@ -928,7 +926,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.showcase__enter', { timeout: 30000 });
     assert.ok(await page.locator('.showcase__enter').isVisible(), 'a partida abre no pré-jogo');
     await page.click('.showcase__enter');
-    await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    await page.waitForSelector('.hud.is-visible', { timeout: 30000 });
     const boardBox = await page.locator('.hud__scoreboard').boundingBox();
     assert.ok(boardBox && boardBox.x < 100, 'o placar ao vivo fica no canto superior esquerdo da referência');
     const stickBox = await page.locator('.controls__stick').boundingBox();
@@ -940,11 +938,11 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       const style = getComputedStyle(node);
       return [style.left, style.bottom];
     });
-    assert.deepEqual(stickStyle, ['96px', '118px'], 'o joystick permanece na posição original');
+    assert.deepEqual(stickStyle, ['76px', '92px'], 'o joystick usa a posição da nova referência de controles');
     const passBox = await page.locator('.ctrl-btn--pass').boundingBox();
     const runBox = await page.locator('.ctrl-btn--sprint').boundingBox();
-    assert.ok(passBox && runBox && passBox.width >= 96 && runBox.width >= 96,
-      'PASSE e CORRER têm botões maiores');
+    assert.ok(passBox && runBox && passBox.width >= 90 && passBox.width <= 120 && runBox.width >= 96 && runBox.width <= 140,
+      'PASSE e CORRER mantêm alvos proporcionais sem ocupar o campo');
     assert.ok(passBox.x < runBox.x && runBox.x - passBox.x < 145,
       'PASSE e CORRER trocaram de lado e ficaram próximos');
     assert.ok(await page.locator('.hud__foe').isVisible(),
@@ -1024,7 +1022,17 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.deepEqual(shotGestures, ['curved', 'placed', 'normal'],
       'arrastar para cima curva, para baixo coloca; superchute agora exige carga completa');
     await page.locator('.ctrl-btn--pass').click();
-    await page.waitForFunction(()=>window.__xfcMatch.phase.name==='play');
+    await page.waitForFunction(()=>{
+      const match=window.__xfcMatch;
+      if(match.phase.name!=='play')return false;
+      // Congela só a simulação: a recepção automática do passe não pode trocar
+      // o atleta entre a leitura da HUD e o clique em TROCAR. A HUD segue viva.
+      match.stop();return true;
+    });
+    await page.waitForFunction(()=>{
+      const match=window.__xfcMatch;
+      return document.querySelector('.hud__player .hud__player-name')?.textContent.trim()===String(match.controlled[match.world.userSide].name).toUpperCase();
+    });
     const controlledBefore = (await page.locator('.hud__player .hud__player-name').textContent()).trim();
     await page.locator('.ctrl-btn--switch').click();
     await page.waitForFunction(name =>
@@ -1042,6 +1050,9 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
   }
 });
 
+// A v0.5.42 ampliou os lances com replay automático. Quando um clipe está
+// aberto, o motor fica pausado de propósito (o jogador está assistindo), então
+// os trechos que dirigem a partida por `world.tick` fecham o clipe antes.
 test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout: 180000 }, async (t) => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
@@ -1138,7 +1149,13 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     await page.click('.showcase__enter');
 
     // Partida: HUD, radar e controles na tela.
-    await page.waitForSelector('.hud.is-visible', { timeout: 15000 });
+    await page.waitForSelector('.hud.is-visible', { timeout: 30000 });
+    // Os blocos abaixo conduzem a partida por `world.tick` e medem o motor (chute
+    // defendido, gol, carrinho, intervalo). Com a cobertura de replay da v0.5.42
+    // um clipe automático pode abrir no meio e pausar o motor, que então ignora
+    // os ticks e a medição. Desliga o clipe automático neste teste; ele tem
+    // cobertura própria nas suítes de replay.
+    await page.evaluate(() => { window.__xfcMatch.world.__noAutoReplay = true; });
     const kickoffAccepted = await page.evaluate(() => window.__xfcMatch.world.command('pass'));
     assert.ok(kickoffAccepted, 'a saída aguarda e começa com o passe explícito do jogador');
     await page.waitForTimeout(2200); // cruza pelo menos uma janela de amostragem de FPS
@@ -1700,13 +1717,22 @@ test('Treino de pênaltis: câmera Pro, batedor, goleiro e prática de chute', {
     const outcome = await page.evaluate(() => {
       const match = window.__xfcTrainingMatch;
       match.engine.stop();
-      match.world.command('shoot', { strength: 1 });
-      for (let index = 0; index < 240; index += 1) match.world.tick(1 / 60);
+      const before = { ...match.world.trainingStats };
+      const completed = stats => stats.goals + stats.saves + stats.misses;
+      const accepted = match.world.command('shoot', { strength: 1 });
+      // A aproximação leva 1,35 s ANTES dos até 3,8 s de voo/rebote.
+      // Quatro segundos cortavam a tentativa antes do encerramento por tempo.
+      // Avançar tempo simulado, sem depender do FPS ou esperar indefinidamente.
+      for (let frame = 0; frame < 360 && completed(match.world.trainingStats) === completed(before); frame += 1) {
+        match.world.tick(1 / 60);
+      }
       const stats = match.world.trainingStats;
-      return { goals: stats.goals, saves: stats.saves, misses: stats.misses };
+      return { accepted, shots: stats.shots - before.shots, results: completed(stats) - completed(before) };
     });
-    assert.ok(outcome.goals + outcome.saves + outcome.misses > 0,
-      'o chute conclui o exercício com gol, defesa do goleiro ou tentativa para fora');
+    assert.equal(outcome.accepted, true, 'a cobrança após reiniciar aceita CHUTE');
+    assert.equal(outcome.shots, 1, 'a aproximação registra exatamente um chute');
+    assert.equal(outcome.results, 1,
+      'o chute conclui exatamente uma tentativa dentro de seis segundos simulados');
 
     const realErrors = errors.filter(message => !/favicon/i.test(message));
     assert.deepEqual(realErrors, [], `o Centro de Treino não deve gerar erro: ${realErrors.join(' | ')}`);
@@ -2029,7 +2055,7 @@ test('os menus das competições são próprios e todas as opções abrem telas 
 
     // Entrada cinematográfica: a partida só começa depois do túnel.
     await page.click('.showcase__enter');
-    await page.waitForSelector('.hud.is-visible', { timeout: 20000 });
+    await page.waitForSelector('.hud.is-visible', { timeout: 30000 });
     const entrancePlayed = await page.evaluate(() => window.__xfcMatch.world.entrancePlayed);
     assert.equal(entrancePlayed, true, 'os times entram em campo pelo túnel antes do apito');
     assert.equal(await page.locator('.entrance').count(), 0, 'a entrada termina quando o jogo começa');

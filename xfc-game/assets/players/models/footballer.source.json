@@ -6,16 +6,19 @@
   "licenseUrl": "https://www.innerscene.com/tools/library/terms",
   "mirror": "https://github.com/niktolis/pitchvolt-ai/blob/7e5e192541c06c2788cf8341ae297d543e433b7b/web/public/assets/hero/neutral-59ee4cbe96e07698.glb",
   "inputSha256": "59ee4cbe96e07698c139d6ef9aa6e3965bac553cb9f826c7238bef953d958662",
-  "outputSha256": "f53faee5bed694afa8946f7bee7f6d54669e9bfd19c4d5930a73a3d1f1cd563d",
+  "outputSha256": "7417664bb6f62971fe96eba39b8c7a1e021ca4ecf15a2cd0cbcef0466815bd6f",
   "adaptations": [
     "Removed scene-only ball, fixed number and instanced studs",
     "Bound original body/clothing geometry to 22-joint skeleton",
     "Authored idle/walk/run clips for that bind pose",
     "Neutralized fabric base-colour textures for team tint; preserved skin/hair/eyes",
-    "Meshoptimizer simplification for mobile, retaining UVs/materials/skin weights"
+    "Classic mobile reduction: meshoptimizer ratio 0.10 / error 0.006; diffuse maps <=256px; original 22-joint rig, UVs and clips retained",
+    "Removed hidden shin skin under socks to prevent z-fighting; removed unused roots and teeth",
+    "Runtime author-created solid hair volumes, six face shapes and diffuse-only player materials; no PES assets"
   ],
   "frontAxis": "+Z",
   "sourceHasRig": false,
   "tool": "tools/rig-footballer.py",
-  "optimizationTool": "tools/optimize-footballer.mjs"
+  "optimizationTool": "tools/classic-footballer.mjs",
+  "visualStyle": "classic-ps2-inspired"
 }

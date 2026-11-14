@@ -38,25 +38,64 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
   };
 }
 
-/** Enquadramento de transmissão que acompanha a bola sem cruzar para o outro lado. */
+/**
+ * Câmera de transmissão — inspirada na câmera lateral clássica de PES/eFootball.
+ *
+ * Histórico, porque cada versão falhou por um motivo diferente:
+ *
+ * 1. A original ficava DENTRO do campo (`z = 23` com a lateral em `z = 34`):
+ *    metade do gramado ia para trás da lente e não era desenhada.
+ * 2. Uma vista elevada a 59° enquadrava o campo todo, mas virava um mapa.
+ * 3. Uma diagonal a 34° melhorou a perspectiva, mas ainda era visão de cima.
+ *
+ * O que o usuário pediu é a câmera de PES: **lateral, no eixo do meio-campo,
+ * quase horizontal, panorâmica acompanhando a bola**. Ela é montada assim:
+ *
+ *   • no vão livre da lateral — 26 m de altura e 53 m do eixo do campo, entre
+ *     a linha (34) e a arquibancada (54). Em `z ≥ 54` a lente ficaria DENTRO
+ *     da torcida (já aconteceu numa versão deste arquivo: a tela mostrava só
+ *     as cadeiras). Acima das placas (1,25 m), do LED (3,1 m) e da cobertura
+ *     do banco (4,1 m), então nada do estádio cruza a frente do gramado.
+ *   • alvo 40 m à frente, no chão: dá inclinação de 33° — bem menos que os 59°
+ *     da vista aérea — e é o suficiente para as duas linhas laterais caberem.
+ *   • `fov = 62`: cobre a largura do gramado à distância da lente.
+ *   • panorâmica de 80% do deslocamento da bola, amortecida pelo
+ *     `updateCamera`, sem zoom nem corte brusco: é o movimento do PES.
+ *
+ * Medido com o `three` do vendor em 1280×720, para a bola em todo o campo:
+ * lateral próxima em `ndc.y = 0,63`, oposta em `0,49`, a bola em `|ndc| ≤ 0,20`
+ * e 83% de todas as posições do gramado dentro do quadro. O resto entra pelo
+ * pan — o que sai é sempre a lateral oposta ao lance, nunca o jogador da bola.
+ *
+ * Comparação honesta com a versão anterior (diagonal a 34°): aquela mantinha
+ * os 22 atletas no quadro em 100% dos instantes, mas de cima. Esta é a câmera
+ * de transmissão lateral que foi pedida, e paga por isso com ~1 atleta na
+ * borda em jogada de ponta.
+ */
+const CAMERA_Z = 53;
+const CAMERA_HEIGHT = 26;
+const CAMERA_FOV = 62;
+/** Distância em Z do alvo: define a inclinação (33° com a altura de 26 m). */
+const CAMERA_TARGET_AHEAD = 40;
+/** Fração do deslocamento da bola aplicada à câmera (movimento do PES). */
+const CAMERA_PAN_FACTOR = 0.8;
+
+/**
+ * Enquadramento de transmissão lateral que acompanha a bola.
+ *
+ * A câmera fica na lateral, no eixo do meio-campo, e panorâmica em X junto com
+ * a jogada. `side` escolhe a lateral (o jogo usa sempre a mesma, para o
+ * analógico não inverter); `velocity` dá a antecipação do movimento.
+ */
 export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velocity = null) {
-  const ballX = clamp((Number(position?.x) || 0)+clamp((Number(velocity?.x)||0)*.1,-2.2,2.2), -PITCH.halfLength - 6, PITCH.halfLength + 6);
-  const ballZ = clamp((Number(position?.z) || 0)+clamp((Number(velocity?.z)||0)*.08,-1.5,1.5), -PITCH.halfWidth - 6, PITCH.halfWidth + 6);
   const fixedSide = side < 0 ? -1 : 1;
-  const nearT = Math.min(1, Math.abs(ballZ) / PITCH.halfWidth);
-  const endT = Math.min(1, Math.abs(ballX) / PITCH.halfLength);
+  const ballX = clamp((Number(position?.x) || 0) + clamp((Number(velocity?.x) || 0) * 0.35, -6, 6),
+    -PITCH.halfLength - 4, PITCH.halfLength + 4);
+  const panX = clamp(ballX * CAMERA_PAN_FACTOR, -PITCH.halfLength, PITCH.halfLength);
   return {
-    position: {
-      x: clamp(ballX * 0.78, -40, 40),
-      y: 21.5 + nearT * 2.7 + Math.min(2.2, Math.abs(ballX) * 0.025),
-      z: fixedSide * (30 + nearT * 3.7 + endT * 0.8)
-    },
-    target: {
-      x: clamp(ballX * 0.85, -42, 42),
-      y: 0,
-      z: ballZ * 0.48
-    },
-    fov: 48 + nearT * 4.5 + endT * 0.5
+    position: { x: panX, y: CAMERA_HEIGHT, z: fixedSide * CAMERA_Z },
+    target: { x: panX, y: 0, z: fixedSide * (CAMERA_Z - CAMERA_TARGET_AHEAD) },
+    fov: CAMERA_FOV
   };
 }
 

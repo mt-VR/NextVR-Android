@@ -6,7 +6,7 @@ name: XFC APK
 
 on:
   push:
-    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android", "arena/5d087ee3-nextvr-android" ]
+    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android", "arena/5d087ee3-nextvr-android", "arena/79ef9c3b-nextvr-android" ]
   workflow_dispatch:
     inputs:
       publish:
@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,gameplay-features,gameplay-features-browser}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -171,7 +171,7 @@ jobs:
           echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
 
       - name: Publish the release with the direct download links
-        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && github.ref_name == 'arena/5d087ee3-nextvr-android' && contains(github.event.head_commit.message, '[publish-apk]'))
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && (github.ref_name == 'arena/5d087ee3-nextvr-android' || github.ref_name == 'arena/79ef9c3b-nextvr-android') && contains(github.event.head_commit.message, '[publish-apk]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -184,20 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.30
+          TAG=xfc-gameplay-v0.5.44
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.30 (versionCode 36), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.44 (versionCode 50), commit ${GITHUB_SHA}." \
             "" \
-            "Times por país (Espanha, Brasil e demais), pênalti com espera a 50 cm e aproximação após CHUTE, mira congelada e goleiro escolhendo canto independentemente." \
-            "" \
-            "Corrida com cotovelos mais soltos, amortecimento dos joelhos e cadência por deslocamento revisada. Mesmo modelo e corpo de 1,75 m; impulso do goleiro articulado." \
-            "" \
-            "Carreira LOCAL de jogador: criação, controle de um atleta, 8 clubes/14 rodadas, calendário, tabela, desempenho, XP/atributos e troca livre de clube entre temporadas. Sem teste em telefone físico. Detalhes: docs/v0.5.30.md. Modos e saves anteriores preservados.")
+            "Toda partida agora abre com a mesma cerimônia de quatro cenas: túnel com os rostos, árbitros na frente e os times em duas colunas até o gramado, hino com a boca abrindo e fechando de verdade, e passagem contínua para a câmera de transmissão com o controle só no fim." \
+            "São 18,4 s de cerimônia em uma curva de câmera só — nenhum passo acima de 0,6 m por quadro e o último ponto é exatamente a câmera do apito." \
+            "Replay continua fora; corrida, Ragnarok, passe direcional, bola parada, câmera Pro, nota ao vivo e expulsão seguem como na v0.5.43." \
+            "Testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — carreira de jogador, países e pênaltis v0.5.30" \
+            gh release create "$TAG" --title "XFC 27 — cerimônia pré-jogo v0.5.44" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — carreira de jogador, países e pênaltis v0.5.30" \
+            gh release edit "$TAG" --title "XFC 27 — cerimônia pré-jogo v0.5.44" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

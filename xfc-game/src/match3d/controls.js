@@ -22,7 +22,7 @@ const BUTTONS = [
   { id: 'sprint', label: 'CORRER', className: 'ctrl-btn--sprint' }
 ];
 
-export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, root }) {
+export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, root, playerCareer=false }) {
   const stick = el('div', { class: 'controls__stick' },
     el('span', { class: 'controls__stick-base' }),
     el('span', { class: 'controls__stick-knob' })
@@ -79,7 +79,8 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       : Math.max(0.3, stickStrength));
   }
 
-  const buttons = BUTTONS.map(item => {
+  const buttons = BUTTONS.map(original => {
+    const item=playerCareer&&original.id==='switch'?{...original,id:'request-pass',label:'PEDIR PASSE'}:original;
     const button = el('button', {
       class: `ctrl-btn ${item.className}`,
       type: 'button',
@@ -212,6 +213,8 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   stick.classList.add('is-visible');
   root.appendChild(container);
 
+  const feedback=el('span',{class:'controls__pass-feedback',role:'status'});container.append(feedback);
+  let feedbackTimer=0;
   const knob = stick.querySelector('.controls__stick-knob');
   let pointerId = null;
 
@@ -370,11 +373,13 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
 
   return {
     node: container,
+    passFeedback(message,accepted){feedback.textContent=message;feedback.classList.toggle('is-accepted',!!accepted);feedback.classList.add('is-visible');clearTimeout(feedbackTimer);feedbackTimer=setTimeout(()=>feedback.classList.remove('is-visible'),1800);},
     /** Liga ou desliga os controles (pausa, resultado...). */
     setEnabled,
     dispose() {
       setEnabled(false);
       clearInterval(keyboardTimer);
+      clearTimeout(feedbackTimer);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       container.remove();

@@ -1,9 +1,15 @@
 # XFC — o jogo de futebol da XF Esports
 
-**v0.5.30:** clubes agrupados por país (Espanha/Brasil primeiro), cobrança de
-pênalti com espera de 50 cm e aproximação confirmada, corrida mais solta e
-**carreira local de jogador** com calendário, evolução e save.
-[Detalhes e limites](docs/v0.5.30.md).
+**v0.5.43 — replay fora, corrida e Ragnarok refeitos:** o replay saiu inteiro do
+jogo (nada de clipe automático e a opção REVER ÚLTIMO LANCE deixou a pausa). A
+corrida foi reanimada: passada longa de 4,7–5,3 passos/s no sprint (antes eram
+7,7 passos de marionete), calcanhar sobe atrás antes de chicotear a perna, quadril
+com curva suave, tronco inclinado e braços soltos — o pé de apoio continua sem
+escorregar (0,51 m/s contra o limite de 1,6). O Ragnarok virou cabelo na cabeça
+inteira, penteado de frente para trás, topo com volume e laterais baixas, em vez
+de mechas nos lados. Passe direcional, bola parada, câmera Pro, nota ao vivo e
+editor da v0.5.41 continuam. 164 testes de regressão aprovados, sem skips. Sem
+benchmark em telefone físico. [Detalhes e limites](docs/v0.5.43.md).
 
 Este diretório é o **XFC**: um jogo de futebol (não é VR) que vive dentro do
 repositório NextVR como um subprojeto isolado. Ele não toca em nada do app de
@@ -23,7 +29,7 @@ O XFC já reúne as telas principais e a partida de futebol em 3D:
 3. **Personalização** — grade de oito opções para perfil, configurações, online, tempo de jogo, criação de atleta, elenco e trilha sonora; preferências de perfil ficam salvas localmente.
 4. **Modos e torneios** — carrossel com Copa do Mundo, UEFA Champions League, CONMEBOL Libertadores, final de copa, Home & Away, Best of Series, Copa América e partidas rápidas.
 5. **Copa do Mundo jogável** — escolha uma das 32 seleções de 2022; o jogo sorteia aleatoriamente o grupo. Dispute os três jogos da fase de grupos; os dois primeiros de cada grupo avançam às oitavas, quartas, semifinais e final. A campanha termina se a seleção não se classificar.
-6. **Kick Off / Classic Match** — escolha entre 22 clubes, incluindo Corinthians e Santos, selecione estádio e uniforme e consulte os elencos.
+6. **Kick Off / Classic Match** — 69 clubes por país, seleção e confirmação independente dos uniformes dos dois lados, estádio e elencos. **Jogo Rápido** mantém o menu anterior.
 7. **Partida 3D** — jogo em WebGL com estádio, torcida, jogadores, controles touch e HUD. O botão **TROCAR** muda o atleta sob controle; passe comum tem assistência de direção, enquanto **ENFIADA** mira um corredor à frente com bola rasteira (cruzamentos continuam sendo levantados). Faltas fora da área geram tiros livres no ponto do incidente; dentro da área defensora, geram pênalti na marca penal. Antes de uma falta direta, o quadrado de contato ajusta curva e altura, e mostra a trajetória prevista e a chance de gol. Barreiras, goleiro e bola são posicionados antes da cobrança. Saídas e reposições humanas aguardam **PASSE**, **ENFIADA** ou **CHUTE**, sem comandos ofensivos automáticos.
 8. **Comemoração de gol** — cinco estilos alternados; o autor e até dois companheiros próximos comemoram, enquanto a câmera acompanha a jogada e a HUD destaca o autor.
 
@@ -93,14 +99,14 @@ CI e publica uma release com download direto:
 
 | Arquivo | Link |
 | --- | --- |
-| APK direto (Android) | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.6/xfc.apk` |
-| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.6/xfc-game.zip` |
+| APK direto (Android) | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.43/xfc.apk` |
+| Jogo em zip | `https://github.com/mt-VR/NextVR-Android/releases/download/xfc-gameplay-v0.5.43/xfc-game.zip` |
 
-A release [`xfc-gameplay-v0.5.6`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.6)
-reúne o rig humanoide compartilhado e os modos anteriores, corrige o analógico do Treino Livre para seguir a câmera sem alterar partidas comuns, suaviza o acompanhamento da câmera e acrescenta animação de recepção. O perfil completo usa materiais com reflexos discretos para tecido e chuteiras; no celular, a tesselação e os materiais econômicos são mantidos. Também refina gramado, torcida, publicidade, fachadas e sombras para reduzir ruído visual (versionCode 12). O APK roda offline e o CI anexa o jogo web completo.
-
-A versão [`xfc-gameplay-v0.5.5`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.5)
-continua disponível, assim como a release anterior [`xfc-gameplay-v0.5.4`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.4).
+A release [`xfc-gameplay-v0.5.43`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.43)
+tira o replay do jogo, refaz a corrida e reconstrói o Ragnarok. A
+[`v0.5.42`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.42)
+e a [`v0.5.41`](https://github.com/mt-VR/NextVR-Android/releases/tag/xfc-gameplay-v0.5.41)
+continuam disponíveis.
 
 ## Controles
 

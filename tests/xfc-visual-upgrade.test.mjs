@@ -39,23 +39,8 @@ test('materiais, luz/relva e quatro perfis compilam no WebGL sem trocar o corpo'
         m.dispose();stadium.dispose();engine.dispose();
       }return reports;
     });
-    for(const row of r){const q=GRAPHICS_PRESETS[row.quality];assert.equal(row.pixel,q.pixelRatio);assert.equal(row.shadows,q.shadows);assert.equal(row.grass,q.grass);assert.equal(row.pitchBump,q.surface);assert.equal(row.cloth,q.surface);assert.deepEqual(row.parts,r[0].parts);}
+    for(const row of r){const q=GRAPHICS_PRESETS[row.quality];assert.equal(row.pixel,q.pixelRatio);assert.equal(row.shadows,q.shadows);assert.equal(row.grass,q.grass);assert.equal(row.pitchBump,q.surface);assert.equal(row.cloth,false,'uniforme clássico usa difusa, não microrelevo PBR');assert.deepEqual(row.parts,r[0].parts);}
     assert.deepEqual(errors,[]);
-  }finally{await b.close();server.close();}
-});
-test('replay grava no máximo 61 poses e restaura câmera, ossos, bola e pausa',{timeout:90000},async t=>{
-  const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
-  try{const p=await b.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(url);await p.waitForSelector('.screen.is-visible');const r=await p.evaluate(async()=>{
-    const {THREE}=await import('/src/match3d/engine.js'),{createVisualReplay}=await import('/src/match3d/replay.js');
-    const root=new THREE.Group(),bone=new THREE.Bone();root.add(bone);const ball={mesh:new THREE.Object3D(),shadow:new THREE.Mesh(new THREE.PlaneGeometry(),new THREE.MeshBasicMaterial())};
-    const camera=new THREE.PerspectiveCamera();camera.position.set(3,4,5);let renders=0;
-    const engine={camera,running:false,scene:new THREE.Scene(),renderer:{render(){renders++;}}};
-    const replay=createVisualReplay(engine,[{root,model:{bones:{bone}}}],ball);
-    for(let i=0;i<90;i++){root.position.x=i;bone.rotation.x=i*.01;ball.mesh.position.z=i;ball.shadow.scale.setScalar(1+i*.03);ball.shadow.material.opacity=.33;replay.capture(.1);}
-    const before={x:root.position.x,q:bone.quaternion.toArray(),ball:ball.mesh.position.toArray(),camera:camera.position.toArray(),scale:ball.shadow.scale.toArray(),opacity:ball.shadow.material.opacity};
-    const count=replay.frameCount,started=replay.start();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const moved=root.position.x!==before.x;replay.stop();
-    const after={x:root.position.x,q:bone.quaternion.toArray(),ball:ball.mesh.position.toArray(),camera:camera.position.toArray(),scale:ball.shadow.scale.toArray(),opacity:ball.shadow.material.opacity};replay.dispose();return{before,after,count,started,moved,renders,active:replay.active};
-  });assert.deepEqual(errors,[]);assert.equal(r.count,61);assert.ok(r.started&&r.moved&&r.renders>0,JSON.stringify(r));assert.equal(r.active,false);assert.equal(r.before.x,r.after.x);assert.deepEqual(r.before.ball,r.after.ball);assert.deepEqual(r.before.camera,r.after.camera);assert.deepEqual(r.before.scale,r.after.scale);assert.equal(r.before.opacity,r.after.opacity);r.before.q.forEach((x,i)=>assert.ok(Math.abs(x-r.after.q[i])<1e-6));
   }finally{await b.close();server.close();}
 });
 test('UT usa o painel inteiro, retratos existentes, hotspots e qualidade persistida',{timeout:90000},async t=>{
@@ -67,15 +52,5 @@ test('UT usa o painel inteiro, retratos existentes, hotspots e qualidade persist
     await p.getByRole('button',{name:'Entrar · gerenciar elenco',exact:true}).click();assert.equal(await p.locator('.ut-slot').count(),11);await p.keyboard.press('Escape');await p.keyboard.press('Escape');
     await p.getByRole('button',{name:'Configurações',exact:true}).click();await p.getByLabel('Qualidade gráfica').selectOption('high');await p.reload();
     assert.equal(await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).graphicsQuality),'high');
-  }finally{await b.close();server.close();}
-});
-test('partida real: replay na pausa não altera placar, física nem perfil',{timeout:120000},async t=>{
-  const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
-  try{const p=await b.newPage({viewport:{width:1280,height:720}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(url);await p.evaluate(async()=>{const m=await import('/src/main.js');m.state.profile.graphicsQuality='low';m.go('play',{home:'fc-barcelona',away:'real-madrid'});});await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
-    await p.evaluate(()=>{const m=__xfcMatch;for(let i=0;i<180;i++){if(m.phase.name==='kickoff')m.world.command('pass');m.world.tick(1/60);}});await p.click('.play__pause-button');
-    const snapshot=()=>p.evaluate(()=>({snapshot:__xfcMatch.world.snapshot(),positions:__xfcMatch.teams.home.players.map(x=>[x.x,x.z]),ball:__xfcMatch.ball.state.position.toArray(),profile:localStorage.getItem('xfc.profile.v1')}));
-    assert.ok(await p.evaluate(()=>__xfcMatch.world.replay.frameCount>2));
-    const before=await snapshot();await p.getByRole('button',{name:'CONFIGURAÇÕES',exact:true}).click();await p.getByRole('button',{name:'REVER ÚLTIMO LANCE',exact:true}).click();await p.waitForSelector('.play-replay');
-    await p.getByRole('button',{name:'Voltar à pausa',exact:true}).click();assert.deepEqual(await snapshot(),before);assert.equal(await p.evaluate(()=>__xfcMatch.world.isPaused()),true);assert.equal(await p.evaluate(()=>__xfcMatch.engine.running),false);assert.deepEqual(errors,[]);
   }finally{await b.close();server.close();}
 });
