@@ -24,7 +24,7 @@ import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
 import { BONE_KEYS, maskBones } from './animation.js';
 
-import { applyCareerSurface, recolorSurface, smoothSkinGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
+import { applyCareerSurface, recolorSurface, paintEyelidShadow, smoothSkinGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
 
 const MODEL_URL = 'assets/players/models/footballer.glb';
 /** Nome sem o prefixo do Mixamo (o arquivo pode vir como `mixamorig:Hips`). */
@@ -279,6 +279,7 @@ export function createGltfPlayer(options = {}) {
       }
       if(name === 'Micah | anatomical body.body' && skinTone) clone.map=recolorSurface(material.map,skinTone);
 
+      if(name === 'Micah | anatomical body.low-poly') clone.map=paintEyelidShadow(material.map,skinTone);
       if(name === 'Micah | anatomical body.shoes06' && bootColor) clone.map=recolorSurface(material.map,bootColor,.08);
       if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);

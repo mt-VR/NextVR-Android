@@ -162,3 +162,162 @@ export function applyCareerSurface(material,look){
  };
  material.customProgramCacheKey=()=>JSON.stringify({careerSurface:3,body,beard:look.beard,moustache:look.moustache,brows:look.brows,skin:look.skinTone,socks:look.socks});
 }
+
+// ------------------------------------------------------------- olho pintado --
+// O modelo traz o globo ocular com íris pintada, mas SEM pálpebra: a esclerótica
+// aparece em volta da íris nos 360° e o olho lê como bola de gude. Em low-poly
+// isso não se conserta com peça de pálpebra — a borda da calota vira uma bolha.
+// Conserta-se PINTANDO o olho inteiro na textura do globo, que é o que o PES faz:
+// apaga o globo com a cor da pele e redesenha esclerótica + íris + pupila +
+// linha da pálpebra superior. Custo: zero malha e zero textura extra.
+const paintedEyes = new Map();
+export function paintEyelidShadow(map, skinTone) {
+  if (!map?.image || typeof document === 'undefined') return map;
+  const key = `${map.uuid}:${skinTone}`;
+  if (paintedEyes.has(key)) return paintedEyes.get(key);
+
+  const width = map.image.width;
+  const height = map.image.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  context.drawImage(map.image, 0, 0);
+
+  const skin = new THREE.Color(skinTone || '#c98d5f');
+  const skinCss = `rgb(${[skin.r, skin.g, skin.b].map(v => Math.round(
+    255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)
+  )).join(',')})`;
+
+  // Localiza as duas íris: pixels escuros com alfa, agrupados por distância.
+  const frame = context.getImageData(0, 0, width, height);
+  const pixels = frame.data;
+  const seeds = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const i = (y * width + x) * 4;
+      const lum = (pixels[i] * 0.3 + pixels[i + 1] * 0.59 + pixels[i + 2] * 0.11) / 255;
+      if (pixels[i + 3] > 40 && lum < 0.35) seeds.push([x, y]);
+    }
+  }
+  const groups = [];
+  for (const [x, y] of seeds) {
+    const near = groups.find(g => Math.hypot(g.x - x, g.y - y) < width * 0.16);
+    if (near) { near.n += 1; near.sx += x; near.sy += y; }
+    else groups.push({ x, y, sx: x, sy: y, n: 1 });
+  }
+  const discs = groups.filter(g => g.n > 24)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 2)
+    .map(g => ({ x: g.sx / g.n, y: g.sy / g.n, iris: Math.max(8, Math.sqrt(g.n / Math.PI)) }));
+
+  const drawEye = (cx, cy, irisR) => {
+    // O globo é ~3x o raio da íris nesta textura (proporção de autor).
+    const globe = irisR * 3.15;
+    context.save();
+
+    // 1) Apaga o globo inteiro com a pele da pálpebra.
+    context.beginPath();
+    context.arc(cx, cy, globe, 0, Math.PI * 2);
+    context.fillStyle = skinCss;
+    context.fill();
+
+    // 2) Esclerótica em forma de AMÊNDOA (não círculo): dois arcos com o
+    //    canto interno mais baixo. É a forma que dá leitura de olho humano.
+    const halfW = irisR * 2.85;
+    const rise = irisR * 1.10;
+    const drop = irisR * 0.74;
+    const tilt = irisR * 0.12;
+    context.beginPath();
+    context.moveTo(cx - halfW, cy + tilt);
+    context.quadraticCurveTo(cx, cy - rise * 2.0, cx + halfW, cy - tilt);
+    context.quadraticCurveTo(cx, cy + drop * 2.0, cx - halfW, cy + tilt);
+    context.closePath();
+    context.fillStyle = '#ddd3c6';
+    context.fill();
+
+    // 3) Íris e pupila, recortadas na amêndoa para não vazar.
+    context.save();
+    context.clip();
+    const irisGrad = context.createRadialGradient(cx, cy, irisR * 0.30, cx, cy, irisR);
+    irisGrad.addColorStop(0, '#5a3a22');
+    irisGrad.addColorStop(0.55, '#42281a');
+    irisGrad.addColorStop(1, '#20120c');
+    context.beginPath();
+    context.arc(cx, cy, irisR, 0, Math.PI * 2);
+    context.fillStyle = irisGrad;
+    context.fill();
+    context.beginPath();
+    context.arc(cx, cy, irisR * 0.46, 0, Math.PI * 2);
+    context.fillStyle = '#0d0806';
+    context.fill();
+    // Brilho: um ponto claro no alto à esquerda, sempre no mesmo lado.
+    context.beginPath();
+    context.arc(cx - irisR * 0.34, cy - irisR * 0.36, irisR * 0.19, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(255,255,255,0.82)';
+    context.fill();
+    // Sombra da pálpebra superior caindo sobre a íris.
+    const shade = context.createLinearGradient(0, cy - rise, 0, cy + irisR * 0.20);
+    shade.addColorStop(0, 'rgba(18,10,6,0.62)');
+    shade.addColorStop(1, 'rgba(18,10,6,0)');
+    context.fillStyle = shade;
+    context.fillRect(cx - halfW, cy - rise, halfW * 2, rise * 1.2);
+    context.restore();
+
+    // Sombra suave sob a pálpebra inferior: sem isso o olho parece colado.
+    const under = context.createLinearGradient(0, cy + drop * 1.1, 0, cy + drop * 1.9);
+    under.addColorStop(0, 'rgba(24,14,8,0.30)');
+    under.addColorStop(1, 'rgba(24,14,8,0)');
+    context.save();
+    context.beginPath();
+    context.moveTo(cx - halfW, cy + tilt);
+    context.quadraticCurveTo(cx, cy + drop * 2.0, cx + halfW, cy - tilt);
+    context.quadraticCurveTo(cx, cy + drop * 1.1, cx - halfW, cy + tilt);
+    context.closePath();
+    context.fillStyle = under;
+    context.fill();
+    context.restore();
+
+    // Limpa restos de esclerótica antiga fora da amêndoa. Sem isto sobra uma
+    // cunha branca no canto externo (a textura do modelo pedindo passagem).
+    context.save();
+    context.beginPath();
+    context.arc(cx, cy, globe, 0, Math.PI * 2);
+    context.clip();
+    context.beginPath();
+    context.moveTo(cx - halfW, cy + tilt);
+    context.quadraticCurveTo(cx, cy - rise * 2.0, cx + halfW, cy - tilt);
+    context.quadraticCurveTo(cx, cy + drop * 2.0, cx - halfW, cy + tilt);
+    context.closePath();
+    // furo: preenche só o que está FORA da amêndoa e DENTRO do globo
+    context.rect(cx - globe, cy - globe, globe * 2, globe * 2);
+    context.fillStyle = skinCss;
+    context.fill('evenodd');
+    context.restore();
+
+    // 4) Linha da pálpebra superior (define o olhar, mesmo de longe).
+    context.beginPath();
+    context.moveTo(cx - halfW, cy + tilt);
+    context.quadraticCurveTo(cx, cy - rise * 2.0, cx + halfW, cy - tilt);
+    context.strokeStyle = 'rgba(30,18,12,0.85)';
+    context.lineWidth = Math.max(1.2, irisR * 0.13);
+    context.lineCap = 'round';
+    context.stroke();
+
+    context.restore();
+  };
+
+  if (discs.length) {
+    for (const d of discs) drawEye(d.x, d.y, d.iris);
+  } else {
+    const fallback = Math.min(width, height) * 0.09;
+    drawEye(width * 0.30, height * 0.30, fallback);
+    drawEye(width * 0.70, height * 0.66, fallback);
+  }
+
+  const texture = map.clone();
+  texture.source = new THREE.Source(canvas);
+  texture.needsUpdate = true;
+  paintedEyes.set(key, texture);
+  return texture;
+}

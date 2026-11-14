@@ -19,7 +19,18 @@ export function classicFaceGeometry(mesh,identity=0){
   const x=p.getX(i),y=p.getY(i),z=p.getZ(i);if(y<1.59||y>1.78||Math.abs(x)>.12)continue;
   const jaw=Math.max(0,1-Math.abs(y-1.635)/.055),front=Math.max(0,Math.min(1,(z-.045)/.07));
   const nose=Math.max(0,1-Math.abs(x)/.032)*Math.max(0,1-Math.abs(y-1.689)/.035)*front;
-  p.setXYZ(i,x*(1+(shape.jaw-1)*jaw),y+shape.chin*jaw*front,z+(shape.nose-1)*.055*nose);
+  // Glabela (entre as sobrancelhas): a malha do GLB tem uma quina viva ali que
+  // lê como plástico. Um leve arredondamento puxando z para baixo suaviza a
+  // transição testa→nariz sem mexer na silhueta.
+  const glabella=Math.max(0,1-Math.abs(y-1.706)/.028)*Math.max(0,1-Math.abs(x)/.030)*front;
+  // Dorso do nariz: ponte reta vira "bico". Afinar o meio e arredondar a ponta
+  // dá o perfil curvo que o olho espera.
+  const bridge=Math.max(0,1-Math.abs(y-1.672)/.024)*Math.max(0,1-Math.abs(x)/.022)*front;
+  const tip=Math.max(0,1-Math.hypot(x/.026,(y-1.664)/.016))*front;
+  p.setXYZ(i,
+   x*(1+(shape.jaw-1)*jaw-(bridge*.16)),
+   y+shape.chin*jaw*front,
+   z+(shape.nose-1)*.055*nose-glabella*.010+bridge*.014+tip*.006);
  }
  g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();g.userData.classicFace=identity;
  faces.set(key,g);return g;
@@ -75,5 +86,23 @@ export function classicMaterial(material){
  // Textura + iluminação simples. Nada de poros, brilho de plástico ou fios finos.
  material.normalMap=null;material.bumpMap=null;material.roughnessMap=null;
  material.metalness=0;material.roughness=/low-poly/.test(material.name)?.65:1;
+ // Sobrancelha, cílios e olhos são TEXTURA RECORTADA (alpha), não superfície
+ // opaca. Sem alphaTest o retângulo inteiro do UV aparece como bloco marrom em
+ // cima da testa — foi assim que a sobrancelha virou um traço chapado.
+ if (/eyebrow|eyelash/i.test(material.name)) {
+   material.transparent = true;
+   material.alphaTest = 0.42;
+   material.depthWrite = true;
+   material.side = THREE.DoubleSide;
+   material.roughness = 0.95;
+   // O fio do pelo já vem escuro na textura; o material não deve clarear.
+   material.color.set(0xffffff);
+ }
+ if (/low-poly/i.test(material.name)) {
+   // Globo ocular: levemente especular, senão o olho fica fosco como gesso.
+   material.roughness = 0.32;
+   material.metalness = 0.0;
+   material.envMapIntensity = 0.6;
+ }
  material.userData.classic=true;return material;
 }
