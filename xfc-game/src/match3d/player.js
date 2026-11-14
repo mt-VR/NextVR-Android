@@ -1597,6 +1597,16 @@ export function createPlayer3D(options = {}) {
   let reactionTimer = 0;
   let reactionDuration = 0;
   let reactionKind = '';
+  // Gesto de chamar o jogador para conversa.
+  let callTimer = 0;
+  let callAmount = 0;
+  let elapsedCallTime = 0;
+  let callElapsedTotal = 0;
+  // Queda prolongada (vítima de falta): o atleta fica no gramado até o tempo
+  // acabar, em vez de dar um pulo e levantar.
+  let downTimer = 0;
+  let downDuration = 0;
+  let downKind = 'body';
   // Canto do hino: abre/fecha a boca e dá o balanço do corpo. `0` = desligado.
   let anthemTimer = 0;
   let anthemElapsed = 0;
@@ -1703,6 +1713,11 @@ export function createPlayer3D(options = {}) {
     signal(duration = 1.1) {
       signalTimer = duration;
     },
+    /** Gesto de "venha aqui": braço estendido, chamando o jogador. */
+    callOver(intensity = 1) {
+      callTimer = 0.12;
+      callAmount = Math.max(0, Math.min(1, intensity));
+    },
     /** Mostra o cartão (amarelo ou vermelho) na mão direita. */
     prepareCard(duration = 0.58) {
       signalTimer = 0;
@@ -1735,7 +1750,23 @@ export function createPlayer3D(options = {}) {
       receiveTimer = receiveDuration;
     },
     /** Queda, impacto, protesto ou caminhada de expulsão. */
-    react(kind = 'fall', duration = 0.82) {
+    /**
+     * Queda real: o atleta vai ao chão, fica caído (não levanta no meio da
+     * animação) e leva a mão ao rosto quando pede `handOnFace`.
+     * `down` é o que o jogo usa para vítima de carrinho; `fall` continua
+     * existindo como cambaleio curto.
+     */
+    react(kind = 'fall', duration = 0.82, options = {}) {
+      if (kind === 'down') {
+        downKind = options.handOnFace ? 'face' : 'body';
+        downTimer = Math.max(0.6, duration || 2.4);
+        downDuration = downTimer;
+        slideTimer = 0;
+        diveTimer = 0;
+        cardTimer = 0;
+        reactionTimer = 0;
+        return;
+      }
       if (kind === 'ejected') {
         slideTimer = 0;
         diveTimer = 0;
@@ -1752,6 +1783,48 @@ export function createPlayer3D(options = {}) {
       // blend, IK) escrevem DEPOIS e nunca acumulam offset de um quadro no outro.
       resetRigPose();
       for (const leg of legs) leg.foot.rotation.x = 0;
+      callElapsedTotal += dt;
+      // Caído no gramado: pose fixa, sobrepondo tudo (o atleta não corre nem
+      // chuta enquanto está no chão). Bloqueia o resto da animação base.
+      if (downTimer > 0) {
+        downTimer = Math.max(0, downTimer - dt);
+        const entering = Math.min(1, (downDuration - downTimer) / 0.28);
+        const leaving = Math.min(1, downTimer / 0.35);
+        const lie = Math.min(entering, leaving);   // 0 = de pé, 1 = no chão
+        const t = 1 - downTimer / Math.max(0.01, downDuration);
+        const writhing = downKind === 'face'
+          ? Math.sin(t * 5.5) * 0.05 * lie : 0;
+        // Deitado de costas: o corpo gira em torno de X e cai para o lado.
+        body.rotation.x = -1.42 * lie + writhing;
+        body.rotation.z = slideDir * 0.16 * lie;
+        body.position.y = -0.52 + 0.52 * lie;
+        body.rotation.y = slideDir * 0.25 * lie;
+        // Pernas dobradas, joelhos para cima.
+        legs[0].hip.rotation.x = 0.55 * lie + writhing * 2;
+        legs[1].hip.rotation.x = 0.85 * lie - writhing * 2;
+        legs[0].knee.rotation.x = -0.95 * lie;
+        legs[1].knee.rotation.x = -0.62 * lie;
+        legs[0].foot.rotation.x = -0.2 * lie;
+        legs[1].foot.rotation.x = -0.25 * lie;
+        if (downKind === 'face') {
+          // Mão no rosto: um braço protege a cara, o outro fica no gramado.
+          arms[1].shoulder.rotation.x = -1.05 * lie;
+          arms[1].shoulder.rotation.z = 0.95 * lie;
+          arms[1].forearm.rotation.x = -1.65 * lie;
+          arms[0].shoulder.rotation.x = -0.35 * lie;
+          arms[0].shoulder.rotation.z = -0.62 * lie;
+          arms[0].forearm.rotation.x = -0.55 * lie;
+          head.rotation.x = -0.22 * lie;
+          head.rotation.y = slideDir * 0.18 * lie;
+        } else {
+          arms[0].shoulder.rotation.x = -0.28 * lie;
+          arms[1].shoulder.rotation.x = -0.22 * lie;
+          arms[0].shoulder.rotation.z = -0.75 * lie;
+          arms[1].shoulder.rotation.z = 0.7 * lie;
+          head.rotation.x = -0.3 * lie;
+        }
+        return;
+      }
       receiveTimer = Math.max(0, receiveTimer - dt);
       const receiveProgress = 1 - receiveTimer / receiveDuration;
       const receiveEnvelope = receiveTimer > 0
@@ -1782,6 +1855,20 @@ export function createPlayer3D(options = {}) {
         head.rotation.x = -0.15;
         head.rotation.y = diveDir * 0.3;
         return;
+      }
+      // Chamando o jogador: braço esticado para a frente, mão abanando.
+      if (callTimer > 0) {
+        callTimer = Math.max(0, callTimer - dt);
+        const wave = Math.sin(elapsedCallTime * 7) * 0.22;
+        elapsedCallTime += dt;
+        arms[1].shoulder.rotation.x = -1.28 * callAmount;
+        arms[1].shoulder.rotation.z = -0.34 * callAmount;
+        arms[1].forearm.rotation.x = -0.5 * callAmount + wave;
+        arms[0].shoulder.rotation.x = -0.12;
+        arms[0].forearm.rotation.x = -0.2;
+        head.rotation.x = -0.06 * callAmount;
+        body.rotation.x = 0.02;
+        callTimer = Math.max(callTimer, 0.02);
       }
       // Cartão ao alto: o árbitro mostra amarelo/vermelho para a torcida ver.
       if (cardPrepTimer > 0) {
@@ -1871,6 +1958,22 @@ export function createPlayer3D(options = {}) {
           legs[0].knee.rotation.x = Math.max(0, -step) * 0.28;
           legs[1].knee.rotation.x = Math.max(0, step) * 0.28;
           head.rotation.x = -0.17;
+          return;
+        }
+        if (reactionKind === 'listen') {
+          // Jogador escutando a explicação do árbitro: cabeça baixa, mãos
+          // para trás, peso em uma perna só.
+          head.rotation.x = 0.26;
+          head.rotation.y = Math.sin(callElapsedTotal * 2.4) * 0.06;
+          arms[0].shoulder.rotation.x = 0.42;
+          arms[1].shoulder.rotation.x = 0.42;
+          arms[0].forearm.rotation.x = -0.5;
+          arms[1].forearm.rotation.x = -0.5;
+          body.rotation.x = 0.1;
+          body.position.y = 0;
+          legs[0].hip.rotation.x = 0.06;
+          legs[1].hip.rotation.x = -0.04;
+          legs[0].knee.rotation.x = 0.08;
           return;
         }
         body.position.y = reactionKind === 'fall' ? 0.04 + pulse * 0.12 : pulse * 0.04;

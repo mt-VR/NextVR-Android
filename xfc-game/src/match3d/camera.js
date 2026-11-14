@@ -46,17 +46,20 @@ export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velo
   const nearT = Math.min(1, Math.abs(ballZ) / PITCH.halfWidth);
   const endT = Math.min(1, Math.abs(ballX) / PITCH.halfLength);
   return {
+    // Câmera mais baixa e mais perto: o campo parece maior na tela e dá para
+    // ler o uniforme e a movimentação dos atletas (antes: 21,5 m de altura e
+    // 30 m de afastamento, que achatava tudo numa vista aérea).
     position: {
-      x: clamp(ballX * 0.78, -40, 40),
-      y: 21.5 + nearT * 2.7 + Math.min(2.2, Math.abs(ballX) * 0.025),
-      z: fixedSide * (30 + nearT * 3.7 + endT * 0.8)
+      x: clamp(ballX * 0.82, -42, 42),
+      y: 15.2 + nearT * 2.1 + Math.min(1.8, Math.abs(ballX) * 0.02),
+      z: fixedSide * (23 + nearT * 3.1 + endT * 0.7)
     },
     target: {
       x: clamp(ballX * 0.85, -42, 42),
       y: 0,
       z: ballZ * 0.48
     },
-    fov: 48 + nearT * 4.5 + endT * 0.5
+    fov: 42 + nearT * 4.0 + endT * 0.5
   };
 }
 

@@ -129,7 +129,7 @@ export function goalkeeperDiveDirection(keeper, prediction, flightId = 0) {
   const deltaZ = prediction.z - keeper.z;
   const skill = clamp(Number(keeper.goalkeeping ?? keeper.ovr ?? 70), 40, 99);
   // Um goleiro mais fraco precisa iniciar a ação um pouco antes.
-  const reactionWindow = clamp(0.92 - (skill - 60) * 0.003, 0.74, 0.98);
+  const reactionWindow = clamp(0.74 - (skill - 60) * 0.003, 0.56, 0.80);
   const lateralThreshold = prediction.y > 1.5 ? 0.68 : 0.92;
   if (prediction.time > reactionWindow || Math.abs(deltaZ) < lateralThreshold) return 0;
   return deltaZ > 0 ? 1 : -1;
@@ -146,16 +146,21 @@ export function goalkeeperSaveChance({ keeper, position, flightId = 0, now = 0, 
   const timedDive = keeper.gkDiveFlightId === flightId
     && diveAge >= 0 && diveAge <= 0.95
     && diveDirectionToBall === keeper.gkDiveDirection;
+  // O alcance do mergulho vale enquanto o corpo está no ar; decai devagar
+  // (antes perdia 50% em 0,5 s, o que anulava a defesa no canto).
   const diveReach = timedDive
-    ? 0.85 * (1 - Math.max(0, diveAge - 0.15) / 0.95 * 0.42)
+    ? 1.02 * (1 - Math.max(0, diveAge - 0.15) / 0.95 * 0.22)
     : 0;
-  const reach = 2.35 + (skill - 70) * 0.005 + diveReach;
-  if (lateralDistance > reach || lineDistance > 3.25 || position.y > GOAL.height + 0.25) return 0;
+  // Nerf: alcance lateral e profundidade menores, reação mais lenta.
+  // Antes reach 2.35 e depth 3.25 — com mergulho chegava a 3.2 m, o que
+  // tornava quase impossível marcar de fora da área.
+  const reach = 2.08 + (skill - 70) * 0.005 + diveReach;
+  if (lateralDistance > reach || lineDistance > 2.95 || position.y > GOAL.height + 0.18) return 0;
 
   const heightFactor = position.y > 1.55 ? 0.78 : 1.08;
   const kindFactor = kind === 'placed' ? 0.72 : kind === 'power' ? 0.8 : kind === 'curved' ? 0.84 : 1;
   const placement = Math.max(0, 1 - lateralDistance / reach);
   const diveBonus = timedDive ? 0.1 : 0;
-  return clamp((0.3 + 0.42 * placement + (skill - 70) * 0.003 + diveBonus)
-    * heightFactor * kindFactor, 0.08, 0.94);
+  return clamp((0.24 + 0.34 * placement + (skill - 70) * 0.003 + diveBonus)
+    * heightFactor * kindFactor, 0.06, 0.88);
 }

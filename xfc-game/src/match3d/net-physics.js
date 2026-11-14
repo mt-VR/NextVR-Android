@@ -19,7 +19,9 @@ export function createNetPanel({
     if (![u, v, speed].every(Number.isFinite) || speed < 0.25) return false;
     u = Math.max(0, Math.min(1, u));
     v = Math.max(0, Math.min(1, v));
-    const strength = Math.min(9, speed * 0.36);
+    // Rede mais "viva": o gol forte balança e volta devagar, como rede de
+    // verdade. Antes 0,36 de fator deixava o impacto quase invisível.
+    const strength = Math.min(16, speed * 0.72);
     for (let y = 1; y < rows; y++)
       for (let x = 1; x < columns; x++) {
         const dx = (x / columns - u) * width,

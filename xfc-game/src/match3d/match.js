@@ -651,12 +651,17 @@ export function createMatch(options = {}) {
       emit({ type: 'tackle', team: player.side, player, kind: 'standing', clean: true });
       return true;
     }
-    if (behind || dangerous || playerSpeed(player) > 7.2 || rng() < 0.28) {
+    // Falta só em entrada realmente temerária. Antes bastava o desarme
+    // falhar perto do gol ou por trás para marcar falta a cada aproximação.
+    const reckless = behind && dangerous && playerSpeed(player) > 7.0;
+    if (reckless && rng() < 0.42) {
       commitFoul(player, owner, {
         kind: 'challenge',
         behind,
         dangerous,
-        severity: behind ? 0.82 : dangerous ? 0.68 : 0.42
+        severity: 0.62,
+        // Nem toda entrada por trás é vermelho: a maioria é amarelo.
+        forceYellow: false
       });
     }
     return false;
@@ -855,7 +860,11 @@ export function createMatch(options = {}) {
 
     if (detail.directRed) {
       card = 'red';
-    } else if (detail.forceYellow || dangerous || behind || severity >= 0.78 || rng() < 0.08) {
+    } else if (detail.forceYellow || severity >= 0.86
+      || (behind && dangerous) || rng() < 0.30) {
+      // Antes: QUALQUER falta por trás ou perto do gol virava cartão (e duas
+      // delas, vermelho). Agora o cartão depende da gravidade da entrada,
+      // com uma minoria de faltas "só de conversa" com o árbitro.
       offender.yellowCards = previousYellows + 1;
       teams[offender.side].cards[offender.id] = offender.yellowCards;
       card = offender.yellowCards >= 2 ? 'red' : 'yellow';
@@ -870,7 +879,9 @@ export function createMatch(options = {}) {
       card,
       shown: false
     };
-    victim.model.react?.('fall', severity >= 0.7 ? 1.15 : 0.82);
+    // Vítima de falta fica caída de verdade no gramado e, nas entradas mais
+    // duras, leva a mão ao rosto. O tempo cresce com a gravidade.
+    victim.model.react?.('down', 2.1 + severity * 1.9, { handOnFace: severity >= 0.6 });
     if (!offender.slideTackle) offender.model.react?.('protest', 0.9);
     startConfrontation(offender, victim, severity);
 
@@ -1573,9 +1584,36 @@ export function createMatch(options = {}) {
         steerPlayer(referee, target.x, target.z, dt, 5.8, { arrive: 0.45, turn: 12 });
         faceTowards(referee, subject.x, subject.z, dt, 10);
         if (Math.hypot(referee.x - target.x, referee.z - target.z) < 0.8 || decision.timer > 1.9) {
-          decision.stage = 'signal';
+          decision.stage = 'talk';
           decision.timer = 0;
-          refereeModel.signal(1.1);
+          decision.talkDuration = decision.card === 'none' ? 1.9 : 1.5;
+          // Chama o jogador com a mão: gesto de "venha aqui".
+          refereeModel.callOver?.(1.0);
+          // O faltoso para, vira para o árbitro e presta atenção.
+          const off = decision.offender;
+          if (off) {
+            off.vx = 0; off.vz = 0; off.sprint = false;
+            off.model.react?.('listen', decision.talkDuration + 0.4);
+          }
+          emit({ type: 'referee-talk', team: decision.offender?.side || null,
+            player: decision.offender, card: decision.card, minute: clock.minutes });
+        }
+      } else if (decision.stage === 'talk') {
+        // Conversa: o árbitro explica a decisão, o jogador escuta de cabeça
+        // baixa. Só depois disso o cartão aparece (ou não aparece).
+        decision.timer += dt;
+        decision.talkTime = decision.timer;
+        referee.vx *= Math.exp(-dt * 8);
+        referee.vz *= Math.exp(-dt * 8);
+        faceTowards(referee, subject.x, subject.z, dt, 10);
+        if (subject) faceTowards(subject, referee.x, referee.z, dt, 8);
+        // Gesto de conversa: mão sobe e desce enquanto fala.
+        const talkWave = Math.sin(decision.timer * 6.2) * 0.5 + 0.5;
+        refereeModel.callOver?.(talkWave);
+        if (decision.timer > (decision.talkDuration || 1.6)) {
+          decision.stage = 'show';
+          decision.timer = 0;
+          decision.cardPrepared = false;
         }
       } else {
         decision.timer += dt;
@@ -1847,8 +1885,15 @@ export function createMatch(options = {}) {
     if (name === 'shoot') {
       acted = shootUser(player, opts, false);
     } else if (name === 'pass') {
+      // Na saída de bola os companheiros ficam nas posições da formação, longe
+      // do cobrador (o mais próximo pode estar a 9 m). Exigir um companheiro
+      // "por perto" aqui travava a partida no kickoff: nenhum passe era válido
+      // e o analógico nunca começava a funcionar.
       const mate = humanPassTarget(player,
-        () => nearbyTeammateFor(player, { min: 1.2, max: 18 }) || bestTeammateFor(player, true));
+        () => nearbyTeammateFor(player, { min: 1.2, max: 18 })
+          || bestTeammateFor(player, true)
+          || members(player.side).find(mate => mate !== player && mate.active)
+          || null);
       if (mate) {
         kickBall(player, mate, { power: 14 });
         acted = true;
@@ -3679,6 +3724,27 @@ export function createMatch(options = {}) {
    * recuo para abarcar mais campo.
    */
   function updateCamera(dt) {
+    // Cutscene do árbitro: durante a conversa com o faltoso a transmissão
+    // abre um plano fechado nos dois, de lado, em vez de seguir a bola.
+    if (refereeDecision && (refereeDecision.stage === 'talk' || refereeDecision.stage === 'show')) {
+      const subject = refereeDecision.offender || refereeDecision.victim;
+      if (subject) {
+        const mx = (referee.x + subject.x) * 0.5;
+        const mz = (referee.z + subject.z) * 0.5;
+        // Eixo perpendicular à linha árbitro↔jogador, para ver os dois de lado.
+        let dx = subject.x - referee.x, dz = subject.z - referee.z;
+        const len = Math.hypot(dx, dz) || 1;
+        dx /= len; dz /= len;
+        const px = -dz, pz = dx;
+        blendCameraPose(dt,
+          { x: mx + px * 4.6, y: 1.9, z: mz + pz * 4.6 },
+          { x: mx, y: 1.25, z: mz },
+          38,
+          5.5
+        );
+        return;
+      }
+    }
     const position = ball.state.position;
     const pose = broadcastCameraPose(position, cameraSide, ball.state.velocity);
     const desiredX = pose.position.x;
