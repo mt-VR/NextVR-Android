@@ -1028,7 +1028,10 @@ export function buildStadium(scene, options = {}) {
   group.add(buildLockerRoom());
   for (const side of [-1, 1]) {
     for (const x of [-18, 18]) {
-      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 13.2), side));
+      // O banco fica encostado no muro da lateral (z = largura + 5,2), como
+      // num estádio real. Antes ele ficava a 13,2 m da linha e aparecia em
+      // primeiro plano da câmera de transmissão, tapando o canto do gramado.
+      group.add(buildSidelineBench(x, side * (PITCH.halfWidth + 5.2), side));
     }
   }
 
@@ -1087,7 +1090,9 @@ export function buildStadium(scene, options = {}) {
   tunnelFill.position.set(0,2.4,-48.2);hallWalls.push(tunnelFill);
   for(const mesh of hallWalls)tunnel.add(mesh);
   group.add(tunnel);
-  const technicalMat=new THREE.LineBasicMaterial({color:0xf1f1e4});
+  // Traço fino e translúcido: pintado em branco cheio, o retângulo da área
+  // técnica da lateral próxima virava uma caixa branca em primeiro plano.
+  const technicalMat=new THREE.LineBasicMaterial({color:0xf1f1e4,transparent:true,opacity:.38});
   for(const side of [-1,1])for(const x of [-18,18]){const points=[[-9,9.9],[9,9.9],[9,6.9],[-9,6.9],[-9,9.9]].map(([dx,dz])=>new THREE.Vector3(x+dx,.025,side*(PITCH.halfWidth+dz)));const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),technicalMat);line.name='xfc-technical-area';group.add(line);}
   const warmup=addWarmup(group,options.warmupTeams||[],lowPower||graphics.id==='low');
 

@@ -41,56 +41,68 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
 /**
  * Câmera de transmissão — geometria.
  *
- * Três defeitos explicavam o que o usuário via:
+ * Defeitos que o usuário viu, com a conta de cada um:
  *
- * 1. A lente ficava DENTRO do campo (`z = 23`, com a lateral em `z = 34`).
- *    Tudo o que estava na metade de baixo do gramado caía atrás da câmera e
- *    nem chegava a ser desenhado — não era corte de borda, era metade do
- *    elenco fora do frustum.
- * 2. Uma lente alta "olhando o campo de cima" também não fechava o quadro: a
- *    linha lateral próxima subia além da borda de baixo da tela.
- * 3. Acompanhar a bola panorâmica em X parece a solução, mas não é: um atleta
- *    a 52 m do eixo cai em `ndc.x = 2,06`. Medido, a panorâmica deixa ~15% das
- *    posições de jogador fora da tela ao longo da partida — que é exatamente o
- *    "jogador desaparecendo" que o usuário apontou. Numa lente 16:9 não cabe
- *    os 105 m de comprimento E os 68 m de largura com panorâmica.
+ * 1. A lente ficava DENTRO do campo (`z = 23` com a lateral em `z = 34`): o que
+ *    estava na metade de baixo do gramado caía atrás da câmera e nem era
+ *    desenhado. Não era corte de borda, era metade do elenco fora do frustum.
+ * 2. A correção seguinte virou uma vista de cima (depressão de 59°, `h = 85`
+ *    sobre `z = 160`, `fov = 22`): o campo cabia, mas sem perspectiva nenhuma —
+ *    um mapa, não uma transmissão.
+ * 3. Panorâmica em X (seguir a bola) não fecha: um atleta a 52 m do eixo cai em
+ *    `ndc.x = 2,06`, e medido sobra ~15% das posições de jogador fora da tela.
  *
- * O que resolve os três de uma vez é quadro FIXO no eixo do campo, alto o
- * suficiente para o gramado inteiro caber. A câmera fica 85 m acima e 160 m
- * atrás da linha de fundo, com `fov = 22` (teleobjetiva: a perspectiva fica
- * plana como numa transmissão elevada, sem distorcer as linhas). Nessa
- * configuração, medido com o `three` do vendor em 1280×720 — o pior aspecto
- * do app, já que telas mais altas só ganham folga:
+ * O que ficou é uma câmera de TV elevada e DIAGONAL: 65 m de altura, 95 m
+ * atrás da linha lateral, deslocada 24 m para um lado do campo, olhando o
+ * centro do gramado. A razão 65/95 dá depressão de 34° — perspectiva baixa o
+ * bastante para ler profundidade e alta o bastante para as duas laterais
+ * caberem — e o deslocamento lateral é o que cria o ângulo diagonal.
  *
- *   • lateral próxima em `ndc.y = −0,54` (46% de folga na borda de baixo)
- *   • lateral oposta  em `ndc.y = +0,39` (61% de folga na borda de cima)
- *   • o atleta mais distante do centro em `|ndc| = 0,77`
- *   • a bola em qualquer ponto do campo em `|ndc| ≤ 0,77`
+ * Medido com o `three` do vendor em 1280×720 (o pior aspecto do app):
  *
- * Varredura de 3 em 3 m pelo gramado inteiro, nos dois lados do campo e com a
- * bola em todas as posições: nenhuma amostra fora da tela, 22 de 22 atletas
- * desenhados em 100% dos quadros.
+ *   • lateral próxima em `ndc.y = −0,93`   (7% de folga na borda de baixo)
+ *   • lateral oposta  em `ndc.y = +0,47`   (53% de folga na borda de cima)
+ *   • o atleta mais distante do centro em `|ndc| = 0,71`
+ *   • a bola em qualquer ponto do campo em `|ndc| ≤ 0,90`
+ *   • os dois gols inteiros dentro da área livre do HUD
+ *
+ * Linha de visão conferida contra a geometria do estádio (`stadium.js`): com a
+ * lente a 65 m de altura e o banco técnico encostado no muro (z = 39,2 e não
+ * mais a 47,2), nenhum ponto do gramado fica tapado — nem placa, nem LED, nem
+ * banco, nem arquibancada, nem cobertura. Eram esses objetos atravessando a
+ * frente da câmera que viravam as "colunas marrons" e a estrutura branca da
+ * imagem de referência.
  */
-const CAMERA_Z = 160;
-const CAMERA_HEIGHT = 85;
-const CAMERA_FOV = 22;
+const CAMERA_Z = 95;
+const CAMERA_HEIGHT = 65;
+const CAMERA_FOV = 38;
+/**
+ * Deslocamento lateral da lente (m): é o que dá o ângulo diagonal. Acima de
+ * ~30 m o canto daquele lado começa a escapar pela borda de baixo.
+ */
+const CAMERA_SIDE_SHIFT = -24;
+/** Mira no centro do gramado. */
+const CAMERA_TARGET_X = 0;
+const CAMERA_TARGET_Y = 0;
 
 /**
- * Enquadramento de transmissão: o campo inteiro e todos os 22 atletas sempre
- * na tela.
+ * Enquadramento de transmissão: campo inteiro, os 22 atletas sempre na tela e
+ * perspectiva diagonal de TV.
  *
- * O quadro é fixo — é justamente o que garante que nenhum jogador some ao se
- * aproximar de uma borda. Mexer na mira com a bola parecia dar vida à
- * composição, mas basta um deslocamento de 8% do campo para a linha lateral
- * próxima ir a `ndc.y = 1,07` e a linha sair da tela; por isso a mira fica no
- * centro do gramado. A bola nunca sai do quadro porque o quadro já contém o
- * campo todo.
+ * O quadro é fixo no eixo do campo — é o que garante que ninguém desaparece ao
+ * se aproximar de uma borda. Testado acompanhar a bola: 15% de pan já leva a
+ * lateral próxima a `ndc.y = 1,07` e ela sai da tela. A bola continua visível
+ * em todas as posições porque o quadro já contém o gramado inteiro.
  */
 export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velocity = null) {
   const fixedSide = side < 0 ? -1 : 1;
   return {
-    position: { x: 0, y: CAMERA_HEIGHT, z: fixedSide * CAMERA_Z },
-    target: { x: 0, y: 0, z: 0 },
+    position: {
+      x: CAMERA_SIDE_SHIFT,
+      y: CAMERA_HEIGHT,
+      z: fixedSide * CAMERA_Z
+    },
+    target: { x: CAMERA_TARGET_X, y: CAMERA_TARGET_Y, z: 0 },
     fov: CAMERA_FOV
   };
 }
