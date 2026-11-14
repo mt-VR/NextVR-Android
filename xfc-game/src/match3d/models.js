@@ -371,6 +371,8 @@ export function createGltfPlayer(options = {}) {
   const rigBones = [];
   model.traverse(object => { if (object.isBone) rigBones.push(object); });
   const bindHipY = bones.hips.position.y;
+  // Tipo de queda em curso: 'face' protege o rosto com a mão, 'body' cai de costas.
+  let downKind = 'body';
   const floorJoints = rigBones.filter(bone => /Foot|ToeBase|Hand|Leg$/.test(bone.name));
   const floorPoint = new THREE.Vector3();
   const gesture = { name: null, time: 0, duration: 0, dir: 1, mask: null, maskName: 'full', weight: 1 };
@@ -406,6 +408,8 @@ export function createGltfPlayer(options = {}) {
     tackle: 0.8,
     react: 0.55,
     fall: 0.95,
+    // Queda real: fica no chão até o tempo acabar (não é pulso).
+    down: 2.6,
     signal: 0.9,
     'throw-in': 1.0,
     'carry-ball': .8,
@@ -432,9 +436,12 @@ export function createGltfPlayer(options = {}) {
     const t = gesture.time;
     const total = gesture.duration;
     const fadeIn = Math.min(0.1, total * 0.25);
-    const fadeOut = Math.min(0.18, total * 0.3);
+    // Quem está caído no gramado não "volta" suavemente: fica deitado até o
+    // fim e só então levanta. Sem fade-out para o gesto 'down'.
+    const fadeOut = gesture.name === 'down' ? 0 : Math.min(0.18, total * 0.3);
     const rise = fadeIn > 0 ? Math.min(1, t / fadeIn) : 1;
-    const fall = fadeOut > 0 ? Math.min(1, Math.max(0, (total - t) / fadeOut)) : 1;
+    const fall = fadeOut > 0 ? Math.min(1, Math.max(0, (total - t) / fadeOut))
+      : (gesture.name === 'down' ? Math.min(1, Math.max(0, (total - t) / 0.3)) : 1);
     const smooth = value => value * value * (3 - 2 * value);
     return smooth(Math.min(rise, fall));
   }
@@ -586,6 +593,41 @@ export function createGltfPlayer(options = {}) {
         addBoneRotation(bones.rightLeg, 0.9 * wave, 0, 0, w);
         addBoneRotation(bones.leftArm, -1.2 * wave, 0, 0.2 * wave, w);
         addBoneRotation(bones.rightArm, -1.2 * wave, 0, -0.2 * wave, w);
+        break;
+      }
+      case 'down': {
+        // Deitado no gramado. `lie` sobe rápido (cai em ~0,3 s) e desce só no
+        // final, quando o atleta se levanta. `wave` é o pulso do envelope,
+        // que aqui não é usado: a pose é estável, com um leve contorcer.
+        const t = gesture.time, total = gesture.duration;
+        const lie = Math.min(1, t / 0.3) * Math.min(1, Math.max(0, (total - t) / 0.42));
+        const writhe = Math.sin(t * 5.2) * 0.06 * lie;
+        // Quadril desce quase meio metro: o corpo fica na altura do gramado.
+        bones.hips.position.y = bindHipY - 0.52 * lie;
+        // Deitado de costas, girado em torno do eixo do corpo.
+        addBoneRotation(bones.hips, -1.45 * lie + writhe, 0, 0.12 * lie, lie);
+        // Pernas dobradas, joelhos para cima.
+        addBoneRotation(bones.leftUpLeg, 0.62 * lie + writhe, 0, 0.16 * lie, lie);
+        addBoneRotation(bones.rightUpLeg, 0.92 * lie - writhe, 0, -0.2 * lie, lie);
+        addBoneRotation(bones.leftLeg, -0.95 * lie, 0, 0, lie);
+        addBoneRotation(bones.rightLeg, -0.68 * lie, 0, 0, lie);
+        addBoneRotation(bones.leftFoot, -0.2 * lie, 0, 0, lie);
+        addBoneRotation(bones.rightFoot, -0.26 * lie, 0, 0, lie);
+        if (downKind === 'face') {
+          // Mão no rosto: o braço sobe e cobre a cara.
+          addBoneRotation(bones.rightArm, -0.35 * lie, 0.55 * lie, -1.05 * lie, lie);
+          addBoneRotation(bones.rightForeArm, -1.9 * lie, 0, 0, lie);
+          addBoneRotation(bones.leftArm, -0.2 * lie, 0, 0.62 * lie, lie);
+          addBoneRotation(bones.leftForeArm, -0.5 * lie, 0, 0, lie);
+          addBoneRotation(bones.head, -0.16 * lie, 0.2 * lie, 0, lie);
+          addBoneRotation(bones.spine2, 0.1 * lie, 0, 0, lie);
+        } else {
+          addBoneRotation(bones.leftArm, -0.3 * lie, 0, 0.78 * lie, lie);
+          addBoneRotation(bones.rightArm, -0.26 * lie, 0, -0.72 * lie, lie);
+          addBoneRotation(bones.leftForeArm, -0.42 * lie, 0, 0, lie);
+          addBoneRotation(bones.rightForeArm, -0.4 * lie, 0, 0, lie);
+          addBoneRotation(bones.head, -0.24 * lie, 0, 0, lie);
+        }
         break;
       }
       case 'react': {
@@ -804,7 +846,13 @@ export function createGltfPlayer(options = {}) {
       gesture.dir = dir;
       return startGesture('tackle', duration);
     },
-    react(kind = 'bump', duration) {
+    react(kind = 'bump', duration, opts = {}) {
+      // `down` = vítima de falta: fica caída no gramado, mão no rosto quando
+      // a entrada é dura. Os demais continuam sendo cambaleio curto.
+      if (kind === 'down') {
+        downKind = opts.handOnFace ? 'face' : 'body';
+        return startGesture('down', duration ?? 2.6, { weight: 1 });
+      }
       return startGesture(kind === 'fall' ? 'fall' : 'react', duration);
     },
     signal(duration = 1.1) {

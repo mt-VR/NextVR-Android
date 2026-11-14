@@ -3627,6 +3627,24 @@ export function createMatch(options = {}) {
     if (!subject) return updateCamera(dt);
     const centerX = (referee.x + subject.x) * 0.5;
     const centerZ = (referee.z + subject.z) * 0.5;
+
+    // Durante a CONVERSA o plano fecha de lado, na altura dos dois: é a
+    // cutscene em que o árbitro chama o jogador e explica a decisão.
+    // Antes e depois disso mantém o plano aberto de sempre.
+    const talking = decision.stage === 'talk' || decision.stage === 'show';
+    if (talking) {
+      let dx = subject.x - referee.x, dz = subject.z - referee.z;
+      const len = Math.hypot(dx, dz) || 1;
+      dx /= len; dz /= len;
+      const px = -dz, pz = dx;   // perpendicular: vê os dois de perfil
+      blendCameraPose(dt,
+        { x: centerX + px * 3.5, y: 2.05, z: centerZ + pz * 3.5 },
+        { x: centerX, y: 1.30, z: centerZ },
+        36,
+        6.5
+      );
+      return;
+    }
     const side = Math.sign(referee.z - subject.z) || cameraSide;
     blendCameraPose(dt,
       { x: centerX - 3.2, y: 4.9, z: centerZ + side * 8.8 },
@@ -3724,27 +3742,6 @@ export function createMatch(options = {}) {
    * recuo para abarcar mais campo.
    */
   function updateCamera(dt) {
-    // Cutscene do árbitro: durante a conversa com o faltoso a transmissão
-    // abre um plano fechado nos dois, de lado, em vez de seguir a bola.
-    if (refereeDecision && (refereeDecision.stage === 'talk' || refereeDecision.stage === 'show')) {
-      const subject = refereeDecision.offender || refereeDecision.victim;
-      if (subject) {
-        const mx = (referee.x + subject.x) * 0.5;
-        const mz = (referee.z + subject.z) * 0.5;
-        // Eixo perpendicular à linha árbitro↔jogador, para ver os dois de lado.
-        let dx = subject.x - referee.x, dz = subject.z - referee.z;
-        const len = Math.hypot(dx, dz) || 1;
-        dx /= len; dz /= len;
-        const px = -dz, pz = dx;
-        blendCameraPose(dt,
-          { x: mx + px * 4.6, y: 1.9, z: mz + pz * 4.6 },
-          { x: mx, y: 1.25, z: mz },
-          38,
-          5.5
-        );
-        return;
-      }
-    }
     const position = ball.state.position;
     const pose = broadcastCameraPose(position, cameraSide, ball.state.velocity);
     const desiredX = pose.position.x;

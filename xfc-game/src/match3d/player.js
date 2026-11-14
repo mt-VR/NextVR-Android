@@ -1708,6 +1708,13 @@ export function createPlayer3D(options = {}) {
     get singing() {
       return anthemTimer > 0;
     },
+    /** Tempo restante no chão (0 = de pé). Usado por testes e diagnósticos. */
+    get downFor() {
+      return downTimer;
+    },
+    get downReason() {
+      return downKind;
+    },
     /** Sinal de arbitragem: o braço direito sobe apitando. */
     header(duration = 0.38) { headerDuration = duration; headerTimer = duration; },
     signal(duration = 1.1) {

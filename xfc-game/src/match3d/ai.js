@@ -360,7 +360,7 @@ export function createTeamAI({ side, world }) {
         if (world.isPlayable() && gap < 3.4 && !player.slideTackle
           && world.ball.state.position.y < 1.2
           && chance(0.0022 * (0.6 + tactics.press), dt)
-          && world.startSlideTackle?.(player)) {
+          && world.slideTackle?.(player)) {
           // o carrinho já dispara o próprio efeito; nada mais a fazer aqui
         }
       } else {
