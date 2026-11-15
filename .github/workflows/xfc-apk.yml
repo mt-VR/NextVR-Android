@@ -184,22 +184,22 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.49
+          TAG=xfc-gameplay-v0.5.50
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.49 (versionCode 55), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.50 (versionCode 56), commit ${GITHUB_SHA}." \
             "" \
-            "Agora assinar com um clube da Europa troca o campeonato de verdade: saiu do Brasileirão e entrou na LaLiga, na Premier League, na Bundesliga, na Serie A, na Ligue 1, na Liga Portugal, na Eredivisie, na Escocesa ou na Grega." \
-            "LaLiga completa com os 20 clubes espanhóis e escudo de todos: Athletic, Atlético, Osasuna, Celta, Deportivo, Alavés, Elche, Getafe, Málaga, Espanyol, Racing, Rayo, Betis, Real Sociedad, Sevilla, Valencia e Villarreal, além de Barcelona, Real Madrid e Levante." \
-            "Mais 80 clubes europeus com escudo (Arsenal, Liverpool, City, PSG, Milan, Inter, Napoli, Dortmund, Leverkusen, Porto, Benfica, Sporting, Ajax, PSV, Feyenoord, Rangers, Olympiacos e outros), todos com uniforme, estádio e elenco." \
-            "A liga do save agora mostra o nome certo: LaLiga, Premier League, Bundesliga... no lugar de 'Liga da carreira'. Save antigo no Barcelona é migrado sozinho para a LaLiga." \
-            "Champions League com todo o catálogo europeu no sorteio, 32 clubes na fase de grupos como a edição de verdade." \
-            "Transferências: os oito clubes do mercado agora são os oito melhores da Europa. Bayern, PSG, Liverpool, City, Inter, Milan, Juventus e Napoli voltaram a ter força de clube grande." \
-            "Testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
+            "Preços da carreira: entrar num clube grande ficou difícil de verdade. A chance de negócio agora depende do seu overall contra a força do clube — o Real Madrid dá 6% para um atleta de 72, o Arsenal 15%, e só um craque de 88 chega a 77%. A tela de Transferências mostra o percentual de cada clube." \
+            "Falta consertada: quando você sofre a falta, só o cobrador, a barreira de três e o goleiro ficam na jogada; todo mundo sai da linha do chute. E a IA agora chuta a falta a gol, com mira dentro do gol e curva, em vez de tocar para trás." \
+            "Modo carreira com seleção e Copa do Mundo: o técnico convoca o seu atleta pelo desempenho, você disputa a Copa com o Brasil (ou o país do seu atleta) e volta para a carreira com o resultado." \
+            "Competições na carreira: liga do país + Champions League (clube europeu) ou Libertadores (clube brasileiro). A Champions segue sem clubes brasileiros." \
+            "Prêmios: Bola de Ouro, Puskás, Chuteira de Ouro, Melhor Meia e Golden Boy, decididos pela temporada, com cerimônia cinematográfica para a Bola de Ouro e o Puskás." \
+            "Elencos atuais: Flamengo, Palmeiras, Corinthians, Santos, São Paulo, Fluminense, Botafogo, Vasco, Cruzeiro, Internacional, Barcelona, Real Madrid, City, Liverpool, Bayern, PSG e Celtic com os jogadores de hoje. Hugo Souza só no Corinthians." \
+            "Testes locais: 214/214, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — ligas europeias: sai do Brasileirão e vai jogar na Europa v0.5.49" \
+            gh release create "$TAG" --title "XFC 27 — elencos atuais, seleção/Copa na carreira e Bola de Ouro v0.5.50" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — ligas europeias: sai do Brasileirão e vai jogar na Europa v0.5.49" \
+            gh release edit "$TAG" --title "XFC 27 — elencos atuais, seleção/Copa na carreira e Bola de Ouro v0.5.50" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \
