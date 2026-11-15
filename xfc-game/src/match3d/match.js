@@ -39,6 +39,7 @@ import { createTeamAI } from './ai.js';
 import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
 import { PITCH, GOAL, BALL, FORMATION_433 } from './constants.js';
 import {
+  BROADCAST_CAMERA_LIMITS,
   BROADCAST_CAMERA_SIDE,
   broadcastCameraPose,
   cameraRelativeMovementFromStick,
@@ -3750,8 +3751,13 @@ export function createMatch(options = {}) {
     const position = ball.state.position;
     const pose = broadcastCameraPose(position, cameraSide, ball.state.velocity);
     const desiredX = pose.position.x;
-    const desiredY = pose.position.y*cameraZoom;
-    const desiredZ = pose.target.z+(pose.position.z-pose.target.z)*cameraZoom;
+    // O zoom "mais aberta" afasta a lente do alvo, mas nunca para dentro da
+    // arquibancada: a lateral do campo só tem o vão livre até CAMERA_Z_MAX.
+    const desiredY = Math.min(pose.position.y*cameraZoom, BROADCAST_CAMERA_LIMITS.maxHeight);
+    const desiredZ = Math.min(
+      pose.target.z+(pose.position.z-pose.target.z)*cameraZoom,
+      BROADCAST_CAMERA_LIMITS.maxZ
+    );
     const desiredFov = pose.fov;
     const camera = engine.camera;
 
