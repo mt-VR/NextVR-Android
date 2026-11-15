@@ -3,6 +3,7 @@
 // mantém o save, o overall e o histórico do atleta. Tudo local e determinístico
 // por temporada — nenhuma chamada de rede, nenhum resultado do catálogo global.
 import {TEAMS, getTeam} from './teams.js';
+import {careerOverall} from './career.js';
 import {careerLeague} from './career.js';
 
 /**
@@ -16,8 +17,32 @@ const EXTRA = ['eintracht-frankfurt', 'aston-villa', 'newcastle-united', 'celtic
 export const EUROPEAN_CLUBS = [...new Set([...MERCADO, ...EXTRA])]
   .filter(id => TEAMS.some(team => team.id === id)).slice(0, 8);
 
-/** Chance de o clube aceitar a negociação: 50% a 50%, como pedido. */
+/** Teto histórico do pedido anterior (era 50% para todo mundo). */
 export const NEGOTIATION_CHANCE = 0.5;
+
+/**
+ * Chance de um clube aceitar o SEU pedido: quanto maior o clube, menor a
+ * chance. O seu overall também conta — um atleta fraco dificilmente entra no
+ * Real Madrid, mas um 90 de overall tem boa porta. O piso/mínimo evita
+ * impedir a jogabilidade: sempre existe uma chance real (3% a 85%).
+ */
+export function negotiationChance(career, clubId) {
+  const club = getTeam(clubId);
+  if (!club) return 0;
+  const rating = Number(club.ratings?.ovr) || 75;
+  const mine = career?.player ? careerOverall(career) : 60;
+  // Curva logística na diferença entre o seu overall e o do clube: no nível do
+  // clube a conversa é boa; seis pontos acima, quase certa; muito abaixo, some.
+  // Ex.: OVR 88 x Real 88 = 82%; OVR 80 x Real = 38%; OVR 70 x Real = 5%;
+  //      OVR 70 x Celtic (75) = 56%.
+  const chance = 1 / (1 + Math.exp(-((mine - rating + 6) / 4.05)));
+  return Math.max(0.03, Math.min(0.85, chance));
+}
+
+/** Chance em porcentagem para mostrar na tela do escritório/transferências. */
+export function negotiationPercent(career, clubId) {
+  return Math.round(negotiationChance(career, clubId) * 100);
+}
 
 /** Sorteio reprodutível (mulberry32) para não mudar entre renders do menu. */
 function seeded(seed) {
@@ -72,7 +97,9 @@ export function negotiateCareerClub(career, clubId, rng = Math.random) {
   if (!career?.player || career.pending) return {ok: false, reason: 'pending'};
   if (clubId === career.clubId) return {ok: false, reason: 'same'};
   if (!EUROPEAN_CLUBS.includes(clubId)) return {ok: false, reason: 'club'};
-  const attempt = {clubId, season: career.season, round: career.round, accepted: rng() < NEGOTIATION_CHANCE};
+  const chance = negotiationChance(career, clubId);
+  const attempt = {clubId, season: career.season, round: career.round,
+    chance, accepted: rng() < chance};
   career.market ||= {};
   career.market.attempts = [...(career.market.attempts || []), attempt].slice(-20);
   career.market.lastAttempt = attempt;

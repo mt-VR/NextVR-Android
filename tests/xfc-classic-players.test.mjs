@@ -57,14 +57,17 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 // mudou nesta versão — o hash acima é o da v0.5.47.
 // v0.5.49: `career-reference.js` mostra o nome real do campeonato (LaLiga,
 // Premier League...) no lugar de "Liga da carreira"; o resto segue igual.
+// v0.5.50: `match.js` ganha a falta com barreira/goleiro e o chute direto da
+// IA; `career-reference.js`/CSS ganham o badge de chance e a convocação. HUD,
+// controles, menus de referência e a arte de entrada continuam iguais.
 // Controles, HUD, menus de referência e a arte de entrada continuam iguais.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "7d44e045209b64b67c2afb846ce69cb18242f6d64f73aa2ee2ab24da09a668e3",
   "src/match3d/controls.js": "9a014bf4045165c7a6ed023021a49a1ebf8242b9b99ef580947dc8f4d41b7eec",
-  "src/match3d/match.js": "2a216e0823446781887f44c3ad92586189d065c7d593ff100979836002efa54f",
-  "src/screens/career-reference.js": "843e22c3121855bf8509689232ca80a14b2479e064e1c4072225747ee70f8767",
-  "styles/career-reference.css": "dc4408ab89883e917d0acaf6a497cffa737e1233a765ea001c65623e0407f2bd",
+  "src/match3d/match.js": "cf9dc9dfc611af0ab72927307b49d455005cf494a801287792d213289d8d2339",
+  "src/screens/career-reference.js": "b6e26e088de10524f8a1fda6cf66ec868795f0194580ca3ce9f510a3fe398737",
+  "styles/career-reference.css": "e5b218e0ddae10b5361de627ebc467b98c5c96612efd868a4fcd63a8494a5ff5",
   "styles/match3d.css": "765d37188b349cf58abaae9dec83f996745ce1518ce6e594eee4a68dd7c6b6a2"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);

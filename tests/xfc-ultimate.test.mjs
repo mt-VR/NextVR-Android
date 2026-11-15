@@ -72,7 +72,9 @@ test("UT DME valida média, clubes, bloqueios e consumo atômico", () => {
     ).ok,
     false,
   );
-  const ids = ["barca-pedri", "madrid-vinicius", "madrid-modric"].map(
+  // v0.5.50: o elenco real do Real Madrid não tem mais Modrić — o teste usa
+  // atletas que estão no clube hoje.
+  const ids = ["barca-pedri", "madrid-vinicius", "madrid-mbappe"].map(
       (id) => U.buyUtPlayer(p, id).uid,
     ),
     before = u.inventory.length;

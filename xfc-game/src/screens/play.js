@@ -74,9 +74,18 @@ function playableNationalTeam(team) {
       }
     };
   });
+  // Convocação além do XI (seleções do save novo): vai para o banco.
+  const substitutes = (team.bench || []).map((player, index) => ({
+    id: `${team.id}-bench-${player.number || index + 12}`,
+    name: player.name, fullName: player.name, number: player.number || index + 12,
+    pos: player.position === 'AM' ? 'CAM' : (player.position || 'CM'),
+    ovr: player.rating || 75, rating: player.rating || 75, photo: null,
+    stats: { pace: 75, shooting: 70, passing: 72, dribbling: 72, defending: 65, physical: 72 }
+  }));
   return {
     ...team,
     isNationalTeam: true,
+    substitutes,
     shortName: team.name,
     crest: null,
     league: 'Copa do Mundo',
@@ -718,7 +727,10 @@ export function playScreen(ctx, params = {}) {
             type: 'button',
             onClick: () => ctx.go('worldcup', {
               mode: params.worldCupMode || campaign?.mode || '2027',
-              returnTo: params.worldCupReturnTo || 'modes'
+              returnTo: params.worldCupReturnTo || 'modes',
+              // Copa convocada dentro da carreira: o botão volta para a Copa
+              // da carreira, e o "voltar" dela retorna às competições.
+              ...(params.worldCupCareer ? {fromCareer: true, kind: 'player'} : {})
             })
           }, 'CONTINUAR COPA')
           : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career',{view:'hub',kind:careerManager?'manager':'player'})},'VOLTAR À CARREIRA')

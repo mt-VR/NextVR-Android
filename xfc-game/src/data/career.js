@@ -3,6 +3,7 @@ import {LAB_HAIR,GLOVE_LABELS,ACCESSORY_LABELS} from './player-customization.js'
 // Carreira local de UM atleta. Nunca muta o catálogo global nem as moedas do UT.
 import {TEAMS,getTeam} from './teams.js';
 import {leagueClubs,leagueOfClub} from './leagues.js';
+import {seasonAwards as seasonAwardsOf,recordCareerAward as recordAward} from './career-competitions.js';
 export const CAREER_POSITIONS={ST:'Atacante',LW:'Ponta',CM:'Meio-campista',CB:'Zagueiro'};
 export const CAREER_HAIR={short:'Curto',curly:'Cacheado',afro:'Afro',mohawk:'Moicano',neymar:'Neymar',side:'Lateral',fade:'Degradê',long:'Longo',braids:'Tranças',dreads:'Dreads',bald:'Raspado',...LAB_HAIR};
 export const CAREER_HAIR_COLORS={'#24180f':'Preto','#66452d':'Castanho claro','#432c20':'Castanho escuro','#c3a16a':'Loiro','#a3442b':'Ruivo','#eeeeee':'Loiro platinado','#ffffff':'Branco','#92969b':'Cinza','#5f6469':'Cinza escuro','#ca2237':'Vermelho','#245dda':'Azul','#288b43':'Verde','#e85aaa':'Rosa','#8349b9':'Roxo'};
@@ -109,4 +110,23 @@ export function settleCareer(c,id,score,performance={}){
  c.lastResult={id,score:[...score],rating,xp,goals,shots,passes};c.round++;c.pending=null;return c.lastResult;
 }
 export function improveCareer(c,stat){if(c.pending||!Object.hasOwn(c.player.stats,stat)||c.player.points<1||c.player.stats[stat]>=95)return false;c.player.stats[stat]++;c.player.points--;return true;}
-export function nextCareerSeason(c,clubId=c.clubId){if(c.round<c.league.rounds.length||c.pending||!getTeam(clubId))return false;c.history.push({season:c.season,clubId:c.clubId,place:careerTable(c).findIndex(t=>t.id===c.clubId)+1});c.history=c.history.slice(-10);const previousClub=c.clubId;c.clubId=clubId;c.season++;c.round=0;c.league=careerLeague(clubId,c.season);c.lastResult=null;queueCareerPresentation(c,previousClub===clubId?'renewal':'transfer',previousClub);return true;}
+export function nextCareerSeason(c,clubId=c.clubId){
+ if(c.round<c.league.rounds.length||c.pending||!getTeam(clubId))return false;
+ c.history.push({season:c.season,clubId:c.clubId,place:careerTable(c).findIndex(t=>t.id===c.clubId)+1});
+ c.history=c.history.slice(-10);
+ // Prêmios individuais da temporada que terminou (Bola de Ouro, Puskás...).
+ // Ficam gravados no save e a cutscene da Bola de Ouro/Puskás é disparada na
+ // próxima visita às telas de carreira (uma única vez).
+ settleSeasonAwards(c);
+ const previousClub=c.clubId;c.clubId=clubId;c.season++;c.round=0;
+ c.league=careerLeague(clubId,c.season);c.lastResult=null;
+ queueCareerPresentation(c,previousClub===clubId?'renewal':'transfer',previousClub);return true;
+}
+function settleSeasonAwards(c){
+ if(c.kind==='manager')return [];
+ const won=[];
+ // `career-competitions` importa este módulo (careerOverall) e este módulo
+ // importa o settleSeasonAwards de volta — ESM resolve a referência no uso.
+ for(const award of seasonAwardsOf(c))if(award.won&&recordAward(c,award))won.push(award);
+ return won;
+}

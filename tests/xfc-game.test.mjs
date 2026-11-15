@@ -433,8 +433,10 @@ test('Copa inclui as 32 seleções de 2022 com XI nacional jogável', () => {
       `${team.name} traz números e notas de titulares válidos`);
     assert.ok(team.colors.primary && team.colors.secondary, `${team.name} tem cores de uniforme próprias`);
   }
-  assert.ok(getNationalTeam('brazil').players.some(player => player.name === 'Neymar Jr.'),
-    'a seleção brasileira usa nomes da geração de 2022');
+  // v0.5.50: elenco da seleção atualizado (Vinícius, Raphinha, Bruno Guimarães).
+  // A Copa continua com as 32 seleções de 2022, mas os nomes do Brasil são de hoje.
+  assert.ok(getNationalTeam('brazil').players.some(player => player.name === 'Vinícius Júnior'),
+    'a seleção brasileira usa o elenco atual');
   assert.ok(getNationalTeam('argentina').players.some(player => player.name === 'Lionel Messi'),
     'a Argentina usa nomes da geração de 2022');
 });
@@ -736,7 +738,18 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.getByRole('button',{name:'Mercado de Transferências',exact:true}).click();
     await page.getByRole('button',{name:'Pesquisar jogadores',exact:true}).click();
     assert.ok(await page.locator('.ultimate-card__buy').count() >= 6, 'mercado tem cartas contratáveis');
-    await page.locator('.ultimate-card__buy').nth(3).click(); // Cubarsí cabe no saldo inicial.
+    // v0.5.50: o preço da carta vem do overall do elenco real (Cubarsí subiu
+    // para 86). Compra a primeira carta que realmente caiba no saldo.
+    const affordable = await page.evaluate((budget) => {
+      const listings = [...document.querySelectorAll('.ut-listing')];
+      const index = listings.findIndex((card) => {
+        const price = Number((card.querySelector('p')?.textContent || '').replace(/\D/g, ''));
+        return price > 0 && price <= budget;
+      });
+      return index;
+    }, coinsBeforePurchase);
+    assert.ok(affordable >= 0, 'há carta no saldo inicial');
+    await page.locator('.ultimate-card__buy').nth(affordable).click();
     await page.getByRole('button',{name:'Confirmar',exact:true}).click();
     const afterPurchase=await page.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')));
     assert.ok(afterPurchase.coins<coinsBeforePurchase);

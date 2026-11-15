@@ -1,5 +1,8 @@
 import {pendingCareerPresentation} from '../data/career-presentations.js';
 import {careerPresentation} from './career-presentation.js';
+import {careerAward, awardStyles} from './career-award.js';
+import {flagSvg} from '../ui/flags.js';
+import {pendingAwardCinematic,careerCompetitions,nationalCallup,seasonAwards,careerAwardCase,callupNews,nationCode} from '../data/career-competitions.js';
 import {careerReference} from './career-reference.js';
 // Telas distintas; apenas dados/roteamento compartilhados. Nenhum placar da arte é usado.
 import {el} from '../ui/dom.js';
@@ -19,6 +22,15 @@ export function careerScreen(ctx,params={}){
  const back=()=>view==='entry'?ctx.go('menu'):view==='custom-edit'?go('custom',{back:params.customReturnTo||'hub'}):go(params.back||({journey:'entry',hub:'journey','custom-edit':'custom'}[view])||(['create','load','objectives','settings'].includes(view)&&params.fromEntry?'entry':'hub'));
  const presentation=kind==='player'&&c&&!c.pending&&pendingCareerPresentation(c);
  if(presentation&&['journey','hub','office','transfers','presentation'].includes(view))return careerPresentation(ctx,{career:c,event:presentation,persist,go});
+ // Cutscene de prêmio (Bola de Ouro/Puskás) aparece uma única vez, antes da
+ // Central da carreira, depois da temporada em que o atleta ganhou.
+ const award=kind==='player'&&c&&!c.pending&&pendingAwardCinematic(c);
+ if(view==='award'&&c&&params.awardId){
+  const chosen=careerAwardCase(c).find(item=>item.id===params.awardId)||award;
+  if(chosen)return careerAward(ctx,{career:c,award:chosen,persist,go,back:()=>go('hub')});
+ }
+ if(award&&['journey','hub','office','transfers'].includes(view))
+  return careerAward(ctx,{career:c,award,persist,go,back:()=>go(view,{award:undefined})});
  // Escritório e Evoluir Jogador são telas de referência (arte do usuário
  // inteira) também para o técnico — o pedido vale para as duas carreiras.
  if(view==='entry'||c&&(view==='journey'
@@ -26,12 +38,38 @@ export function careerScreen(ctx,params={}){
   ||['office','evolve'].includes(view)))return careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo:params.back||'hub'});
  if(view==='create'||view==='custom-edit')return careerEditor(ctx,{...params,kind,career:c,go,persist,back:view==='create'?()=>go(params.back||'entry'):back});
  if(view==='plan'&&c)return careerPreparation(ctx,{career:c,kind,go,persist,back});
- const titles={entry:'Modo Carreira',hub:'Central da Carreira',agenda:'Agenda de Jogos',table:'Classificação',club:'Meu Clube',transfers:'Transferências',office:'Escritório',objectives:'Objetivos',settings:'Configurações',load:'Carregar Carreira',stats:'Estatísticas'};
+ const titles={entry:'Modo Carreira',hub:'Central da Carreira',agenda:'Agenda de Jogos',table:'Classificação',club:'Meu Clube',transfers:'Transferências',office:'Escritório',objectives:'Objetivos',settings:'Configurações',load:'Carregar Carreira',stats:'Estatísticas',competitions:'Competições'};
  const {node,content}=shell(ctx,{title:titles[view]||titles.entry,subtitle:view==='entry'?'Construa sua história como jogador ou treinador.':c?`${kind==='manager'?'Carreira de Técnico':'Carreira de Jogador'} · Temporada ${c.season} · ${careerLeagueName(c)}`:'Progresso salvo neste dispositivo',career:c,view,back,go});
  const next=c&&careerFixture(c),schedule=c?careerSchedule(c):[],fixture=schedule.find(g=>g.id===next?.id),leagueName=c?careerLeagueName(c):'Liga da carreira';
  const play=()=>go(next?'plan':'office');
  function standings(limit=8){return el('table',{class:'season-table'},el('thead',{},el('tr',{},...['Clube','J','PTS','SG'].map(text=>el('th',{text})))),el('tbody',{},...careerTable(c).slice(0,limit).map((r,i)=>el('tr',{class:r.id===c.clubId?'is-club':''},el('td',{},el('span',{text:`${i+1}. `}),crest(r.id),el('span',{text:getTeam(r.id).name})),el('td',{text:r.played}),el('td',{text:r.points}),el('td',{text:r.gf-r.ga})))));}
  function nextPanel(){return panel('PRÓXIMO JOGO',fixture?fixtureNode(fixture):el('p',{text:'Temporada encerrada'}),fixture&&el('p',{text:`${dateLabel(fixture.date)} · 18:00 UTC · RODADA ${fixture.round+1}`}),fixture&&el('small',{text:`${leagueName} · ${STADIUMS[fixture.stadiumIndex].name}`}),button(fixture?(c.pending?'Retomar preparação':'Vamos Jogar'):'Próxima temporada',play,{class:'season-primary'}));}
+ function competitions(){
+  if(!c){content.append(panel('Competições',el('p',{text:'Crie uma carreira para disputar liga, copa continental, seleção e prêmios.'}),button('Escolher carreira',()=>go('entry'))));return;}
+  const comps=careerCompetitions(c),call=nationalCallup(c),awards=seasonAwards(c),owned=careerAwardCase(c);
+  // Bandeira da seleção: o código do país, com Brasil por padrão.
+  const nationFlag = nationCode(c.player.nationality) === 'brazil' ? 'br' : nationCode(c.player.nationality).slice(0, 2);
+  content.append(panel('CAMPANHAS DA TEMPORADA',el('p',{text:`Temporada ${c.season} · ${getTeam(c.clubId)?.name||'clube'}`}),
+    ...comps.map(comp=>el('div',{class:'career-comp'},el('strong',{text:comp.name}),el('p',{text:comp.detail}),
+      comp.kind==='continental'&&[
+        el('small',{text:'Vagas: fase de grupos · mata-mata com jogos de ida e volta'}),
+        // Abre o campeonato de verdade (sorteio, grupos, mata-mata) já com o
+        // clube do atleta. A Champions é só de clube europeu.
+        button(`Disputar ${comp.name}`,()=>ctx.go('competition',{competitionId:comp.id==='champions'?'uefa-champions-league':'conmebol-libertadores',returnTo:'career',fromCareer:true,kind,careerClubId:c.clubId}))
+      ]))));
+  content.append(panel('SELEÇÃO',el('p',{text:callupNews(c)||''}),
+    call.called?el('div',{class:'career-callup is-called'},
+      el('span',{class:'career-callup__flag'},flagSvg(nationFlag)),
+      el('div',{},el('strong',{text:`Convocado · ${c.player.nationality}`}),el('p',{text:`Confiança do técnico ${call.confidence}%. Você pode ser titular na Copa do Mundo.`})))
+    :el('div',{class:'career-callup'},el('div',{},el('strong',{text:'Fora da lista'}),el('p',{text:`Overall ${call.ovr} · score ${Math.round(call.score)}. Marque gols e suba de nível para ser convocado.`}))),
+    button('Disputar a Copa do Mundo',()=>ctx.go('worldcup',{returnTo:'career',fromCareer:true,kind}))
+  ));
+  content.append(panel('PRÊMIOS DA TEMPORADA',el('p',{text:'A Bola de Ouro e o Puskás têm cutscene quando são conquistados.'}),
+    ...awards.map(award=>el('div',{class:`career-award-row${owned.some(x=>x.id===award.id)?' is-won':''}`},
+      el('span',{class:'career-award-row__name',text:award.name}),
+      el('span',{class:'career-award-row__chance',text:owned.some(x=>x.id===award.id)?'CONQUISTADO':`${Math.round(award.chance*100)}%`}),
+      owned.some(x=>x.id===award.id&&x.cinematic!==false&&!x.shown)&&button('Ver cerimônia',()=>go('award',{awardId:award.id,back:'competitions'}))))) );
+ }
  function objectives(){
   if(!c){content.append(panel('Sua jornada',el('p',{text:'Jogador: disputar partidas, marcar gols e evoluir por XP. Técnico: administrar o elenco e buscar o título da liga local.'}),button('Escolher carreira',()=>go('entry'))));return;}
   const rank=careerTable(c).findIndex(r=>r.id===c.clubId)+1;
@@ -45,6 +83,7 @@ export function careerScreen(ctx,params={}){
   })),!(profile.careerSlots||[]).length&&el('p',{text:'Nenhuma cópia manual ainda. A carreira atual é salva automaticamente.'}),button('Voltar',back)));
  }else if(view==='settings'){
   content.append(panel('Opções',el('p',{text:'Salvamento automático neste dispositivo. Cada modo de carreira mantém seu próprio progresso.'}),c&&button('Salvar cópia da carreira',()=>{saveCareerSlot(profile,kind);if(persist())ctx.toast('Cópia salva. Acesse Carregar Carreira na entrada.');}),button('Configurações do jogo',()=>ctx.go('customise',{returnTo:'career',returnParams:{kind,view:'settings',fromEntry:params.fromEntry}})),button('Nova carreira',()=>go('create')),button('Carregar cópia',()=>go('load',{back:'settings'}))));
+ }else if(view==='competitions'){competitions();
  }else if(view==='objectives'){objectives();
  }else if(!c){content.append(panel('Nenhuma carreira selecionada',button('Escolher carreira',()=>go('entry'))));
  }else if(view==='hub'){
@@ -52,7 +91,7 @@ export function careerScreen(ctx,params={}){
   node.append(el('img',{class:'season-neymar',src:'assets/ui/season/neymar.png',alt:'Neymar, arte do menu; não representa o atleta criado',draggable:'false'}));
   const left=el('div',{class:'season-hub-left'},panel('ÚLTIMO JOGO',last?fixtureNode(last):el('p',{text:'Sua temporada começa aqui.'}),last&&el('p',{text:`${dateLabel(last.date)} · ${leagueName}`}),button('Ver detalhes da partida',()=>go('stats'),{disabled:!last})),nextPanel());
   const right=el('div',{class:'season-hub-right'},panel('NOTÍCIAS',el('img',{class:'season-news-photo',src:STADIUMS[fixture?.stadiumIndex||0].file,alt:'Estádio da carreira'}),el('h3',{text:news[0]}),el('p',{text:news[1]}),el('small',{text:'Notícia gerada a partir deste save.'})),panel('CLASSIFICAÇÃO',standings(4),button('Ver tabela completa',()=>go('table'))));
-  content.append(left,right,el('div',{class:'season-actions'},tile('Jogar Próxima Partida','Confirmar escalação','play',play),...[[ 'Calendário','calendar','agenda'],['Transferências','transfer','transfers'],['Meu Clube','club','club'],['Escritório','office','office'],['Configurações','settings','settings']].map(([text,ico,v])=>tile(text,'',ico,()=>go(v)))));
+  content.append(left,right,el('div',{class:'season-actions'},tile('Jogar Próxima Partida','Confirmar escalação','play',play),...[[ 'Calendário','calendar','agenda'],['Competições','trophy','competitions'],['Transferências','transfer','transfers'],['Meu Clube','club','club'],['Escritório','office','office'],['Configurações','settings','settings']].map(([text,ico,v])=>tile(text,'',ico,()=>go(v)))));
  }else if(view==='agenda'){
   let day=fixture?.date.slice(0,10)||schedule.at(-1)?.date.slice(0,10);const list=el('div',{class:'season-schedule'}),details=panel('Dia selecionado');
   const dayLabel=el('b');const changeDay=n=>{day=new Date(Date.parse(day+'T18:00:00Z')+n*86400000).toISOString().slice(0,10);renderDay();};

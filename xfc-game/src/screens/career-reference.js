@@ -5,11 +5,12 @@ import {hotspot,gridKeys} from '../ui/reference-menu.js';
 import {crest,dateLabel,select} from '../ui/career-ui.js';
 import {getTeam,TEAMS} from '../data/teams.js';
 import {careerFixture,careerTable,careerOverall,improveCareer,nextCareerSeason,careerLeagueName} from '../data/career.js';
-import {changeCareerClub,EUROPEAN_CLUBS} from '../data/career-market.js';
+import {changeCareerClub,EUROPEAN_CLUBS,negotiationPercent} from '../data/career-market.js';
 import {queueCareerPresentation} from '../data/career-presentations.js';
 import {careerOffers,negotiateCareerClub,answerOffer} from '../data/career-market.js';
 import {getCareer,careerSchedule,careerNews} from '../data/career-services.js';
 import {STADIUMS} from '../match3d/stadiums.js';
+import {nationalCallup,callupNews} from '../data/career-competitions.js';
 // `office` e `evolve` usam as artes novas do usuário (sem redesenho):
 // Escritório do clube e Evoluir Jogador, recortadas de 1672×941 para 1568×882
 // no mesmo referencial dos hotspots das outras telas.
@@ -94,8 +95,18 @@ export function careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo
   hit('Objetivos',[64,532,180,46],()=>go('objectives'));
   hit('Elenco',[500,32,60,44],()=>go('club'));
   hit('Temporada',[566,32,100,44],()=>go('table'));
-  hit('Caixa de Entrada',[60,594,650,146],()=>ctx.toast(c?careerNews(c).join('. '):'Crie uma carreira para receber mensagens.',{duration:5000}));
+  // Caixa de Entrada mostra a notícia da seleção e abre Competições; assim a
+  // Copa, a Champions/Libertadores e os prêmios ficam a um toque no Escritório.
+  hit('Caixa de Entrada',[60,594,650,146],()=>go('competitions'));
   hit('Negociações Ativas',[745,594,772,146],()=>go('transfers'));
+  if(c){
+    const call=nationalCallup(c);
+    data('career-reference-callup',[1224,196,420,150],
+      text('b',call.called?'SELECIONADO':'SELEÇÃO'),
+      text('p',callupNews(c)||''),
+      el('button',{type:'button',class:'career-reference-office-renew',text:call.called?'Copa do Mundo':'Ver competições',
+        onClick:()=>call.called?ctx.go('worldcup',{returnTo:'career',fromCareer:true,kind}):go('competitions')}));
+  }
   hit('Selecionar',[40,764,132,44],()=>go('transfers'));
   hit('Voltar',[176,764,116,44],back);
   hit('Tutorial',[292,764,128,44],tutorial);
@@ -175,7 +186,9 @@ export function careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo
     const club=getTeam(clubId),mine=clubId===c.clubId;
     const card=el('div',{class:'career-market__club'+(mine?' is-current':'')},
       el('img',{src:club.crest,alt:'',draggable:'false'}),
-      el('div',{class:'career-market__name'},el('b',{text:club.name}),el('small',{text:`${club.country} · OVR ${club.ratings?.ovr||'—'}`})),
+      el('div',{class:'career-market__name'},el('b',{text:club.name}),
+        el('small',{text:`${club.country} · OVR ${club.ratings?.ovr||'—'}`}),
+        el('small',{class:'career-market__chance',text:mine?'SEU CLUBE':`${negotiationPercent(c,clubId)}% de chance`})),
       el('button',{type:'button',text:mine?'SEU CLUBE':(c.pending?'PARTIDA PENDENTE':'NEGOCIAR'),
         disabled:mine||!!c.pending,
         onClick:()=>{
@@ -192,7 +205,7 @@ export function careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo
         }}));
     grid.append(card);
   }
-  list.append(el('p',{class:'career-market__note',text:'Metade das conversas dá certo (50%). Se o clube aceitar, você vai na hora e a temporada recomeça lá; se recusar, continua no time atual.'}),grid);
+  list.append(el('p',{class:'career-market__note',text:'Quanto maior o clube, menor a chance de ele te aceitar — e o seu overall conta muito. Se aceitar, você vai na hora e a temporada recomeça lá; se recusar, continua no time atual.'}),grid);
   // Três ofertas recebidas: ficar no clube ou aceitar.
   list.append(el('h2',{class:'career-market__title',text:'OFERTAS RECEBIDAS'}));
   const offersBox=el('div',{class:'career-market__offers'});

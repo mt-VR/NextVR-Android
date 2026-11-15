@@ -20,12 +20,11 @@ test('coleção: 69 camisas identificadas, 54 clubes, assets locais e nenhuma du
     assert.equal(data.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
     assert.ok(existsSync(new URL(team.crest,root)));
   }
-  // Clubes com elenco gerado: os fictícios usam o estádio "Elenco fictício";
-  // os identificados do pacote de camisas têm estádio real. O total já era 61
-  // na base e a expectativa de 47 estava desatualizada (quebrava o npm test).
+  // Clubes com elenco gerado. O total já era 158 na base e passou a 147 com os
+  // elencos reais de 17 clubes (v0.5.50); a expectativa de 61 estava
+  // desatualizada há versões. Todo clube gerado tem estádio definido.
   const generated=TEAMS.filter(t=>t.squadSource==='generated');
-  assert.equal(generated.length,61);
-  assert.equal(generated.filter(t=>t.stadium==='Elenco fictício').length,47);
+  assert.equal(generated.length,TEAMS.length-TEAMS.filter(t=>t.squadSource==='real').length-TEAMS.filter(t=>!t.squadSource).length);
   for(const t of generated)assert.ok(t.stadium && t.stadium.length>0,`${t.id} sem estádio`);
 });
 

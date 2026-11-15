@@ -586,7 +586,7 @@ export function createMatch(options = {}) {
     return Math.abs(z)<GOAL.width/2+0.55 && y>-0.35 && y<GOAL.height+0.55;
   }
 
-  function shootBall(player, { power = 22, spread = 0, target = null, kind = 'normal', lift = null, curve = 0 } = {}) {
+  function shootBall(player, { power = 22, spread = 0, target = null, kind = 'normal', lift = null, curve = 0, aimHeight = null } = {}) {
     const contactHeight=ball.state.position.y;
     const sign = attackSign(player.side);
     const goalTarget = target || { x: sign * PITCH.halfLength, z: (rng() - 0.5) * 4 };
@@ -602,7 +602,15 @@ export function createMatch(options = {}) {
     const bodyPenalty = Math.min(0.075, Math.abs(bodyError) * 0.055);
     const randomSpread = (rng() - 0.5) * (Math.max(0, spread) + (100 - precisionRating) * 0.0007 + bodyPenalty);
     const angle = targetAngle + randomSpread;
-    const launch = lift ?? (kind === 'placed' ? 0.085 : 0.12 + rng() * 0.1);
+    let launch = lift ?? (kind === 'placed' ? 0.085 : 0.12 + rng() * 0.1);
+    // Alvo vertical opcional (faltas da IA): converte a altura desejada na
+    // elevação de saída, para a bola ir AO GOL e não rasteira para o lado.
+    // `Number(null)` também é 0: sem a checagem explícita, TODO chute normal
+    // entraria no ramo da falta e sairia com elevação errada.
+    if (aimHeight != null && Number.isFinite(Number(aimHeight))) {
+      const height = Math.max(0.1, Number(aimHeight));
+      launch = Math.max(0.06, Math.min(0.5, Math.atan2(height, Math.max(4, distance)) * 1.55));
+    }
     // Atributo de finalização, alinhamento corporal e execução variam força
     // e precisão sem transformar cada tipo de chute numa animação idêntica.
     const shootingRating = Math.max(30, Math.min(99, player.shotPower ?? player.shooting ?? 68));
@@ -1040,20 +1048,53 @@ export function createMatch(options = {}) {
         player.vz = 0;
       });
     } else if (restart.type === 'freekick') {
-      // Três defensores montam uma barreira a 9,15 m entre a bola e o gol.
+      // Barreira de três a 9,15 m entre a bola e o gol. Todo mundo ABRE: os
+      // outros jogadores saem da linha de chute (antes sobrava gente parada na
+      // frente do cobrador, atrapalhando a falta). Ficam só cobrador, barreira
+      // e goleiro na área de ação — os demais esperam longe, atrás da bola.
       const goalDistance = Math.abs(sign * PITCH.halfLength - placeX);
       const wallDistance = Math.min(9.15, Math.max(2.2, goalDistance - 1.8));
       const wallX = placeX + sign * wallDistance;
       const defenders = members(opponentOf(side))
         .filter(player => player.active && !player.isKeeper)
         .sort((a, b) => Math.hypot(a.x - wallX, a.z - placeZ) - Math.hypot(b.x - wallX, b.z - placeZ));
-      defenders.slice(0, 3).forEach((player, index) => {
+      const wallPlayers = defenders.slice(0, 3);
+      wallPlayers.forEach((player, index) => {
         player.x = wallX;
         player.z = Math.max(-PITCH.halfWidth + 1, Math.min(PITCH.halfWidth - 1,
           placeZ + (index - 1) * 0.82));
         player.vx = 0;
         player.vz = 0;
+        player.root.position.set(player.x, 0, player.z);
       });
+      // O goleiro se posiciona na linha, olhando a bola.
+      const keeper = members(opponentOf(side)).find(player => player.isKeeper && player.active);
+      if (keeper) {
+        keeper.x = sign * (PITCH.halfLength - 0.9);
+        keeper.z = Math.max(-4, Math.min(4, placeZ * 0.3));
+        keeper.vx = 0; keeper.vz = 0;
+        keeper.root.position.set(keeper.x, 0, keeper.z);
+        faceTowards(keeper, placeX, placeZ, 1, 12);
+      }
+      // Todos os outros saem do caminho: atacantes atrás da bola, defensores
+      // recuando para a marcação (não ficam plantados na linha do chute).
+      const wallSet = new Set(wallPlayers);
+      for (const player of allPlayers) {
+        if (!player.active || player === taker || player.isKeeper || wallSet.has(player)) continue;
+        if (player.side === side) {
+          player.x = placeX - sign * (4.5 + (player.index % 3) * 1.2);
+          player.z = Math.max(-PITCH.halfWidth + 1.5, Math.min(PITCH.halfWidth - 1.5,
+            placeZ + ((player.index % 5) - 2) * 3.2));
+        } else {
+          player.x = wallX + sign * (2.2 + (player.index % 4) * 1.4);
+          player.z = Math.max(-PITCH.halfWidth + 1.5, Math.min(PITCH.halfWidth - 1.5,
+            placeZ + ((player.index % 5) - 2) * 2.6));
+        }
+        player.vx = 0; player.vz = 0;
+        player.root.position.set(player.x, 0, player.z);
+      }
+      restart.wall = wallPlayers;
+      restart.wallX = wallX;
     } else if (restart.type === 'penalty') {
       const keeper = members(opponentOf(side)).find(player => player.active && player.isKeeper);
       // Ninguém além do cobrador e goleiro dentro da área/arco. Os demais
@@ -1305,14 +1346,35 @@ export function createMatch(options = {}) {
       else kickBall(taker, targetPoint, { lob: true, power: 17, curve });
       startSetPieceShotCamera('corner', taker.side, taker);
     } else {
+      // Falta para a IA: quem está no alcance CHUTA a gol (não devolve a bola
+      // para trás). Só as faltas muito longe viram passe/cruzamento.
       const sign = attackSign(taker.side);
       const distanceToGoal = Math.hypot(sign * PITCH.halfLength - taker.x, taker.z);
-      if (distanceToGoal < 20) {
-        shootBall(taker, { power: 20, kind: 'power' });
+      const angle = Math.atan2(Math.abs(taker.z), Math.max(1, Math.abs(sign * PITCH.halfLength - taker.x)));
+      const range = 30 + (Math.max(taker.shotPower || taker.ovr || 70, taker.shooting || 0) - 60) * 0.75;
+      const direct = distanceToGoal < range && Math.abs(taker.z) < 22;
+      if (direct) {
+        const aim = clampSetPiece((rng() * 1.7 - 0.85) * (1 - Math.min(0.6, angle * 0.9)), -1, 1);
+        const kind = rng() < 0.62 ? 'power' : 'curved';
+        // A mira é a baliza de verdade (z dentro do gol e altura entre o chão e
+        // o travessão): sem isso a "falta" saía como passe para o lado.
+        shootBall(taker, {
+          power: 22 + Math.min(7, distanceToGoal * 0.14) + rng() * 4,
+          spread: kind === 'curved' ? 0.02 : 0.03,
+          target: { x: sign * PITCH.halfLength, z: aim * (GOAL.width / 2 - 0.55) },
+          kind,
+          curve: kind === 'curved' ? (rng() - 0.5) * 1.3 : (rng() - 0.5) * 0.5,
+          aimHeight: 0.4 + rng() * 1.5
+        });
         startSetPieceShotCamera('freekick', taker.side, taker);
       } else {
-        const mate = nearbyTeammateFor(taker, { min: 6, max: 22 }) || bestTeammateFor(taker);
-        if (mate) kickBall(taker, mate, { power: 14 });
+        const mate = nearbyTeammateFor(taker, { min: 6, max: 26 }) || bestTeammateFor(taker, true) || bestTeammateFor(taker);
+        if (mate) kickBall(taker, mate, { power: 15 });
+        else {
+          // Sem companheiro: coloca a bola na área mesmo assim, nunca para trás.
+          ball.kick({ x: attackSign(taker.side) * 0.9, z: (rng() - 0.5) * 0.5 }, 16, 0.55);
+          ball.state.lastTouch = taker;
+        }
       }
     }
     if (phase.restart === restart&&!penaltyRunup) {

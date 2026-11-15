@@ -88,7 +88,7 @@ test('evoluir jogador: OVR e atributos vêm do save e o + gasta um ponto de verd
   } finally { await b.close(); server.close(); }
 });
 
-test('transferências: oito clubes, três ofertas e negociação 50% ligada ao save', {timeout: 90000}, async t => {
+test('transferências: oito clubes, três ofertas e negociação por chance ligada ao save', {timeout: 90000}, async t => {
   const {server, url} = await startXfcServer({port: 0});
   const b = await launchOrSkip(t);
   if (!b) { server.close(); return; }
@@ -104,8 +104,8 @@ test('transferências: oito clubes, três ofertas e negociação 50% ligada ao s
       const m = await import('/src/main.js');
       const {EUROPEAN_CLUBS, negotiateCareerClub} = await import('/src/data/career-market.js');
       const career = m.state.profile.career;
-      const refused = negotiateCareerClub(career, 'liverpool', () => 0.9);
-      const accepted = negotiateCareerClub(career, 'liverpool', () => 0.1);
+      const refused = negotiateCareerClub(career, 'liverpool', () => 0.999);
+      const accepted = negotiateCareerClub(career, 'liverpool', () => 0);
       return {club: career.clubId, refused: refused.reason, accepted: accepted.ok, list: EUROPEAN_CLUBS.length};
     });
     assert.equal(result.refused, 'refused');

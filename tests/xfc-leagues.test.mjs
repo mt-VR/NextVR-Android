@@ -46,7 +46,7 @@ test('a liga do save é a do país do clube: Barcelona na LaLiga, Santos no Bras
 test('trocar de clube na Europa troca o campeonato, não a liga de origem', () => {
   const career = createCareer({clubId: 'santos'});
   assert.equal(careerLeagueName(career), 'Brasileirão Série A');
-  assert.equal(negotiateCareerClub(career, 'fc-barcelona', () => 0.1).ok, true);
+  assert.equal(negotiateCareerClub(career, 'fc-barcelona', () => 0).ok, true);
   assert.equal(career.clubId, 'fc-barcelona');
   assert.equal(careerLeagueName(career), 'LaLiga', 'assinou com o Barcelona: sai do Brasileirão');
   assert.ok(career.league.clubs.every(id => getTeam(id).country === 'Espanha'));

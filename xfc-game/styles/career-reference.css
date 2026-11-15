@@ -59,6 +59,7 @@
 .career-market__club button,.career-market__offer button{border:1px solid #2ff08a;background:#2ff08a;color:#04140b;font:700 11px/1 Arial;letter-spacing:.04em;border-radius:6px;padding:8px;min-height:34px;cursor:pointer;white-space:nowrap;flex:0 0 auto}
 .career-market__club button:disabled{background:#1b2229;border-color:#ffffff1f;color:#8b949c;cursor:default}
 .career-market__note{margin:0;font-size:12px;color:#b6bec6}
+.career-market__chance{color:#2fe45f!important;font-weight:700;letter-spacing:.02em}
 .career-market__offers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .career-market__offer{display:flex;align-items:center;gap:8px;background:#0e1419e6;border:1px solid #ffffff1f;border-radius:9px;padding:8px 10px;min-width:0}
 .career-market__offer>div:nth-child(2){display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
@@ -70,3 +71,18 @@
 .career-reference-office-contract>b{font-size:14px;letter-spacing:.1em;color:#9fe7bd}
 .career-reference-office-contract select{background:#121820;color:#f4f6f5;border:1px solid #ffffff33;border-radius:6px;padding:8px;font:600 13px Arial;min-height:38px}
 .career-reference-office-renew{border:1px solid #2ff08a;background:#2ff08a;color:#04140b;font:700 12px/1 Arial;letter-spacing:.06em;border-radius:6px;padding:10px;min-height:38px;cursor:pointer}
+
+/* Competições, seleção e prêmios (v0.5.50) */
+.career-comp{margin:0 0 12px;padding:12px 14px;border:1px solid #253d55;border-radius:6px;background:#0f1a28}
+.career-comp strong{display:block;font-size:14px;letter-spacing:.08em;color:#f0f4f8}
+.career-comp p{margin:4px 0 0;font-size:12px;color:#9db1c6}
+.career-comp small{display:block;margin-top:4px;font-size:11px;color:#77b98a}
+.career-callup{display:flex;gap:12px;align-items:center;margin-bottom:12px;padding:12px 14px;border:1px solid #253d55;border-radius:6px;background:#0f1a28}
+.career-callup.is-called{border-color:#3d7a4f;background:#10231a}
+.career-callup img,.career-callup__flag svg{width:38px;height:26px;object-fit:cover;border-radius:3px;display:block}
+.career-callup strong{display:block;font-size:14px;color:#fff}
+.career-callup p{margin:3px 0 0;font-size:12px;color:#9db1c6}
+.career-award-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #1d2e40;font-size:13px;color:#dbe6f0}
+.career-award-row.is-won{color:#f2d588}
+.career-award-row__chance{font-size:12px;font-weight:700;color:#8fd1a4}
+.career-award-row.is-won .career-award-row__chance{color:#f2d588}

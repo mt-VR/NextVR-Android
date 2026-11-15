@@ -297,6 +297,26 @@ for (const shirt of SHIRT_COLLECTION) {
     socks: shirt.colors.primary, print: shirt.colors.trim });
 }
 
+// Clube que só tinha a camisa da coleção (ou duas) recebe os uniformes que
+// faltam, montados a partir das cores da primeira camisa. Assim todo clube
+// continua com três opções de blusa, inclusive os que entraram com elenco real.
+for (const [teamId, list] of Object.entries(KITS)) {
+  if (list.length >= 3) continue;
+  if (!list.length) {
+    const team = TEAMS.find(item => item.id === teamId);
+    const [primary, secondary] = team?.colors || ['#f4f4f2', '#141414'];
+    list.push({ id: 'home', name: 'Home', pattern: 'solid', colors: { primary, secondary, trim: secondary } });
+  }
+  const base = list[0];
+  const colors = base.colors || { primary: '#f4f4f2', secondary: '#141414', trim: '#141414' };
+  const light = c => ['#f4f4f2', '#ffffff', '#fff'].includes(String(c).toLowerCase());
+  const fillers = [
+    { id: 'away', name: 'Away', pattern: 'solid', colors: { primary: light(colors.primary) ? '#17191c' : '#f4f4f2', secondary: colors.primary, trim: colors.primary } },
+    { id: 'third', name: 'Third', pattern: 'stripes', colors: { primary: colors.secondary, secondary: colors.primary, trim: colors.trim || colors.primary } }
+  ];
+  for (const filler of fillers) if (list.length < 3) list.push({ ...filler, colors: { ...filler.colors } });
+}
+
 export function kitSvg(kit, { className = '', width = 220, id = '' } = {}) {
   if (!kit) return '';
   const clipId = id || nextId('kit');

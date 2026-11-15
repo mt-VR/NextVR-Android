@@ -48,7 +48,12 @@ test('UT usa o painel inteiro, retratos existentes, hotspots e qualidade persist
   try{const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.evaluate(async()=>{(await import('/src/main.js')).go('ultimate');});
     assert.match(await p.locator('.ut-ref--home').evaluate(n=>getComputedStyle(n).backgroundImage),/\/home\.png/);
     const play=await p.getByRole('button',{name:'Jogar UT',exact:true}).boundingBox();assert.ok(play.x<60&&play.y>180&&play.y<210);
-    await p.getByRole('button',{name:'Meu Clube',exact:true}).click();assert.equal(await p.locator('.ut-ref-slot').count(),11);assert.equal(await p.locator('.ut-ref-slot .avatar img').count(),11);
+    await p.getByRole('button',{name:'Meu Clube',exact:true}).click();assert.equal(await p.locator('.ut-ref-slot').count(),11);
+    // v0.5.50: o XI do Barcelona é o elenco real. Todo mundo que tem retrato no
+    // pacote (9 dos 11) mostra a foto; os outros dois caem no avatar de iniciais.
+    const photos=await p.locator('.ut-ref-slot .avatar img').count();
+    assert.ok(photos>=9,`retratos aplicados: ${photos}/11`);
+    assert.equal(await p.locator('.ut-no-photo').count(),11-photos);
     await p.getByRole('button',{name:'Entrar · gerenciar elenco',exact:true}).click();assert.equal(await p.locator('.ut-slot').count(),11);await p.keyboard.press('Escape');await p.keyboard.press('Escape');
     await p.getByRole('button',{name:'Configurações',exact:true}).click();await p.getByLabel('Qualidade gráfica').selectOption('high');await p.reload();
     assert.equal(await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).graphicsQuality),'high');

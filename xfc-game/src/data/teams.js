@@ -6,6 +6,7 @@ import {crestFor} from './asset-library.js';
 // recente e os seis atributos principais usados na tela de elenco.
 
 import { COLLECTION_CLUBS } from './shirt-collection.js';
+import { REAL_SQUADS, CLUB_STRENGTH } from './real-squads.js';
 
 export const POSITION_LABELS = {
   GK: 'Goleiro',
@@ -916,6 +917,127 @@ for (const club of LALIGA_CLUBS) {
     countryCrest: 'assets/crests/espanha.png', league: 'LaLiga',
     clubCrest: club.crest, crest: `assets/crests/${club.id}.png`, squadSource: 'generated',
     formation: '4-3-3', stars: club.ratings.ovr >= 84 ? 4.5 : club.ratings.ovr >= 80 ? 4 : 3.5, ...squad });
+}
+
+/**
+ * Elencos reais por cima do elenco do jogo.
+ *
+ * O catálogo antigo tinha jogadores que já mudaram de clube (o Hugo Souza
+ * aparecia no Flamengo, mas é goleiro do Corinthians). Para cada clube com
+ * elenco real, os jogadores da lista entram como titulares/reservas — na
+ * posição deles — e quem sobra do elenco antigo fica no banco. Nada é apagado:
+ * o clube continua com 11 titulares e um plantel completo.
+ */
+const POSITION_ORDER = ['GK', 'RB', 'CB', 'CB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'ST', 'LW'];
+const BENCH_POSITIONS = ['GK', 'RB', 'CB', 'CM', 'LW', 'ST', 'CM'];
+
+function slugName(name) {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+function statLine(ovr, position) {
+  const bias = POSITION_BIAS[position] || POSITION_BIAS.CM;
+  return {
+    pace: clamp(ovr - 6 + bias.pace), shooting: clamp(ovr - 6 + bias.shooting),
+    passing: clamp(ovr - 6 + bias.passing), dribbling: clamp(ovr - 6 + bias.dribbling),
+    defending: clamp(ovr - 6 + bias.defending), physical: clamp(ovr - 6 + bias.physical)
+  };
+}
+function realPlayer(clubId, [name, number, pos, ovr], index, looks = null, legacyId = null) {
+  // Nome no cartão: sobrenome só quando o nome tem três partes ou mais; nomes
+  // de duas palavras (Léo Ortiz, Luiz Araújo, Lamine Yamal) ficam inteiros.
+  const parts = name.split(' ');
+  const short = parts.length > 2 ? parts.slice(1).join(' ') : name;
+  return {
+    // ID antigo preservado quando é o mesmo atleta: saves do Ultimate Team e
+    // escalações salvas continuam válidos depois do elenco real.
+    id: legacyId || `${clubId}-${slugName(name)}`, name: short, fullName: name, number, pos, ovr,
+    potential: clamp(ovr + 2), form: index % 4 === 0 ? 'W' : 'W', age: 24, height: 182,
+    foot: index % 5 === 0 ? 'Left' : 'Right', role: POSITION_ROLE[pos] || POSITION_ROLE.CM,
+    focus: POSITION_FOCUS[pos] || 'Support', celebration: 'None', photo: null,
+    // O visual do jogador antigo (cabelo/pele do Neymar, por exemplo) continua
+    // quando é o mesmo atleta de verdade.
+    ...(looks ? { appearance: looks } : {}),
+    stats: statLine(ovr, pos)
+  };
+}
+
+function applyRealSquad(team, squad) {
+  const starters = squad.slice(0, 11);
+  // Um XI válido: um goleiro e dez de linha, na ordem da formação.
+  const goalkeeper = starters.find(item => item[2] === 'GK') || starters[0];
+  const outfield = starters.filter(item => item !== goalkeeper);
+  // O XI sai na ordem da formação 4-3-3 (defesa, meio, ataque), mantendo a
+  // posição de cada jogador: o cartão em campo usa o `pos` real.
+  const LINE_ORDER = ['RB', 'CB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'ST'];
+  const rank = pos => {
+    const index = LINE_ORDER.indexOf(pos);
+    return index < 0 ? LINE_ORDER.length : index;
+  };
+  const lineup = [goalkeeper, ...outfield.slice().sort((a, b) => rank(a[2]) - rank(b[2]))];
+  const used = new Set();
+  // Aparência do elenco antigo por nome completo, para o Neymar não perder o
+  // cabelo low-poly ao entrar no elenco real do Santos.
+  // Aparência e retrato vêm do elenco antigo, casando pelo nome. Sem isso todo
+  // atleta real cairia no avatar de iniciais e o plantel ficaria sem cara.
+  const previous = [...team.players, ...(team.substitutes || [])];
+  // Nome de duas palavras casa pelo sobrenome (o cartão antigo guardava "Pedri"),
+  // o resto pelo nome completo — Pedro, do Flamengo, não vira Pedro Henrique.
+  const family = name => name.split(' ').slice(-1)[0];
+  const surname = item => item[0].split(' ').length > 1 ? family(item[0]) : null;
+  const legacyId = item => previous.find(old =>
+    old.fullName === item[0] || old.name === item[0]
+    || (!old.name.includes(' ') && old.name === surname(item)))?.id || null;
+  const pick = (player, field) => {
+    const exact = previous.find(old => old[field]
+      && (old.fullName === player[0] || old.name === player[0]));
+    if (exact) return exact[field];
+    // O cartão antigo às vezes é monônimo ("Pedri", "Raphinha", "Olmo"): casa só
+    // quando é a última palavra do nome novo e o apelido é único no elenco.
+    const last = surname(player);
+    if (!last) return null;
+    const bySurname = previous.filter(old => old[field] && !old.name.includes(' ') && old.name === last);
+    return bySurname.length === 1 ? bySurname[0][field] : null;
+  };
+  const looks = new Map();
+  for (const item of squad) {
+    const look = pick(item, 'appearance');
+    if (look) looks.set(item[0], look);
+  }
+  const build = (item, index) => {
+    used.add(item[0]);
+    const player = realPlayer(team.id, item, index, looks.get(item[0]) || null, legacyId(item));
+    player.photo = pick(item, 'photo');
+    return player;
+  };
+  team.players = lineup.map(build);
+  const bench = squad.slice(11).filter(item => !used.has(item[0]));
+  const realBench = bench.map((item, index) => build(item, index + 11));
+  // Quem não está na lista real sai do clube — é assim que o Hugo Souza deixa
+  // de aparecer no Flamengo. O banco é completado com jogadores do país só se
+  // faltar gente para os sete lugares.
+  // O banco é SEMPRE de sete: se a lista real trouxer mais, os excedentes
+  // entram no time e o resto vira opção de reserva só até o limite; se trouxer
+  // menos, completa com atletas do país — nenhum nome antigo volta.
+  const pool = generatedSquad(team.id, FIRST_NAMES[team.flag] ? team.flag : 'en',
+    9, Math.max(60, (team.ratings?.ovr || 75) - 10)).substitutes;
+  const extra = squad.slice(11).filter(item => !used.has(item[0]))
+    .map((item, index) => realPlayer(team.id, item, index + 11, looks.get(item[0]) || null));
+  team.substitutes = [...realBench.filter(item => !extra.some(other => other.id === item.id)), ...extra];
+  const filler = pool.filter(player => !team.substitutes.some(item => item.name === player.name));
+  team.substitutes = [...team.substitutes, ...filler].slice(0, 7);
+  // O overall do clube passa a refletir o elenco real.
+  const average = Math.round(team.players.reduce((sum, p) => sum + p.ovr, 0) / team.players.length);
+  // O overall do clube segue o tamanho do clube (CLUB_STRENGTH), não só a média
+  // do XI: é isso que faz o Real Madrid ser mais difícil de alcançar que o Celtic.
+  const ovr = CLUB_STRENGTH[team.id] || average;
+  team.ratings = { att: ovr, mid: ovr, def: ovr, ovr };
+  team.squadSource = 'real';
+}
+
+for (const [clubId, squad] of Object.entries(REAL_SQUADS)) {
+  const team = TEAMS.find(item => item.id === clubId);
+  if (team && Array.isArray(squad) && squad.length >= 11) applyRealSquad(team, squad);
 }
 
 // Getter preserva atualização/reversão das escolhas sem alterar o cadastro salvo.

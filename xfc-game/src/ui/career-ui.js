@@ -7,7 +7,7 @@ export const select=(name,values,value)=>el('select',{'aria-label':name},...Obje
 export const crest=id=>el('img',{class:'season-crest',src:getTeam(id)?.crest,alt:getTeam(id)?.name||'',draggable:'false'});
 export const panel=(title,...children)=>el('section',{class:'season-panel'},el('h2',{text:title}),...children);
 export function icon(name){
- const paths={calendar:'M3 5h18v16H3z M3 10h18 M7 2v6 M17 2v6 M7 14h2 M12 14h2 M17 14h1 M7 18h2 M12 18h2',club:'M12 2l9 4v6c0 6-9 10-9 10S3 18 3 12V6z',transfer:'M3 7h17l-4-4 M21 17H4l4 4',settings:'M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5 5l3 3 M16 16l3 3 M5 19l3-3 M16 8l3-3 M17 12a5 5 0 1 0-10 0a5 5 0 1 0 10 0',player:'M16 6a4 4 0 1 0-8 0a4 4 0 1 0 8 0 M4 22v-5c0-6 16-6 16 0v5z',shirt:'M8 3l-6 4 3 5 3-2v12h8V10l3 2 3-5-6-4c0 4-8 4-8 0z',office:'M3 7h18v14H3z M8 7V3h8v4 M3 12h18 M11 11h2v4h-2z',play:'M6 3l15 9-15 9z',save:'M3 3h15l3 3v15H3z M7 3v6h10V3 M7 21v-8h10v8',target:'M21 12a9 9 0 1 0-18 0a9 9 0 1 0 18 0 M16 12a4 4 0 1 0-8 0a4 4 0 1 0 8 0',boot:'M4 4h5v8l11 5v4H2v-7z',celebrate:'M3 3l4 7h10l4-7 M9 10v11 M15 10v11 M15 4a3 3 0 1 0-6 0a3 3 0 1 0 6 0'};
+ const paths={calendar:'M3 5h18v16H3z M3 10h18 M7 2v6 M17 2v6 M7 14h2 M12 14h2 M17 14h1 M7 18h2 M12 18h2',club:'M12 2l9 4v6c0 6-9 10-9 10S3 18 3 12V6z',transfer:'M3 7h17l-4-4 M21 17H4l4 4',settings:'M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5 5l3 3 M16 16l3 3 M5 19l3-3 M16 8l3-3 M17 12a5 5 0 1 0-10 0a5 5 0 1 0 10 0',player:'M16 6a4 4 0 1 0-8 0a4 4 0 1 0 8 0 M4 22v-5c0-6 16-6 16 0v5z',shirt:'M8 3l-6 4 3 5 3-2v12h8V10l3 2 3-5-6-4c0 4-8 4-8 0z',office:'M3 7h18v14H3z M8 7V3h8v4 M3 12h18 M11 11h2v4h-2z',play:'M6 3l15 9-15 9z',save:'M3 3h15l3 3v15H3z M7 3v6h10V3 M7 21v-8h10v8',target:'M21 12a9 9 0 1 0-18 0a9 9 0 1 0 18 0 M16 12a4 4 0 1 0-8 0a4 4 0 1 0 8 0',boot:'M4 4h5v8l11 5v4H2v-7z',celebrate:'M3 3l4 7h10l4-7 M9 10v11 M15 10v11 M15 4a3 3 0 1 0-6 0a3 3 0 1 0 6 0',trophy:'M7 3h10v5a5 5 0 0 1-10 0z M7 5H4v2a3 3 0 0 0 3 3 M17 5h3v2a3 3 0 0 1-3 3 M10 13h4v4h-4z M8 21h8v-2H8z M11 17h2v2h-2z'};
  return el('span',{class:'season-icon','aria-hidden':'true',html:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${paths[name]||paths.club}"/></svg>`});
 }
 export function tile(title,subtitle,name,action,props={}){return el('button',{type:'button',class:'season-tile',onClick:action,...props},icon(name),el('span',{},el('b',{text:title}),subtitle&&el('small',{text:subtitle})),el('span',{text:'›',class:'season-chevron'}));}
@@ -15,7 +15,7 @@ export function shell(ctx,{title,subtitle='',career,view='entry',back,go}){
  const node=el('div',{class:`screen screen--career season-screen season-${view}`});
  const header=el('header',{class:'season-header'},el('div',{class:'season-logo',html:xfcWordmark()}),el('nav',{'aria-label':'Carreira'}));
  const nav=header.querySelector('nav');
- for(const [text,target]of [['Início','entry'],['Central','hub'],['Meu Clube','club'],['Transferências','transfers'],['Escritório','office'],['Personalizar','custom']]){
+ for(const [text,target]of [['Início','entry'],['Central','hub'],['Competições','competitions'],['Meu Clube','club'],['Transferências','transfers'],['Escritório','office'],['Personalizar','custom']]){
   if(target==='custom'&&career?.kind==='manager')continue;
   nav.append(button(text,()=>go(target),{disabled:!career&&target!=='entry',class:target===view?'is-active':''}));
  }

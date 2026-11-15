@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EUROPEAN_CLUBS, NEGOTIATION_CHANCE, careerOffers, negotiateCareerClub, answerOffer, changeCareerClub} from '../xfc-game/src/data/career-market.js';
+import {EUROPEAN_CLUBS, careerOffers, negotiateCareerClub, negotiationChance, answerOffer, changeCareerClub} from '../xfc-game/src/data/career-market.js';
 import {createCareer, careerTeam, careerOverall, careerLeague} from '../xfc-game/src/data/career.js';
 import {getTeam, TEAMS} from '../xfc-game/src/data/teams.js';
 
@@ -11,7 +11,11 @@ test('mercado: oito clubes da Europa existentes no catálogo, sem duplicar', () 
     assert.ok(getTeam(id), `clube do mercado existe: ${id}`);
     assert.notEqual(getTeam(id).country, 'Brasil');
   }
-  assert.equal(NEGOTIATION_CHANCE, 0.5, 'a chance é 50% a 50%');
+  // v0.5.50: a chance deixou de ser 50/50 — clube melhor exige mais overall.
+  const weak=createCareer({clubId:'santos',name:'Atleta'});
+  for(const k in weak.player.stats)weak.player.stats[k]=78;
+  assert.ok(negotiationChance(weak,'real-madrid')<negotiationChance(weak,'arsenal'),
+    'clube maior é mais difícil que o menor');
 });
 
 test('ofertas: três clubes por temporada, estáveis na mesma temporada e nunca o clube atual', () => {
@@ -25,13 +29,14 @@ test('ofertas: três clubes por temporada, estáveis na mesma temporada e nunca 
   assert.notDeepEqual(careerOffers(career).map(o => o.clubId), offers.map(o => o.clubId), 'temporada nova, sorteio novo');
 });
 
-test('negociação: 50% com sorteio injetado; recusa mantém o clube e aceite troca de verdade', () => {
+test('negociação: chance do clube decide aceite; recusa mantém o clube e aceite troca de verdade', () => {
   const career = createCareer({clubId: 'santos', name: 'Atleta'});
-  const refused = negotiateCareerClub(career, 'real-madrid', () => 0.75);
+  // Sorteio injetado acima de qualquer chance: sempre recusa.
+  const refused = negotiateCareerClub(career, 'real-madrid', () => 0.999);
   assert.equal(refused.ok, false);
   assert.equal(refused.reason, 'refused');
   assert.equal(career.clubId, 'santos', 'clube recusando: o jogador não se muda');
-  const accepted = negotiateCareerClub(career, 'real-madrid', () => 0.25);
+  const accepted = negotiateCareerClub(career, 'real-madrid', () => 0);
   assert.equal(accepted.ok, true);
   assert.equal(career.clubId, 'real-madrid');
   assert.ok(career.league.clubs.includes('real-madrid'), 'a liga do save passa a ser a do clube novo');
