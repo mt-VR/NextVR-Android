@@ -779,13 +779,19 @@ export function playScreen(ctx, params = {}) {
           const base=pitchToPlan(next);
           if(!match.world.setGamePlan(entry.id,base))return;
           point=next;
+          // Escalação mexida NA PARTIDA não altera a oficial: a posição vale só
+          // para este jogo (fica no `match` e sai com ele). No plano de jogo
+          // fora da partida (elenco/central), sim, é salva na carreira.
+          if(params.careerMatchId||params.ultimateMatchId){
+            if(params.ultimateMatchId&&ctx.state.profile.ut?.pending){
+              const u=ctx.state.profile.ut;u.pending.squad.positions[entry.rosterId]=next;
+              const saved=u.squads.find(s=>s.id===u.pending.squad.id);if(saved)saved.positions[entry.rosterId]=next;
+              home.plan[entry.rosterId]=base;
+            }
+            return;
+          }
           ctx.state.profile.gamePlans||={};ctx.state.profile.gamePlans[userTeam.id]||={};
           ctx.state.profile.gamePlans[userTeam.id][entry.rosterId]=base;
-          if(params.ultimateMatchId&&ctx.state.profile.ut?.pending){
-            const u=ctx.state.profile.ut;u.pending.squad.positions[entry.rosterId]=next;
-            const saved=u.squads.find(s=>s.id===u.pending.squad.id);if(saved)saved.positions[entry.rosterId]=next;
-            home.plan[entry.rosterId]=base;
-          }
           saveProfile(ctx.state);
         }});
       }

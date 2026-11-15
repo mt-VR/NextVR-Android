@@ -19,7 +19,11 @@ export function careerScreen(ctx,params={}){
  const back=()=>view==='entry'?ctx.go('menu'):view==='custom-edit'?go('custom',{back:params.customReturnTo||'hub'}):go(params.back||({journey:'entry',hub:'journey','custom-edit':'custom'}[view])||(['create','load','objectives','settings'].includes(view)&&params.fromEntry?'entry':'hub'));
  const presentation=kind==='player'&&c&&!c.pending&&pendingCareerPresentation(c);
  if(presentation&&['journey','hub','office','transfers','presentation'].includes(view))return careerPresentation(ctx,{career:c,event:presentation,persist,go});
- if(view==='entry'||c&&(view==='journey'||kind==='player'&&['hub','custom'].includes(view)))return careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo:params.back||'hub'});
+ // Escritório e Evoluir Jogador são telas de referência (arte do usuário
+ // inteira) também para o técnico — o pedido vale para as duas carreiras.
+ if(view==='entry'||c&&(view==='journey'
+  ||(kind==='player'&&['hub','custom','transfers'].includes(view))
+  ||['office','evolve'].includes(view)))return careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo:params.back||'hub'});
  if(view==='create'||view==='custom-edit')return careerEditor(ctx,{...params,kind,career:c,go,persist,back:view==='create'?()=>go(params.back||'entry'):back});
  if(view==='plan'&&c)return careerPreparation(ctx,{career:c,kind,go,persist,back});
  const titles={entry:'Modo Carreira',hub:'Central da Carreira',agenda:'Agenda de Jogos',table:'Classificação',club:'Meu Clube',transfers:'Transferências',office:'Escritório',objectives:'Objetivos',settings:'Configurações',load:'Carregar Carreira',stats:'Estatísticas'};

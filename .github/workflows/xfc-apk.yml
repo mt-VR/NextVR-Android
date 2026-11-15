@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,gameplay-features,gameplay-features-browser}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,career-market,career-office-evolve,gameplay-features,gameplay-features-browser}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -184,20 +184,22 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.47
+          TAG=xfc-gameplay-v0.5.48
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.47 (versionCode 53), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.48 (versionCode 54), commit ${GITHUB_SHA}." \
             "" \
-            "A câmera agora é a de transmissão do eFootball de verdade: a lente fica na lateral, na linha do meio-campo, e o que se move é a mira dela. Se a bola vai para o outro lado, a câmera vai junto e a bola fica sempre no centro horizontal do quadro." \
-            "Quando a bola e o jogador com ela ficam do lado de cima, a mira sobe junto: a câmera inclina para cima do lance e a arquibancada de fundo desce no quadro. A lente também recua quando a jogada vem para o lado dela, então a bola nunca sai pela borda de baixo." \
-            "O enquadramento do print continua: arquibancada só numa faixa fina no topo, publicidade logo abaixo e o gramado até a borda de baixo (a lateral de baixo passa por baixo do quadro)." \
-            "O resto está como na v0.5.44: cerimônia de quatro cenas, corrida, passe direcional, bola parada, câmera Pro, nota ao vivo e expulsão." \
+            "Câmera: quando a bola vai para o lado de cima do campo, a objetiva fecha e o lance chega maior no quadro (fov 54° → 43°); do lado de baixo nada muda." \
+            "Menus do print no jogo, do jeito que estão na imagem: Escritório e Evoluir Jogador ocupam a tela inteira, de ponta a ponta, com os atalhos nas posições da própria arte." \
+            "Evoluir Jogador usa os pontos do seu save: o OVR, o OVR depois de gastar e os seis atributos vêm da carreira, e cada + gasta um ponto de verdade." \
+            "Escritório: 8 clubes da Europa para negociar, 50% de chance cada — se aceitarem você vai na hora, se recusarem você fica. Mais 3 ofertas por temporada com ACEITAR OFERTA ou FICAR." \
+            "Cruzeiro, Vasco, Fluminense, Ceará, Avaí, Náutico, Sampaio Corrêa, Internacional, São Paulo e Botafogo agora entram na carreira com campeonato e estádio." \
+            "Escalação mexida durante a partida vale só para aquele jogo: a escalação oficial da carreira não muda. Moicano refeito (crista contínua, laterais raspadas) e Bayern de vermelho." \
             "Testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — câmera de transmissão v0.5.47" \
+            gh release create "$TAG" --title "XFC 27 — escritório, evoluir jogador e mercado v0.5.48" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — câmera de transmissão v0.5.47" \
+            gh release edit "$TAG" --title "XFC 27 — escritório, evoluir jogador e mercado v0.5.48" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

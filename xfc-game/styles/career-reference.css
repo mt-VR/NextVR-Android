@@ -22,3 +22,51 @@
 @media(prefers-reduced-motion:reduce){.career-reference-hit{transition:none}}
 /* Não ampliar a arte durante a transição: proporção e enquadramento constantes. */
 .career-reference{transform:none;transition:opacity 240ms ease}
+/* v0.5.48 — Escritório e Evoluir Jogador (artes do usuário inteiras). */
+.career-reference-office-profile{flex-direction:row;justify-content:flex-start;align-items:center;gap:10px;background:linear-gradient(105deg,#0a0d12e6,#12161ce6);border-radius:8px;padding:2px 8px;text-align:left}
+.career-reference-office-profile>.season-crest{width:46px;height:52px}
+.career-reference-office-profile>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.career-reference-office-profile b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.career-reference-office-profile small{font-size:11px;color:#c8ccd4;white-space:nowrap}
+/* Os números do save cobrem os números impressos na arte (mesma cor do cartão). */
+.career-reference-evolve-ovr,.career-reference-evolve-next,.career-reference-evolve-points{background:#0d0f10;padding:0;justify-content:center;text-align:center;border-radius:2px}
+.career-reference-evolve-ovr>b,.career-reference-evolve-next>b{font-size:60px;line-height:1;font-weight:800;color:#f4f6f5;letter-spacing:-.02em}
+.career-reference-evolve-points>b{font-size:47px;line-height:1;font-weight:800;color:#f4f6f5}
+.career-reference-evolve-next>b{color:#2ff08a}
+.career-reference-evolve-stats{background:#0d0f10;padding:0;justify-content:center;align-items:center;text-align:center;border-radius:2px}
+.career-reference-evolve-stats>b{font-size:19px;font-weight:700;color:#f4f6f5;line-height:1}
+.career-reference-evolve-buttons{background:none;padding:0;gap:0;pointer-events:auto}
+.career-reference-evolve-plus{display:flex;flex-direction:column;justify-content:space-between;width:100%;height:100%}
+.career-reference-evolve-up{width:34px;height:34px;border-radius:9px;border:1px solid #ffffff3d;background:#141719;color:#dfe4e6;font:600 30px/1 Arial;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;margin:0 auto}
+.career-reference-evolve-up:hover:not(:disabled),.career-reference-evolve-up:focus-visible{background:#1f2624;border-color:#2ff08a;color:#2ff08a;outline:none}
+.career-reference-evolve-up:disabled{opacity:.35;cursor:default}
+/* Transferências: fundo do jogo e cartões DOM (sem arte de referência). */
+.career-market-screen{position:absolute;inset:0;overflow:hidden;background:radial-gradient(120% 90% at 50% 0%,#16202a,#070a0e 70%);color:#f4f6f5;padding:44px 56px 78px;box-sizing:border-box;font-family:Arial,Inter,sans-serif}
+.career-market{display:flex;flex-direction:column;gap:16px;height:100%;overflow:auto}
+/* O cartão do clube precisa caber "Eintracht Frankfurt" + botão: nome em duas
+   linhas com corte por reticências e sem quebra do botão. */
+.career-market__name{flex:1 1 auto;min-width:0}
+.career-market__name b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;line-height:1.15;overflow:hidden}
+.career-market__club{padding:8px}
+.career-market__title{margin:0;font-size:15px;letter-spacing:.16em;color:#9fe7bd;font-weight:700}
+.career-market__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.career-market__club{display:flex;align-items:center;gap:8px;background:#0e1419e6;border:1px solid #ffffff1f;border-radius:9px;padding:8px 10px;min-width:0}
+.career-market__club.is-current{border-color:#2ff08a66;background:#0f1c16e6}
+.career-market__club img{width:34px;height:38px;object-fit:contain;flex:0 0 auto}
+.career-market__name{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.career-market__name b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.career-market__name small{font-size:11px;color:#a9b1ba;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.career-market__club button,.career-market__offer button{border:1px solid #2ff08a;background:#2ff08a;color:#04140b;font:700 11px/1 Arial;letter-spacing:.04em;border-radius:6px;padding:8px;min-height:34px;cursor:pointer;white-space:nowrap;flex:0 0 auto}
+.career-market__club button:disabled{background:#1b2229;border-color:#ffffff1f;color:#8b949c;cursor:default}
+.career-market__note{margin:0;font-size:12px;color:#b6bec6}
+.career-market__offers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.career-market__offer{display:flex;align-items:center;gap:8px;background:#0e1419e6;border:1px solid #ffffff1f;border-radius:9px;padding:8px 10px;min-width:0}
+.career-market__offer>div:nth-child(2){display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.career-market__offer img{width:38px;height:42px;object-fit:contain}
+.career-market__offer b{font-size:14px}.career-market__offer small{font-size:11px;color:#a9b1ba}
+.career-market__actions{display:flex;gap:8px}
+.career-market__actions button.is-ghost{background:transparent;border-color:#ffffff40;color:#e6eaee}
+.career-reference-office-contract{z-index:6;pointer-events:auto;background:#080b0fee;border:1px solid #ffffff26;border-radius:10px;padding:12px;align-items:stretch;text-align:left;gap:10px}
+.career-reference-office-contract>b{font-size:14px;letter-spacing:.1em;color:#9fe7bd}
+.career-reference-office-contract select{background:#121820;color:#f4f6f5;border:1px solid #ffffff33;border-radius:6px;padding:8px;font:600 13px Arial;min-height:38px}
+.career-reference-office-renew{border:1px solid #2ff08a;background:#2ff08a;color:#04140b;font:700 12px/1 Arial;letter-spacing:.06em;border-radius:6px;padding:10px;min-height:38px;cursor:pointer}

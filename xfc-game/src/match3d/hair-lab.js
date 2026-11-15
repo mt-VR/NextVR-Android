@@ -53,9 +53,29 @@ function blade(root,tip,width,depth,lean=0){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);const flat=g.toNonIndexed();g.dispose();flat.computeVertexNormals();return flat;
 }
 const BUILDERS={
+ // Moicano de verdade (pedido: "deixa o moicano mais parecido com o moicano"):
+ // uma crista contínua do meio da testa até a nuca, alta no topo e afinando
+ // nas pontas, com as laterais raspadas — em vez das nove lâminas soltas.
+ // A crista são três fileiras de mechas; as duas de fora são mais baixas, o
+ // que dá a seção triangular que lê como moicano de perfil.
  'lab-reference-mohawk':c=>{
-  const parts=[];for(let i=0;i<9;i++){const t=1.10-i*.32,a=t<0?Math.PI:0,root=c.surface(a,Math.abs(t),.002),height=.065+.060*Math.sin((i+.5)/9*Math.PI);parts.push(blade(root,root.clone().add(V((i%2?1:-1)*.007,height,-.032)),.030,.027,.006));}
-  for(const side of [-1,1])for(let i=0;i<4;i++){const t=.57-i*.34,x=side*.30,root=c.surface(Math.atan2(x,t),Math.hypot(x,t),.002);parts.push(blade(root,root.clone().add(V(side*.025,.060+i*.003,-.024)),.021,.022,side*.005));}return parts;
+  const parts=[],rows=[{x:0,k:1},{x:-.030,k:.62},{x:.030,k:.62}];
+  for(const {x,k} of rows)for(let i=0;i<11;i++){
+   const t=1.06-i*(2.06/10),a=x<0?-Math.PI/2:x>0?Math.PI/2:0,root=c.surface(a,Math.abs(t),.002);
+   // altura da crista: pico em cima (t≈0) e pontas curtas na testa e na nuca
+   const peak=.148*Math.pow(Math.cos(t*.78),.42)+.030;
+   // A ponta vai para TRÁS (na nuca) e um tico para o lado da fileira: o
+   // moicano é uma faixa que desce pela nuca, não um espeto para cima.
+   const end=root.clone().add(V(x*.55+(i%2?1:-1)*.005,peak*k,-.105));
+   parts.push(blade(root,end,.029*k+.011,.026*k+.009,.003));
+  }
+  // Laterais raspadas: dois fios rentes de cada lado, só para marcar a
+  // transição entre a crista e o couro.
+  for(const side of [-1,1])for(let i=0;i<3;i++){
+   const t=.62-i*.36,x=side*.31,root=c.surface(Math.atan2(x,t),Math.hypot(x,t),.001);
+   parts.push(blade(root,root.clone().add(V(side*.020,.028+i*.002,-.020)),.017,.016,side*.004));
+  }
+  return parts;
  },
  'lab-ragnarok':c=>{
   // Ragnarok de verdade: cabelo na cabeça INTEIRA, penteado de frente para

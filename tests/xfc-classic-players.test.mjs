@@ -51,15 +51,41 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 // match.js foi atualizado de propósito: saída de bola destravada, quedas reais,
 // conversa com o árbitro e câmera de transmissão com o enquadramento do
 // eFootball (a lente também é limitada pelo vão livre antes da arquibancada).
+// v0.5.48: `career-reference.js` ganhou as telas Escritório e Evoluir Jogador
+// (artes do usuário inteiras, hotspots medidos na própria imagem), e
+// `camera.js` fecha a objetiva no lado de cima do quadro. O `match.js` não
+// mudou nesta versão — o hash acima é o da v0.5.47.
 // Controles, HUD, menus de referência e a arte de entrada continuam iguais.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "7d44e045209b64b67c2afb846ce69cb18242f6d64f73aa2ee2ab24da09a668e3",
   "src/match3d/controls.js": "9a014bf4045165c7a6ed023021a49a1ebf8242b9b99ef580947dc8f4d41b7eec",
   "src/match3d/match.js": "2a216e0823446781887f44c3ad92586189d065c7d593ff100979836002efa54f",
-  "src/screens/career-reference.js": "c1dac4158ad6d164f875f03459b42d2617d4e2bacd6906556a23666ab9d7b2cd",
-  "styles/career-reference.css": "85eebda817ec4e48c3badd1e9dc6be6310495f16f0462ffe6f878a201429888d",
+  "src/screens/career-reference.js": "60eee241f86568f4f89bd031f7eb2a7b03c5e2f68325efc4816cbc1021479528",
+  "styles/career-reference.css": "dc4408ab89883e917d0acaf6a497cffa737e1233a765ea001c65623e0407f2bd",
   "styles/match3d.css": "765d37188b349cf58abaae9dec83f996745ce1518ce6e594eee4a68dd7c6b6a2"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
+});
+
+// v0.5.48: a câmera de transmissão aproxima quando a bola está no lado de cima
+// do quadro (o lado oposto ao da lente, `z` negativo). A lente é fixa, então
+// "mais perto" é a objetiva fechando; do lado de cá o fov continua 54°.
+test('câmera de transmissão: fov fecha no lado de cima e não muda do lado de cá',async()=>{
+ const {broadcastCameraPose}=await import('../xfc-game/src/match3d/camera.js');
+ const {PITCH}=await import('../xfc-game/src/match3d/constants.js');
+ const mid=broadcastCameraPose({x:0,y:0,z:0},1,null);
+ assert.equal(mid.position.x,0);assert.equal(mid.position.z,45);assert.equal(mid.fov,54);
+ const top=broadcastCameraPose({x:0,y:0,z:-PITCH.halfWidth},1,null);
+ const near=broadcastCameraPose({x:0,y:0,z:PITCH.halfWidth},1,null);
+ assert.ok(top.fov<mid.fov,'bola no lado de cima: a objetiva fecha');
+ assert.ok(top.fov>mid.fov*0.7,'...mas sem telephoto: a arquibancada de fundo continua no quadro');
+ assert.equal(near.fov,54,'bola do lado da lente: o enquadramento do print não muda');
+ for(const z of [-34,-20,0,20,30]){
+  const pose=broadcastCameraPose({x:-30,y:0,z},1,null);
+  assert.equal(pose.position.x,-30,'a lente acompanha a bola em X');
+  assert.equal(pose.position.y,16,'a altura da lente não muda com a bola');
+ }
+ assert.ok(broadcastCameraPose({x:0,y:0,z:-34},1,null).fov<=broadcastCameraPose({x:0,y:0,z:-20},1,null).fov,
+  'quanto mais para cima, mais fechada a objetiva');
 });

@@ -608,7 +608,7 @@ export const SHIRT_COLLECTION = [
     "shirt": "assets/kits/collection/58.png",
     "pattern": "solid",
     "colors": {
-      "primary": "#145941",
+      "primary": "#dc052d",
       "secondary": "#eeeeee",
       "trim": "#eeeeee"
     }
@@ -1322,7 +1322,7 @@ export const COLLECTION_CLUBS = [
     "flag": "de",
     "country": "Alemanha",
     "colors": {
-      "primary": "#145941",
+      "primary": "#dc052d",
       "secondary": "#eeeeee",
       "accent": "#eeeeee"
     }

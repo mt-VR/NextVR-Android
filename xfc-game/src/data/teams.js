@@ -681,12 +681,35 @@ for (const club of EXTRA_CLUBS) {
   });
 }
 
+// Estádio genérico por país, para os clubes novos terem praça no save.
+const STADIUM_POOLS = {
+  Brasil: 'Arena do clube', Espanha: 'Estadio del club', Inglaterra: 'Stadium',
+  Alemanha: 'Arena', 'Países Baixos': 'Stadion', Escócia: 'Park',
+  Grécia: 'Stadium', Argentina: 'Estadio', 'País de Gales': 'Park',
+  Japão: 'Stadium', Itália: 'Stadio', França: 'Stade', Portugal: 'Estádio'
+};
+
+// Clubes que entraram na atualização (Cruzeiro, Vasco, Fluminense, Ceará,
+// Avaí, Náutico, Sampaio Corrêa, Internacional, São Paulo). Entram no modo
+// carreira com liga e estádio de verdade no formato do save — antes ficavam
+// com `league: 'Brasil'` e `stadium: 'Elenco fictício'`, o que os deixava sem
+// campeonato na carreira.
+const COLLECTION_LEAGUES = {
+  Brasil: 'Brasileirão Série A',
+  Espanha: 'LaLiga', Inglaterra: 'Premier League', Alemanha: 'Bundesliga',
+  'Países Baixos': 'Eredivisie', Escócia: 'Scottish Premiership',
+  Grécia: 'Super League Greece', Argentina: 'Liga Profesional',
+  'País de Gales': 'EFL League One', Japão: 'J1 League', Itália: 'Serie A',
+  França: 'Ligue 1', Portugal: 'Liga Portugal'
+};
+
 // Não duplica clubes que já existiam; os novos elencos são explicitamente fictícios.
 for (const club of COLLECTION_CLUBS) {
   if (TEAMS.some(team => team.id === club.id)) continue;
   const squad = generatedSquad(club.id, FIRST_NAMES[club.flag] ? club.flag : 'en', 0, 75);
   TEAMS.push({ ...club, shortName: club.name, nickname: club.name,
-    city: '', league: club.country, stadium: 'Elenco fictício', squadSource: 'generated',
+    city: '', league: COLLECTION_LEAGUES[club.country] || club.country,
+    stadium: STADIUM_POOLS[club.country] || 'Estádio do clube', squadSource: 'generated',
     crest: `assets/crests/${club.id}.png`, formation: '4-3-3', stars: 3.5,
     ratings: { att: 75, mid: 75, def: 75, ovr: 75 }, ...squad });
 }

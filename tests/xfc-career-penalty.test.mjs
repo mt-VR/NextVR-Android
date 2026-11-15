@@ -110,9 +110,15 @@ test('carreira referência: criação, cabelo/chuteira salvos, painéis e aparê
  await p.getByRole('button',{name:/Acessórios Chuteiras/}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('#ee4235');
  await p.getByRole('button',{name:'Começar carreira',exact:true}).click();await p.getByRole('button',{name:'Pular apresentação',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();
  assert.ok((await p.locator('.season-profile,.career-reference-profile').textContent()).includes('Real Madrid'));
- for(const label of ['Meu Clube','Escritório','Configurações']){
+ for(const label of ['Meu Clube','Configurações']){
    await p.getByRole('button',{name:label,exact:true}).first().click();assert.ok(await p.locator('.season-panel').first().isVisible());await p.keyboard.press('Escape');
  }
+ // v0.5.48: o Escritório é a arte do usuário inteira (sem painéis de temporada);
+ // o que precisa aparecer é a imagem e o clube do save no cartão do topo.
+ await p.getByRole('button',{name:'Escritório',exact:true}).first().click();
+ await p.waitForSelector('.career-reference-art');assert.match(await p.locator('.career-reference-art').getAttribute('src'),/season\/office\.png$/);
+ assert.match(await p.locator('.career-reference-office-profile').innerText(),/Real Madrid/);
+ await p.keyboard.press('Escape');
  await p.getByRole('button',{name:'Personalizar',exact:true}).click();await p.getByRole('button',{name:'Acessórios',exact:true}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('#b3ef36');await p.getByRole('button',{name:'Salvar personalização',exact:true}).click();
  await p.reload();await p.evaluate(async()=>{(await import('/src/main.js')).go('career');});
  const c=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).career);assert.equal(c.player.appearance.bootColor,'#b3ef36');assert.equal(c.player.appearance.hairStyle,'lab-reference-mohawk');assert.equal(c.clubId,'real-madrid');

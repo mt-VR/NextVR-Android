@@ -92,6 +92,14 @@ const CAMERA_Z_FOLLOW = 0.6;
 /** A mira sobe quando a bola está longe: o olhar acompanha a jogada. */
 const CAMERA_AIM_LIFT = 0.25;
 const CAMERA_AIM_BASE = -2;
+/**
+ * Aproximação quando o lance está no lado de CIMA do quadro — o lado oposto ao
+ * da lente, `z` negativo, que é onde a bola fica mais longe. A lente não pode
+ * entrar no gramado (a lateral está a 34 m do eixo), então "ir pra mais perto"
+ * é fechar a objetiva: `CAMERA_TOP_ZOOM` encolhe o fov até esse lado e a mira
+ * sobe junto (o tilt do eFootball já existente). Nada muda o lado de cá.
+ */
+const CAMERA_TOP_ZOOM = 0.2;
 
 /** Teto do zoom do menu de pausa: a lente nunca entra na arquibancada. */
 export const BROADCAST_CAMERA_LIMITS = {
@@ -121,10 +129,13 @@ export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velo
   // A mira sobe quando a bola está do lado oposto e desce quando ela vem para
   // cá — é o tilt da câmera do eFootball, não um quadro fixo deslizando.
   const aimY = clamp((aimZ - ballZ) * CAMERA_AIM_LIFT + CAMERA_AIM_BASE, -3, 14);
+  // O lado de cima do quadro é o oposto ao da lente (`z` negativo), onde o
+  // lance está mais longe: lá a objetiva fecha e o lance chega maior.
+  const far = clamp(-ballZ / PITCH.halfWidth, 0, 1);
   return {
     position: { x: panX, y: CAMERA_HEIGHT, z: fixedSide * lensZ },
     target: { x: panX, y: aimY, z: fixedSide * aimZ },
-    fov: CAMERA_FOV
+    fov: CAMERA_FOV * (1 - far * CAMERA_TOP_ZOOM)
   };
 }
 

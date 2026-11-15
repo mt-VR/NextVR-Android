@@ -30,3 +30,19 @@ A arte de personalização é a entrada para as categorias do editor 3D existent
 Os antigos recortes continuam preservados, mas não substituem essas quatro artes.
 Não foi obtido um modelo novo: a prévia e a partida continuam usando o Micah
 CC0, com variações de material, escala limitada e cabelo sobre a malha existente.
+
+## v0.5.48 — Escritório e Evoluir Jogador
+
+Duas artes novas, fornecidas pelo usuário nesta conversa, usadas INTEIRAS como a
+apresentação das telas (sem redesenho, sem recorte de elementos):
+
+- `office.png`: file_00000000e1fc820eaf087f1bb8d686bf.png — Escritório do clube.
+- `evolve.png`: file_00000000ce18820ea81f104592861681.png — Evoluir Jogador.
+
+As imagens originais são 1672×941 e foram reduzidas para 1568×882 (mesmo
+referencial dos hotspots das outras telas), sem upscale e sem recorte. `object-fit:
+fill` no CSS, como nas outras quatro. Os hotspots foram medidos nos pixels da
+própria arte; os únicos dados do save desenhados por cima são o clube do atleta
+(cartão do topo), o OVR/pontos e os seis atributos em Evoluir Jogador. Os números
+impressos na arte (84 → 85, 3 pontos, 91/78/81/87/52/75) não são usados como
+estado do jogo.
