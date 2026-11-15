@@ -4,10 +4,10 @@ import {el} from '../ui/dom.js';
 import {hotspot,gridKeys} from '../ui/reference-menu.js';
 import {crest,dateLabel,select} from '../ui/career-ui.js';
 import {getTeam,TEAMS} from '../data/teams.js';
-import {careerFixture,careerTable,careerOverall,improveCareer,nextCareerSeason} from '../data/career.js';
-import {changeCareerClub} from '../data/career-market.js';
+import {careerFixture,careerTable,careerOverall,improveCareer,nextCareerSeason,careerLeagueName} from '../data/career.js';
+import {changeCareerClub,EUROPEAN_CLUBS} from '../data/career-market.js';
 import {queueCareerPresentation} from '../data/career-presentations.js';
-import {careerOffers,EUROPEAN_CLUBS,negotiateCareerClub,answerOffer} from '../data/career-market.js';
+import {careerOffers,negotiateCareerClub,answerOffer} from '../data/career-market.js';
 import {getCareer,careerSchedule,careerNews} from '../data/career-services.js';
 import {STADIUMS} from '../match3d/stadiums.js';
 // `office` e `evolve` usam as artes novas do usuário (sem redesenho):
@@ -24,7 +24,7 @@ export function careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo
  function hit(text,rect,action,attrs={}){const b=hotspot(text,rect,action,{...attrs,class:`ref-button career-reference-hit ${attrs.class||''}`});frame.append(b);buttons.push(b);return b;}
  function data(name,rect,...children){const block=el('div',{class:`career-reference-data ${name}`,style:place(rect)},...children);frame.append(block);return block;}
  const schedule=c?careerSchedule(c):[],next=c&&careerFixture(c),fixture=schedule.find(g=>g.id===next?.id),last=[...schedule].reverse().find(g=>g.score),club=c&&getTeam(c.clubId);
- const league='Liga da carreira';
+ const league=c?careerLeagueName(c):'Liga da carreira';
  const text=(tag,value)=>el(tag,{text:value});
  function teams(g){return el('div',{class:'career-reference-fixture'},crest(g.home),text('strong',g.score?g.score.join(' – '):'×'),crest(g.away));}
  function profile(rect){data('career-reference-profile',rect,club?crest(c.clubId):text('span','XFC'),el('div',{},text('b',club?.name||'Escolha sua carreira'),text('small',c?`${kind==='manager'?'Técnico':c.player.name} · Nv. ${c.player.level}`:'Jogador ou Técnico'),el('progress',{max:250,value:c?c.player.xp%250:0,'aria-label':'Progresso salvo da carreira'})));}

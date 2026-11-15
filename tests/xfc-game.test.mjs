@@ -32,7 +32,7 @@ import { startXfcServer } from '../xfc-game/serve.mjs';
 const GAME_ROOT = new URL('../xfc-game/', import.meta.url);
 
 test('XFC preserva os clubes antigos e acrescenta os clubes identificados da coleção', () => {
-  assert.equal(TEAMS.length, 69, '22 clubes anteriores + 47 novos, sem duplicar');
+  assert.equal(TEAMS.length, 166, '69 anteriores + 17 da LaLiga + 80 das ligas europeias completas');
   assert.equal(new Set(TEAMS.map(t=>t.id)).size,TEAMS.length);
   assert.deepEqual(TEAMS.slice(0,22).map(team => team.id), [
     'fc-barcelona', 'real-madrid', 'ibis-esporte', 'parana-clube',
@@ -2019,20 +2019,20 @@ test('os menus das competições são próprios e todas as opções abrem telas 
     await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
     await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
     await page.locator('.comp__menu-item[data-panel="play"]').click();
-    assert.equal(await page.locator('.comp__team-card').count(), 40, 'a Champions oferece os quarenta clubes europeus cadastrados');
+    assert.equal(await page.locator('.comp__team-card').count(), 32, 'a Champions oferece os 32 clubes do pote sorteado');
     await page.locator('.comp__team-card[data-team-id="fc-barcelona"]').click();
     await page.locator('.comp__selection-preview .comp__cta').click();
     await page.waitForSelector('.comp__match', { timeout: 10000 });
     assert.ok(await page.locator('.comp__kit').first().isVisible(), 'a escolha de uniforme fica no painel');
-    assert.equal(await page.locator('.comp__opponent').count(), 39, 'o amistoso oferece os outros clubes do torneio');
+    assert.equal(await page.locator('.comp__opponent').count(), 31, 'o amistoso oferece os outros 31 clubes do pote');
     assert.ok(await page.locator('.comp__friendlies .comp__ghost').isVisible(), 'o amistoso tem o botão de jogar');
 
     await page.locator('.comp__menu-item[data-panel="standings"]').click();
     assert.equal(await page.locator('.comp__table').count(), 8, 'a classificação mostra os oito grupos');
-    assert.equal(await page.locator('.comp__table-row').count(), 40, 'cada grupo lista seus cinco times');
+    assert.equal(await page.locator('.comp__table-row').count(), 32, 'os oito grupos do sorteio somam 32 clubes');
 
     await page.locator('.comp__menu-item[data-panel="calendar"]').click();
-    assert.ok(await page.locator('.comp__fixture').count() >= 80, 'o calendário lista toda a fase de grupos');
+    assert.ok(await page.locator('.comp__fixture').count() >= 40, 'o calendário lista toda a fase de grupos do sorteio');
 
     // A Champions da referência não tem uma opção "Fase de Grupos": a tabela
     // dos grupos já aparece em "Classificação".

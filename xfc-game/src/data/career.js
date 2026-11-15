@@ -2,6 +2,7 @@ import {queueCareerPresentation} from './career-presentations.js';
 import {LAB_HAIR,GLOVE_LABELS,ACCESSORY_LABELS} from './player-customization.js';
 // Carreira local de UM atleta. Nunca muta o catálogo global nem as moedas do UT.
 import {TEAMS,getTeam} from './teams.js';
+import {leagueClubs,leagueOfClub} from './leagues.js';
 export const CAREER_POSITIONS={ST:'Atacante',LW:'Ponta',CM:'Meio-campista',CB:'Zagueiro'};
 export const CAREER_HAIR={short:'Curto',curly:'Cacheado',afro:'Afro',mohawk:'Moicano',neymar:'Neymar',side:'Lateral',fade:'Degradê',long:'Longo',braids:'Tranças',dreads:'Dreads',bald:'Raspado',...LAB_HAIR};
 export const CAREER_HAIR_COLORS={'#24180f':'Preto','#66452d':'Castanho claro','#432c20':'Castanho escuro','#c3a16a':'Loiro','#a3442b':'Ruivo','#eeeeee':'Loiro platinado','#ffffff':'Branco','#92969b':'Cinza','#5f6469':'Cinza escuro','#ca2237':'Vermelho','#245dda':'Azul','#288b43':'Verde','#e85aaa':'Rosa','#8349b9':'Roxo'};
@@ -38,22 +39,44 @@ export function customiseCareer(c,values={},opts={}){
  return true;
 }
 const cap=(n,a,b)=>Math.max(a,Math.min(b,Number(n)||0));
+// A liga do save é a do PAÍS do clube: assinar com o Barcelona troca o
+// Brasileirão pela LaLiga (e o nome do campeonato aparece nas telas).
+export function careerLeagueName(c){return c?.league?.name||leagueOfClub(c?.clubId)||'Liga da carreira';}
 export function careerLeague(clubId,season=1){
-  const club=getTeam(clubId)||TEAMS[0];
-  const pool=[club,...TEAMS.filter(t=>t.id!==club.id&&t.country===club.country),...TEAMS.filter(t=>t.country!==club.country)].slice(0,8).map(t=>t.id);
+  // A liga é a do PAÍS do clube (LaLiga para o Barcelona, Premier League para
+  // o Aston Villa...). `leagueClubs` devolve sempre 8 clubes — os do país
+  // primeiro e, se o país tiver menos de 8 no catálogo, clubes do mesmo
+  // continente. A temporada salva mantém 8 participantes e 14 rodadas.
+  const pool=leagueClubs(clubId),name=leagueOfClub(clubId)||'Liga da carreira';
   let ring=[...pool],rounds=[];
   for(let r=0;r<7;r++){
     const games=[];for(let i=0;i<4;i++){const a=ring[i],b=ring[7-i];games.push({id:`s${season}-r${r+1}-g${i}`,home:r%2?a:b,away:r%2?b:a,score:null});}
     rounds.push(games);ring=[ring[0],ring[7],...ring.slice(1,7)];
   }
   rounds.push(...rounds.map((games,r)=>games.map((g,i)=>({id:`s${season}-r${r+8}-g${i}`,home:g.away,away:g.home,score:null}))));
-  return {clubs:pool,rounds};
+  return {name,clubs:pool,rounds};
 }
 export function createCareer({name='Meu jogador',clubId=TEAMS[0].id,position='ST',number=9,foot='Right',appearance={},nationality='Brasil'}={}){
   if(!getTeam(clubId))clubId=TEAMS[0].id;
   return {version:1,player:{id:'career-player',name:String(name).trim().slice(0,24)||'Meu jogador',position:Object.hasOwn(CAREER_POSITIONS,position)?position:'ST',number:Math.round(cap(number,1,99)),foot:foot==='Left'?'Left':'Right',appearance:careerAppearance(appearance),nationality:CAREER_NATIONS.includes(nationality)?nationality:'Brasil',level:1,xp:0,points:0,stats:{pace:60,shooting:57,passing:58,dribbling:60,defending:50,physical:57}},clubId,season:1,round:0,league:careerLeague(clubId),pending:null,history:[],totals:{matches:0,goals:0,shots:0,passes:0},lastResult:null};
 }
-export function currentCareer(profile){const c=profile?.career;return c?.version===1&&getTeam(c.clubId)&&c.player?.id==='career-player'&&Array.isArray(c.league?.rounds)&&c.player.stats&&c.totals?c:null;}
+// Saves anteriores à v0.5.49 montavam a liga com clubes de qualquer país: quem
+// assinou com o Barcelona continuou no "Brasileirão". A migração é feita na
+// leitura do save — se o campeonato gravado não é o do país do clube, a liga é
+// refeita (a rodada volta ao início da temporada, os resultados antigos não
+// valem para a liga nova). Save já correto não é tocado.
+export function migrateCareerLeague(c){
+  if(!c?.league||!getTeam(c.clubId))return false;
+  const country=getTeam(c.clubId).country,name=leagueOfClub(c.clubId);
+  const pool=leagueClubs(c.clubId);
+  const same=Array.isArray(c.league.clubs)&&c.league.clubs.length===pool.length
+    &&c.league.clubs.every(id=>pool.includes(id))&&(c.league.name||teamLeague(c.clubId))===name;
+  if(same)return false;
+  c.league=careerLeague(c.clubId,c.season||1);c.round=0;c.pending=null;c.lastResult=null;
+  return true;
+}
+const teamLeague=clubId=>getTeam(clubId)?.league||null;
+export function currentCareer(profile){const c=profile?.career;return c?.version===1&&getTeam(c.clubId)&&c.player?.id==='career-player'&&Array.isArray(c.league?.rounds)&&c.player.stats&&c.totals?(migrateCareerLeague(c),c):null;}
 export function careerFixture(c){return c.league.rounds[c.round]?.find(g=>g.home===c.clubId||g.away===c.clubId)||null;}
 export function careerTable(c){
  const rows=new Map(c.league.clubs.map(id=>[id,{id,played:0,points:0,wins:0,gf:0,ga:0}]));

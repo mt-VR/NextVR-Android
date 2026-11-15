@@ -3,6 +3,7 @@ import {libraryKitFor} from './asset-library.js';
 // Fotos são usadas nos menus; cores/padrões alimentam a reconstrução em campo.
 
 import { SHIRT_COLLECTION } from './shirt-collection.js';
+import { LALIGA_KITS, WORLD_KITS } from './teams.js';
 
 export const KITS = {
   'fc-barcelona': [
@@ -167,6 +168,17 @@ export const KITS = {
 };
 
 /** Os três uniformes de um time (ou uma lista vazia, se o time não tiver). */
+// LaLiga completa: os dezessete clubes novos ganham os três uniformes aqui.
+for (const [teamId, trios] of Object.entries({...WORLD_KITS, ...LALIGA_KITS})) {
+  if (KITS[teamId]) continue;
+  KITS[teamId] = trios.map(([primary, secondary, trim, pattern], index) => ({
+    id: ['home', 'away', 'third'][index],
+    name: ['Home', 'Away', 'Third'][index],
+    pattern,
+    colors: { primary, secondary, trim }
+  }));
+}
+
 export function kitsOf(teamId) {
   const kits=KITS[teamId]||[],custom=libraryKitFor(teamId);
   if(!custom)return kits;

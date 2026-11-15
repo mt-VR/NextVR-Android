@@ -5,7 +5,7 @@ import {careerReference} from './career-reference.js';
 import {el} from '../ui/dom.js';
 import {button,select,label,crest,panel,tile,shell,fixtureNode,dateLabel} from '../ui/career-ui.js';
 import {getTeam,TEAMS} from '../data/teams.js';
-import {careerFixture,careerTable,careerOverall,improveCareer,nextCareerSeason} from '../data/career.js';
+import {careerFixture,careerTable,careerOverall,improveCareer,nextCareerSeason,careerLeagueName} from '../data/career.js';
 import {getCareer,careerKind,careerSchedule,careerNews,careerRoster,saveCareerSlot,loadCareerSlot,buyManagerPlayer,managerTeam,transferPrice} from '../data/career-services.js';
 import {saveProfile} from '../state.js';
 import {STADIUMS} from '../match3d/stadiums.js';
@@ -27,11 +27,11 @@ export function careerScreen(ctx,params={}){
  if(view==='create'||view==='custom-edit')return careerEditor(ctx,{...params,kind,career:c,go,persist,back:view==='create'?()=>go(params.back||'entry'):back});
  if(view==='plan'&&c)return careerPreparation(ctx,{career:c,kind,go,persist,back});
  const titles={entry:'Modo Carreira',hub:'Central da Carreira',agenda:'Agenda de Jogos',table:'Classificação',club:'Meu Clube',transfers:'Transferências',office:'Escritório',objectives:'Objetivos',settings:'Configurações',load:'Carregar Carreira',stats:'Estatísticas'};
- const {node,content}=shell(ctx,{title:titles[view]||titles.entry,subtitle:view==='entry'?'Construa sua história como jogador ou treinador.':c?`${kind==='manager'?'Carreira de Técnico':'Carreira de Jogador'} · Temporada ${c.season} · Liga local de 8 clubes`:'Progresso salvo neste dispositivo',career:c,view,back,go});
- const next=c&&careerFixture(c),schedule=c?careerSchedule(c):[],fixture=schedule.find(g=>g.id===next?.id);
+ const {node,content}=shell(ctx,{title:titles[view]||titles.entry,subtitle:view==='entry'?'Construa sua história como jogador ou treinador.':c?`${kind==='manager'?'Carreira de Técnico':'Carreira de Jogador'} · Temporada ${c.season} · ${careerLeagueName(c)}`:'Progresso salvo neste dispositivo',career:c,view,back,go});
+ const next=c&&careerFixture(c),schedule=c?careerSchedule(c):[],fixture=schedule.find(g=>g.id===next?.id),leagueName=c?careerLeagueName(c):'Liga da carreira';
  const play=()=>go(next?'plan':'office');
  function standings(limit=8){return el('table',{class:'season-table'},el('thead',{},el('tr',{},...['Clube','J','PTS','SG'].map(text=>el('th',{text})))),el('tbody',{},...careerTable(c).slice(0,limit).map((r,i)=>el('tr',{class:r.id===c.clubId?'is-club':''},el('td',{},el('span',{text:`${i+1}. `}),crest(r.id),el('span',{text:getTeam(r.id).name})),el('td',{text:r.played}),el('td',{text:r.points}),el('td',{text:r.gf-r.ga})))));}
- function nextPanel(){return panel('PRÓXIMO JOGO',fixture?fixtureNode(fixture):el('p',{text:'Temporada encerrada'}),fixture&&el('p',{text:`${dateLabel(fixture.date)} · 18:00 UTC · RODADA ${fixture.round+1}`}),fixture&&el('small',{text:`Liga da carreira · ${STADIUMS[fixture.stadiumIndex].name}`}),button(fixture?(c.pending?'Retomar preparação':'Vamos Jogar'):'Próxima temporada',play,{class:'season-primary'}));}
+ function nextPanel(){return panel('PRÓXIMO JOGO',fixture?fixtureNode(fixture):el('p',{text:'Temporada encerrada'}),fixture&&el('p',{text:`${dateLabel(fixture.date)} · 18:00 UTC · RODADA ${fixture.round+1}`}),fixture&&el('small',{text:`${leagueName} · ${STADIUMS[fixture.stadiumIndex].name}`}),button(fixture?(c.pending?'Retomar preparação':'Vamos Jogar'):'Próxima temporada',play,{class:'season-primary'}));}
  function objectives(){
   if(!c){content.append(panel('Sua jornada',el('p',{text:'Jogador: disputar partidas, marcar gols e evoluir por XP. Técnico: administrar o elenco e buscar o título da liga local.'}),button('Escolher carreira',()=>go('entry'))));return;}
   const rank=careerTable(c).findIndex(r=>r.id===c.clubId)+1;
@@ -50,7 +50,7 @@ export function careerScreen(ctx,params={}){
  }else if(view==='hub'){
   const last=[...schedule].reverse().find(g=>g.score),news=careerNews(c);
   node.append(el('img',{class:'season-neymar',src:'assets/ui/season/neymar.png',alt:'Neymar, arte do menu; não representa o atleta criado',draggable:'false'}));
-  const left=el('div',{class:'season-hub-left'},panel('ÚLTIMO JOGO',last?fixtureNode(last):el('p',{text:'Sua temporada começa aqui.'}),last&&el('p',{text:`${dateLabel(last.date)} · Liga da carreira`}),button('Ver detalhes da partida',()=>go('stats'),{disabled:!last})),nextPanel());
+  const left=el('div',{class:'season-hub-left'},panel('ÚLTIMO JOGO',last?fixtureNode(last):el('p',{text:'Sua temporada começa aqui.'}),last&&el('p',{text:`${dateLabel(last.date)} · ${leagueName}`}),button('Ver detalhes da partida',()=>go('stats'),{disabled:!last})),nextPanel());
   const right=el('div',{class:'season-hub-right'},panel('NOTÍCIAS',el('img',{class:'season-news-photo',src:STADIUMS[fixture?.stadiumIndex||0].file,alt:'Estádio da carreira'}),el('h3',{text:news[0]}),el('p',{text:news[1]}),el('small',{text:'Notícia gerada a partir deste save.'})),panel('CLASSIFICAÇÃO',standings(4),button('Ver tabela completa',()=>go('table'))));
   content.append(left,right,el('div',{class:'season-actions'},tile('Jogar Próxima Partida','Confirmar escalação','play',play),...[[ 'Calendário','calendar','agenda'],['Transferências','transfer','transfers'],['Meu Clube','club','club'],['Escritório','office','office'],['Configurações','settings','settings']].map(([text,ico,v])=>tile(text,'',ico,()=>go(v)))));
  }else if(view==='agenda'){
@@ -60,7 +60,7 @@ export function careerScreen(ctx,params={}){
   function renderDay(){dayLabel.textContent=dateLabel(day+'T18:00:00Z');details.replaceChildren(el('h2',{text:'Dia selecionado'}));const game=schedule.find(g=>g.date.startsWith(day));if(game)details.append(fixtureNode(game),el('p',{text:`18:00 UTC · ${game.competition} · ${STADIUMS[game.stadiumIndex].name}`}),el('p',{text:game.score?'Partida encerrada':game.id===fixture?.id?'Próxima partida disponível':'Aguarde as rodadas anteriores'}),...(game.id===fixture?.id?[button('Preparar partida',play)]:[]));else details.append(el('p',{text:'Sem partida neste dia.'}));for(const row of list.children)row.classList.toggle('is-selected',row.dataset.day===day);}
   for(const g of schedule)list.append(el('button',{type:'button',class:`season-schedule-row ${g.id===fixture?.id?'is-next':''}`,dataset:{day:g.date.slice(0,10)},onClick:()=>{day=g.date.slice(0,10);renderDay();}},el('span',{text:`R${g.round+1} · ${dateLabel(g.date)} · 18:00 UTC`}),crest(g.home===c.clubId?g.away:g.home),el('b',{text:`${getTeam(g.home).name} × ${getTeam(g.away).name}`}),el('small',{text:`${g.competition} · ${STADIUMS[g.stadiumIndex].name}`}),el('strong',{text:g.score?g.score.join(' – '):g.id===fixture?.id?'PRÓXIMO':'A JOGAR'})));
   content.append(el('div',{class:'season-agenda'},nav,el('p',{text:'Calendário local desta carreira. Datas e sedes do jogo, não calendário oficial.'}),list),details);renderDay();
- }else if(view==='table')content.append(panel('Liga da carreira · classificação completa',standings(),button('Agenda de Jogos',()=>go('agenda'))));
+ }else if(view==='table')content.append(panel(`${leagueName} · classificação completa`,standings(),button('Agenda de Jogos',()=>go('agenda'))));
  else if(view==='club'){
   const roster=careerRoster(c,kind);content.append(panel(getTeam(c.clubId).name,el('div',{class:'season-roster'},...[...roster.players,...roster.substitutes].map(p=>el('div',{},el('b',{text:`${p.number} · ${p.name}`}),el('span',{text:`${p.pos} · OVR ${p.ovr}`})))),button('Plano de Jogo',()=>go('plan')),kind==='player'&&button('Personalizar Jogador',()=>go('custom')),kind==='player'&&button('Editar jogador',()=>go('custom-edit'))));
  }else if(view==='transfers'){

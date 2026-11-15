@@ -24,7 +24,7 @@ test('211 associações únicas, seis confederações, bandeiras locais e elenco
   for(const id of ['scotland','northern-ireland','kosovo','gibraltar','curacao','south-sudan'])assert.ok(getNationalTeam(id),id);
 });
 test('pools ampliados: Brasil 16, Champions 40, Libertadores personalizada 56, América só CONMEBOL',()=>{
-  assert.equal(T.getCompetition('copa-do-brasil').pool.length,16);assert.equal(T.getCompetition('uefa-champions-league').pool.length,40);
+  assert.equal(T.getCompetition('copa-do-brasil').pool.length,16);assert.ok(T.getCompetition('uefa-champions-league').pool.length>=100,'a Champions usa todas as ligas europeias completas');
   const mixed=T.getCompetition('conmebol-libertadores').pool;assert.equal(mixed.length,56);assert.ok(mixed.includes('real-madrid')&&mixed.includes('flamengo'));
   const america=T.getCompetition('copa-america').pool;assert.equal(america.length,10);assert.ok(america.every(id=>getNationalTeam(id).confederation==='CONMEBOL'));
 });

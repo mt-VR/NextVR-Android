@@ -104,13 +104,13 @@ test('transferências: oito clubes, três ofertas e negociação 50% ligada ao s
       const m = await import('/src/main.js');
       const {EUROPEAN_CLUBS, negotiateCareerClub} = await import('/src/data/career-market.js');
       const career = m.state.profile.career;
-      const refused = negotiateCareerClub(career, 'celtic', () => 0.9);
-      const accepted = negotiateCareerClub(career, 'celtic', () => 0.1);
+      const refused = negotiateCareerClub(career, 'liverpool', () => 0.9);
+      const accepted = negotiateCareerClub(career, 'liverpool', () => 0.1);
       return {club: career.clubId, refused: refused.reason, accepted: accepted.ok, list: EUROPEAN_CLUBS.length};
     });
     assert.equal(result.refused, 'refused');
     assert.equal(result.accepted, true);
-    assert.equal(result.club, 'celtic', 'aceite muda o clube do save');
+    assert.equal(result.club, 'liverpool', 'aceite muda o clube do save');
     assert.equal(result.list, 8);
     assert.deepEqual(errors, []);
   } finally { await b.close(); server.close(); }

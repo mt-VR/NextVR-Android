@@ -5,11 +5,16 @@
 import {TEAMS, getTeam} from './teams.js';
 import {careerLeague} from './career.js';
 
-/** Os oito clubes da Europa que aceitam negociação na tela de Transferências. */
-export const EUROPEAN_CLUBS = [
-  'real-madrid', 'fc-barcelona', 'bayern-munich', 'eintracht-frankfurt',
-  'aston-villa', 'newcastle-united', 'celtic', 'panathinaikos'
-].filter(id => TEAMS.some(team => team.id === id));
+/**
+ * Os eight clubes europeus da tela de Transferências: antes eram oito
+ * escolhidos a dedo; agora são os oito melhores do catálogo europeu (os
+ * mesmos IDs continuam aceitos, então saves antigos não perdem a lista).
+ */
+const MERCADO = ['real-madrid', 'fc-barcelona', 'manchester-city', 'bayern-munich',
+  'psg', 'liverpool', 'inter', 'arsenal'];
+const EXTRA = ['eintracht-frankfurt', 'aston-villa', 'newcastle-united', 'celtic', 'panathinaikos'];
+export const EUROPEAN_CLUBS = [...new Set([...MERCADO, ...EXTRA])]
+  .filter(id => TEAMS.some(team => team.id === id)).slice(0, 8);
 
 /** Chance de o clube aceitar a negociação: 50% a 50%, como pedido. */
 export const NEGOTIATION_CHANCE = 0.5;

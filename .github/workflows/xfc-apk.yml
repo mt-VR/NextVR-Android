@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,career-market,career-office-evolve,gameplay-features,gameplay-features-browser}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,career-market,career-office-evolve,leagues,gameplay-features,gameplay-features-browser}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -184,22 +184,22 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.48
+          TAG=xfc-gameplay-v0.5.49
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.48 (versionCode 54), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.49 (versionCode 55), commit ${GITHUB_SHA}." \
             "" \
-            "Câmera: quando a bola vai para o lado de cima do campo, a objetiva fecha e o lance chega maior no quadro (fov 54° → 43°); do lado de baixo nada muda." \
-            "Menus do print no jogo, do jeito que estão na imagem: Escritório e Evoluir Jogador ocupam a tela inteira, de ponta a ponta, com os atalhos nas posições da própria arte." \
-            "Evoluir Jogador usa os pontos do seu save: o OVR, o OVR depois de gastar e os seis atributos vêm da carreira, e cada + gasta um ponto de verdade." \
-            "Escritório: 8 clubes da Europa para negociar, 50% de chance cada — se aceitarem você vai na hora, se recusarem você fica. Mais 3 ofertas por temporada com ACEITAR OFERTA ou FICAR." \
-            "Cruzeiro, Vasco, Fluminense, Ceará, Avaí, Náutico, Sampaio Corrêa, Internacional, São Paulo e Botafogo agora entram na carreira com campeonato e estádio." \
-            "Escalação mexida durante a partida vale só para aquele jogo: a escalação oficial da carreira não muda. Moicano refeito (crista contínua, laterais raspadas) e Bayern de vermelho." \
+            "Agora assinar com um clube da Europa troca o campeonato de verdade: saiu do Brasileirão e entrou na LaLiga, na Premier League, na Bundesliga, na Serie A, na Ligue 1, na Liga Portugal, na Eredivisie, na Escocesa ou na Grega." \
+            "LaLiga completa com os 20 clubes espanhóis e escudo de todos: Athletic, Atlético, Osasuna, Celta, Deportivo, Alavés, Elche, Getafe, Málaga, Espanyol, Racing, Rayo, Betis, Real Sociedad, Sevilla, Valencia e Villarreal, além de Barcelona, Real Madrid e Levante." \
+            "Mais 80 clubes europeus com escudo (Arsenal, Liverpool, City, PSG, Milan, Inter, Napoli, Dortmund, Leverkusen, Porto, Benfica, Sporting, Ajax, PSV, Feyenoord, Rangers, Olympiacos e outros), todos com uniforme, estádio e elenco." \
+            "A liga do save agora mostra o nome certo: LaLiga, Premier League, Bundesliga... no lugar de 'Liga da carreira'. Save antigo no Barcelona é migrado sozinho para a LaLiga." \
+            "Champions League com todo o catálogo europeu no sorteio, 32 clubes na fase de grupos como a edição de verdade." \
+            "Transferências: os oito clubes do mercado agora são os oito melhores da Europa. Bayern, PSG, Liverpool, City, Inter, Milan, Juventus e Napoli voltaram a ter força de clube grande." \
             "Testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — escritório, evoluir jogador e mercado v0.5.48" \
+            gh release create "$TAG" --title "XFC 27 — ligas europeias: sai do Brasileirão e vai jogar na Europa v0.5.49" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — escritório, evoluir jogador e mercado v0.5.48" \
+            gh release edit "$TAG" --title "XFC 27 — ligas europeias: sai do Brasileirão e vai jogar na Europa v0.5.49" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

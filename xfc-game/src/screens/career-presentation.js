@@ -1,10 +1,11 @@
 import {el} from '../ui/dom.js';
 import {getTeam} from '../data/teams.js';
+import {careerLeagueName} from '../data/career.js';
 import {completeCareerPresentation,presentationShots} from '../data/career-presentations.js';
 import {createCareerCinematic} from '../match3d/career-cinematic.js';
 export function careerPresentation(ctx,{career,event,persist,go}){
  const club=getTeam(event.clubId),transfer=event.type==='transfer',renewal=event.type==='renewal',headline=transfer?'TRANSFERÊNCIA OFICIAL':renewal?'CONTRATO RENOVADO':'UM NOVO CAPÍTULO';
- const canvas=el('canvas',{'aria-label':'Apresentação cinematográfica do seu jogador',class:'career-film-canvas'}),title=el('h1',{text:headline}),subtitle=el('p',{text:`${event.player.name} • ${club.name} • Nº ${event.player.number}`}),phase=el('p',{class:'career-film-phase',text:'Preparando apresentação…','aria-live':'polite'}),progress=el('progress',{max:1,value:0,'aria-label':'Progresso da apresentação'}),badge=el('img',{src:club.crest,alt:`Escudo do ${club.name}`});
+ const canvas=el('canvas',{'aria-label':'Apresentação cinematográfica do seu jogador',class:'career-film-canvas'}),title=el('h1',{text:headline}),subtitle=el('p',{text:`${event.player.name} • ${club.name} • ${careerLeagueName(career)} • Nº ${event.player.number}`}),phase=el('p',{class:'career-film-phase',text:'Preparando apresentação…','aria-live':'polite'}),progress=el('progress',{max:1,value:0,'aria-label':'Progresso da apresentação'}),badge=el('img',{src:club.crest,alt:`Escudo do ${club.name}`});
  let dead=false,finished=false,film=null,raf=0,last=0,elapsed=0,ready=false;
  const skip=el('button',{type:'button',class:'career-film-skip',text:'Pular apresentação',onClick:()=>finish(true)});
  const node=el('section',{class:'screen career-film',dataset:{eventId:event.id,eventType:event.type},'aria-label':headline},el('style',{text:styles}),canvas,el('div',{class:'career-film-vignette'}),el('header',{class:'career-film-header'},el('span',{text:'XFC 27 / CARREIRA DE JOGADOR'}),skip),el('div',{class:'career-film-title'},badge,el('div',{},title,subtitle)),el('footer',{class:'career-film-footer'},phase,progress));

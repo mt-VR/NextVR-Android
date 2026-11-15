@@ -55,13 +55,15 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 // (artes do usuário inteiras, hotspots medidos na própria imagem), e
 // `camera.js` fecha a objetiva no lado de cima do quadro. O `match.js` não
 // mudou nesta versão — o hash acima é o da v0.5.47.
+// v0.5.49: `career-reference.js` mostra o nome real do campeonato (LaLiga,
+// Premier League...) no lugar de "Liga da carreira"; o resto segue igual.
 // Controles, HUD, menus de referência e a arte de entrada continuam iguais.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "7d44e045209b64b67c2afb846ce69cb18242f6d64f73aa2ee2ab24da09a668e3",
   "src/match3d/controls.js": "9a014bf4045165c7a6ed023021a49a1ebf8242b9b99ef580947dc8f4d41b7eec",
   "src/match3d/match.js": "2a216e0823446781887f44c3ad92586189d065c7d593ff100979836002efa54f",
-  "src/screens/career-reference.js": "60eee241f86568f4f89bd031f7eb2a7b03c5e2f68325efc4816cbc1021479528",
+  "src/screens/career-reference.js": "843e22c3121855bf8509689232ca80a14b2479e064e1c4072225747ee70f8767",
   "styles/career-reference.css": "dc4408ab89883e917d0acaf6a497cffa737e1233a765ea001c65623e0407f2bd",
   "styles/match3d.css": "765d37188b349cf58abaae9dec83f996745ce1518ce6e594eee4a68dd7c6b6a2"
  };

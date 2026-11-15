@@ -45,7 +45,7 @@ test('negociação recusa clube fora da lista, clube atual e partida pendente', 
   assert.equal(negotiateCareerClub(career, 'santos', () => 0).reason, 'same');
   assert.equal(negotiateCareerClub(career, 'ibis-esporte', () => 0).reason, 'club');
   career.pending = {id: 'pendente'};
-  assert.equal(negotiateCareerClub(career, 'celtic', () => 0).reason, 'pending');
+  assert.equal(negotiateCareerClub(career, 'liverpool', () => 0).reason, 'pending');
   assert.equal(career.clubId, 'santos');
 });
 

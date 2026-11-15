@@ -1,6 +1,6 @@
 // Serviços locais compartilhados pelas carreiras. Nunca escreve no catálogo global.
 import {getTeam} from './teams.js';
-import {createCareer,currentCareer,careerTeam,careerTable,settleCareer} from './career.js';
+import {createCareer,currentCareer,careerTeam,careerTable,settleCareer,careerLeagueName} from './career.js';
 export const careerKind=k=>k==='manager'?'manager':'player';
 export function getCareer(profile,kind=profile.careerKind){return careerKind(kind)==='manager'?validManager(profile.managerCareer):currentCareer(profile);}
 export function validManager(c){return c?.kind==='manager'&&currentCareer({career:c})?c:null;}
@@ -11,7 +11,7 @@ export function careerSchedule(c){
  // Datas da temporada do SAVE, não calendário oficial de um campeonato real.
  const base=Date.parse(c.startDate||'2026-08-01T18:00:00Z');
  return c.league.rounds.flatMap((games,round)=>games.filter(g=>g.home===c.clubId||g.away===c.clubId).map(g=>({...g,round,
-  date:new Date(base+((c.season-1)*364+round*7)*86400000).toISOString(),competition:'Liga da carreira',stadiumIndex:({'real-madrid':6,'fc-barcelona':7,'bayern-munich':8,'river-plate':10,'sao-paulo':1,botafogo:2,flamengo:0,cruzeiro:5}[g.home]??[...g.home].reduce((n,ch)=>n+ch.charCodeAt(0),0)%6)})));
+  date:new Date(base+((c.season-1)*364+round*7)*86400000).toISOString(),competition:careerLeagueName(c),stadiumIndex:({'real-madrid':6,'fc-barcelona':7,'bayern-munich':8,'river-plate':10,'sao-paulo':1,botafogo:2,flamengo:0,cruzeiro:5}[g.home]??[...g.home].reduce((n,ch)=>n+ch.charCodeAt(0),0)%6)})));
 }
 export function careerNews(c){
  const last=[...careerSchedule(c)].reverse().find(g=>g.score);
