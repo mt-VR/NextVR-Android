@@ -39,7 +39,7 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
 }
 
 /**
- * Câmera de transmissão — inspirada na câmera lateral clássica de PES/eFootball.
+ * Câmera de transmissão — o enquadramento do eFootball (print do usuário).
  *
  * Histórico, porque cada versão falhou por um motivo diferente:
  *
@@ -47,51 +47,50 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
  *    metade do gramado ia para trás da lente e não era desenhada.
  * 2. Uma vista elevada a 59° enquadrava o campo todo, mas virava um mapa.
  * 3. Uma diagonal a 34° melhorou a perspectiva, mas ainda era visão de cima.
+ * 4. A lateral "PES" a 26 m e `z = 53` era uma transmissão de cima: o campo
+ *    inteiro cabia no quadro, o que nunca é o enquadramento de um jogo.
  *
- * O que o usuário pediu é a câmera de PES: **lateral, no eixo do meio-campo,
- * quase horizontal, panorâmica acompanhando a bola**. Ela é montada assim:
+ * O que o print do eFootball mostra — e o que está reproduzido aqui:
  *
- *   • no vão livre da lateral — 14 m de altura e 48 m do eixo do campo, entre
- *     a linha (34) e a arquibancada (54). Em `z ≥ 54` a lente ficaria DENTRO
- *     da torcida (já aconteceu numa versão deste arquivo: a tela mostrava só
- *     as cadeiras). Acima das placas (1,25 m) e do LED (3,1 m), então nada do
- *     estádio cruza a frente do gramado. O banco técnico fica em `z = 50`,
- *     atrás da lente — ver `buildSidelineBench` em `stadium.js`.
- *   • alvo 24 m à frente, no chão: dá inclinação de 30° e, com esta lente
- *     baixa, é o que faz a linha lateral de baixo entrar no quadro.
- *   • `fov = 67`: cobre a largura do gramado à distância da lente. A 14 m de
- *     altura a lente está perto do chão, e é a objetiva aberta que segura as
- *     duas laterais e os dois gols no enquadramento.
- *   • panorâmica de 80% do deslocamento da bola, amortecida pelo
- *     `updateCamera`, sem zoom nem corte brusco: é o movimento do PES.
+ *   • o gramado preenche quase toda a tela; a arquibancada aparece só como uma
+ *     faixa fina no topo (12-20% da altura), com as placas de publicidade;
+ *   • a linha lateral de baixo passa POR BAIXO da borda do quadro, não aparece
+ *     inteira: é o que dá a sensação de estar dentro do campo;
+ *   • o pedaço de campo visível é de ~85 m de comprimento, não dos 105 m.
  *
- * A versão anterior (26 m de altura, `z = 53`, fov 62) era mais alta e mais
- * aberta: as laterais cabiam, mas a linha de baixo caía em `ndc.y = -0,63`
- * (588 px) — atrás dos botões de comando. Baixar a lente aproxima o chão da
- * lente e encurta a distância do alvo, então a mesma lateral sobe para
- * `ndc.y = -0,40` (504 px), acima do HUD, com o gramado ocupando a tela toda.
- * A lente também ficou 15% mais perto do centro do campo (59 → 49 m).
+ * Montagem:
  *
- * Medido com o `three` do vendor em 1280×720, para a bola em todo o campo:
- * lateral próxima em `ndc.y = -0,40`, oposta em `0,57`, os dois gols em
- * `|ndc.x| ≤ 0,92` e 100% das posições do gramado dentro do quadro quando a
- * bola está no meio-campo. Jogador de linha no meio-campo: 21 px de altura
- * (era 17). O resto entra pelo pan — o que sai é sempre a lateral oposta ao
- * lance, nunca o jogador da bola.
+ *   • lente a 16 m de altura, 45 m do eixo do campo — acima das placas (1,25 m)
+ *     e do LED (3,1 m), e antes do muro da arquibancada (54 m). O banco técnico
+ *     fica em `z = 50`, atrás da lente (ver `buildSidelineBench` em `stadium.js`).
+ *   • alvo 32 m à frente, no chão: inclinação de 27°, o que coloca as placas do
+ *     lado oposto no topo do quadro e o gramado até a borda de baixo.
+ *   • `fov = 52`: com a lente perto da linha, é o que segura ~85 m de campo.
  *
- * O zoom "mais aberta" do menu de pausa (`cameraZoom = 1,2`, que sobe a lente
- * para 16,8 m e recua 1,2 m por metro de alvo) continua dentro do vão: as
- * duas laterais e os dois gols seguem no quadro e o banco continua atrás da
- * lente. Não confundir com a versão de `z = 53`, que no zoom aberto ia parar
- * dentro da arquibancada.
+ * A lente acompanha a bola em Z além de X. Com o campo deste jogo (68 m de
+ * largura e a lente a 45 m do eixo) a linha de baixo fica 11 m abaixo da
+ * lente: sem acompanhar, a bola sumiria do quadro quando o lance fosse na
+ * lateral mais próxima. Por isso a câmera recua quando a bola desce e avança
+ * quando ela sobe — a mesma correção que o eFootball faz. O gramado na borda
+ * de baixo é o que permite enxergar a bola no pé de quem está do lado de cá.
+ *
+ * Medido com o `three` do vendor em 1280×720, no meio-campo: placas do lado
+ * oposto em 126 px, lateral de baixo em 768 px (fora do quadro, como no print)
+ * e jogador de linha no meio-campo com 28 px (era 21 px na v0.5.45).
  */
-const CAMERA_Z = 48;
-const CAMERA_HEIGHT = 14;
-const CAMERA_FOV = 67;
-/** Distância em Z do alvo: define a inclinação (30° com a altura de 14 m). */
-const CAMERA_TARGET_AHEAD = 24;
+const CAMERA_HEIGHT = 16;
+/** Recuo da lente em relação ao eixo do campo (entre a lateral e o muro). */
+const CAMERA_Z = 45;
+const CAMERA_FOV = 52;
+/** Distância em Z do alvo: define a inclinação (27° com a altura de 16 m). */
+const CAMERA_TARGET_AHEAD = 32;
 /** Fração do deslocamento da bola aplicada à câmera (movimento do PES). */
 const CAMERA_PAN_FACTOR = 0.8;
+/** A lente segue a bola em Z: recua quando o lance vem para o lado dela. */
+const CAMERA_Z_FOLLOW = 0.65;
+/** Limites do recuo: nunca dentro do campo nem dentro da arquibancada. */
+const CAMERA_Z_MIN = 38;
+const CAMERA_Z_MAX = 52.5;
 
 /**
  * Enquadramento de transmissão lateral que acompanha a bola.
@@ -105,9 +104,13 @@ export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velo
   const ballX = clamp((Number(position?.x) || 0) + clamp((Number(velocity?.x) || 0) * 0.35, -6, 6),
     -PITCH.halfLength - 4, PITCH.halfLength + 4);
   const panX = clamp(ballX * CAMERA_PAN_FACTOR, -PITCH.halfLength, PITCH.halfLength);
+  // A bola medida no eixo da câmera: quando ela vem para o lado da lente, a
+  // lente recua para o lance não sair pela borda de baixo.
+  const ballZ = Number(position?.z) || 0;
+  const lensZ = clamp(CAMERA_Z + ballZ * CAMERA_Z_FOLLOW, CAMERA_Z_MIN, CAMERA_Z_MAX);
   return {
-    position: { x: panX, y: CAMERA_HEIGHT, z: fixedSide * CAMERA_Z },
-    target: { x: panX, y: 0, z: fixedSide * (CAMERA_Z - CAMERA_TARGET_AHEAD) },
+    position: { x: panX, y: CAMERA_HEIGHT, z: fixedSide * lensZ },
+    target: { x: panX, y: 0, z: fixedSide * (lensZ - CAMERA_TARGET_AHEAD) },
     fov: CAMERA_FOV
   };
 }

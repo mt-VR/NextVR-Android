@@ -184,19 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.45
+          TAG=xfc-gameplay-v0.5.46
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.45 (versionCode 51), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.46 (versionCode 52), commit ${GITHUB_SHA}." \
             "" \
-            "Câmera de transmissão mais perto: a lente desceu de 26 m para 14 m e se aproximou do eixo do campo, então os jogadores ficam ~20% maiores e a linha lateral de baixo entra no quadro — uma faixa fina logo acima do HUD, com o gramado ocupando a tela inteira." \
-            "As duas laterais e os dois gols continuam visíveis, também no zoom Mais aberta. O banco técnico mudou de lugar para não aparecer na frente do campo." \
+            "Câmera de transmissão no enquadramento do eFootball: arquibancada só numa faixa fina no topo, placas de publicidade, e o gramado preenchendo a tela até a borda de baixo (a linha lateral de baixo passa por baixo do quadro). O campo visível é um recorte de ~85 m, como no print." \
+            "A lente acompanha a bola em Z além de X: recua quando o lance vem para o lado dela, então a bola nunca sai do quadro. Jogador de linha no meio-campo fica 65% maior que na v0.5.44." \
             "O resto está como na v0.5.44: cerimônia de quatro cenas, corrida, passe direcional, bola parada, câmera Pro, nota ao vivo e expulsão." \
             "Testes locais aprovados, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — câmera de transmissão v0.5.45" \
+            gh release create "$TAG" --title "XFC 27 — câmera de transmissão v0.5.46" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — câmera de transmissão v0.5.45" \
+            gh release edit "$TAG" --title "XFC 27 — câmera de transmissão v0.5.46" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \
