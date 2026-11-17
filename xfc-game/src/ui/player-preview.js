@@ -5,7 +5,13 @@ import {appearanceFor} from '../data/appearance.js';
 export function playerPreview(canvas){
  let renderer,scene,camera,models=[],dead=false,frame=0,revision=0,observer,focusMode='body',angle=-.16,testTime=-1,lastStage=-1,lastFrame=0;
  function disposeModels(){for(const m of models){scene.remove(m.root);m.dispose();}models=[];}
- async function show(entries){
+ // Elenco de seleção usa `position` (e pode vir só com o XI): a prévia aceita
+// as duas formas, senão a tela de uniformes quebra com o time nacional.
+function firstOutfield(team){
+ const players=Array.isArray(team?.players)?team.players:[];
+ return players.find(p=>(p.pos||p.position)!=='GK')||players[0]||{name:team?.name||'Jogador',number:10,pos:'ST'};
+}
+async function show(entries){
   const token=++revision;
   if(!await preloadFootballerPack()||dead||token!==revision)return;
   if(!renderer){
@@ -20,10 +26,10 @@ export function playerPreview(canvas){
     models.forEach(m=>m.update(dt,{speed,moving:speed>0}));renderer.render(scene,camera);frame=requestAnimationFrame(render);}frame=requestAnimationFrame(render);
   }
   disposeModels();
-  for(const [i,{team,kit,player=team.players.find(p=>p.pos!=='GK')}] of entries.entries()){
+  for(const [i,{team,kit,player=firstOutfield(team)}] of entries.entries()){
    const colors=kit.colors,look=appearanceFor(player);
    const model=createGltfPlayer({kit:{...kit,...colors,accent:colors.trim||'#fff',shorts:kit.shorts||colors.primary,socks:kit.socks||colors.primary},
-    ...look,isKeeper:player.pos==='GK',name:player.name,number:player.number,crest:team.crest,teamName:team.name,sponsor:kit.sponsor||team.sponsor||'',brand:kit.brand||'',simplified:true});
+    ...look,isKeeper:(player.pos||player.position)==='GK',name:player.name,number:player.number,crest:team.crest,teamName:team.name,sponsor:kit.sponsor||team.sponsor||'',brand:kit.brand||'',simplified:true});
    model.root.position.x=entries.length===1?0:(i===0?-2.05:2.05);model.root.rotation.y=entries.length===1?angle:(i===0?.2:-.2);
    models.push(model);scene.add(model.root);
   }

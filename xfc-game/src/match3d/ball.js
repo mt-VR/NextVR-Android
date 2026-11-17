@@ -118,7 +118,7 @@ function drawBall(context, width, height) {
   context.fillRect(0, 0, width, height);
 }
 
-export function createBall(scene, { lowPower = false, onNetImpact = () => {} } = {}) {
+export function createBall(scene, { lowPower = false, onNetImpact = () => {}, onAerialTouch = null } = {}) {
   const texture = canvasTexture(lowPower ? 768 : 1024, lowPower ? 384 : 512, drawBall);
   texture.anisotropy = lowPower ? 2 : 8;
   const geometry = new THREE.SphereGeometry(BALL.radius, lowPower ? 36 : 56, lowPower ? 24 : 36);
@@ -171,7 +171,8 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     goalPocket: 0,
     // Em falta/pênalti: segundos restantes em que NINGUÉM pode dominar a bola.
     // Contatos na barreira/goleiro só rebatem; zerado, o jogo volta ao normal.
-    noAttachment: 0
+    noAttachment: 0,
+    headerLock: 0
   };
 
   function reset(x = 0, z = 0) {
@@ -186,7 +187,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
     state.lastIntentionalTouch = null;
     state.guidance = null;
     state.passTarget=null;state.flightTime=0;state.offside=null;state.reception=null;
-    state.noAttachment=0;state.lastPass=null;state.assistProvider=null;
+    state.noAttachment=0;state.lastPass=null;state.assistProvider=null;state.headerLock=0;
     mesh.position.copy(state.position);
   }
 
@@ -290,6 +291,36 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
         spin.multiplyScalar(1 - Math.min(1.6 * dt, 0.4));
       }
 
+      // Cabeçada: bola alta na altura da cabeça pode ser desviada de propósito.
+      // Sem isso o único toque aéreo existente era o chute (o `reachHeight` de
+      // 1,8 m fazia qualquer cruzamento passar por cima de todo mundo).
+      if (onAerialTouch && !state.goalPocket) {
+        if (state.headerLock > 0) state.headerLock = Math.max(0, state.headerLock - dt);
+        const headY = position.y;
+        if (headY > 1.45 && headY < 2.75 && state.headerLock <= 0 && state.noAttachment <= 0) {
+          let best = null;
+          for (const player of players) {
+            if (!player.active || player.isKeeper || player.isGK) continue;
+            // Quem acabou de tocar não cabeceia de novo no mesmo lance.
+            if (player === state.lastIntentionalTouch && state.flightTime < 0.45) continue;
+            const px = player.x ?? player.root?.position.x, pz = player.z ?? player.root?.position.z;
+            if (!Number.isFinite(px) || !Number.isFinite(pz)) continue;
+            const reach = 1.12 + (player.headerReach || 0);
+            const d = Math.hypot(position.x - px, position.z - pz);
+            if (d > reach) continue;
+            if (!best || d < best.distance) best = { player, distance: d };
+          }
+          if (best) {
+            state.headerLock = 0.65;
+            if (onAerialTouch({ player: best.player, height: headY, from: state.lastIntentionalTouch }) === true) {
+              mesh.position.copy(position);
+              shadow.position.set(position.x, 0.02, position.z);
+              return null;
+            }
+          }
+        }
+      }
+
       // Contato contínuo: o primeiro jogador na trajetória domina, sem a bola
       // atravessar por causa da velocidade ou da ordem dos times no array.
       const contact=firstBallContact({x:previousX,y:previousY,z:previousZ},position,players,{
@@ -318,7 +349,11 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {} } =
         let nx=position.x-px,nz=position.z-pz,n=Math.hypot(nx,nz);
         if(n<.001){nx=-velocity.x;nz=-velocity.z;n=Math.hypot(nx,nz)||1;}nx/=n;nz/=n;
         const dot=velocity.x*nx+velocity.z*nz;
-        if(dot<0){velocity.x-=1.55*dot*nx;velocity.z-=1.55*dot*nz;}
+        // Defesa/rebote: chute forte volta para o campo, não para o escanteio.
+        // O fator 1,55 mandava a bola de volta quase com a mesma força
+        // (ricochete elástico); 1,05 mata a velocidade de aproximação e a
+        // empurra só o suficiente para longe do corpo.
+        if(dot<0){velocity.x-=1.05*dot*nx;velocity.z-=1.05*dot*nz;}
         const reach=(player.reach||.52)+BALL.radius+.025;position.x=px+nx*reach;position.z=pz+nz*reach;
         state.guidance=null;state.passTarget=null;
         if(protectedContact){

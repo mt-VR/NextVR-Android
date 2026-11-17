@@ -1,3 +1,4 @@
+import { PITCH } from './constants.js';
 // Mecânicas pequenas e determinísticas, compartilhadas pelos testes e pelo jogo.
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const smoothstep = (x, a, b) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -128,8 +129,9 @@ export function contactTravel(running=1,stride=1){
 
 /** O joystick horizontal é relativo à câmera atrás do batedor. */
 export function penaltyTarget(stickX, stickY = 0, sign = 1) {
+  // Linha do gol vem do PITCH: com o campo maior (v0.5.51) o alvo acompanha.
   return {
-    x: sign * 52.5,
+    x: sign * PITCH.halfLength,
     z: clamp(Number(stickX) || 0, -1, 1) * sign * 3.12,
     height: 0.35 + clamp(Number(stickY) || 0, 0, 1) * 1.5
   };

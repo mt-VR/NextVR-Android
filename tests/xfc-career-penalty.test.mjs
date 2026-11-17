@@ -29,8 +29,8 @@ test('carreira: interface salva, atleta controlado fora de casa e resultado cheg
  const r=await p.evaluate(()=>{const m=__xfcMatch;m.stop();m.world.setPaused(false);m.phase.name='play';m.phase.restart=null;const side=m.world.userSide,hero=m.controlled[side],other=m.teams[side].players.find(x=>x!==hero&&!x.isKeeper);const before=hero?.rosterId;
  m.ball.attachTo(other);m.world.command('switch');const after=m.controlled[side]?.rosterId;
  m.ball.attachTo(hero);m.ball.state.owner=null;m.ball.state.lastTouch=hero;m.ball.state.lastIntentionalTouch=hero;
- m.ball.state.position.set(-52.49,.3,0);m.ball.state.velocity.set(-20,0,0);m.world.tick(1/60);
- m.phase.name='play';m.clock.half=2;m.clock.minutes=91;m.clock.added=0;m.world.tick(1/60);return{side,before,after};});
+ m.ball.state.position.set(-m.world.pitch.halfLength+.01,.3,0);m.ball.state.velocity.set(-20,0,0);m.world.tick(1/60);
+ m.phase.name='play';m.clock.half=2;m.clock.minutes=96;m.clock.added=5;m.world.tick(1/60);return{side,before,after};});
  assert.equal(r.side,'away');assert.equal(r.before,'career-player');assert.equal(r.after,'career-player');
  await p.waitForTimeout(1100);await p.getByRole('button',{name:'VOLTAR À CARREIRA',exact:true}).click();
  const c=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).career);assert.equal(c.round,1);assert.equal(c.totals.matches,1);assert.equal(c.totals.goals,1);assert.ok(c.player.xp>0);assert.equal(c.pending,null);

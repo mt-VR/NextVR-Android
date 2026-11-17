@@ -184,22 +184,24 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.50
+          TAG=xfc-gameplay-v0.5.51
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.50 (versionCode 56), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.51 (versionCode 57), commit ${GITHUB_SHA}." \
             "" \
-            "Preços da carreira: entrar num clube grande ficou difícil de verdade. A chance de negócio agora depende do seu overall contra a força do clube — o Real Madrid dá 6% para um atleta de 72, o Arsenal 15%, e só um craque de 88 chega a 77%. A tela de Transferências mostra o percentual de cada clube." \
-            "Falta consertada: quando você sofre a falta, só o cobrador, a barreira de três e o goleiro ficam na jogada; todo mundo sai da linha do chute. E a IA agora chuta a falta a gol, com mira dentro do gol e curva, em vez de tocar para trás." \
-            "Modo carreira com seleção e Copa do Mundo: o técnico convoca o seu atleta pelo desempenho, você disputa a Copa com o Brasil (ou o país do seu atleta) e volta para a carreira com o resultado." \
-            "Competições na carreira: liga do país + Champions League (clube europeu) ou Libertadores (clube brasileiro). A Champions segue sem clubes brasileiros." \
-            "Prêmios: Bola de Ouro, Puskás, Chuteira de Ouro, Melhor Meia e Golden Boy, decididos pela temporada, com cerimônia cinematográfica para a Bola de Ouro e o Puskás." \
-            "Elencos atuais: Flamengo, Palmeiras, Corinthians, Santos, São Paulo, Fluminense, Botafogo, Vasco, Cruzeiro, Internacional, Barcelona, Real Madrid, City, Liverpool, Bayern, PSG e Celtic com os jogadores de hoje. Hugo Souza só no Corinthians." \
-            "Testes locais: 214/214, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.44.md.")
+            "Campo maior: 112 × 74 m (o oficial é 105 × 68), com área, círculo, marca do pênalti, câmeras e aquecimento reescalados." \
+            "Acréscimos de 5 minutos: o relógio vai a 45+5 e 90+5, com o tempo extra no HUD e o apito final só no fim do acréscimo." \
+            "Jogo de verdade no gramado: cabeçada na disputa aérea, lateral com as mãos (bola presa, guia para o recebedor), quique da bola mais vivo e vítima de carrinho caída no chão." \
+            "Árbitro na diagonal: o juiz fica atrás da jogada e do lado oposto, recua perto do gol e aplica a vantagem — se a jogada morrer em 2,8 s, ele volta e marca a falta." \
+            "Iluminação de transmissão: luz-chave quente, preenchimento frio, refletores mais fortes e sombras suaves por proximidade." \
+            "Controle de console: Xbox, DualSense/DualShock e genéricos, com os rótulos certos (A/B/X/Y ou ✕/○/□/△), navegação de menu, START pausando, LB/RB trocando de aba, RT/RB correndo e HUD limpo no modo console. No pré-jogo o analógico já entra em campo." \
+            "Kick Off com seleções: as 32 da Copa e as demais da FIFA (211), atalho Brasil × Argentina e uniformes gerados a partir das cores nacionais." \
+            "Moicano do Neymar 2011/12 refeito: crista alta de mechas com pontas descoloridas, laterais raspadas e nuca descendo atrás da orelha." \
+            "Testes locais: 217/217, sem skips. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.51.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — elencos atuais, seleção/Copa na carreira e Bola de Ouro v0.5.50" \
+            gh release create "$TAG" --title "XFC 27 — campo maior, controle de console e jogo de verdade v0.5.51" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — elencos atuais, seleção/Copa na carreira e Bola de Ouro v0.5.50" \
+            gh release edit "$TAG" --title "XFC 27 — campo maior, controle de console e jogo de verdade v0.5.51" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

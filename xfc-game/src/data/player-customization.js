@@ -1,7 +1,7 @@
 // Catálogo opt-in do laboratório: não migra nem troca cortes do elenco.
 export const LAB_HAIR={
  'lab-none':'Sem cabelo',
- 'lab-reference-mohawk':'Moicano espetado · referência enviada','lab-ragnarok':'Ragnarok · topo volumoso penteado para trás','lab-long':'Longo · camadas soltas',
+ 'lab-reference-mohawk':'Moicano Neymar 2011/12 · faixa alta, laterais raspadas','lab-ragnarok':'Ragnarok · topo volumoso penteado para trás','lab-long':'Longo · camadas soltas',
  'lab-low-fade':'Degradê baixo · topo curto','lab-mid-fade':'Degradê médio · penteado','lab-high-fade':'Degradê alto · topo separado',
  'lab-american':'Corte americano · topo plano','lab-afro':'Crespo · volume texturizado','lab-curly':'Cacheado · cachos 3D','lab-wavy':'Ondulado · ondas',
  'lab-straight':'Liso · mechas','lab-dreads':'Dreads · cordões','lab-braids':'Tranças · fileiras',
@@ -15,4 +15,4 @@ export const GLOVE_LABELS={none:'Sem luvas',black:'Pretas',white:'Brancas',red:'
 // `lab-mohawk` (crista estriada) foi RETIRADO a pedido do usuário; saves que
 // ainda apontam para ele caem no moicano da referência em vez de ficarem
 // carecas (o estilo deixaria de existir no laboratório).
-export const CAREER_HAIR_ALIAS={short:'lab-low-fade',fade:'lab-mid-fade',curly:'lab-curly',afro:'lab-afro',bald:'lab-shaved',mohawk:'lab-reference-mohawk','lab-mohawk':'lab-reference-mohawk',side:'lab-straight',long:'lab-medium',neymar:'lab-quiff',braids:'lab-braids',dreads:'lab-dreads'};
+export const CAREER_HAIR_ALIAS={short:'lab-low-fade',fade:'lab-mid-fade',curly:'lab-curly',afro:'lab-afro',bald:'lab-shaved',mohawk:'lab-reference-mohawk','lab-mohawk':'lab-reference-mohawk',side:'lab-straight',long:'lab-medium',neymar:'lab-reference-mohawk',braids:'lab-braids',dreads:'lab-dreads'};

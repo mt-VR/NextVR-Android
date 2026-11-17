@@ -27,6 +27,7 @@ import { ultimateMatchTeam, settleUtMatch } from '../data/ultimate.js';
 import { flagSvg } from '../ui/flags.js';
 import { createMatch } from '../match3d/match.js';
 import { createControls } from '../match3d/controls.js';
+import { gamepad } from '../main.js';
 import { createHud } from '../match3d/hud.js';
 import * as THREE from '../../vendor/three.module.min.js';
 import { cheer, whistle, kickSound, applause, boo } from '../audio.js';
@@ -105,6 +106,17 @@ function resolvePlayableTeam(id) {
   return getTeam(id) || playableNationalTeam(getNationalTeam(id)) || getTeam('fc-barcelona');
 }
 
+/** Time escolhido no Kick Off, clube ou seleção, com as cores do uniforme. */
+function kickoffSide(id, overrideColors) {
+  const club = getTeam(id);
+  if (club) return { team: club, national: false };
+  const nation = getNationalTeam(id);
+  if (!nation) return { team: null, national: false };
+  const playable = playableNationalTeam(nation);
+  if (overrideColors) playable.colors = { ...playable.colors, ...overrideColors };
+  return { team: playable, national: true };
+}
+
 function kitForTeam(team, index = 0) {
   if (team.isNationalTeam || team.id==='xfc-ut') {
     return { name: `${team.name} Home`, colors: team.colors, pattern: 'solid' };
@@ -140,8 +152,12 @@ export function playScreen(ctx, params = {}) {
   const heroId=isPlayerCareer?career.player.id:null;
   const rating=isPlayerCareer?createCareerRating():null;
   const careerPerformance={goals:0,shots:0,passes:0};
-  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || (careerManager&&managerTeam(career,params.home)) || resolvePlayableTeam(params.home || ctx.state.selection.home);
-  const away = (careerClub?.id===params.away?careerClub:null) || (careerManager&&managerTeam(career,params.away)) || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
+  // Kick Off com seleções: o id nacional tem prioridade e usa as cores
+  // escolhidas na tela de uniformes (o clube de mesmo nome não existe aqui).
+  const homePick=kickoffSide(params.home || ctx.state.selection.home, params.homeColors);
+  const awayPick=kickoffSide(params.away || ctx.state.selection.away || 'real-madrid', params.awayColors);
+  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || (careerManager&&managerTeam(career,params.home)) || homePick.team || resolvePlayableTeam(params.home || ctx.state.selection.home);
+  const away = (careerClub?.id===params.away?careerClub:null) || (careerManager&&managerTeam(career,params.away)) || awayPick.team || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
   const homeKit = kitForTeam(home, params.homeKit ?? 0);
   const awayKit = kitForTeam(away, params.awayKit ?? 0);
   const userSide = params.userSide === 'away' ? 'away' : 'home';
@@ -313,6 +329,8 @@ export function playScreen(ctx, params = {}) {
   let initializeTimer = 0;
   let initialized = false;
   let unmounted = false;
+  // Limpezas de listeners da partida (gamepad, etc.).
+  const unsubscribers = [];
 
   function buildMatch() {
     match = createMatch({
@@ -332,6 +350,7 @@ export function playScreen(ctx, params = {}) {
     });
     hud = createHud({
       root: stageBox,
+      stageBox,
       home,
       away,
       userSide,
@@ -341,9 +360,12 @@ export function playScreen(ctx, params = {}) {
     hud?.setRating(rating ? rating.value : 6);
     controls = createControls({
       playerCareer:!!careerClub&&!careerManager,
+      padGamepad:gamepad,
       root: stageBox,
       onCharge:value=>match?.world.setShotCharge(value),
       onCommand: (name, payload) => {
+        // Start/Options no controle abre o mesmo menu de pausa.
+        if (name === 'pause') { if (stage === 'live') showPause(); else if (stage === 'paused') resumeMatch(); return; }
         if (paused || stage !== 'live') return;
         if (name === 'pass') kickSound(0.5);
         else if (name === 'lob') kickSound(0.65);
@@ -351,6 +373,11 @@ export function playScreen(ctx, params = {}) {
         match.world.command(name, payload);
       },
       onMove: (x, z) => {
+        // Analógico do controle também tira o jogador da saída de bola (o
+        // toque no stick é gesto de "entrar em campo", como no console).
+        // Precisa vir ANTES do guard de fase: no pré-jogo a fase ainda não é
+        // 'live', e era justamente aí que o gamepad ficava preso.
+        if (Math.hypot(x, z) > 0.2) startFromKickoff();
         if (paused || stage !== 'live') return;
         match.world.input.moveX = x;
         match.world.input.moveZ = z;
@@ -362,6 +389,17 @@ export function playScreen(ctx, params = {}) {
     });
     // Os controles só entram depois do pré-jogo.
     controls.setEnabled(false);
+    // Controle Xbox/PlayStation: com ele conectado os botões virtuais somem
+    // (fica só o placar e o pause) e o jogo é dirigido pelo gamepad.
+    const applyPadMode = ({ connected, family }) => {
+      stageBox.classList.toggle('play--gamepad', Boolean(connected));
+      controls?.setPadMode?.(Boolean(connected), family);
+      hud?.setPadMode?.(Boolean(connected), family);
+    };
+    const stopPadWatch = gamepad.onChange(applyPadMode);
+    applyPadMode({ connected: gamepad.connected, family: gamepad.family });
+    stageBox.dataset.padLegend = stageBox.dataset.padLegend || '';
+    unsubscribers.push(stopPadWatch);
     match.start();
     // O jogo fica congelado no pré-jogo — o relógio só corre quando o
     // usuário toca para entrar em campo. O laço de render também para:
@@ -527,6 +565,10 @@ export function playScreen(ctx, params = {}) {
         }
         break;
       }
+      case 'addedtime':
+        // Acréscimo anunciado no telão/placar, como o quarto árbitro.
+        hud.showBanner(`ACRÉSCIMOS · ${event.minutes} MIN`, 'info', 2400);
+        break;
       case 'halftime':
         whistle('double');
         hud.showBanner('INTERVALO', 'info', 2600);
@@ -588,6 +630,16 @@ export function playScreen(ctx, params = {}) {
     match?.engine.start();
     const started = match?.world.startEntrance?.({ duration: 3.6 });
     if (!started) beginLive();
+  }
+
+  /**
+   * Analógico do controle na primeira jogada: sai do congelamento do pré-jogo
+   * e entra em campo como o toque faria. Sem isso, quem joga no gamepad
+   * ficava preso no relógio parado até achar o botão na tela.
+   */
+  function startFromKickoff() {
+    if (stage !== 'prematch') return;
+    startMatch();
   }
 
   /** Fim da entrada: HUD, controles e a saída de bola. */
@@ -1006,6 +1058,8 @@ export function playScreen(ctx, params = {}) {
       cancelAnimationFrame(initializeFrame);
       clearTimeout(initializeTimer);
       clearInterval(timer);
+      for (const off of unsubscribers) off?.();
+      unsubscribers.length = 0;
       dome?.dispose();
       controls?.dispose();
       hud?.dispose();

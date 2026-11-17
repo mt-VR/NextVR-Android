@@ -1594,6 +1594,9 @@ export function createPlayer3D(options = {}) {
   let slideDir = 1;
   let receiveTimer = 0;
   let receiveDuration = 0.42;
+  // Lateral cobrado com as mãos: bola nas mãos atrás da cabeça e arremesso.
+  let throwTimer = 0;
+  let throwDuration = 0.72;
   let reactionTimer = 0;
   let reactionDuration = 0;
   let reactionKind = '';
@@ -1669,8 +1672,24 @@ export function createPlayer3D(options = {}) {
     body.rotation.x += Math.abs(sway.side) * 0.16 * intensity;
     head.rotation.x -= sway.nod * 0.9 * intensity;
     head.rotation.y += sway.side * 1.5 * intensity;
-    arms[0].shoulder.rotation.x -= 0.1 * intensity;
-    arms[1].shoulder.rotation.x -= 0.1 * intensity;
+    // Mãos para trás/costas: a pose clássica de hino é com os braços atrás do
+    // corpo, não caídos, e o peito estufado na hora de cantar alto.
+    const loud = Math.max(0, Math.min(1, anthemMouth(time, seed)));
+    arms[0].shoulder.rotation.x = -0.20 - .06 * intensity + Math.sin(time * 1.7 + seed * 9) * .02;
+    arms[1].shoulder.rotation.x = -0.20 - .06 * intensity + Math.sin(time * 1.7 + seed * 9 + .8) * .02;
+    arms[0].shoulder.rotation.z = -0.44 * intensity;
+    arms[1].shoulder.rotation.z = 0.44 * intensity;
+    arms[0].forearm.rotation.x = -0.62 * intensity;
+    arms[1].forearm.rotation.x = -0.62 * intensity;
+    body.position.y = 0.012 + Math.abs(sway.side) * 0.006;
+    // Peito para cima nas notas altas: o corpo acompanha o canto.
+    body.rotation.x -= loud * 0.07 * intensity;
+    // Palavras no ritmo: uma pequena ênfase de cabeça em cada sílaba.
+    head.rotation.x -= Math.max(0, anthemMouth(time + .06, seed) - anthemMouth(time, seed)) * 2.2 * intensity;
+    // Quadril/base: ninguém fica travado como estátua.
+    const breathe = Math.sin(time * 1.5 + seed * 6) * 0.02 * intensity;
+    legs[0].hip.rotation.x += breathe;
+    legs[1].hip.rotation.x -= breathe;
   }
 
   const api = {
@@ -1717,6 +1736,14 @@ export function createPlayer3D(options = {}) {
     },
     /** Sinal de arbitragem: o braço direito sobe apitando. */
     header(duration = 0.38) { headerDuration = duration; headerTimer = duration; },
+    /**
+     * Cobrança de lateral: mãos na bola acima/atrás da cabeça e arremesso.
+     * Interpola com o tempo restante para a pose não ficar dura.
+     */
+    throwIn(duration = 0.72) {
+      throwDuration = Math.max(0.2, Number(duration) || 0.72);
+      throwTimer = throwDuration;
+    },
     signal(duration = 1.1) {
       signalTimer = duration;
     },
@@ -1795,22 +1822,32 @@ export function createPlayer3D(options = {}) {
       // chuta enquanto está no chão). Bloqueia o resto da animação base.
       if (downTimer > 0) {
         downTimer = Math.max(0, downTimer - dt);
-        const entering = Math.min(1, (downDuration - downTimer) / 0.28);
-        const leaving = Math.min(1, downTimer / 0.35);
+        // Entrada em 0,20 s e saída em 0,42 s: cair rápido e levantar devagar,
+        // com um "quique" de amortecimento — a queda rígida de antes parecia
+        // um boneco tombando.
+        const enteringRaw = Math.min(1, (downDuration - downTimer) / 0.20);
+        const entering = enteringRaw * enteringRaw * (3 - 2 * enteringRaw);
+        const leavingRaw = Math.min(1, downTimer / 0.42);
+        const leaving = leavingRaw * leavingRaw * (3 - 2 * leavingRaw);
         const lie = Math.min(entering, leaving);   // 0 = de pé, 1 = no chão
         const t = 1 - downTimer / Math.max(0.01, downDuration);
+        // Respiração/contorção: o atleta no chão nunca fica imóvel.
+        const breath = Math.sin(t * 6.4) * 0.018 * lie;
         const writhing = downKind === 'face'
           ? Math.sin(t * 5.5) * 0.05 * lie : 0;
+        // Impacto: no primeiro instante o tronco torce para o lado do choque.
+        const thud = Math.max(0, 1 - t / 0.22) * Math.min(1, lie);
         // Deitado de costas: o corpo gira em torno de X e cai para o lado.
-        body.rotation.x = -1.42 * lie + writhing;
-        body.rotation.z = slideDir * 0.16 * lie;
-        body.position.y = -0.52 + 0.52 * lie;
+        body.rotation.x = -1.42 * lie + writhing + breath;
+        body.rotation.z = slideDir * (0.16 * lie + thud * 0.16);
+        body.position.y = -0.52 * lie;
         body.rotation.y = slideDir * 0.25 * lie;
-        // Pernas dobradas, joelhos para cima.
-        legs[0].hip.rotation.x = 0.55 * lie + writhing * 2;
-        legs[1].hip.rotation.x = 0.85 * lie - writhing * 2;
-        legs[0].knee.rotation.x = -0.95 * lie;
-        legs[1].knee.rotation.x = -0.62 * lie;
+        // Pernas dobradas, joelhos para cima, oscilando com a dor.
+        const kick = Math.sin(t * 7.3) * 0.06 * lie;
+        legs[0].hip.rotation.x = 0.55 * lie + writhing * 2 + kick;
+        legs[1].hip.rotation.x = 0.85 * lie - writhing * 2 - kick * 0.7;
+        legs[0].knee.rotation.x = -0.95 * lie - Math.abs(kick) * 1.4;
+        legs[1].knee.rotation.x = -0.62 * lie - Math.abs(kick);
         legs[0].foot.rotation.x = -0.2 * lie;
         legs[1].foot.rotation.x = -0.25 * lie;
         if (downKind === 'face') {
@@ -1824,11 +1861,15 @@ export function createPlayer3D(options = {}) {
           head.rotation.x = -0.22 * lie;
           head.rotation.y = slideDir * 0.18 * lie;
         } else {
-          arms[0].shoulder.rotation.x = -0.28 * lie;
-          arms[1].shoulder.rotation.x = -0.22 * lie;
+          // Braços abertos no gramado, com um leve tremor de respiração.
+          arms[0].shoulder.rotation.x = -0.28 * lie + breath * 2;
+          arms[1].shoulder.rotation.x = -0.22 * lie - breath * 2;
           arms[0].shoulder.rotation.z = -0.75 * lie;
           arms[1].shoulder.rotation.z = 0.7 * lie;
-          head.rotation.x = -0.3 * lie;
+          arms[0].forearm.rotation.x = -0.25 * lie;
+          arms[1].forearm.rotation.x = -0.3 * lie;
+          head.rotation.x = -0.3 * lie + breath * 1.5;
+          head.rotation.y = slideDir * 0.12 * lie;
         }
         return;
       }
@@ -2018,6 +2059,28 @@ export function createPlayer3D(options = {}) {
           legs[0].knee.rotation.x = legs[1].knee.rotation.x = 0.05;
         }
         head.rotation.x = reactionKind === 'fall' ? 0.18 : -0.12;
+        return;
+      }
+      if (throwTimer > 0) {
+        throwTimer = Math.max(0, throwTimer - dt);
+        // 0 = bola atrás da cabeça, 1 = braços já estendidos à frente.
+        const progress = 1 - throwTimer / throwDuration;
+        const swing = progress < 0.55
+          ? -1 + progress / 0.55            // arma o arremesso
+          : -0.02 + (progress - 0.55) / 0.45 * 1.15; // solta e acompanha
+        const raise = progress < 0.55 ? 1 : Math.max(0, 1 - (progress - 0.55) / 0.45);
+        arms[0].shoulder.rotation.x = -2.15 * raise + swing * 0.9;
+        arms[1].shoulder.rotation.x = -2.15 * raise + swing * 0.9;
+        arms[0].shoulder.rotation.z = 0.34 - raise * 0.12;
+        arms[1].shoulder.rotation.z = -0.34 + raise * 0.12;
+        arms[0].forearm.rotation.x = -1.15 * raise;
+        arms[1].forearm.rotation.x = -1.15 * raise;
+        body.rotation.x = -0.1 * raise + 0.1 * Math.max(0, progress - 0.6);
+        head.rotation.x = -0.16 * raise;
+        legs[0].hip.rotation.x = 0.04;
+        legs[1].hip.rotation.x = -0.04;
+        legs[0].knee.rotation.x = 0.03;
+        legs[1].knee.rotation.x = 0.03;
         return;
       }
       if (celebrateTimer > 0) {

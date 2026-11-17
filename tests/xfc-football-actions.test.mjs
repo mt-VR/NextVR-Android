@@ -5,6 +5,7 @@ import {
   penaltyTarget,
   choosePenaltyLane, rainbowProfile, rainbowPoint
 } from '../xfc-game/src/match3d/football-actions.js';
+import { PITCH } from '../xfc-game/src/match3d/constants.js';
 import { launchOrSkip } from './support/chromium.mjs';
 import { startXfcServer } from '../xfc-game/serve.mjs';
 
@@ -37,7 +38,7 @@ test('pênalti: mira contínua e invertida no outro gol; escolhas independentes 
     for (const x of [-1, 0, 1]) {
       const target = penaltyTarget(x, 1, sign);
       assert.equal(target.z, x * sign * 3.12);
-      assert.equal(target.x, sign * 52.5);
+      assert.equal(target.x, sign * PITCH.halfLength);
       assert.equal(target.height, 1.85);
     }
 });
@@ -65,7 +66,12 @@ test(
       await page.click('.stadiums__card:first-child');
       await page.click('.showcase__enter');
       await page.waitForSelector('.hud.is-visible');
-      const result = await page.evaluate(() => {
+      const pitchHalfLength = await page.evaluate(async () => {
+        const { PITCH } = await import('/src/match3d/constants.js');
+        return PITCH.halfLength;
+      });
+      const result = await page.evaluate((halfLength) => {
+        const PITCH = { halfLength };
         const m = window.__xfcMatch;
         m.stop();
         const all = [...m.teams.home.players, ...m.teams.away.players],
@@ -121,11 +127,12 @@ test(
           m.ball.reset();
           const taker = type === 'goalkick' ? gk : p;
           taker.active = true;
-          taker.x = type === 'goalkick' ? -46 : 42;
+          // Campo de 112 m: o cobrador fica perto da linha de fundo/lateral.
+          taker.x = type === 'goalkick' ? -(PITCH.halfLength - 6.5) : PITCH.halfLength - 10.5;
           taker.z = 5;
           taker.root.position.set(taker.x, 0, taker.z);
           const side = type === 'goalkick' ? -1 : 1;
-          m.ball.state.position.set(side * 52.45, 0.18, 7);
+          m.ball.state.position.set(side * (PITCH.halfLength - 0.05), 0.18, 7);
           m.ball.state.velocity.set(side * 20, 0, 0);
           m.ball.state.lastTouch = m.teams.away.players.find(
             (x) => !x.isKeeper
@@ -181,7 +188,7 @@ test(
           clockInline: clock.parentElement.className,
           clockColor: getComputedStyle(clock).backgroundColor
         };
-      });
+      }, pitchHalfLength);
       assert.equal(result.step, true);
       assert.equal(result.stepGesture, 'stepover');
       assert.equal(result.rainbow, true);

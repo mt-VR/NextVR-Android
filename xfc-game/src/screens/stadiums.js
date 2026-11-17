@@ -10,6 +10,8 @@ export function stadiumsScreen(ctx, params={}) {
   function enter(index=selected){ctx.go('play',{
     home:params.home||ctx.state.selection?.home||'fc-barcelona',away:params.away||ctx.state.selection?.away||'real-madrid',
     homeKit:params.homeKit??0,awayKit:params.awayKit??0,minutes:params.minutes??6,difficulty:params.difficulty||'normal',
+    // Seleções do Kick Off: cores nacionais escolhidas na tela de uniformes.
+    homeColors:params.homeColors||null,awayColors:params.awayColors||null,isNationalMatch:!!params.isNationalMatch,
     stadium:index,competition:params.competition||null,returnTo:params.competitionReturnTo||'menu'});}
   const info=el('section',{class:'ref-stadium-info',hidden:true,'aria-live':'polite'});
   const cards=pages[0].map((id,i)=>hotspot(STADIUMS[id].name,[63+i*239,571,235,190],()=>enter(pages[page][i]),

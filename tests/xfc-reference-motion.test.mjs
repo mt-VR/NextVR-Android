@@ -79,18 +79,20 @@ test('pênaltis nos dois gols: somente cobrador/goleiro na área, árbitro fora 
       const m=__xfcMatch;m.stop();m.world.setPaused(false);m.world.entrancePlayed=true;
       const all=[...m.teams.home.players,...m.teams.away.players],rows=[];
       for(const [side,sign] of [['home',1],['away',-1]]){
-        for(const [i,player]of all.entries()){player.active=true;player.x=sign*45;player.z=(i-10)*.7;player.vx=player.vz=0;}
-        m.phase.name='restart';m.phase.timer=0;m.phase.restart={type:'penalty',side,x:sign*41.5,z:0,ready:false};m.ball.state.owner=null;
+        for(const [i,player]of all.entries()){player.active=true;player.x=sign*(m.world.pitch.halfLength-11);player.z=(i-10)*.7;player.vx=player.vz=0;}
+        m.phase.name='restart';m.phase.timer=0;m.phase.restart={type:'penalty',side,x:sign*(m.world.pitch.halfLength-11),z:0,ready:false};m.ball.state.owner=null;
         m.world.tick(1/60);for(let i=0;i<30;i++)m.world.tick(1/60);
-        const inside=all.filter(player=>sign*player.x>36&&Math.abs(player.z)<20.16);
+        // Área do campo atual: 18 yardas (16,5 m) para dentro da linha de fundo.
+        const boxEdge=m.world.pitch.halfLength-16.5;
+        const inside=all.filter(player=>sign*player.x>boxEdge&&Math.abs(player.z)<20.16);
         const referee=m.engine.scene.children.find(o=>o.userData?.appearance?.source==='referee'||o.name==='xfc-referee');
-        rows.push({distance:Math.hypot(m.phase.restart.taker.x-m.ball.state.position.x,m.phase.restart.taker.z-m.ball.state.position.z),side,inside:inside.map(x=>({id:x.id,keeper:x.isKeeper})),taker:m.phase.restart?.taker?.id,ready:m.phase.restart?.ready,referee:referee?.position.toArray(),active:all.filter(x=>x.active).length,ball:m.ball.state.position.toArray()});
+        rows.push({distance:Math.hypot(m.phase.restart.taker.x-m.ball.state.position.x,m.phase.restart.taker.z-m.ball.state.position.z),side,inside:inside.map(x=>({id:x.id,keeper:x.isKeeper})),taker:m.phase.restart?.taker?.id,ready:m.phase.restart?.ready,referee:referee?.position.toArray(),active:all.filter(x=>x.active).length,ball:m.ball.state.position.toArray(),halfLength:m.world.pitch.halfLength});
       }
       const marker=m.engine.scene.getObjectByName('xfc-controlled-marker-2d');
       m.engine.renderer.render(m.engine.scene,m.engine.camera);
       const positions=Array.from(marker.geometry.attributes.position.array);
       return{rows,marker:{vertices:positions.length/3,z:positions.filter((_,i)=>i%3===2),color:marker.material.color.getHex(),angle:marker.quaternion.angleTo(m.engine.camera.quaternion)}};
-    });for(const row of r.rows){assert.ok(Math.abs(row.distance-5)<.01);assert.equal(row.active,22);assert.equal(row.ready,true);assert.ok(Math.abs(row.referee[2])>20.16);assert.equal(row.inside.length,2,JSON.stringify(row));assert.ok(row.inside.some(x=>x.id===row.taker));assert.equal(row.inside.filter(x=>x.keeper).length,1);assert.ok(Math.abs(Math.abs(row.ball[0])-41.5)<.05);}
+    });for(const row of r.rows){assert.ok(Math.abs(row.distance-5)<.01);assert.equal(row.active,22);assert.equal(row.ready,true);assert.ok(Math.abs(row.referee[2])>20.16);assert.equal(row.inside.length,2,JSON.stringify(row));assert.ok(row.inside.some(x=>x.id===row.taker));assert.equal(row.inside.filter(x=>x.keeper).length,1);assert.ok(Math.abs(Math.abs(row.ball[0])-(row.halfLength-11))<.05);}
     assert.equal(r.marker.vertices,3);assert.deepEqual(r.marker.z,[0,0,0]);assert.equal(r.marker.color,0xf02338);assert.ok(r.marker.angle<1e-6);
   }finally{await b.close();server.close();}
 });

@@ -267,7 +267,11 @@ export function createGltfPlayer(options = {}) {
     if (object.name === 'short01') {object.geometry=labHairGeometry(object,renderHair,scalpBody)||classicHairGeometry(object,hairStyle);object.userData.classicHair=hairStyle;object.visible=hairStyle!=='lab-none';}
     if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
-      const clone = object.name==='short01'?(renderHair.startsWith('lab-')?labHairMaterial(hairColor):classicHairMaterial(hairStyle==='lab-shaved'?'bald':hairStyle.startsWith('lab-')?hairStyle.slice(4):hairStyle,hairColor,skinTone)):material.clone();
+      // Pontas descoloridas: o moicano de referência (e o corte "neymar" do
+      // elenco) tem raiz escura e ponta clara, como em 2011/12.
+      const hairTip = renderHair==='lab-reference-mohawk' || (options.careerHair && hairStyle==='neymar')
+        ? (options.hairTip || '#c9a86a') : null;
+      const clone = object.name==='short01'?(renderHair.startsWith('lab-')?labHairMaterial(hairColor,hairTip):classicHairMaterial(hairStyle==='lab-shaved'?'bald':hairStyle.startsWith('lab-')?hairStyle.slice(4):hairStyle,hairColor,skinTone)):material.clone();
       const name = String(material.name || '');
       // Recolour only the existing cloth materials. Never tint skin/face/hair.
       if (name === 'Micah | top') {

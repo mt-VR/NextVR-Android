@@ -8,6 +8,7 @@ import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/t
 import { NATIONAL_TEAMS, GROUP_NAMES, createWorldCupCampaign, campaignStandings, nextCampaignMatch, recordCampaignMatchResult, getNationalTeam } from '../xfc-game/src/data/worldcup.js';
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
 import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, insideGoalAreaFor } from '../xfc-game/src/match3d/sides.js';
+import { PITCH } from '../xfc-game/src/match3d/constants.js';
 import { qualityStepsFor, rendererProfileFor } from '../xfc-game/src/match3d/engine.js';
 import { createPlayer3D } from '../xfc-game/src/match3d/player.js';
 import { applyBallAirForces, curveSpinRate } from '../xfc-game/src/match3d/physics.js';
@@ -337,8 +338,9 @@ test('previsão do goleiro e linha de bola parada seguem a mesma física curva',
     position: { x: 40, y: 1.2, z: 0 },
     velocity: { x: 20, y: 0, z: 0 }
   };
-  const straight = predictGoalkeeperIntercept({ ...state, spin: { x: 0, y: 0, z: 0 } }, 52.5);
-  const curving = predictGoalkeeperIntercept({ ...state, spin: { x: 0, y: 5, z: 0 } }, 52.5);
+  // Campo maior (v0.5.51): a linha do gol vem do PITCH, não de um número fixo.
+  const straight = predictGoalkeeperIntercept({ ...state, spin: { x: 0, y: 0, z: 0 } }, PITCH.halfLength);
+  const curving = predictGoalkeeperIntercept({ ...state, spin: { x: 0, y: 5, z: 0 } }, PITCH.halfLength);
   assert.ok(straight && curving, 'a bola chega ao plano do gol nas duas simulações');
   assert.ok(curving.z < straight.z, 'a leitura do goleiro inclui o mesmo Magnus da bola');
 
@@ -377,10 +379,12 @@ test('o treino move pelo referencial da câmera sem mudar o analógico da transm
   const farCamera = broadcastCameraPose({ x: 0, y: 0.11, z: -22 });
   assert.ok(nearCamera.position.z > 0 && farCamera.position.z > 0,
     'a transmissão não cruza para o lado oposto quando a bola troca de lateral');
-  const corner = cornerCameraPose({ x: 52.1, z: 33.8 }, 1, { x: 44, z: 7 });
-  assert.ok(corner.position.z > 34 && corner.position.z < 37,
+  // Bandeirinha do campo atual (112 × 74), não a medida antiga de 105 × 68.
+  const cornerX = PITCH.halfLength - 0.4, cornerZ = PITCH.halfWidth - 0.2;
+  const corner = cornerCameraPose({ x: cornerX, z: cornerZ }, 1, { x: cornerX - 8, z: 7 });
+  assert.ok(corner.position.z > PITCH.halfWidth && corner.position.z < PITCH.halfWidth + 3.2,
     'a câmera fica próxima à bandeirinha, mas não dentro da arquibancada');
-  assert.ok(corner.position.x < 52.1 && corner.target.x > 40,
+  assert.ok(corner.position.x < cornerX && corner.target.x > PITCH.halfLength - 12,
     'o cobrador fica entre a câmera e a área de cruzamento');
 });
 
@@ -400,21 +404,23 @@ test('orientação do campo: a casa ataca +X, cada time defende o próprio gol',
   assert.equal(attackSign('away'), -1);
   assert.equal(defendSign('home'), -1);
   assert.equal(defendSign('away'), 1);
-  assert.equal(ownGoalX('home'), -52.5);
-  assert.equal(ownGoalX('away'), 52.5);
-  assert.equal(attackedGoalX('home'), 52.5);
-  assert.equal(attackedGoalX('away'), -52.5);
+  assert.equal(ownGoalX('home'), -PITCH.halfLength);
+  assert.equal(ownGoalX('away'), PITCH.halfLength);
+  assert.equal(attackedGoalX('home'), PITCH.halfLength);
+  assert.equal(attackedGoalX('away'), -PITCH.halfLength);
   // Grande área do mandante fica na borda esquerda; a do visitante, na direita.
-  assert.equal(insidePenaltyAreaFor(-45, 0, 'home'), true);
-  assert.equal(insidePenaltyAreaFor(45, 0, 'home'), false);
-  assert.equal(insidePenaltyAreaFor(45, 0, 'away'), true);
-  assert.equal(insidePenaltyAreaFor(-45, 0, 'away'), false);
-  assert.equal(insidePenaltyAreaFor(-45, 25, 'home'), false, 'fora do corredor da área');
+  // Pontos relativos à linha de fundo atual (campo de 112 m).
+  const h = PITCH.halfLength;
+  assert.equal(insidePenaltyAreaFor(-(h - 7), 0, 'home'), true);
+  assert.equal(insidePenaltyAreaFor(h - 7, 0, 'home'), false);
+  assert.equal(insidePenaltyAreaFor(h - 7, 0, 'away'), true);
+  assert.equal(insidePenaltyAreaFor(-(h - 7), 0, 'away'), false);
+  assert.equal(insidePenaltyAreaFor(-(h - 7), 25, 'home'), false, 'fora do corredor da área');
   // Pequena área alinhada ao gol defendido.
-  assert.equal(insideGoalAreaFor(-50, 0, 'home'), true);
-  assert.equal(insideGoalAreaFor(-46, 0, 'home'), false);
-  assert.equal(insideGoalAreaFor(50, 0, 'away'), true);
-  assert.equal(insideGoalAreaFor(46, 0, 'away'), false);
+  assert.equal(insideGoalAreaFor(-(h - 2), 0, 'home'), true);
+  assert.equal(insideGoalAreaFor(-(h - 9), 0, 'home'), false);
+  assert.equal(insideGoalAreaFor(h - 2, 0, 'away'), true);
+  assert.equal(insideGoalAreaFor(h - 9, 0, 'away'), false);
 });
 
 test('Copa inclui as 32 seleções de 2022 com XI nacional jogável', () => {
@@ -840,8 +846,9 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       match.teams.away.score = userIsHome ? 0 : 1;
       match.phase.name = 'play';
       match.clock.half = 2;
-      match.clock.minutes = 94;
-      match.clock.added = 4;
+      // Acréscimos de 5 min (v0.5.51): o jogo só termina depois dos 95.
+      match.clock.minutes = 96;
+      match.clock.added = 5;
       match.world.tick(1 / 60);
     });
     await page.waitForSelector('.result__title', { timeout: 20000 });
@@ -1267,11 +1274,12 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const savesBefore = match.world.snapshot().stats.away.saves;
       let saved = false;
       for (let attempt = 0; attempt < 40 && !saved; attempt += 1) {
-        keeper.x = 50.5;
+        // Goleiro no lance, colado à bola que já está sobre a linha do gol.
+        keeper.x = match.world.pitch.halfLength - 1.2;
         keeper.z = 0;
         keeper.root.position.set(keeper.x, 0, keeper.z);
         match.ball.state.owner = null;
-        match.ball.state.position.set(52.45, 0.8, 0);
+        match.ball.state.position.set(match.world.pitch.halfLength - 0.05, 0.8, 0);
         match.ball.state.velocity.set(8, 0, 0);
         match.ball.state.spin.set(0, 0, 0);
         match.ball.state.guidance = null;
@@ -1308,7 +1316,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       match.phase.name = 'play';
       match.phase.restart = null;
       match.ball.state.owner = null;
-      match.ball.state.position.set(52.45, 1.2, 0);
+      match.ball.state.position.set(match.world.pitch.halfLength - 0.05, 1.2, 0);
       match.ball.state.velocity.set(20, 0, 0);
       match.ball.state.spin.set(0, 0, 0);
       match.ball.state.lastCollision = null;
@@ -1325,7 +1333,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       match.phase.timer = 0;
       match.phase.restart = null;
       match.ball.state.owner = null;
-      match.ball.state.position.set(-52.45, 0.18, 4.5);
+      match.ball.state.position.set(-match.world.pitch.halfLength + 0.05, 0.18, 4.5);
       match.ball.state.velocity.set(-20, 0, 0);
       match.ball.state.spin.set(0, 0, 0);
       match.ball.state.lastCollision = null;
@@ -1519,8 +1527,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.equal(secondHalfStarted, true, 'o segundo tempo começa depois do intervalo');
     const finished = await page.evaluate(() => {
       const match = window.__xfcMatch;
-      match.clock.minutes = 90;
-      match.clock.added = 0;
+      match.clock.minutes = 96;
+      match.clock.added = 5;
       match.world.tick(1 / 60);
       return match.world.snapshot();
     });
@@ -1799,7 +1807,7 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
         away: match.world.members('away').length,
         wall: wall.length,
         keeper: match.world.members('away').some(player => player.isKeeper),
-        ballDistance: 52.5 - match.ball.state.position.x,
+        ballDistance: match.world.pitch.halfLength - match.ball.state.position.x,
         keeperX: match.world.members('away').find(player => player.isKeeper).x,
         ballShape: match.ball.mesh.geometry.type,
         ballRadius: match.ball.mesh.geometry.parameters.radius,
@@ -1845,7 +1853,7 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
         attackers: match.world.members('home').length,
         defenders: match.world.members('away').length,
         keeper: match.world.members('away')[0]?.isKeeper,
-        markDistance: 52.5 - match.ball.state.position.x
+        markDistance: match.world.pitch.halfLength - match.ball.state.position.x
       };
     });
     assert.equal(penalty.drill, 'penalty');

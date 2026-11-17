@@ -267,6 +267,17 @@ export const FIFA_NATIONAL_TEAMS = FIFA_MEMBERS.map(member=>{
   return {...generated,confederation:member.confederation,squadSource:'fictional',squadNote:'Elenco fictício XFC · atributos de jogo, não ranking FIFA'};
 });
 
+/**
+ * Seleções jogáveis no Kick Off: as 32 da Copa clássica + as demais membros da
+ * FIFA (com elenco fictício assumido no cadastro). O formato já é o do time
+ * jogável (`colors`, `players`, `ratings` com ATT/MID/DEF), então o mesmo
+ * motor da Copa carrega o XI sem conversão extra.
+ */
+export const KICKOFF_NATIONAL_TEAMS = FIFA_NATIONAL_TEAMS;
+export function getKickoffNationalTeam(id) {
+  return KICKOFF_NATIONAL_TEAMS.find(team => team.id === id) || null;
+}
+
 export const GROUP_NAMES = Object.freeze(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
 export const USER_NATIONAL_TEAM_ID = 'brazil';
 const KNOCKOUT_STAGES = ['round-of-16', 'quarterfinals', 'semifinals', 'final'];

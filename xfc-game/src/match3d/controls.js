@@ -8,6 +8,7 @@
 // dele.
 
 import { el } from '../ui/dom.js';
+import { createGamepad } from '../ui/gamepad.js';
 
 const STICK_BASE = 128;   // diâmetro da base, em px do palco
 const STICK_RADIUS = 44;  // alcance do knob, em px do palco
@@ -22,7 +23,7 @@ const BUTTONS = [
   { id: 'sprint', label: 'CORRER', className: 'ctrl-btn--sprint' }
 ];
 
-export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, root, playerCareer=false }) {
+export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, root, playerCareer=false, padGamepad=null }) {
   const stick = el('div', { class: 'controls__stick' },
     el('span', { class: 'controls__stick-base' }),
     el('span', { class: 'controls__stick-knob' })
@@ -40,6 +41,13 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   const cancelActiveActions = [];
   let movementVector = { x: 0, z: 0 };
   let enabled = true;
+  // ------------------------------------------------------------ gamepad --
+  // Com um controle conectado, os botões virtuais somem (console mode) e o
+  // analógico/botões do controle alimentam o mesmo caminho do toque.
+  const pad = padGamepad;
+  let padMode = false;
+  let padFamily = 'generic';
+  let currentCharging = false;
 
   function shootUi(button, strength, kind, charging) {
     onCharge(charging?Math.max(.15,strength):0);
@@ -348,13 +356,51 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
 
+  // Leitura do controle, no mesmo timer do teclado (40 ms basta para o
+  // analógico; os botões têm borda e não repetem).
+  function readPad(){
+    if(!pad||pad.menuMode)return;
+    // Sempre com navegação de jogo (menuMode é controlado pelo main.js).
+    const result=pad.poll(0.04,{enabled:true});
+    if(!result.connected){if(padMode)setPadMode(false);return;}
+    if(!padMode)setPadMode(true,result.family);
+    const magnitude=Math.hypot(result.move.x,result.move.z);
+    // Com os controles desligados (pré-jogo/pausa) só o "cutucão" no
+    // analógico passa, para tirar o jogador da apresentação.
+    if(!enabled){
+      if(magnitude>0.2)onMove(result.move.x,result.move.z);
+      return;
+    }
+    if(magnitude>0.02||movementVector.x||movementVector.z||pointerId===null){
+      movementVector={x:result.move.x,z:result.move.z};
+      onMove(result.move.x,result.move.z);
+    }
+    onSprint(result.sprint);
+    for(const command of result.commands){
+      if(command&&typeof command==='object')onCommand(command.name,command.payload);
+      else onCommand(command);
+    }
+    const charging=Boolean(result.charging);
+    if(charging!==currentCharging){currentCharging=charging;if(!charging)onCharge(0);}
+  }
+
   const keyboardTimer = setInterval(()=>{
     readKeyboard();
+    // Mesmo com os controles desligados durante o pré-jogo, o gamepad ainda
+    // é lido: um toque no analógico é o que coloca o time em campo.
+    readPad();
     if(shootCharge){
       shootCharge.strength=Math.max(0,Math.min(1,(performance.now()-shootCharge.startedAt-130)/(SHOOT_FULL_MS-130)));
       shootUi(buttons.find(b=>b.dataset.command==='shoot'),shootCharge.strength,shootCharge.strength>=1?'power':shootCharge.kind,true);
     }
   },40);
+
+  /** Liga/desliga o modo console: esconde os controles virtuais da tela. */
+  function setPadMode(value, family=padFamily){
+    padMode=Boolean(value);padFamily=family||'generic';
+    container.classList.toggle('is-gamepad',padMode);
+    container.dataset.gamepad=padMode?padFamily:'';
+  }
 
   function setEnabled(value) {
     enabled = Boolean(value);
@@ -376,6 +422,7 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
     passFeedback(message,accepted){feedback.textContent=message;feedback.classList.toggle('is-accepted',!!accepted);feedback.classList.add('is-visible');clearTimeout(feedbackTimer);feedbackTimer=setTimeout(()=>feedback.classList.remove('is-visible'),1800);},
     /** Liga ou desliga os controles (pausa, resultado...). */
     setEnabled,
+    setPadMode,
     dispose() {
       setEnabled(false);
       clearInterval(keyboardTimer);

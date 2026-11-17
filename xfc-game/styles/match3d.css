@@ -2511,3 +2511,53 @@
 /* Na pausa o placar se move para o topo direito: a nota sai de cena. */
 .play__stage.is-paused .hud__rating { display: none; }
 @media (max-width: 900px) { .hud__rating { right: 152px; gap: 6px; padding: 6px 9px; } .hud__rating-scale { display: none; } }
+
+/* ------------------------------------------------- controle tipo console -- */
+/* Com Xbox/PlayStation conectado, o toque sai de cena: nada de analógico
+   virtual nem botões na tela — só o placar e o pause, como num console. */
+.controls.is-gamepad .controls__stick,
+.controls.is-gamepad .controls__buttons,
+.controls.is-gamepad .controls__stick-zone,
+.controls.is-gamepad .controls__pass-feedback {
+  display: none !important;
+}
+
+/* Rodapé pequeno com os botões do controle (o mesmo desenho do padrão
+   Xbox/PlayStation, escolhido pela identificação do gamepad). */
+.play--gamepad::after {
+  content: attr(data-pad-legend);
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 8;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 12, 18, 0.68);
+  color: rgba(255, 255, 255, 0.86);
+  font: 600 13px/1.2 Inter, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+/* O tabuleiro de pausa também aceita o direcional: foco bem visível. */
+.play__overlay button:focus-visible,
+.pause-reference button:focus-visible,
+[data-pad-focus="true"] {
+  outline: 3px solid var(--accent, #2ef0a8);
+  outline-offset: 3px;
+}
+
+/* HUD minimalista no controle: placar e pause continuam; radar e cartão do
+   jogador saem de cena (o controle já mostra tudo no aparelho). Os avisos de
+   gol/falta e o banner continuam, que é o que interessa em campo. */
+.hud.hud--gamepad .hud__radar-wrap,
+.hud.hud--gamepad .hud__player,
+.hud.hud--gamepad .hud__foe,
+.hud.hud--gamepad .hud__poss,
+.hud.hud--gamepad .hud__rating {
+  display: none !important;
+}

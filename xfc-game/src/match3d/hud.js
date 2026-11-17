@@ -40,7 +40,7 @@ function teamMark(team) {
   );
 }
 
-export function createHud({ root, home, away, userSide = 'home', careerRating = false, onSetPieceChange = () => {} }) {
+export function createHud({ root, home, away, userSide = 'home', careerRating = false, onSetPieceChange = () => {}, stageBox = null }) {
   const homeCrest = teamMark(home);
   const awayCrest = teamMark(away);
   const homeScore = el('b', { class: 'hud__score', text: '0' });
@@ -572,6 +572,24 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
         tag.classList.add('is-visible');
       } else {
         tag.classList.remove('is-visible', 'is-goal-focus');
+      }
+    },
+    /**
+     * Modo console: com controle conectado o HUD fica limpo — placar e pause.
+     * O radar, o cartão do jogador e os avisos de toque somem (o controle já
+     * mostra tudo no próprio aparelho), e o rodapé ganha a legenda dos botões.
+     */
+    setPadMode(connected, family = 'generic') {
+      const on = Boolean(connected);
+      node.classList.toggle('hud--gamepad', on);
+      stageBox?.classList.toggle('play--gamepad', on);
+      if (stageBox) {
+        const legend = family === 'playstation'
+          ? '✕ passe · △ chute · □ enfiada · ○ carrinho · R2 correr · OPTIONS pausar'
+          : family === 'xbox'
+            ? 'A passe · Y chute · X enfiada · B carrinho · RT correr · MENU pausar'
+            : 'A passe · Y chute · X enfiada · B carrinho · RT correr · START pausar';
+        stageBox.dataset.padLegend = legend;
       }
     },
     /** Atualiza a nota AO VIVO (0–10) do atleta da carreira. */

@@ -67,6 +67,7 @@ test(
       await page.goto(url);
       const result = await page.evaluate(async () => {
         const { THREE } = await import('/src/match3d/engine.js');
+        const { PITCH } = await import('/src/match3d/constants.js');
         const { createBall } = await import('/src/match3d/ball.js');
         const { createGoalNet } = await import('/src/match3d/goal-net.js');
         const hits = [],
@@ -84,7 +85,7 @@ test(
         });
         const run = (side, surface) => {
           ball.reset();
-          ball.state.position.set(side * 52.45, 1.2, 0);
+          ball.state.position.set(side * (PITCH.halfLength - 0.05), 1.2, 0);
           ball.state.velocity.set(side * 25, 0, 0);
           ball.update(0.02, []);
           if (surface === 'top') ball.state.velocity.set(side * 5, 18, 0);

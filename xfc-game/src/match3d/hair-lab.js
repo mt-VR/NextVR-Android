@@ -53,27 +53,44 @@ function blade(root,tip,width,depth,lean=0){
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);const flat=g.toNonIndexed();g.dispose();flat.computeVertexNormals();return flat;
 }
 const BUILDERS={
- // Moicano de verdade (pedido: "deixa o moicano mais parecido com o moicano"):
- // uma crista contínua do meio da testa até a nuca, alta no topo e afinando
- // nas pontas, com as laterais raspadas — em vez das nove lâminas soltas.
- // A crista são três fileiras de mechas; as duas de fora são mais baixas, o
- // que dá a seção triangular que lê como moicano de perfil.
  'lab-reference-mohawk':c=>{
-  const parts=[],rows=[{x:0,k:1},{x:-.030,k:.62},{x:.030,k:.62}];
-  for(const {x,k} of rows)for(let i=0;i<11;i++){
-   const t=1.06-i*(2.06/10),a=x<0?-Math.PI/2:x>0?Math.PI/2:0,root=c.surface(a,Math.abs(t),.002);
-   // altura da crista: pico em cima (t≈0) e pontas curtas na testa e na nuca
-   const peak=.148*Math.pow(Math.cos(t*.78),.42)+.030;
-   // A ponta vai para TRÁS (na nuca) e um tico para o lado da fileira: o
-   // moicano é uma faixa que desce pela nuca, não um espeto para cima.
-   const end=root.clone().add(V(x*.55+(i%2?1:-1)*.005,peak*k,-.105));
-   parts.push(blade(root,end,.029*k+.011,.026*k+.009,.003));
+  // Moicano do Neymar 2011/12: faixa central alta e ESPESSA, laterais
+  // raspadas e pontas descoloridas. A primeira versão usava lâminas e lia
+  // como "placas" empilhadas; aqui as mechas são tubos afinados (mesmo
+  // gerador do Ragnarok) em três camadas, o que dá volume sem virar caixa.
+  const parts=[];
+  // Base curta em toda a coroa: em 2011/12 o Neymar raspava as laterais, não
+  // raspar até o couro — sem essa camada a cabeça parece careca sob a crista.
+  parts.push(...swept(c,{count:14,rows:1,start:.88,end:-1.00,volume:.0055,width:.011,steps:2,sides:4}));
+  // Superfície: t positivo é para FRENTE (testa), negativo para a NUCA.
+  const root=(x,t)=>c.surface(Math.atan2(x,t),Math.hypot(x,t),.0012);
+  // Camada principal: da testa (t≈1.0) até a nuca (t≈-1.25).
+  for(let i=0;i<34;i++){
+    const t=1.00-(i/33)*2.25;
+    const x=Math.sin(i*2.3)*.0018;
+    const crest=Math.exp(-Math.pow((t+.06)/.90,2));
+    const jag=.80+.30*(Math.sin(i*3.1)*.5+.5);
+    const h=(.030+.072*crest)*jag;
+    const p=root(x,t);
+    const mid=p.clone().add(V(x,h*.62,-.010-h*.10));
+    const tip=p.clone().add(V(x*1.5,h,-.030-h*.34));
+    parts.push(strand([p,mid,tip],.0125,.0065,4,4));
   }
-  // Laterais raspadas: dois fios rentes de cada lado, só para marcar a
-  // transição entre a crista e o couro.
-  for(const side of [-1,1])for(let i=0;i<3;i++){
-   const t=.62-i*.36,x=side*.31,root=c.surface(Math.atan2(x,t),Math.hypot(x,t),.001);
-   parts.push(blade(root,root.clone().add(V(side*.020,.028+i*.002,-.020)),.017,.016,side*.004));
+  // Duas camadas de fora para dentro: alargam o bloco sem perder o topo afiado
+  // (a de fora é mais baixa, como o corte de 2011).
+  for(const [band,k] of [[.022,.90],[.040,.72],[.052,.50]]){
+    for(const side of [-1,1])for(let i=0;i<10;i++){
+      const t=.92-(i/9)*2.05;
+      const crest=Math.exp(-Math.pow((t+.06)/.90,2));
+      const h=(.026+.062*crest)*k;
+      const p=root(side*band,t);
+      parts.push(strand([p,p.clone().add(V(side*band*.35,h*.58,-.008)),p.clone().add(V(side*band*.6,h,-.026-h*.30))],.013,.007,2,4));
+    }
+  }
+  // Nuca: fios que descem curtos e colados, integrando a faixa à cabeça.
+  for(const x of [-.022,-.011,0,.011,.022])for(let i=0;i<3;i++){
+    const t=-1.02-i*.08,p=root(x*.9,t),q=root(x*.7,t-.09);
+    parts.push(strand([p,q.clone().add(V(x*.1,-.004,-.008))],.010,.006,3,3));
   }
   return parts;
  },
@@ -155,8 +172,26 @@ export function labHairGeometry(mesh,style,body){
  g.setAttribute('skinIndex',new T.Uint16BufferAttribute(skin,4));g.setAttribute('skinWeight',new T.Float32BufferAttribute(weights,4));g.computeBoundingBox();g.computeBoundingSphere();g.userData={labHair:style,pieces:pieces.length,shared:true};cache.set(key,g);return g;
 }
 let texture;
-export function labHairMaterial(color){
+/**
+ * Cabelo do laboratório. `color` é a raiz e `tipColor` (opcional) pinta as
+ * pontas — é assim que o moicano do Neymar 2011/12 aparece: escuro na raiz e
+ * descolorido nas pontas. O degradê é feito pela coordenada `uv.y` de cada
+ * mecha (0 = raiz, 1 = ponta), que é justamente o que os builders gravam.
+ */
+export function labHairMaterial(color,tipColor=null){
  if(!texture){const canvas=document.createElement('canvas');canvas.width=canvas.height=128;const ctx=canvas.getContext('2d'),data=ctx.createImageData(128,128);for(let y=0;y<128;y++)for(let x=0;x<128;x++){const i=(y*128+x)*4,noise=((Math.imul(x+7,73)^Math.imul(y+11,151))&255)/255,grain=172+noise*36+Math.sin(x*2+y*.14)*26;data.data[i]=data.data[i+1]=data.data[i+2]=grain;data.data[i+3]=255;}ctx.putImageData(data,0,0);texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.wrapS=texture.wrapT=T.RepeatWrapping;texture.userData.shared=true;}
  const m=new T.MeshStandardMaterial({name:'XFC | isolated hair',map:texture,color,roughness:.94,metalness:0,side:T.DoubleSide});
- m.onBeforeCompile=s=>{s.vertexShader='attribute float coverage; varying float vHairCoverage;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvHairCoverage=coverage;');s.fragmentShader='varying float vHairCoverage;\n'+s.fragmentShader;s.fragmentShader=s.fragmentShader.replace('#include <alphatest_fragment>',`#include <alphatest_fragment>\nfloat grain=fract(sin(dot(floor(vMapUv*512.),vec2(12.9898,78.233)))*43758.5453);if(vHairCoverage<grain)discard;`);};m.customProgramCacheKey=()=> 'xfc-isolated-hair-v2';m.userData.hairOnly=true;return m;
+ // Raiz escura e ponta clara só fazem sentido com cabelo escuro; com cabelo
+ // já claro o degradê some (senão o topo viraria um bloco chapado).
+ const tip=tipColor&&new T.Color(color).getHSL({h:0,s:0,l:0}).l<.42?new T.Color(tipColor):null;
+ // O fundo do degradê começa na metade da mecha (o "loiro" de 2011 era só
+ // nas pontas, não em todo o topo).
+ const tipHex=tip?tip.getHexString():'';
+ m.onBeforeCompile=s=>{
+  s.vertexShader='attribute float coverage; varying float vHairCoverage; varying vec2 vHairUv;\n'+s.vertexShader;
+  s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvHairCoverage=coverage;vHairUv=uv;');
+  s.fragmentShader='varying float vHairCoverage; varying vec2 vHairUv;\n'+s.fragmentShader;
+  s.fragmentShader=s.fragmentShader.replace('#include <alphatest_fragment>',`#include <alphatest_fragment>\nfloat grain=fract(sin(dot(floor(vMapUv*512.),vec2(12.9898,78.233)))*43758.5453);if(vHairCoverage<grain)discard;`+(tip?`\n{float tipMix=smoothstep(.46,.92,vHairUv.y);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(${tip.r.toFixed(3)},${tip.g.toFixed(3)},${tip.b.toFixed(3)}),tipMix);}`:''));
+ };
+ m.customProgramCacheKey=()=> 'xfc-isolated-hair-v3'+(tipHex?'t'+tipHex:'');m.userData.hairOnly=true;m.userData.tipColor=tipHex||null;return m;
 }

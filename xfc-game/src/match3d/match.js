@@ -101,7 +101,11 @@ export function createMatch(options = {}) {
     graphics:engine.graphics,
     timeOfDay: options.timeOfDay
   });
-  const ball = createBall(engine.scene, { lowPower: engine.lowPower, onNetImpact: event => stadiumMesh.hitNet(event) });
+  const ball = createBall(engine.scene, {
+    lowPower: engine.lowPower,
+    onNetImpact: event => stadiumMesh.hitNet(event),
+    onAerialTouch: event => aerialHeader(event)
+  });
   const aimGeometry=new THREE.BufferGeometry();
   aimGeometry.setAttribute('position',new THREE.Float32BufferAttribute([0,0,-.5, 2.8,0,0, 0,0,.5],3));
   const penaltyArrow=new THREE.Mesh(aimGeometry,new THREE.MeshBasicMaterial({color:0xc6ffb3,transparent:true,opacity:.4,side:THREE.DoubleSide,depthWrite:false}));
@@ -128,7 +132,11 @@ export function createMatch(options = {}) {
 
   // Semente opcional: deixa a simulação reproduzível (útil nos testes).
   const rng = options.seed ? makeRng(options.seed) : Math.random;
-  const aiAccuracy = difficulty === 'easy' ? 0.42 : difficulty === 'hard' ? 0.7 : 0.55;
+  // Dificuldade: mexe na qualidade do desarme, na agressividade do rival e na
+  // ajuda que o seu time recebe. O padrão (normal) já é mais duro que a
+  // v0.5.50 — o pedido era "deixa o jogo mais difícil".
+  const aiAccuracy = difficulty === 'easy' ? 0.44 : difficulty === 'hard' ? 0.78 : 0.62;
+  const userSideHelp = difficulty === 'easy' ? 1 : difficulty === 'hard' ? .86 : .95;
 
   const teams = {
     home: { side: 'home', info: home, kit: homeKit, score: 0, players: [], cards: {} },
@@ -167,6 +175,8 @@ export function createMatch(options = {}) {
     minutes: 0,
     half: 1,
     added: 0,
+    // `announced` evita repetir o aviso de acréscimo no mesmo tempo.
+    announced: false,
     timeScale: 90 / Math.max(1, minutes)
   };
 
@@ -182,6 +192,10 @@ export function createMatch(options = {}) {
   const controlled = { home: null, away: null };
   let penaltyRunup=null;
   let refereeDecision = null;
+  // Lei da vantagem: a falta é anotada, mas o jogo segue por alguns segundos
+  // se a vítima/companheiro continuar com a bola em boa posição. Sem isso o
+  // juiz apitava toda carga e matava o contra-ataque ("juiz muito burro").
+  let advantage = null;
   const cameraTarget = new THREE.Vector3(0, 0, 0);
   let cameraReady = false;
   // 'play' (transmissão) ou 'cinematic' (volta sobre o estádio).
@@ -494,6 +508,33 @@ export function createMatch(options = {}) {
     return directionalPassTarget(player, members(player.side), stickWorldDirection()) || fallback();
   }
 
+  /**
+   * Lateral cobrado com as mãos (regra do futebol): o cobrador arma a bola
+   * atrás da cabeça e arremessa num arco alto, sem chute de pé. A bola sai
+   * das mãos (altura do peito/cabeça) e não pode ser dominada pelo próprio
+   * cobrador no mesmo lance.
+   */
+  function throwInTo(player, target) {
+    if (!target) return false;
+    const aimX = Math.max(-PITCH.halfLength + 1.4, Math.min(PITCH.halfLength - 1.4, target.x + (target.vx || 0) * 0.35));
+    const aimZ = Math.max(-PITCH.halfWidth + 2, Math.min(PITCH.halfWidth - 2, target.z + (target.vz || 0) * 0.35));
+    const dx = aimX - player.x, dz = aimZ - player.z;
+    const distance = Math.hypot(dx, dz) || 1;
+    // Arremesso chega quicando no peito: força limitada, arco alto.
+    const speed = Math.max(8, Math.min(17, 7 + distance * 0.55));
+    ball.state.position.set(player.x, 1.85, player.z);
+    ball.kick({ x: dx / distance, z: dz / distance }, speed, 0.34, {
+      guide: target.active ? { receiver: target, x: aimX, z: aimZ, follow: true, maxTime: 2.6 } : null,
+      curve: 0
+    });
+    ball.state.lastTouch = player;
+    ball.state.lastIntentionalTouch = player;
+    ball.state.lastShotKind = null;
+    player.model.throwIn(0.72);
+    emit({ type: 'pass', team: player.side, player, target, through: false, throwIn: true });
+    return true;
+  }
+
   function kickBall(player, target, { power = 18, lob = false, through = false, targetPoint = null, curve = 0, lift = null, requested = false } = {}) {
     if (!target) return;
     const sign = attackSign(player.side);
@@ -584,6 +625,53 @@ export function createMatch(options = {}) {
     const z=p.z+v.z*t;
     const y=p.y+v.y*t-4.905*t*t;
     return Math.abs(z)<GOAL.width/2+0.55 && y>-0.35 && y<GOAL.height+0.55;
+  }
+
+  /**
+   * Cabeçada: a bola chega alta e o jogador desvia de cabeça. Direção sai da
+   * mira (analógico/gol) e a força da impulsão, sem virar chute de pé.
+   * Retorna true quando o desvio aconteceu (a bola já foi rebatida).
+   */
+  function aerialHeader({ player, height, from }) {
+    if (!player?.active || paused) return false;
+    const sign = attackSign(player.side);
+    const ownGoal = ball.state.position.x * sign < -PITCH.halfLength + 18;
+    // Defesa: zera para a lateral/longe do gol. Ataque: mira o gol.
+    let dirX, dirZ;
+    if (ownGoal) {
+      dirX = sign * 0.55;
+      dirZ = Math.sign(ball.state.position.z || (rng() - 0.5)) * 0.85;
+    } else {
+      const isHuman = player.side === userSide && player === controlled[userSide];
+      const aimX = isHuman ? input.moveX : 0, aimZ = isHuman ? input.moveZ : 0;
+      if (Math.hypot(aimX, aimZ) > 0.25) {
+        const angle = Math.atan2(aimZ, aimX);
+        dirX = Math.cos(angle); dirZ = Math.sin(angle);
+      } else {
+        const target = { x: sign * PITCH.halfLength, z: (rng() - 0.5) * 5.5 };
+        const dx = target.x - player.x, dz = target.z - player.z, d = Math.hypot(dx, dz) || 1;
+        dirX = dx / d; dirZ = dz / d;
+      }
+    }
+    const finish = Math.max(30, Math.min(99, player.finishing ?? player.ovr ?? 68));
+    const power = (ownGoal ? 13 : 17) + finish * 0.085 + rng() * 3;
+    // Cabeçada sai para baixo (testa por cima da bola) ou para cima na defesa.
+    const lift = ownGoal ? 0.30 : -0.16 + rng() * 0.1;
+    ball.kick({ x: dirX, z: dirZ }, power, lift, { curve: 0 });
+    ball.state.position.y = Math.max(1.6, height * 0.86);
+    ball.state.lastTouch = player;
+    ball.state.lastIntentionalTouch = player;
+    ball.state.lastShotKind = 'header';
+    ball.state.headerLock = 0.7;
+    ball.state.offside = null;
+    if (player.side === userSide) player.model.header(0.34);
+    else player.model.header(0.34);
+    emit({ type: 'header', team: player.side, player, dangerous: !ownGoal });
+    if (training.enabled && player.side === userSide) {
+      training.player = player; training.passChain = 0;
+      training.shotActive = true; training.shotElapsed = 0;
+    }
+    return true;
   }
 
   function shootBall(player, { power = 22, spread = 0, target = null, kind = 'normal', lift = null, curve = 0, aimHeight = null } = {}) {
@@ -883,6 +971,36 @@ export function createMatch(options = {}) {
       teams[offender.side].cards[offender.id] = offender.yellowCards;
       card = offender.yellowCards >= 2 ? 'red' : 'yellow';
       secondYellow = card === 'red';
+    }
+
+    // Lei da vantagem: se quem sofreu a falta (ou um companheiro) segue com
+    // a bola e o time está atacando, o árbitro deixa o lance correr. A falta
+    // fica registrada e, se a jogada morrer em 2,8 s, ele volta para marcar.
+    const attacking = attackSign(victim.side) * victim.x > -PITCH.halfLength * 0.35;
+    const keepsBall = ball.state.owner && ball.state.owner.side === victim.side;
+    const free = !ball.state.owner && !ball.state.passTarget;
+    if (card === 'none' && detail.noAdvantage !== true && attacking && keepsBall && !free
+      && rng() < 0.62) {
+      advantage = {
+        timer: 0,
+        offender,
+        victim,
+        severity,
+        kind: detail.kind || 'contact',
+        behind,
+        dangerous,
+        card,
+        at: { x: victim.x, z: victim.z },
+        minute: clock.minutes
+      };
+      emit({
+        type: 'advantage',
+        team: offender.side,
+        player: victim,
+        offender,
+        minute: clock.minutes
+      });
+      return true;
     }
 
     refereeDecision = {
@@ -1321,7 +1439,7 @@ export function createMatch(options = {}) {
       startSetPieceShotCamera('penalty', taker.side, taker);
     } else if (restart.type === 'throwin') {
       const mate = nearbyTeammateFor(taker, { min: 4, max: 14 }) || bestTeammateFor(taker);
-      if (mate) kickBall(taker, mate, { power: 12 });
+      if (mate) throwInTo(taker, mate);
     } else if (restart.type === 'goalkick') {
       const mate = nearbyTeammateFor(taker, { min: 10, max: 26 }) || bestTeammateFor(taker, true) || bestTeammateFor(taker);
       if (mate) kickBall(taker, mate, { power: 16 });
@@ -1620,10 +1738,29 @@ export function createMatch(options = {}) {
         dirZ = 0;
       }
     }
-    // Fica atrás da linha da bola e desloca-se para o lado com mais visão.
-    const flank = position.z >= 0 ? -1 : 1;
-    let targetX = position.x - dirX * 3.4 - dirZ * flank * 2.4;
-    let targetZ = position.z - dirZ * 3.4 + dirX * flank * 2.4;
+    // Posição diagonal de arbitragem: atrás da linha da bola, deslocado para
+    // o lado OPOSTO ao da bola. Antes ele ficava do mesmo lado e a bola
+    // atravessava a sua linha de visão (parecia "burro").
+    const flank = position.z >= 0 ? 1 : -1;
+    let targetX = position.x - dirX * 3.2;
+    let targetZ = position.z - dirZ * 3.2 + flank * 4.2;
+    // Nunca dentro da área entre o portador e o gol: o juiz não pode
+    // interceptar passe nem chute (antes ele às vezes virava "zagueiro").
+    const owner = ball.state.owner;
+    if (owner) {
+      const sign = attackSign(owner.side);
+      const toGoal = sign * (PITCH.halfLength - Math.abs(owner.x));
+      if (toGoal < 26) {
+        targetZ = Math.sign(targetZ || 1) * Math.min(Math.abs(targetZ), 16);
+        targetX = Math.min(sign * owner.x - sign * 4.5, targetX * 0.5 + (owner.x - sign * 5.5) * 0.5);
+      }
+    }
+    // Se a bola veio em chute/passe rasteiro, sai da linha de tiro em vez de
+    // continuar exatamente atrás dela.
+    const speedBall = Math.hypot(ball.state.velocity.x, ball.state.velocity.z);
+    if (speedBall > 9) {
+      targetZ += flank * 2.2;
+    }
     // Nunca em cima de um jogador: abre espaço se alguém estiver no ponto.
     for (const player of allPlayers) {
       if (!player.active) continue;
@@ -1728,6 +1865,49 @@ export function createMatch(options = {}) {
     const speed = playerSpeed(referee);
     refereeModel.update(dt, { speed, moving: speed > 0.35, lean: referee.turnLean || 0 });
     refereeModel.lookAt(ball.state.position);
+  }
+
+  /**
+   * Deixa o lance correr na vantagem; se ela acabar sem perigo, o árbitro
+   * volta e marca a falta no local original (como na regra de verdade).
+   */
+  function updateAdvantage(dt) {
+    if (!advantage) return;
+    advantage.timer += dt;
+    const owner = ball.state.owner;
+    const keepsGoing = Boolean(owner && owner.side === advantage.victim.side);
+    // Vantagem "morreu": a jogada parou, a bola foi perdida ou estourou o
+    // tempo. Aí o árbitro volta e marca a falta no lugar original.
+    const lost = !keepsGoing && advantage.timer > 0.6;
+    const expired = advantage.timer > 2.8;
+    if (!lost && !expired) {
+      // Gesto de "joguem" (braço estendido) enquanto a vantagem dura, sem o
+      // apito do sinal de falta.
+      if (advantage.timer < 1.3) refereeModel.callOver?.(0.55);
+      return;
+    }
+    const info = advantage;
+    advantage = null;
+    refereeDecision = {
+      stage: 'approach', timer: 0,
+      offender: info.offender, victim: info.victim,
+      card: info.card, shown: false, fromAdvantage: true
+    };
+    emit({
+      type: 'foul',
+      team: info.offender.side,
+      player: info.offender,
+      victim: info.victim,
+      kind: info.kind,
+      severity: info.severity,
+      behind: info.behind,
+      dangerous: info.dangerous,
+      card: info.card,
+      minute: clock.minutes,
+      location: info.at,
+      advantage: true
+    });
+    info.victim.model.react?.('down', 1.4);
   }
 
   /** Apito visível do árbitro (braço para cima) nas paralisações. */
@@ -1906,7 +2086,8 @@ export function createMatch(options = {}) {
       const mate = humanPassTarget(taker,
         () => nearbyTeammateFor(taker, { min: 1.2, max: 13 }) || bestTeammateFor(taker));
       if (mate) {
-        kickBall(taker, mate, { power: restart.type === 'goalkick' ? 15 : 12 });
+        if (restart.type === 'throwin') acted = throwInTo(taker, mate);
+        else kickBall(taker, mate, { power: restart.type === 'goalkick' ? 15 : 12 });
         acted = true;
       }
     } else if (name === 'lob') {
@@ -1984,6 +2165,9 @@ export function createMatch(options = {}) {
 
   const world = {
     ball,
+    // Medidas do campo em jogo (112 × 74 na v0.5.51): testes e ferramentas
+    // leem daqui em vez de repetir números fixos.
+    pitch: PITCH,
     teams,
     clock,
     phase,
@@ -2022,6 +2206,22 @@ export function createMatch(options = {}) {
       player.tacticalBase={...player.tacticalBase,...base};player.tacticalCustom=true;return true;
     },
     setShotCharge(value){input.shotCharge=Math.max(0,Math.min(1,Number(value)||0));},
+    /**
+     * Aplica a leitura de um controle (Xbox/PlayStation) no motor: analógico
+     * vira movimento, RT vira corrida e os comandos entram no mesmo caminho
+     * do toque/teclado. Quem chama é o `controls.js` a cada quadro.
+     */
+    applyPad({ move, sprint } = {}) {
+      if (move && Number.isFinite(move.x) && Number.isFinite(move.z)) {
+        input.moveX = move.x;
+        input.moveZ = move.z;
+      }
+      if (typeof sprint === 'boolean') input.sprint = sprint;
+    },
+    padCommand(name, payload) {
+      if (typeof name !== 'string') return false;
+      return world.command(name, payload || {});
+    },
     get cameraZoom(){return cameraZoom;},
     setCameraZoom(value){if(value===1||value===1.2)cameraZoom=value;},
     get cameraMode() {
@@ -2263,8 +2463,10 @@ export function createMatch(options = {}) {
   };
 
   const ais = {
-    home: createTeamAI({ side: 'home', world }),
-    away: createTeamAI({ side: 'away', world })
+    // A IA do lado do usuário joga um pouco mais devagar: o rival pressiona
+    // mais e o time do jogador não rouba a bola sozinho o tempo todo.
+    home: createTeamAI({ side: 'home', world, tempo: userSide === 'home' ? userSideHelp : 1 }),
+    away: createTeamAI({ side: 'away', world, tempo: userSide === 'away' ? userSideHelp : 1 })
   };
 
   function formatClock() {
@@ -2609,6 +2811,7 @@ export function createMatch(options = {}) {
     clock.minutes = 0;
     clock.half = 1;
     clock.added = 0;
+    clock.announced = false;
     ball.reset(player.x, player.z);
     ball.attachTo(player);
     ball.state.lastTouch = player;
@@ -3260,15 +3463,25 @@ export function createMatch(options = {}) {
     // Relógio.
     if (phase.name === 'play') {
       // O relógio corre em minutos de jogo: o fator é por minuto real.
+      // Acréscimos: aos 45 e aos 90 o quarto árbitro levanta 5 minutos (como o
+      // pedido) e o jogo só termina depois deles — antes eram 2 e 4.
       clock.minutes += (dt / 60) * clock.timeScale;
+      if (clock.half === 1 && !clock.announced && clock.minutes >= 45) {
+        clock.announced = true;
+        clock.added = 5;
+        emit({ type: 'addedtime', half: 1, minutes: 5 });
+      }
+      if (clock.half === 2 && !clock.announced && clock.minutes >= 90) {
+        clock.announced = true;
+        clock.added = 5;
+        emit({ type: 'addedtime', half: 2, minutes: 5 });
+      }
       if (clock.half === 1 && clock.minutes >= 45 + clock.added) {
-        clock.added = 2;
         phase.name = 'halftime';
         phase.timer = 0;
         refereeSignal(1.6);
         emit({ type: 'halftime', score: [teams.home.score, teams.away.score], stats: snapshotStats() });
       } else if (clock.half === 2 && clock.minutes >= 90 + clock.added) {
-        clock.added = 4;
         phase.name = 'fulltime';
         phase.timer = 0;
         refereeSignal(1.8);
@@ -3284,6 +3497,7 @@ export function createMatch(options = {}) {
         clock.half = 2;
         clock.minutes = 45;
         clock.added = 0;
+        clock.announced = false;
         kickoff('away');
       }
     } else if (phase.name === 'fulltime') {
@@ -3392,6 +3606,7 @@ export function createMatch(options = {}) {
 
     // Árbitro acompanha a jogada, mas sai do quadro da comemoração.
     if (phase.name !== 'goal') updateReferee(dt);
+    updateAdvantage(dt);
 
     // Marcador vermelho 2D acompanha o atleta controlado; bola parada ganha prévia.
     updateMarker(dt);

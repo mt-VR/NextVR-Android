@@ -20,18 +20,20 @@ const LIGHTING_PRESETS = Object.freeze({
     sky: ['#6ca7d0', '#a8cfdf', '#d9ded4', '#e7e5d9'],
     stars: 0,
     fog: 0x8eafbd,
-    hemisphereSky: 0xe8f5ff,
-    hemisphereGround: 0x68834d,
-    hemisphereIntensity: 0.92,
-    keyColor: 0xfff1dc,
-    keyIntensity: 1.22,
-    fillColor: 0xd8eaff,
-    fillIntensity: 0.4,
-    crossIntensity: 0.16,
-    ambientIntensity: 0.18,
-    floodlightIntensity: 0.12,
-    rimColor: 0xe8f4ff,
-    rimIntensity: 0.18,
+    // Luz de transmissão diurna: sol quente na chave, céu frio no
+    // preenchimento e um rim que recorta o atleta da arquibancada.
+    hemisphereSky: 0xeaf6ff,
+    hemisphereGround: 0x5f7c46,
+    hemisphereIntensity: 0.86,
+    keyColor: 0xfff4e2,
+    keyIntensity: 1.45,
+    fillColor: 0xcfe6ff,
+    fillIntensity: 0.52,
+    crossIntensity: 0.26,
+    ambientIntensity: 0.14,
+    floodlightIntensity: 0.10,
+    rimColor: 0xeef7ff,
+    rimIntensity: 0.34,
     lampsOn: false
   }),
   dusk: Object.freeze({
@@ -56,18 +58,20 @@ const LIGHTING_PRESETS = Object.freeze({
     sky: ['#071120', '#123049', '#1d4a5e', '#2a6270'],
     stars: 260,
     fog: 0x0a1a26,
-    hemisphereSky: 0xc5dff4,
-    hemisphereGround: 0x536b46,
-    hemisphereIntensity: 0.98,
-    keyColor: 0xf3f6ff,
-    keyIntensity: 1.3,
-    fillColor: 0xbdd8ff,
-    fillIntensity: 0.72,
-    crossIntensity: 0.23,
-    ambientIntensity: 0.24,
-    floodlightIntensity: 0.38,
-    rimColor: 0xc7e2ff,
-    rimIntensity: 0.43,
+    // Noite de estádio: refletores mais fortes e sombras com mais contraste,
+    // como nas transmissões — chave 1,85, preenchimento frio e rim firme.
+    hemisphereSky: 0xbcd8f0,
+    hemisphereGround: 0x4e6440,
+    hemisphereIntensity: 0.8,
+    keyColor: 0xf4f8ff,
+    keyIntensity: 1.85,
+    fillColor: 0xa9c8f2,
+    fillIntensity: 0.64,
+    crossIntensity: 0.3,
+    ambientIntensity: 0.16,
+    floodlightIntensity: 0.52,
+    rimColor: 0xd6ecff,
+    rimIntensity: 0.62,
     lampsOn: true
   })
 });
@@ -1230,6 +1234,9 @@ export function buildStadium(scene, options = {}) {
   // cria manchas escuras soltas perto dos atletas.
   key.shadow.bias = -0.00018;
   key.shadow.normalBias = 0.04;
+  // Sombras mais suaves e com raio maior parecem de transmissão; no Android
+  // ficam com menos raio para não pesar no filtro.
+  key.shadow.radius = (lowPower || graphics.mobile) ? 1.6 : 3.2;
   group.add(key);
   const fill = new THREE.DirectionalLight(lighting.fillColor, lighting.fillIntensity);
   fill.position.set(48, 46, -42);
@@ -1257,8 +1264,9 @@ export function buildStadium(scene, options = {}) {
     const floodlight = new THREE.SpotLight(
       lighting.keyColor,
       lighting.floodlightIntensity,
-      150,
-      Math.PI / 4.4,
+      170,
+      // Campo maior (v0.5.51): o cone do refletor abre para cobrir os 112 m.
+      Math.PI / 3.9,
       0.62,
       1.6
     );
