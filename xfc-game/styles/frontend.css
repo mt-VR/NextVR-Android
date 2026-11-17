@@ -655,18 +655,22 @@
 .customise__stats span { color: rgba(255,255,255,.62); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
 .customise__dialog-save { display: inline-flex; justify-content: center; min-width: 130px; margin-top: 18px; padding: 11px 18px; color: #052451; background: #eaf4ff; font-size: 12px; font-weight: 900; letter-spacing: .1em; }
 
-/* Touch buttons swap PASS/RUN positions, grow, and sit closer together.
-   The joystick keeps its exact original left/bottom anchor. */
-.controls__buttons { right: 22px; bottom: 48px; width: 360px; height: 328px; }
+/* Controles de toque: dois arcos limpos no canto direito, sem sobreposição.
+   Medido num aparelho de 915x412: antes CHUTE 62, PASSE 54, ENFIADA 52,
+   CARRINHO 38, TROCAR 48x31 — e CARRINHO/TROCAR colavam no CHUTE. O palco
+   1280x720 é escalado por ~0,715 nessa tela, então cada 100 px aqui viram
+   ~72 px reais: o mínimo confortável para o dedo pede >= 84 px de palco. */
+.controls__buttons { right: 16px; bottom: 40px; width: 372px; height: 360px; }
 .ctrl-btn { border-width: 2px; font-size: 11px; font-weight: 900; letter-spacing: .04em; }
-.ctrl-btn--shoot { right: 0; bottom: 184px; width: 102px; height: 102px; font-size: 12px; }
-.ctrl-btn--lob { right: 104px; bottom: 170px; width: 88px; height: 88px; font-size: 10px; }
-.ctrl-btn--dribble { right: 197px; bottom: 163px; width: 84px; height: 84px; font-size: 10px; }
-/* PASS takes the old sprint side; RUN takes the old pass side. */
-.ctrl-btn--pass { right: 184px; bottom: 58px; width: 96px; height: 96px; font-size: 11px; }
-.ctrl-btn--sprint { right: 80px; bottom: 58px; width: 96px; height: 96px; font-size: 11px; }
-.ctrl-btn--tackle { right: 24px; bottom: 1px; width: 72px; height: 72px; font-size: 9px; }
-.ctrl-btn--switch { right: 264px; bottom: 1px; width: 72px; height: 72px; font-size: 9px; }
+/* Arco de cima: CHUTE (principal) e ENFIADA. */
+.ctrl-btn--shoot { right: 0; bottom: 208px; width: 116px; height: 116px; font-size: 13px; }
+.ctrl-btn--lob { right: 128px; bottom: 244px; width: 94px; height: 94px; font-size: 10px; }
+/* Arco de baixo: PASSE (principal) e CORRER ao lado. */
+.ctrl-btn--pass { right: 6px; bottom: 92px; width: 108px; height: 108px; font-size: 12px; }
+.ctrl-btn--sprint { right: 128px; bottom: 92px; width: 92px; height: 92px; font-size: 10px; }
+/* Utilitários, na coluna da esquerda e longe de tudo. */
+.ctrl-btn--tackle { right: 234px; bottom: 150px; width: 84px; height: 84px; font-size: 9px; }
+.ctrl-btn--switch { right: 242px; bottom: 44px; width: 78px; height: 78px; font-size: 9px; }
 
 /* Goal callout keeps the scorer's name visible during the close camera shot. */
 .hud__banner--goal { min-width: 390px; padding: 16px 26px; font-size: 25px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }

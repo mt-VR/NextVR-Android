@@ -1,4 +1,5 @@
 import { FIFA_MEMBERS } from './fifa-members.js';
+import { nationColors } from './nation-kits.js';
 // Seleções da Copa do Mundo de 2022 e campanhas jogáveis no XFC.
 // Cada seleção traz um XI de época; o sorteio distribui 32 países em oito
 // grupos e a campanha acompanha os resultados até a decisão.
@@ -263,7 +264,13 @@ const NATIONAL_ROLES=['GK','RB','CB','CB','LB','CDM','CM','CM','RW','ST','LW'];
 export const FIFA_NATIONAL_TEAMS = FIFA_MEMBERS.map(member=>{
   const existing=NATIONAL_TEAMS.find(team=>team.id===member.id);
   if(existing)return {...existing,confederation:member.confederation,squadSource:'existing'};
-  const generated=nation(member.id,member.name,member.flagCode,3,{ATT:70,MID:70,DEF:70},['#f0f1f4','#182947','#d4bd69'],NATIONAL_ROLES.map((pos,i)=>[`Atleta ${i+1} · ${member.name}`,i+1,pos,70]));
+  // As cores vêm da tabela de uniformes de seleção: antes todas as 179
+  // associações geradas nasciam com o mesmo preenchimento claro e o Kick Off
+  // mostrava todo mundo de branco.
+  const palette=nationColors({id:member.id,colors:null});
+  const generated=nation(member.id,member.name,member.flagCode,3,{ATT:70,MID:70,DEF:70},
+    [palette.primary,palette.secondary,palette.trim,palette.keeperPrimary,palette.keeperSecondary],
+    NATIONAL_ROLES.map((pos,i)=>[`Atleta ${i+1} · ${member.name}`,i+1,pos,70]));
   return {...generated,confederation:member.confederation,squadSource:'fictional',squadNote:'Elenco fictício XFC · atributos de jogo, não ranking FIFA'};
 });
 

@@ -16,6 +16,18 @@ const NATIONS=KICKOFF_NATIONAL_TEAMS.map(team=>({
 const NATION_COUNTRIES=['Seleções',...[...new Set(NATIONS.map(t=>t.country))].sort((a,b)=>a.localeCompare(b,'pt-BR'))];
 /** Resolve clube OU seleção pelo id (os ids das seleções não colidem: país x clube). */
 export function kickoffTeam(id){return getTeam(id)||NATIONS.find(t=>t.id===id)||null;}
+/**
+ * Mesmo time do cartão, mas com o ELENCO completo. O cartão do Kick Off só
+ * carrega nome/bandeira/notas; a prévia de uniformes precisa dos jogadores
+ * para escolher a aparência e não cair num atleta reserva genérico.
+ */
+export function fullKickoffTeam(id){
+  const team=kickoffTeam(id);
+  if(!team)return null;
+  if(team.players?.length)return team;
+  const nation=KICKOFF_NATIONAL_TEAMS.find(t=>t.id===team.id);
+  return nation?{...team,...nation,isNationalTeam:true,country:team.country,league:'Seleções'}:team;
+}
 const poolFor=team=>team?.isNationalTeam?NATIONS:countryTeams(team?.country||'Brasil');
 export function kickoffScreen(ctx,params={}){
  const {state}=ctx;let focus=state.settings.focus||'home';

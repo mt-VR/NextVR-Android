@@ -965,10 +965,31 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.deepEqual(stickStyle, ['76px', '92px'], 'o joystick usa a posição da nova referência de controles');
     const passBox = await page.locator('.ctrl-btn--pass').boundingBox();
     const runBox = await page.locator('.ctrl-btn--sprint').boundingBox();
-    assert.ok(passBox && runBox && passBox.width >= 90 && passBox.width <= 120 && runBox.width >= 96 && runBox.width <= 140,
-      'PASSE e CORRER mantêm alvos proporcionais sem ocupar o campo');
-    assert.ok(passBox.x < runBox.x && runBox.x - passBox.x < 145,
-      'PASSE e CORRER trocaram de lado e ficaram próximos');
+    // v0.5.52: o controle virou dois arcos limpos — PASSE (principal) embaixo,
+    // CHUTE em cima, com ENFIADA/CORRER como satélites. O importante é o alvo
+    // do dedo: nenhum botão abaixo de 96 px no palco (>= ~60 px reais).
+    // As caixas vêm em px de tela (o palco escala: 1600×900 → fator 1,25), por
+    // isso a checagem é proporcional ao fator do palco.
+    const stageScale = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.stage')).getPropertyValue('--stage-scale')) || 1);
+    const px = v => v * stageScale;
+    assert.ok(passBox && runBox && passBox.width >= px(100) && passBox.width <= px(125) && runBox.width >= px(86) && runBox.width <= px(105),
+      `PASSE e CORRER mantêm alvos proporcionais sem ocupar o campo (${passBox?.width}/${runBox?.width} px, escala ${stageScale})`);
+    assert.ok(runBox.x < passBox.x && passBox.x - runBox.x < px(170),
+      'CORRER fica ao lado esquerdo do PASSE, no mesmo arco');
+    const allButtons = await page.evaluate(() => [...document.querySelectorAll('.ctrl-btn')].map(b => {
+      const r = b.getBoundingClientRect(); return { id: b.dataset.command, w: Math.round(r.width), h: Math.round(r.height) };
+    }));
+    assert.ok(allButtons.every(b => Math.min(b.w, b.h) >= px(74)),
+      `todo botão do controle tem alvo de dedo: ${JSON.stringify(allButtons)}`);
+    const overlap = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll('.ctrl-btn')].map(b => b.getBoundingClientRect());
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j];
+        if (Math.min(a.right, b.right) > Math.max(a.left, b.left) && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top)) return true;
+      }
+      return false;
+    });
+    assert.equal(overlap, false, 'os botões do controle não se sobrepõem');
     assert.ok(await page.locator('.hud__foe').isVisible(),
       'o adversário mais próximo aparece no canto inferior direito');
     assert.equal(await page.locator('.hud__poss').isVisible(),false,
@@ -1441,7 +1462,8 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
     assert.ok(manualSlide.cleanAcquisition && manualSlide.recovered && manualSlide.noFoul,
       'o carrinho limpo alcança a bola, recupera o atleta e mantém a partida em jogo');
 
-    const disciplinary = await page.evaluate(() => {
+    const disciplinary = await page.evaluate(async () => {
+      const { PITCH } = await import('/src/match3d/constants.js');
       const match = window.__xfcMatch;
       const players = [...match.teams.home.players, ...match.teams.away.players];
       const offender = match.teams.home.players.find(player => !player.isKeeper);
@@ -1449,8 +1471,12 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       const previousControl = match.controlled.home;
       match.controlled.home = offender;
       for (const player of players) player.active = player.side === 'home' || player === victim;
-      offender.x = 27; offender.z = 0; offender.root.position.set(27, 0, 0);
-      victim.x = 28; victim.z = 0; victim.root.position.set(28, 0, 0);
+      // v0.5.52: o campo cresceu (120×82), então a "entrada perigosa perto do
+      // gol" tem que ser calculada a partir de PITCH — x=27 fixo deixou de
+      // estar na faixa dos 30 m finais com o gramado novo.
+      const nearGoalX = PITCH.halfLength - 27;
+      offender.x = nearGoalX - 1; offender.z = 0; offender.root.position.set(offender.x, 0, 0);
+      victim.x = nearGoalX; victim.z = 0; victim.root.position.set(victim.x, 0, 0);
       let firstYellowAt = null;
       let firstRestart = null;
       let dismissed = false;
@@ -1486,8 +1512,11 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       return result;
     });
     assert.ok(disciplinary.firstYellowAt !== null, 'a entrada perigosa recebe o primeiro amarelo');
-    assert.deepEqual(disciplinary.firstRestart, { type: 'freekick', side: 'away', x: 28, z: 0 },
-      'a falta fora da área reinicia para o adversário no ponto do incidente');
+    assert.equal(disciplinary.firstRestart?.type, 'freekick');
+    assert.equal(disciplinary.firstRestart?.side, 'away');
+    assert.equal(disciplinary.firstRestart?.z, 0);
+    assert.ok(Math.abs(disciplinary.firstRestart.x) > 16.5 && Math.abs(disciplinary.firstRestart.x) < 60,
+      `a falta é fora da área e reinicia no ponto do incidente (x=${disciplinary.firstRestart?.x})`);
     assert.ok(disciplinary.dismissed && !disciplinary.active && disciplinary.yellows >= 2,
       'o segundo amarelo vira vermelho e remove o atleta de campo');
     assert.ok(disciplinary.replacementIsActive,

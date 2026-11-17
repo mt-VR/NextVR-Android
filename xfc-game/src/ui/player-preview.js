@@ -8,7 +8,11 @@ export function playerPreview(canvas){
  // Elenco de seleção usa `position` (e pode vir só com o XI): a prévia aceita
 // as duas formas, senão a tela de uniformes quebra com o time nacional.
 function firstOutfield(team){
- const players=Array.isArray(team?.players)?team.players:[];
+ // A tela de uniformes passa o time do Kick Off (nome, bandeira e notas), que
+ // NÃO traz o elenco: sem jogadores a prévia caía num stub e o modelo saía com
+ // o calção/meia da cor errada (o Japão aparecia de calção amarelo).
+ const squad=team?.players?.length?team:team?.squad||null;
+ const players=Array.isArray(squad?.players)?squad.players:[];
  return players.find(p=>(p.pos||p.position)!=='GK')||players[0]||{name:team?.name||'Jogador',number:10,pos:'ST'};
 }
 async function show(entries){
@@ -28,8 +32,14 @@ async function show(entries){
   disposeModels();
   for(const [i,{team,kit,player=firstOutfield(team)}] of entries.entries()){
    const colors=kit.colors,look=appearanceFor(player);
+   // `name` aqui é o nome do atleta (nas costas). `teamName` ia para o peito
+   // e fazia a camisa do visitante também estampar o nome do time como se
+   // fosse "HOME"; o número faltava porque não era passado adiante.
+   // O `number` alimenta o número nas costas; sem ele a camisa saía sem
+   // número e o `name` do atleta virava um rótulo solto no peito.
    const model=createGltfPlayer({kit:{...kit,...colors,accent:colors.trim||'#fff',shorts:kit.shorts||colors.primary,socks:kit.socks||colors.primary},
-    ...look,isKeeper:(player.pos||player.position)==='GK',name:player.name,number:player.number,crest:team.crest,teamName:team.name,sponsor:kit.sponsor||team.sponsor||'',brand:kit.brand||'',simplified:true});
+    ...look,isKeeper:(player.pos||player.position)==='GK',name:player.name,number:player.number ?? 10,
+    crest:team.crest,sponsor:kit.sponsor||team.sponsor||'',brand:kit.brand||'',simplified:true});
    model.root.position.x=entries.length===1?0:(i===0?-2.05:2.05);model.root.rotation.y=entries.length===1?angle:(i===0?.2:-.2);
    models.push(model);scene.add(model.root);
   }

@@ -171,6 +171,7 @@ test('cerimônia no navegador: cenas na ordem, hino com boca e controle só no f
 
     // Percorre a cerimônia pelo motor, registrando a ordem das cenas.
     const order = await page.evaluate(async () => {
+      const { PITCH } = await import('/src/match3d/constants.js');
       const match = window.__xfcMatch;
       match.stop();
       // Relógio do motor, não o de parede: sem isto a cerimônia já pode estar
@@ -196,13 +197,16 @@ test('cerimônia no navegador: cenas na ordem, hino com boca e controle só no f
         phase: match.phase.name,
         ballOwner: match.ball.state.owner?.side || null,
         players: match.teams.home.players.length,
-        onPitch: match.teams.home.players.filter(p => Math.abs(p.x) < 52 && Math.abs(p.z) < 34).length
+        // Limites derivados do campo atual (v0.5.52: 120×82) e não do antigo.
+        // "No gramado" = dentro das linhas do campo (o goleiro fica na linha do
+        // gol e os laterais encostam na linha lateral).
+        onPitch: match.teams.home.players.filter(p => Math.abs(p.x) <= PITCH.halfLength && Math.abs(p.z) <= PITCH.halfWidth).length
       };
     });
     assert.deepEqual(order.seen, ['tunnel', 'walkout', 'anthem', 'handoff'], 'as quatro cenas, nesta ordem');
     assert.equal(order.played, true, 'a cerimônia é marcada como cumprida');
     assert.equal(order.phase, 'kickoff', 'o jogo para na saída de bola do jogador');
-    assert.ok(order.onPitch === order.players, 'todos os atletas ficam no gramado para o apito');
+    assert.equal(order.onPitch, order.players, 'todos os atletas ficam no gramado para o apito');
 
     // O hino abre a boca do modelo GLB de verdade: a malha existe e sai da
     // posição fechada quando o atleta canta.

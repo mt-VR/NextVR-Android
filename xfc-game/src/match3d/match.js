@@ -516,6 +516,7 @@ export function createMatch(options = {}) {
    */
   function throwInTo(player, target) {
     if (!target) return false;
+    const receiver = target.active && target.side === player.side ? target : null;
     const aimX = Math.max(-PITCH.halfLength + 1.4, Math.min(PITCH.halfLength - 1.4, target.x + (target.vx || 0) * 0.35));
     const aimZ = Math.max(-PITCH.halfWidth + 2, Math.min(PITCH.halfWidth - 2, target.z + (target.vz || 0) * 0.35));
     const dx = aimX - player.x, dz = aimZ - player.z;
@@ -524,15 +525,34 @@ export function createMatch(options = {}) {
     const speed = Math.max(8, Math.min(17, 7 + distance * 0.55));
     ball.state.position.set(player.x, 1.85, player.z);
     ball.kick({ x: dx / distance, z: dz / distance }, speed, 0.34, {
-      guide: target.active ? { receiver: target, x: aimX, z: aimZ, follow: true, maxTime: 2.6 } : null,
+      guide: receiver ? { receiver, x: aimX, z: aimZ, follow: true, maxTime: 2.6 } : { x: aimX, z: aimZ, follow: false, maxTime: 2.6 },
       curve: 0
     });
     ball.state.lastTouch = player;
     ball.state.lastIntentionalTouch = player;
     ball.state.lastShotKind = null;
-    player.model.throwIn(0.72);
+    // O rig procedimental pode não ter a pose: uma exceção aqui travava o
+    // `tick` inteiro (era o que fazia o lateral do rival "não bater").
+    if (typeof player.model?.throwIn === 'function') player.model.throwIn(0.72);
+    else player.model?.kick?.('throw');
     emit({ type: 'pass', team: player.side, player, target, through: false, throwIn: true });
     return true;
+  }
+
+  /**
+   * Ponto de arremesso quando não há companheiro livre: 12 m para dentro do
+   * campo e levemente para a frente, num ponto vazio do gramado.
+   */
+  function forwardThrowTarget(taker) {
+    const sign = attackSign(taker.side);
+    const inward = -Math.sign(taker.z || 1) * 12;
+    const clampX = value => Math.max(-PITCH.halfLength + 4, Math.min(PITCH.halfLength - 4, value));
+    const clampZ = value => Math.max(-PITCH.halfWidth + 3, Math.min(PITCH.halfWidth - 3, value));
+    return {
+      x: clampX(taker.x + sign * 9),
+      z: clampZ(taker.z + inward),
+      active: false, side: taker.side, vx: 0, vz: 0
+    };
   }
 
   function kickBall(player, target, { power = 18, lob = false, through = false, targetPoint = null, curve = 0, lift = null, requested = false } = {}) {
@@ -1425,6 +1445,21 @@ export function createMatch(options = {}) {
     phase.timer += dt;
     const taker = restart.taker;
     const humanTakes = taker.side === userSide && controlled[userSide] === taker;
+    // O lateral NUNCA espera o humano: o cobrador ficava parado com a bola nas
+    // mãos para sempre (o botão de passe não solta a bola na mão) e a partida
+    // travava na reposição. Ele é batido pela IA para os dois lados.
+    if (restart.type === 'throwin' && phase.timer >= 0.9) {
+      const mate = nearbyTeammateFor(taker, { min: 4, max: 14 }) || bestTeammateFor(taker);
+      // Sem companheiro livre, o arremesso vai para um ponto vazio à frente:
+      // a bola entra em jogo do mesmo jeito.
+      if (!mate || !throwInTo(taker, mate)) throwInTo(taker, forwardThrowTarget(taker));
+      // A bola só é simulada em `play`: sem esta troca o arremesso ficava
+      // congelado no ar e a partida nunca saía da reposição.
+      phase.name = 'play';
+      phase.restart = null;
+      phase.timer = 0;
+      return;
+    }
     if (humanTakes || phase.timer < 1.1) return;
 
     if (restart.type === 'penalty') {
@@ -1437,9 +1472,6 @@ export function createMatch(options = {}) {
       }).target;
       shootPenalty(taker,{strength:.7,aiAim:aim,aiHeight:rng()*.6});
       startSetPieceShotCamera('penalty', taker.side, taker);
-    } else if (restart.type === 'throwin') {
-      const mate = nearbyTeammateFor(taker, { min: 4, max: 14 }) || bestTeammateFor(taker);
-      if (mate) throwInTo(taker, mate);
     } else if (restart.type === 'goalkick') {
       const mate = nearbyTeammateFor(taker, { min: 10, max: 26 }) || bestTeammateFor(taker, true) || bestTeammateFor(taker);
       if (mate) kickBall(taker, mate, { power: 16 });

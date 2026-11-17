@@ -64,14 +64,16 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 // modo console), vantagem do árbitro, cabeçada, lateral com as mãos e
 // acréscimos de 5 min em `match.js`; `hud.js`/`controls.js`/`match3d.css`
 // ganham o layout de controle. Menus de referência seguem idênticos.
+// v0.5.52: campo 120×82 (câmeras, remarcações e clamps em `match.js`) e o
+// novo layout dos botões de toque em `match3d.css`.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "a34b820b6cb39db7f71d265f50b77111f5f2d594415dd16eaeaa31c028e7d387",
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
-  "src/match3d/match.js": "15b783aee4048ebdaab4b69a9710b0cfa8fae2f0788d0286ffc3954059719d08",
+  "src/match3d/match.js": "398bb87901d1a93fc4ae568e304c70913a4bba04f88c5179eaec3cb02c6565e4",
   "src/screens/career-reference.js": "b6e26e088de10524f8a1fda6cf66ec868795f0194580ca3ce9f510a3fe398737",
   "styles/career-reference.css": "e5b218e0ddae10b5361de627ebc467b98c5c96612efd868a4fcd63a8494a5ff5",
-  "styles/match3d.css": "bf072533981347aeeef2da0d3bdcbafd2eff62e2000e033125c8b38cb0b19d94"
+  "styles/match3d.css": "37535288b1e291e67e267bcc4277460c4e387a9c3383c344e782bb1f68988908"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });

@@ -13,6 +13,7 @@ import { el, padButton } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg } from '../data/kits.js';
+import { nationColors } from '../data/nation-kits.js';
 import { getNationalTeam, recordCampaignMatchResult } from '../data/worldcup.js';
 import {
   getCompetition,
@@ -51,7 +52,10 @@ const NATIONAL_COLORS = {
 
 function playableNationalTeam(team) {
   if (!team) return null;
-  const colors = team.colors || NATIONAL_COLORS[team.id] || NATIONAL_COLORS.brazil;
+  // `nationColors` cobre as 179 seleções que não têm uniforme no cadastro
+  // (antes todas caíam no branco genérico); as 8 da carreira mantêm a paleta
+  // própria em NATIONAL_COLORS.
+  const colors = NATIONAL_COLORS[team.id] || nationColors(team) || team.colors;
   const players = (team.players || []).map((player, index) => {
     const rating = player.rating || 75;
     const position = player.position || 'CM';

@@ -927,86 +927,87 @@
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), 0 0 22px rgba(46, 240, 168, 0.35);
 }
 
-/* CHUTE — o botão principal, grande no alto à direita (marrom/laranja) */
+/* ---------------------------------------------------------- botões ---- */
+/* Ação principal x ação secundária forma DOIS grupos separados no canto
+   direito, sem sobreposição: antes PASSE ficava embaixo de ENFIADA e
+   CARRINHO/TROCAR se amontoavam num bloco de 20 px, o que fazia o toque cair
+   no botão errado no celular (o palco é 1280x720 escalado: 54 px aqui viram
+   ~40 px reais num aparelho de 915 px de largura). Cada botão agora tem
+   diâmetro suficiente para o dedo e uma margem clara dos vizinhos. */
+
+/* CHUTE — ação principal, o maior botão, no alto do grupo */
 .ctrl-btn--shoot {
-  right: 14px;
-  bottom: 250px;
-  width: 94px;
-  height: 94px;
-  font-size: 11px;
-  border-color: rgba(255, 159, 67, 0.9);
-  background: rgba(96, 48, 12, 0.82);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 159, 67, 0.3);
+  right: 16px;
+  bottom: 232px;
+  width: 104px;
+  height: 104px;
+  font-size: 12px;
+  border-color: rgba(255, 159, 67, 0.95);
+  background: rgba(96, 48, 12, 0.86);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 159, 67, 0.35);
 }
 
-/* ENFIADA — dourado, grande à esquerda do CHUTE */
+/* ENFIADA — ao lado do CHUTE, no mesmo arco */
 .ctrl-btn--lob {
-  right: 128px;
-  bottom: 214px;
+  right: 142px;
+  bottom: 276px;
+  width: 82px;
+  height: 82px;
+  font-size: 10px;
+  border-color: rgba(245, 197, 24, 0.95);
+  background: rgba(82, 62, 6, 0.8);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 197, 24, 0.32);
+}
+
+/* PASSE — abaixo do CHUTE, no mesmo prumo (nunca debaixo de outro botão) */
+.ctrl-btn--pass {
+  right: 22px;
+  bottom: 122px;
+  width: 96px;
+  height: 96px;
+  font-size: 12px;
+  border-color: rgba(63, 215, 255, 0.92);
+  background: rgba(10, 48, 84, 0.84);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(63, 215, 255, 0.32);
+}
+
+/* CARRINHO — desarme, à esquerda do PASSE */
+.ctrl-btn--tackle {
+  right: 146px;
+  bottom: 138px;
+  width: 76px;
+  height: 76px;
+  font-size: 9px;
+  border-color: rgba(255, 159, 67, 0.82);
+  background: rgba(78, 38, 12, 0.72);
+}
+
+/* TROCAR — utilitário, acima do desarme e longe do analógico */
+.ctrl-btn--switch {
+  right: 150px;
+  bottom: 40px;
+  width: 68px;
+  height: 68px;
+  font-size: 9px;
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(20, 32, 46, 0.78);
+}
+
+/* CORRER — segurar; fica abaixo do desarme, na coluna do meio */
+.ctrl-btn--sprint {
+  right: 250px;
+  bottom: 96px;
   width: 74px;
   height: 74px;
-  border-color: rgba(245, 197, 24, 0.95);
-  background: rgba(82, 62, 6, 0.72);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 197, 24, 0.3);
-}
-
-/* PIQUE & FINTA — dribble verde grande, como no FC Mobile (skill move) */
-.ctrl-btn--dribble {
-  right: 214px;
-  bottom: 250px;
-  width: 78px;
-  height: 78px;
   font-size: 9px;
-  border-color: rgba(46, 240, 168, 0.9);
-  background: rgba(10, 78, 56, 0.82);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(46, 240, 168, 0.3);
+  border-color: rgba(63, 215, 255, 0.88);
+  background: rgba(10, 52, 76, 0.78);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.28);
 }
 
-/* PASSE — azul, grande embaixo à esquerda (como nos prints) */
-.ctrl-btn--pass {
-  right: 18px;
-  bottom: 84px;
-  width: 90px;
-  height: 90px;
-  font-size: 11px;
-  border-color: rgba(63, 215, 255, 0.9);
-  background: rgba(10, 48, 84, 0.78);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(63, 215, 255, 0.3);
-}
-
-/* CORRER — ciano, menor (utilidade, segurar para disparar) */
-.ctrl-btn--sprint {
-  right: 246px;
-  bottom: 120px;
-  width: 64px;
-  height: 64px;
-  font-size: 9px;
-  border-color: rgba(63, 215, 255, 0.85);
-  background: rgba(10, 52, 76, 0.72);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.25);
-}
-
-/* DESARME — pequeno, laranja */
-.ctrl-btn--tackle {
-  right: 134px;
-  bottom: 40px;
-  width: 58px;
-  height: 58px;
-  font-size: 8px;
-  border-color: rgba(255, 159, 67, 0.78);
-  background: rgba(78, 38, 12, 0.62);
-}
-
-/* TROCAR — pequeno, neutro */
-.ctrl-btn--switch {
-  right: 242px;
-  bottom: 44px;
-  width: 54px;
-  height: 54px;
-  font-size: 8px;
-  border-color: rgba(255, 255, 255, 0.4);
-  background: rgba(20, 32, 46, 0.72);
-}
+/* Rotulos secundários ("segure: superchute") não podem roubar a área do dedo. */
+.ctrl-btn__gesture { pointer-events: none; }
+.ctrl-btn > span { pointer-events: none; }
 
 .result__stats {
   position: relative;

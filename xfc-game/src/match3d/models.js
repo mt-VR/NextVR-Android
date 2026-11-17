@@ -265,7 +265,9 @@ export function createGltfPlayer(options = {}) {
     shadowMeshes.push(object);
     if (materialList(object).some(m=>m.name==='Micah | anatomical body.body'))object.geometry=smoothSkinGeometry({geometry:classicFaceGeometry({geometry:smoothSkinGeometry(object)},identity)});
     if (object.name === 'short01') {object.geometry=labHairGeometry(object,renderHair,scalpBody)||classicHairGeometry(object,hairStyle);object.userData.classicHair=hairStyle;object.visible=hairStyle!=='lab-none';}
-    if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name)) object.geometry = shirtGeometry(object);
+    // A camisa do preview de uniformes não tem escudo nem nome: sem a geometria
+    // de camisa o material "top" ficava branco nos dois lados da prévia.
+    if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name || options.simplified)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
       // Pontas descoloridas: o moicano de referência (e o corte "neymar" do
       // elenco) tem raiz escura e ponta clara, como em 2011/12.
@@ -276,7 +278,7 @@ export function createGltfPlayer(options = {}) {
       // Recolour only the existing cloth materials. Never tint skin/face/hair.
       if (name === 'Micah | top') {
         clone.color.copy(primary);
-        if(options.crest || options.name){
+        if(options.crest || options.name || options.simplified){
           clone.map = jerseyTexture({...options, kit:{...kit,primary:'#'+primary.getHexString()},number});
           clone.color.set('#ffffff');clone.normalMap=null;ownedTextures.push(clone.map);
         }
@@ -640,7 +642,20 @@ export function createGltfPlayer(options = {}) {
         addBoneRotation(bones.rightArm, 0, 0, -1.1 * wave, w);
         break;
       }
-      case 'throw-in':
+      case 'throw-in': {
+        // Arremesso de lateral: as duas mãos vão para trás da cabeça e o
+        // tronco arqueia para trás; na saída, o corpo acompanha o lance para
+        // a frente. `wave` é o envelope do gesto (0→1→0).
+        const arch = Math.sin(Math.PI * Math.min(1, gesture.time / gesture.duration));
+        addBoneRotation(bones.leftArm, -2.35 * arch, 0, 0.55 * arch, w);
+        addBoneRotation(bones.rightArm, -2.35 * arch, 0, -0.55 * arch, w);
+        addBoneRotation(bones.leftForeArm, -1.15 * arch, 0, 0, w);
+        addBoneRotation(bones.rightForeArm, -1.15 * arch, 0, 0, w);
+        addBoneRotation(bones.spine2, -0.32 * arch, 0, 0, w);
+        addBoneRotation(bones.spine, -0.16 * arch, 0, 0, w);
+        addBoneRotation(bones.head, 0.18 * arch, 0, 0, w);
+        break;
+      }
       case 'signal': {
         addBoneRotation(bones.rightArm, 0, 0, -2.2 * wave, w);
         addBoneRotation(bones.rightForeArm, 0, 0, -0.4 * wave, w);
@@ -835,6 +850,14 @@ export function createGltfPlayer(options = {}) {
     },
     header(duration = 0.4) {
       return startGesture('header', duration);
+    },
+    /**
+     * Lateral com as mãos: a bola sai de trás da cabeça. Sem esta função o
+     * `throwInTo` estourava (`model.throwIn is not a function`) e a partida
+     * travava no meio do `tick` — era o lateral do rival que "não batia".
+     */
+    throwIn(duration = 0.72) {
+      return startGesture('throw-in', duration);
     },
     celebrate(duration = 2.6) {
       return startGesture('celebrate', duration);
