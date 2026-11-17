@@ -203,8 +203,10 @@ export const NATIONAL_TEAMS = [
     // Elenco atual (v0.5.50): nomes de hoje no lugar da escalação de 2022.
     ['Alisson', 1, 'GK', 89], ['Vanderson', 2, 'RB', 82], ['Marquinhos', 4, 'CB', 86],
     ['Gabriel Magalhães', 3, 'CB', 85], ['Alex Sandro', 6, 'LB', 81], ['Bruno Guimarães', 5, 'CDM', 87],
-    ['Lucas Paquetá', 7, 'CM', 84], ['Raphinha', 11, 'RW', 88], ['Vinícius Júnior', 10, 'LW', 90],
-    ['Rodrygo', 9, 'ST', 86], ['Estêvão', 19, 'RW', 82]
+    ['Lucas Paquetá', 7, 'CM', 84], ['Raphinha', 11, 'RW', 88], ['Vinícius Júnior', 20, 'LW', 90],
+    // Neymar é o 10 da seleção (escopo aprovado): entra no XI no lugar de um
+    // dos atacantes gerados e usa o cabelo dele (moicano) no modelo 3D.
+    ['Rodrygo', 9, 'ST', 86], ['Neymar Jr', 10, 'LW', 89]
   ], [
     // Reservas da convocação: entram no lugar de quem sai, não no XI.
     ['Matheus Cunha', 12, 'GK', 80], ['Danilo', 14, 'RB', 79], ['Éder Militão', 13, 'CB', 84],

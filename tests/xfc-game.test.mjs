@@ -2175,3 +2175,76 @@ test('os avisos de falta e bola parada saíram da tela e o gol ganhou cartão no
   assert.ok(hudSource.includes('showGoalCard'), 'a HUD desenha o cartão com camisa, nome e placar');
   assert.ok(hudSource.includes('hud__goal-number'), 'o número da camisa aparece no cartão');
 });
+
+test('mata-mata empatado vai para prorrogação e decide nos pênaltis', async () => {
+  // O fluxo completo 90' → 105' → 120' → pênaltis depende de timers reais do
+  // motor; aqui o relógio é conduzido à mão para provar as transições sem
+  // depender de 20 minutos de jogo simulado.
+  const browser = await launchOrSkip();
+  if (!browser) return;
+  const { server, url } = await startXfcServer({ port: 0 });
+  try {
+    const page = await browser.newPage();
+    await page.goto(url);
+    const out = await page.evaluate(async () => {
+      const { createMatch } = await import('/src/match3d/match.js');
+      const { TEAMS } = await import('/src/data/teams.js');
+      const events = [];
+      const match = createMatch({
+        home: TEAMS[0], away: TEAMS[1], minutes: 90, difficulty: 'normal',
+        userSide: 'home', knockOut: true, graphicsQuality: 'low',
+        onEvent: event => events.push(event)
+      });
+      const { clock, phase } = match.world;
+      // O relógio é conduzido à mão: cada `tick` roda um quadro do motor, e o
+      // minuto é empurrado para o limite do tempo antes de cada tick.
+      const tickAt = (minute, extra = {}) => {
+        phase.name = 'play';
+        clock.minutes = minute;
+        Object.assign(clock, extra);
+        match.world.tick(1 / 60);
+      };
+      clock.half = 2;
+      clock.added = 5;
+      clock.announced = true;
+      // 1) fim dos 90+5 com empate: deve abrir a prorrogação
+      tickAt(95.5);
+      const enteredExtra = { extra: clock.extra, minute: Math.round(clock.minutes) };
+      // 2) fim do 1º tempo da prorrogação, aos 105
+      clock.announced = true;
+      tickAt(105.01, { extraAdded: 2 });
+      const atBreak = {
+        extra: clock.extra,
+        minute: Math.round(clock.minutes),
+        event: events.some(e => e.type === 'extrabreak')
+      };
+      // 3) fim dos 120+2: empate vai para os pênaltis
+      clock.announced = true;
+      tickAt(122.5, { extraAdded: 2 });
+      return {
+        enteredExtra, atBreak,
+        extra: clock.extra,
+        penalties: clock.penalties,
+        winner: clock.winner,
+        phase: phase.name,
+        events: events.map(e => e.type)
+      };
+    });
+    assert.equal(out.enteredExtra.extra, 'extra1', 'o jogo entra na prorrogação');
+    assert.equal(out.atBreak.event, true, 'aos 105\' o intervalo da prorrogação é anunciado');
+    assert.equal(out.atBreak.minute, 105, 'o intervalo acontece aos 105\'');
+    assert.equal(out.atBreak.extra, 'extra2', 'o intervalo já deixa o jogo no 2º tempo da prorrogação');
+    assert.equal(out.extra, 'extra2', 'o 2º tempo da prorrogação é o extra2');
+    assert.equal(out.phase, 'fulltime', 'aos 120+2 o jogo termina');
+    assert.ok(Array.isArray(out.penalties) && out.penalties.length === 2, 'a disputa devolve o placar dos pênaltis');
+    assert.ok(out.penalties[0] !== out.penalties[1], 'a disputa não termina empatada');
+    assert.ok(out.winner === 'home' || out.winner === 'away', 'há um vencedor');
+    assert.ok(out.events.includes('extratime'), 'o jogo avisa quando entra na prorrogação');
+    assert.ok(out.events.includes('extrahalftime'), 'o intervalo da prorrogação é anunciado');
+    assert.ok(out.events.includes('penalties'), 'a disputa de pênaltis é anunciada');
+    assert.equal(out.events.filter(type => type === 'extrabreak').length, 1, 'o intervalo da prorrogação é anunciado uma vez só');
+  } finally {
+    server.close();
+    await browser.close();
+  }
+});

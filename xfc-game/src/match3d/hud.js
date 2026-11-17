@@ -463,8 +463,15 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
       homeScore.textContent = String(snapshot.score[0]);
       awayScore.textContent = String(snapshot.score[1]);
       clock.textContent = (snapshot.display||"0'00").replace("'",':');
+      // Prorrogação tem dois tempos extras: 1ºT/2ºT viram 3ºT/4ºT (105'/120'),
+      // senão o relógio chegava a 105 mostrando "2ºT" e parecia bug.
       const half = snapshot.half === 1 ? '1ºT' : snapshot.half === 2 ? '2ºT' : '';
-      const halfText = snapshot.phase === 'halftime' ? 'INTERVALO' : snapshot.phase === 'fulltime' ? 'FIM DE JOGO' : half;
+      const extraHalf = snapshot.extra === 'extra1' ? '3ºT' : snapshot.extra === 'extra2' ? '4ºT' : '';
+      const deciding = snapshot.extra ? extraHalf : half;
+      const halfText = snapshot.phase === 'halftime' ? 'INTERVALO'
+        : snapshot.phase === 'fulltime' ? 'FIM DE JOGO'
+        : snapshot.phase === 'etbreak' ? 'INTERVALO'
+        : deciding || half;
       if (halfLabel.textContent !== halfText) halfLabel.textContent = halfText;
       const poss = Array.isArray(snapshot.poss) ? snapshot.poss : [50, 50];
       possFill.style.width = `${Math.max(0, Math.min(100, poss[0]))}%`;

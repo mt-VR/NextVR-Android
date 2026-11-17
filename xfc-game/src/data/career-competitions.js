@@ -21,6 +21,23 @@ export const NATION_CODES = {
 
 export const nationCode = nationality => NATION_CODES[nationality] || 'brazil';
 
+/**
+ * O ano de Copa do Mundo na carreira. Cada temporada tem 14 partidas e a Copa
+ * cai a cada 4 temporadas — como um ciclo olímpico, mas de futebol: 1, 5, 9...
+ * O ano 1 é o de estreia (a primeira temporada do save).
+ */
+export const WORLD_CUP_CYCLE = 4;
+export function isWorldCupSeason(season) {
+  return ((Math.max(1, Number(season) || 1) - 1) % WORLD_CUP_CYCLE) === 0;
+}
+
+/** Quantas temporadas faltam para a próxima Copa (0 = é esta temporada). */
+export function seasonsUntilWorldCup(season) {
+  const current = Math.max(1, Number(season) || 1);
+  const rest = (current - 1) % WORLD_CUP_CYCLE;
+  return rest === 0 ? 0 : WORLD_CUP_CYCLE - rest;
+}
+
 /** A carreira é de clube europeu? Define a competição continental. */
 export function isEuropeanCareer(career) {
   const team = career?.clubId ? getTeam(career.clubId) : null;
@@ -170,7 +187,45 @@ export function callupNews(career) {
   if (!career?.player) return null;
   const call = nationalCallup(career);
   const nation = CAREER_NATIONS.includes(career.player.nationality) ? career.player.nationality : 'Brasil';
+  const label = nation === 'Brasil' ? 'brasileira' : `da ${nation}`;
+  // A convocação só vale na temporada de Copa: nos outros anos o jogador segue
+  // no clube e a caixa de entrada mostra a contagem até a próxima Copa. Sem
+  // isso o Escritório prometia uma Copa todo ano.
+  if (!isWorldCupSeason(career.season)) {
+    const left = seasonsUntilWorldCup(career.season);
+    return `Sem Copa nesta temporada — a próxima é em ${left} ${left === 1 ? 'temporada' : 'temporadas'}. Segue no clube.`;
+  }
   return call.called
-    ? `Convocado pela seleção ${nation === 'Brasil' ? 'brasileira' : `da ${nation}`} para a Copa.`
-    : `Ainda fora da lista da seleção ${nation === 'Brasil' ? 'brasileira' : `da ${nation}`}.`;
+    ? `Convocado pela seleção ${label} para a Copa do Mundo.`
+    : `Não convocado pela seleção ${label} para a Copa do Mundo.`;
+}
+
+/**
+ * O aviso da Caixa de Entrada do Escritório: convocação (em ano de Copa) ou a
+ * contagem regressiva para a próxima. É a mesma mensagem que o jogo usa na
+ * notícia da seleção, já com título e tom.
+ */
+export function inboxCallupNotice(career) {
+  if (!career?.player) return null;
+  const cupSeason = isWorldCupSeason(career.season);
+  const call = nationalCallup(career);
+  const nation = CAREER_NATIONS.includes(career.player.nationality) ? career.player.nationality : 'Brasil';
+  const label = nation === 'Brasil' ? 'brasileira' : `da ${nation}`;
+  const left = seasonsUntilWorldCup(career.season);
+  if (!cupSeason) {
+    return {
+      kind: 'countdown',
+      called: null,
+      title: 'SEM COPA NESTA TEMPORADA',
+      message: `A próxima Copa do Mundo é em ${left} ${left === 1 ? 'temporada' : 'temporadas'}. Continue somando jogos e gols pelo clube.`
+    };
+  }
+  return {
+    kind: call.called ? 'called' : 'not-called',
+    called: call.called,
+    title: call.called ? 'CONVOCADO PARA A COPA' : 'NÃO CONVOCADO',
+    message: call.called
+      ? `Você está na lista da seleção ${label}. O técnico confia em você: ${call.confidence}% de confiança.`
+      : `O técnico da seleção ${label} não chamou você desta vez. Suba o overall e a sequência de jogos para entrar na lista.`
+  };
 }

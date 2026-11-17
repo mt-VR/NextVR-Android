@@ -406,10 +406,40 @@ function campaignScreen(ctx, { campaign, mode, returnTo }) {
       : campaign.stage === 'eliminated'
         ? ['Fim da campanha', phaseCopy.eliminated]
         : null;
+  // Campeão do mundo: além do cartão do troféu, oferece a comemoração 3D.
+  const cupCinematic = campaign.stage === 'champion' && el('button', {
+    class: 'worldcup__new-campaign worldcup__cinematic',
+    type: 'button',
+    onClick() {
+      ctx.go('trophy', {
+        returnTo: 'worldcup',
+        returnParams: { mode, returnTo },
+        event: {
+          title: 'COPA DO MUNDO',
+          competition: 'Copa do Mundo',
+          competitionId: 'copa-do-mundo',
+          kind: 'worldcup',
+          clubId: userTeam.id,
+          clubName: userTeam.name,
+          season: campaign.year,
+          colors: userTeam.colors || null,
+          kit: userTeam.colors ? {
+            primary: userTeam.colors.primary, secondary: userTeam.colors.secondary,
+            shorts: userTeam.colors.secondary, socks: userTeam.colors.secondary
+          } : null,
+          squadSize: 5,
+          player: campaign.userPlayer
+            ? { name: campaign.userPlayer.name, number: campaign.userPlayer.number ?? 10, appearance: campaign.userPlayer.appearance || null }
+            : null
+        }
+      });
+    }
+  }, 'VER A COMEMORAÇÃO  🏆');
   const outcome = finalCopy && el('section', { class: 'worldcup__trophy' },
     el('div', { class: 'worldcup__trophy-icon', html: trophySvg() }),
     el('h2', { class: 'worldcup__trophy-title', text: finalCopy[0] }),
-    el('p', { class: 'worldcup__trophy-sub', text: finalCopy[1] })
+    el('p', { class: 'worldcup__trophy-sub', text: finalCopy[1] }),
+    cupCinematic
   );
   const newCampaign = el('button', {
     class: 'worldcup__new-campaign',

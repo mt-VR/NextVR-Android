@@ -10,7 +10,7 @@ import {queueCareerPresentation} from '../data/career-presentations.js';
 import {careerOffers,negotiateCareerClub,answerOffer} from '../data/career-market.js';
 import {getCareer,careerSchedule,careerNews} from '../data/career-services.js';
 import {STADIUMS} from '../match3d/stadiums.js';
-import {nationalCallup,callupNews} from '../data/career-competitions.js';
+import {nationalCallup,callupNews,inboxCallupNotice,isWorldCupSeason} from '../data/career-competitions.js';
 // `office` e `evolve` usam as artes novas do usuário (sem redesenho):
 // Escritório do clube e Evoluir Jogador, recortadas de 1672×941 para 1568×882
 // no mesmo referencial dos hotspots das outras telas.
@@ -100,12 +100,18 @@ export function careerReference(ctx,{view,kind,career:c,go,back,persist,returnTo
   hit('Caixa de Entrada',[60,594,650,146],()=>go('competitions'));
   hit('Negociações Ativas',[745,594,772,146],()=>go('transfers'));
   if(c){
+    // Cartão da seleção: em ano de Copa o melhor é o aviso de convocado/não
+    // convocado; nos outros anos ele vira a contagem até a próxima Copa —
+    // a Copa é de 4 em 4 temporadas, não todo ano.
     const call=nationalCallup(c);
+    const notice=inboxCallupNotice(c);
+    const cupYear=isWorldCupSeason(c.season);
     data('career-reference-callup',[1224,196,420,150],
-      text('b',call.called?'SELECIONADO':'SELEÇÃO'),
-      text('p',callupNews(c)||''),
-      el('button',{type:'button',class:'career-reference-office-renew',text:call.called?'Copa do Mundo':'Ver competições',
-        onClick:()=>call.called?ctx.go('worldcup',{returnTo:'career',fromCareer:true,kind}):go('competitions')}));
+      text('b',call.called&&cupYear?'SELECIONADO':notice?.title||'SELEÇÃO'),
+      text('p',notice?.message||callupNews(c)||''),
+      el('button',{type:'button',class:'career-reference-office-renew',
+        text:cupYear?(call.called?'Copa do Mundo':'Ver competições'):'Ver competições',
+        onClick:()=>cupYear&&call.called?ctx.go('worldcup',{returnTo:'career',fromCareer:true,kind}):go('competitions')}));
   }
   hit('Selecionar',[40,764,132,44],()=>go('transfers'));
   hit('Voltar',[176,764,116,44],back);

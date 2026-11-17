@@ -24,6 +24,7 @@ import { customiseScreen } from './screens/customise.js';
 import { ultimateTeamScreen } from './screens/ultimate.js';
 import { trainingScreen } from './screens/training.js';
 import { competitionScreen } from './screens/competition.js';
+import { trophyCinematic } from './screens/trophy-cinematic.js';
 import { unlockAudio } from './audio.js';
 import { createGamepad } from './ui/gamepad.js';
 
@@ -64,7 +65,10 @@ const registry = {
   worldcup: worldCupScreen,
   ultimate: ultimateTeamScreen,
   training: trainingScreen,
-  competition: competitionScreen
+  competition: competitionScreen,
+  // Comemoração de título (Champions, Copa, Libertadores, Brasileirão...):
+  // cena 3D curta com a taça girando e o time com os braços erguidos.
+  trophy: trophyCinematic
 };
 
 let current = null;

@@ -527,14 +527,31 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'kick': {
+        // Chute em quatro tempos: armada (a perna vai atrás), contato (a perna
+        // passa pelo corpo), acompanhamento (a perna cruza à frente) e apoio
+        // (o pé de apoio planta e o tronco se inclina, senão o boneco parece
+        // chutar flutuando). O corpo gira em torno do pé de apoio.
         const pose=kickPose(p,gesture.kind),side=preferredFoot==='Left'?'left':'right',other=side==='left'?'right':'left',sign=side==='left'?1:-1;
+        const contact=Math.min(1,Math.max(0,(p-0.24)/0.16));          // 0→1 no contato
+        const follow=Math.min(1,Math.max(0,(p-0.46)/0.4));            // 0→1 no acompanhamento
+        const plant=Math.min(1,Math.max(0,p/0.3));                    // apoio se firma
         poseBoneRotation(bones[side+'UpLeg'],pose.hip,sign*pose.opening,0,w);
         poseBoneRotation(bones[side+'Leg'],pose.knee,0,0,w);
-        poseBoneRotation(bones[side+'Foot'],-.12,sign*pose.opening,0,w);
-        addBoneRotation(bones[other+'Leg'],.12*wave,0,0,w);
-        addBoneRotation(bones.spine2,pose.torso,-sign*.16*wave,0,w);
-        addBoneRotation(bones.leftArm,-.15*wave,0,.45*wave,w);
-        addBoneRotation(bones.rightArm,-.1*wave,0,-.45*wave,w);
+        // O pé ganha o "chicote" no contato: antes e depois ele fica relaxado.
+        poseBoneRotation(bones[side+'Foot'],-.12-.34*contact*(1-follow),sign*pose.opening,0,w);
+        // Pé de apoio: joelho flexiona para absorver e a perna acompanha o giro.
+        addBoneRotation(bones[other+'UpLeg'],(.12+.1*contact)*wave,0,0,w);
+        addBoneRotation(bones[other+'Leg'],(-.16-.22*contact)*wave,0,0,w);
+        addBoneRotation(bones[other+'Foot'],.1*plant*wave,0,0,w);
+        // Tronco: inclina sobre a bola no contato e gira com o quadril.
+        addBoneRotation(bones.spine2,pose.torso+.22*contact*(1-follow)*wave,-sign*(.16*wave+.2*follow),0,w);
+        addBoneRotation(bones.hips,0,0,sign*.12*follow,wave);
+        // Braços abrem para o equilíbrio: contrários à perna que chuta.
+        const balance=.45*wave+.25*contact;
+        addBoneRotation(bones.leftArm,-.15*wave,0,balance*(side==='left'?-.9:.9),w);
+        addBoneRotation(bones.rightArm,-.1*wave,0,balance*(side==='left'?.9:-.9),w);
+        addBoneRotation(bones.leftForearm,-.35*contact*wave,0,0,w);
+        addBoneRotation(bones.rightForearm,-.35*contact*wave,0,0,w);
         break;
       }
       case 'header': {
@@ -593,12 +610,32 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'fall': {
-        bones.hips.position.y = bindHipY - (gesture.mask && !gesture.mask.has('Hips') ? 0 : gesture.weight) * 0.64 * wave * w;
-        addBoneRotation(bones.hips, 1.15 * wave, 0, 0.25 * wave * dir, w);
-        addBoneRotation(bones.leftUpLeg, -0.6 * wave, 0, 0, w);
-        addBoneRotation(bones.rightLeg, 0.9 * wave, 0, 0, w);
-        addBoneRotation(bones.leftArm, -1.2 * wave, 0, 0.2 * wave, w);
-        addBoneRotation(bones.rightArm, -1.2 * wave, 0, -0.2 * wave, w);
+        // Queda em três tempos, como o corpo cai de verdade:
+        //  1) desequilíbrio (0–28%): o tronco vai para trás, os braços procuram
+        //     o chão e os joelhos começam a ceder;
+        //  2) colapso (28–72%): o quadril desce e o corpo gira até o gramado;
+        //  3) impacto (72–100%): pequeno ricochete e o corpo relaxa — antes a
+        //     queda ia direto para o chão e parecia um boneco de pau.
+        const fade = Math.min(1, Math.max(0, (gesture.mask && !gesture.mask.has('Hips') ? 0 : gesture.weight)));
+        const impact = 1 - wave; // 0 no começo do pulso, 1 no fim
+        const settle = Math.min(1, Math.max(0, (impact - 0.7) / 0.3));
+        const rebound = Math.sin(settle * Math.PI) * 0.06;
+        // 1) desequilíbrio: tronco atrás, braços abrindo.
+        addBoneRotation(bones.spine2, -0.22 * fade * w, 0, 0.06 * fade * dir, w);
+        addBoneRotation(bones.neck, -0.14 * fade * w, 0, 0, w);
+        // 2) colapso: quadril desce com amortecedor (o `rebound` dá o quique).
+        bones.hips.position.y = bindHipY - fade * (0.64 * wave - rebound);
+        addBoneRotation(bones.hips, (0.55 * fade + 0.6 * fade * wave) * w, 0, 0.25 * wave * dir, w);
+        // Joelhos flexionam em ordem (a perna de apoio cede primeiro).
+        addBoneRotation(bones.leftUpLeg, (-0.25 - 0.35 * wave) * fade, 0, 0, w);
+        addBoneRotation(bones.leftLeg, (-0.3 - 0.45 * wave) * fade, 0, 0, w);
+        addBoneRotation(bones.rightUpLeg, (0.35 + 0.4 * wave) * fade, 0, 0, w);
+        addBoneRotation(bones.rightLeg, (0.5 + 0.55 * wave) * fade, 0, 0, w);
+        // 3) impacto: os braços amortecem a queda e depois relaxam no chão.
+        addBoneRotation(bones.leftArm, (-0.9 - 0.5 * wave) * fade, 0, (0.35 + 0.3 * wave) * fade, w);
+        addBoneRotation(bones.rightArm, (-0.9 - 0.5 * wave) * fade, 0, -(0.35 + 0.3 * wave) * fade, w);
+        addBoneRotation(bones.leftForearm, (-0.5 - 0.3 * settle) * fade, 0, 0, w);
+        addBoneRotation(bones.rightForearm, (-0.5 - 0.3 * settle) * fade, 0, 0, w);
         break;
       }
       case 'down': {

@@ -2,7 +2,7 @@ import {pendingCareerPresentation} from '../data/career-presentations.js';
 import {careerPresentation} from './career-presentation.js';
 import {careerAward, awardStyles} from './career-award.js';
 import {flagSvg} from '../ui/flags.js';
-import {pendingAwardCinematic,careerCompetitions,nationalCallup,seasonAwards,careerAwardCase,callupNews,nationCode} from '../data/career-competitions.js';
+import {pendingAwardCinematic,careerCompetitions,nationalCallup,seasonAwards,careerAwardCase,callupNews,nationCode,isWorldCupSeason,seasonsUntilWorldCup,inboxCallupNotice} from '../data/career-competitions.js';
 import {careerReference} from './career-reference.js';
 // Telas distintas; apenas dados/roteamento compartilhados. Nenhum placar da arte é usado.
 import {el} from '../ui/dom.js';
@@ -57,13 +57,23 @@ export function careerScreen(ctx,params={}){
         // clube do atleta. A Champions é só de clube europeu.
         button(`Disputar ${comp.name}`,()=>ctx.go('competition',{competitionId:comp.id==='champions'?'uefa-champions-league':'conmebol-libertadores',returnTo:'career',fromCareer:true,kind,careerClubId:c.clubId}))
       ]))));
-  content.append(panel('SELEÇÃO',el('p',{text:callupNews(c)||''}),
-    call.called?el('div',{class:'career-callup is-called'},
-      el('span',{class:'career-callup__flag'},flagSvg(nationFlag)),
-      el('div',{},el('strong',{text:`Convocado · ${c.player.nationality}`}),el('p',{text:`Confiança do técnico ${call.confidence}%. Você pode ser titular na Copa do Mundo.`})))
-    :el('div',{class:'career-callup'},el('div',{},el('strong',{text:'Fora da lista'}),el('p',{text:`Overall ${call.ovr} · score ${Math.round(call.score)}. Marque gols e suba de nível para ser convocado.`}))),
-    button('Disputar a Copa do Mundo',()=>ctx.go('worldcup',{returnTo:'career',fromCareer:true,kind}))
-  ));
+  // A Copa é de 4 em 4 temporadas: fora do ano de Copa o painel mostra a
+  // contagem e o botão de disputar sai de cena (a vaga é só no ano de Copa).
+  const cupYear=isWorldCupSeason(c.season);
+  const untilCup=seasonsUntilWorldCup(c.season);
+  const cupNotice=inboxCallupNotice(c);
+  content.append(panel('SELEÇÃO',el('p',{text:cupNotice?.message||callupNews(c)||''}),
+    cupYear
+      ? (call.called?el('div',{class:'career-callup is-called'},
+          el('span',{class:'career-callup__flag'},flagSvg(nationFlag)),
+          el('div',{},el('strong',{text:`Convocado · ${c.player.nationality}`}),el('p',{text:`Confiança do técnico ${call.confidence}%. Você pode ser titular na Copa do Mundo.`})))
+        :el('div',{class:'career-callup'},el('div',{},el('strong',{text:'Fora da lista'}),el('p',{text:`Overall ${call.ovr} · score ${Math.round(call.score)}. Marque gols e suba de nível para ser convocado.`}))))
+      : el('div',{class:'career-callup is-countdown'},
+          el('span',{class:'career-callup__flag'},flagSvg(nationFlag)),
+          el('div',{},el('strong',{text:'Ano sem Copa'}),el('p',{text:`A próxima Copa do Mundo é em ${untilCup} ${untilCup===1?'temporada':'temporadas'} (temporada ${c.season+untilCup}).`}))),
+    cupYear
+      ? button('Disputar a Copa do Mundo',()=>ctx.go('worldcup',{returnTo:'career',fromCareer:true,kind}))
+      : el('p',{class:'career-callup__wait',text:'Continue no clube: a convocação chega na temporada de Copa.'})));
   content.append(panel('PRÊMIOS DA TEMPORADA',el('p',{text:'A Bola de Ouro e o Puskás têm cutscene quando são conquistados.'}),
     ...awards.map(award=>el('div',{class:`career-award-row${owned.some(x=>x.id===award.id)?' is-won':''}`},
       el('span',{class:'career-award-row__name',text:award.name}),

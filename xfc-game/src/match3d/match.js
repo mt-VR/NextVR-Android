@@ -171,10 +171,17 @@ export function createMatch(options = {}) {
   }
   let paused = false;
 
+  // v0.5.53 — prorrogação: só no mata-mata (Copa, Champions, Libertadores,
+  // Copa do Brasil, final de copa). Empate em 90' → 105' (1º tempo da
+  // prorrogação) e 120' (2º tempo); persistindo o empate → pênaltis.
+  const knockOut = Boolean(options.knockOut);
   const clock = {
     minutes: 0,
     half: 1,
     added: 0,
+    // 'extra1' | 'extra2' | 'penalties' | null
+    extra: null,
+    extraAdded: 0,
     // `announced` evita repetir o aviso de acréscimo no mesmo tempo.
     announced: false,
     timeScale: 90 / Math.max(1, minutes)
@@ -1947,6 +1954,121 @@ export function createMatch(options = {}) {
     refereeModel.signal(duration);
   }
 
+  /**
+   * Disputa de pênaltis (5 cobranças alternadas e morte súbita). É resolvida
+   * pela nota dos batedores e pelo alcance do goleiro, com a mesma rng da
+   * partida; devolve o placar do shootout e o vencedor.
+   */
+  function runPenaltyShootout() {
+    const takers = side => {
+      const list = (side === 'home' ? teams.home : teams.away).players
+        .filter(player => player.active && !player.isKeeper)
+        .sort((a, b) => (b.stats?.rating || 70) - (a.stats?.rating || 70));
+      return list.length ? list : (side === 'home' ? teams.home : teams.away).players.slice(0, 5);
+    };
+    const keeperOf = side => (side === 'home' ? teams.away : teams.home).players.find(player => player.isKeeper);
+    const score = { home: 0, away: 0 };
+    const order = { home: takers('home'), away: takers('away') };
+    const taken = { home: 0, away: 0 };
+    const attempt = side => {
+      const list = order[side];
+      const taker = list[taken[side] % list.length];
+      taken[side] += 1;
+      const keeper = keeperOf(side);
+      // Nota de chute vs. alcance do goleiro: 72% de acerto na média.
+      const shot = (taker?.stats?.rating || 72) + (rng() - 0.5) * 26;
+      const save = (keeper?.stats?.rating || 70) * 0.55 + (rng() - 0.5) * 22;
+      if (shot > save + 12) score[side] += 1;
+      return shot > save + 12;
+    };
+    // Cinco cobranças alternadas (parando quando matematicamente decidido).
+    for (let round = 0; round < 5; round += 1) {
+      attempt('home');
+      const leftA = 5 - taken.home;
+      if (score.home > score.away + leftA) break;
+      attempt('away');
+      const leftB = 5 - taken.away;
+      if (score.away > score.home + leftB) break;
+      if (taken.home >= 5 && taken.away >= 5 && score.home !== score.away) break;
+    }
+    // Morte súbita.
+    let sudden = 0;
+    while (score.home === score.away && sudden < 15) {
+      const home = attempt('home');
+      const away = attempt('away');
+      sudden += 1;
+      if (home !== away) break;
+    }
+    // Rede de segurança (rng presa): decide pelo overall do elenco.
+    if (score.home === score.away) {
+      const rating = side => (side === 'home' ? teams.home : teams.away).players
+        .reduce((sum, player) => sum + (player.stats?.rating || 70), 0);
+      if (rating('home') >= rating('away')) score.home += 1; else score.away += 1;
+    }
+    return { score: [score.home, score.away], winner: score.home > score.away ? 'home' : 'away' };
+  }
+
+  /** Entra na prorrogação (1º tempo 90'→105'). */
+  function startExtraTime() {
+    clock.extra = 'extra1';
+    clock.minutes = 90;
+    clock.extraAdded = 0;
+    clock.announced = false;
+    phase.name = 'extra';
+    phase.timer = 0;
+    refereeSignal(1.6);
+    emit({ type: 'extratime', score: [teams.home.score, teams.away.score] });
+  }
+
+  /**
+   * Começa o 2º tempo da prorrogação (105' → 120'). Idempotente: se o relógio
+   * já está em `extra2`, não faz nada — chamar duas vezes não reinicia o jogo.
+   */
+  function beginExtraSecondHalf() {
+    if (clock.extra === 'extra2') return false;
+    clock.extra = 'extra2';
+    clock.minutes = 105;
+    clock.extraAdded = 0;
+    clock.announced = false;
+    emit({ type: 'extrahalftime', score: [teams.home.score, teams.away.score] });
+    kickoff('away');
+    return true;
+  }
+
+  /** Encerra a partida: no mata-mata empatado, vai para os pênaltis. */
+  function finishMatch(minute) {
+    phase.name = 'fulltime';
+    phase.timer = 0;
+    refereeSignal(1.8);
+    const drawn = teams.home.score === teams.away.score;
+    if (knockOut && drawn && clock.extra) {
+      // 120' empatado: pênaltis. O placar do jogo fica como está; o shootout
+      // vai em `penalties` e `winner`, e a tela de resultado usa isso.
+      const shootout = runPenaltyShootout();
+      clock.penalties = shootout.score;
+      clock.winner = shootout.winner;
+      emit({
+        type: 'penalties',
+        score: [teams.home.score, teams.away.score],
+        penalties: shootout.score,
+        winner: shootout.winner,
+        stats: snapshotStats(),
+        minute
+      });
+      return;
+    }
+    clock.winner = teams.home.score === teams.away.score ? null
+      : (teams.home.score > teams.away.score ? 'home' : 'away');
+    emit({
+      type: 'fulltime',
+      score: [teams.home.score, teams.away.score],
+      penalties: clock.penalties || null,
+      winner: clock.winner,
+      stats: snapshotStats(),
+      minute
+    });
+  }
+
   function shootPenalty(player,opts={}){
     if(penaltyRunup)return false;
     rememberPenaltyAim();
@@ -2452,6 +2574,9 @@ export function createMatch(options = {}) {
       return {
         score: [teams.home.score, teams.away.score],
         minutes: clock.minutes,
+        extra: clock.extra,
+        penalties: clock.penalties || null,
+        winner: clock.winner || null,
         display: formatClock(),
           half: clock.half,
         phase: phase.name,
@@ -2466,16 +2591,7 @@ export function createMatch(options = {}) {
           z: phase.restart.z,
           analysis: setPieceAnalysis(phase.restart)
         } : null,
-        discipline: {
-          home: {
-            yellow: teams.home.players.reduce((total, player) => total + (player.yellowCards || 0), 0),
-            red: teams.home.players.filter(player => player.redCard).length
-          },
-          away: {
-            yellow: teams.away.players.reduce((total, player) => total + (player.yellowCards || 0), 0),
-            red: teams.away.players.filter(player => player.redCard).length
-          }
-        },
+        discipline: disciplineSnapshot(),
         scorer: phase.name === 'goal' && goalScorer ? {
           id: goalScorer.id,
           name: goalScorer.name,
@@ -2501,8 +2617,15 @@ export function createMatch(options = {}) {
     away: createTeamAI({ side: 'away', world, tempo: userSide === 'away' ? userSideHelp : 1 })
   };
 
+  /** Limite do tempo atual, já com prorrogação quando ela existe. */
+  function clockLimit() {
+    if (clock.extra === 'extra1') return 105 + (clock.extraAdded || 0);
+    if (clock.extra === 'extra2') return 120 + (clock.extraAdded || 0);
+    return clock.half === 1 ? 45 + clock.added : 90 + clock.added;
+  }
+
   function formatClock() {
-    const limit = clock.half === 1 ? 45 + clock.added : 90 + clock.added;
+    const limit = clockLimit();
     const value = Math.min(limit, clock.minutes);
     const minutes = Math.floor(value);
     const seconds = Math.floor((value % 1) * 60);
@@ -3498,12 +3621,31 @@ export function createMatch(options = {}) {
       // Acréscimos: aos 45 e aos 90 o quarto árbitro levanta 5 minutos (como o
       // pedido) e o jogo só termina depois deles — antes eram 2 e 4.
       clock.minutes += (dt / 60) * clock.timeScale;
-      if (clock.half === 1 && !clock.announced && clock.minutes >= 45) {
+      if (clock.extra === 'extra1' && !clock.announced && clock.minutes >= 105) {
+        clock.announced = true;
+        clock.extraAdded = 2;
+        emit({ type: 'addedtime', half: 3, minutes: 2, extra: true });
+      }
+      // Aos 105' o jogo vai para o 2º tempo da prorrogação. Isto é decidido
+      // pelo RELÓGIO (e não pela fase que veio depois do saque), porque o
+      // apito de fim de tempo não pode interromper a partida: o saque de
+      // reinício volta para `kickoff` e a fase `etbreak` poderia nem durar.
+      if (clock.extra === 'extra1' && !clock.extraBreakAnnounced && clock.minutes >= 105) {
+        clock.extraBreakAnnounced = true;
+        emit({ type: 'extrabreak', score: [teams.home.score, teams.away.score], at: 105 });
+        beginExtraSecondHalf();
+      }
+      if (clock.extra === 'extra2' && !clock.announced && clock.minutes >= 120) {
+        clock.announced = true;
+        clock.extraAdded = 2;
+        emit({ type: 'addedtime', half: 4, minutes: 2, extra: true });
+      }
+      if (!clock.extra && clock.half === 1 && !clock.announced && clock.minutes >= 45) {
         clock.announced = true;
         clock.added = 5;
         emit({ type: 'addedtime', half: 1, minutes: 5 });
       }
-      if (clock.half === 2 && !clock.announced && clock.minutes >= 90) {
+      if (!clock.extra && clock.half === 2 && !clock.announced && clock.minutes >= 90) {
         clock.announced = true;
         clock.added = 5;
         emit({ type: 'addedtime', half: 2, minutes: 5 });
@@ -3513,15 +3655,18 @@ export function createMatch(options = {}) {
         phase.timer = 0;
         refereeSignal(1.6);
         emit({ type: 'halftime', score: [teams.home.score, teams.away.score], stats: snapshotStats() });
-      } else if (clock.half === 2 && clock.minutes >= 90 + clock.added) {
-        phase.name = 'fulltime';
+      } else if (clock.extra === 'extra1' && clock.minutes >= 105 + (clock.extraAdded || 0)) {
+        // Fim do 1º tempo da prorrogação: o intervalo já foi anunciado pelo
+        // relógio (acima); aqui só se garante que a fase vá para `etbreak`.
+        phase.name = 'etbreak';
         phase.timer = 0;
-        refereeSignal(1.8);
-        emit({
-          type: 'fulltime',
-          score: [teams.home.score, teams.away.score],
-          stats: snapshotStats()
-        });
+        refereeSignal(1.6);
+      } else if (clock.extra === 'extra2' && clock.minutes >= 120 + (clock.extraAdded || 0)) {
+        // Fim dos 120': empate vai para os pênaltis; quem venceu, campeão.
+        finishMatch(120);
+      } else if (!clock.extra && clock.half === 2 && clock.minutes >= 90 + clock.added) {
+        if (knockOut && teams.home.score === teams.away.score) startExtraTime();
+        else finishMatch(90);
       }
     } else if (phase.name === 'halftime') {
       phase.timer += dt;
@@ -3532,6 +3677,15 @@ export function createMatch(options = {}) {
         clock.announced = false;
         kickoff('away');
       }
+    } else if (phase.name === 'extra') {
+      phase.timer += dt;
+      if (phase.timer > 2.6) {
+        clock.announced = false;
+        kickoff('away');
+      }
+    } else if (phase.name === 'etbreak') {
+      phase.timer += dt;
+      if (phase.timer > 2.4) beginExtraSecondHalf();
     } else if (phase.name === 'fulltime') {
       phase.timer += dt;
     }
@@ -4095,12 +4249,48 @@ export function createMatch(options = {}) {
     camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
   }
 
+  // O `snapshot()` é chamado a cada quadro pela HUD. Reduzir cartões do time
+  // inteiro 60x por segundo era trabalho jogado fora (os cartões mudam uma
+  // dúzia de vezes por partida), então a contagem fica em cache e só é
+  // recalculada quando a soma de cartões muda.
+  let disciplineCache = null;
+  let disciplineStamp = -1;
+  function disciplineSnapshot() {
+    const homePlayers = teams.home.players;
+    const awayPlayers = teams.away.players;
+    let stamp = 0;
+    for (let i = 0; i < homePlayers.length; i += 1) {
+      const player = homePlayers[i];
+      stamp = (stamp + (player.yellowCards || 0) * 31 + (player.redCard ? 101 : 0)) | 0;
+    }
+    for (let i = 0; i < awayPlayers.length; i += 1) {
+      const player = awayPlayers[i];
+      stamp = (stamp + (player.yellowCards || 0) * 17 + (player.redCard ? 211 : 0)) | 0;
+    }
+    if (disciplineCache && stamp === disciplineStamp) return disciplineCache;
+    const count = players => ({
+      yellow: players.reduce((total, player) => total + (player.yellowCards || 0), 0),
+      red: players.filter(player => player.redCard).length
+    });
+    disciplineCache = { home: count(homePlayers), away: count(awayPlayers) };
+    disciplineStamp = stamp;
+    return disciplineCache;
+  }
+
+  // Mesma ideia para as estatísticas: os objetos são estáveis enquanto nada
+  // muda, e a HUD só lê. Evita dois spreads por quadro.
+  let statsCache = null;
+  let statsStamp = -1;
   function snapshotStats() {
     const total = possession.home + possession.away;
-    return {
+    const stamp = `${stats.home.shots}|${stats.home.shotsOn}|${stats.home.passesOn}|${stats.home.saves}|${stats.home.corners}|${stats.home.fouls}|${stats.home.cards}|${stats.away.shots}|${stats.away.shotsOn}|${stats.away.passesOn}|${stats.away.saves}|${stats.away.corners}|${stats.away.fouls}|${stats.away.cards}|${total}`;
+    if (statsCache && stamp === statsStamp) return statsCache;
+    statsCache = {
       home: { ...stats.home, possession: total ? Math.round((possession.home / total) * 100) : 50 },
       away: { ...stats.away, possession: total ? Math.round((possession.away / total) * 100) : 50 }
     };
+    statsStamp = stamp;
+    return statsCache;
   }
 
   // API de animação para o LLM: aprende/experimenta no protagonista em tempo

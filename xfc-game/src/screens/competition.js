@@ -1088,6 +1088,38 @@ export function competitionScreen(ctx, params = {}) {
 
   /* ----------------------------------------------------------------- final --- */
 
+  /**
+   * Abre a cutscene de conquista com os dados do título. A cena precisa do
+   * clube (cores/escudo) e do herói; em torneio de clube, o capitão do elenco.
+   */
+  function watchTrophyCinematic(state, championTeam) {
+    const clubId = championTeam?.clubId || tournament.userTeamId;
+    const roster = championTeam?.roster || championTeam?.players || [];
+    const captain = roster.find(player => player.position !== 'GK') || roster[0] || null;
+    ctx.go('trophy', {
+      returnTo: 'competition',
+      returnParams: { competitionId: competition.id },
+      event: {
+        title: `${competition.name.toUpperCase()} ${competition.year}`,
+        competition: competition.name,
+        competitionId: competition.id,
+        clubId,
+        clubName: championTeam?.name || competitionTeamName(tournament.userTeamId),
+        season: competition.year,
+        colors: championTeam?.colors || competitionTeam(tournament.userTeamId)?.colors || null,
+        kit: championTeam?.colors ? {
+          primary: championTeam.colors.primary, secondary: championTeam.colors.secondary,
+          shorts: championTeam.colors.secondary, socks: championTeam.colors.secondary
+        } : null,
+        squadSize: 5,
+        player: captain ? {
+          name: captain.name, number: captain.number ?? 10,
+          appearance: captain.appearance || null
+        } : null
+      }
+    });
+  }
+
   function finalPanel() {
     const finalFixture = tournament.fixtures.find(fixture => fixture.stage === 'final');
     const champion = tournament.champion ? competitionTeam(tournament.champion) : null;
@@ -1130,6 +1162,11 @@ export function competitionScreen(ctx, params = {}) {
           el('p', { class: 'comp__panel-copy', text: tournament.champion === tournament.userTeamId
             ? 'Você levantou a taça. Comece um novo sorteio para defender o título.'
             : 'O campeonato terminou. Faça um novo sorteio e tente o título.' }),
+          // Quem levantou a taça ganha a comemoração 3D (e pode rever a cena).
+          tournament.champion === tournament.userTeamId && el('button', {
+            class: 'comp__cta comp__cta--play', type: 'button',
+            onClick: () => watchTrophyCinematic(tournament, champion)
+          }, 'VER A COMEMORAÇÃO  🏆'),
           el('button', {
             class: 'comp__ghost', type: 'button',
             onClick: () => startNewTournament(tournament.userTeamId)

@@ -184,21 +184,22 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.52
+          TAG=xfc-gameplay-v0.5.53
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.52 (versionCode 58), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.53 (versionCode 59), commit ${GITHUB_SHA}." \
             "" \
-            "Campo ainda maior: 120 × 82 m (era 112 × 74; o oficial é 105 × 68), com área, círculo central, marca do pênalti, câmeras, formação 4-3-3 e o aquecimento dos reservas reescalados a partir de PITCH." \
-            "Lateral dos rivais resolvido: o jogador da IA agora cobra o lateral com as mãos (gesto de arremesso, bola presa e guia para o recebedor) e a partida segue em ~0,9 s — antes a cobrança travava o jogo nos dois lados." \
-            "Uniformes de todas as seleções: 179 bandeiras ganharam a paleta real (camisa, detalhe, calção, meia e goleiro) e quem não tem tabela própria recebe uma paleta derivada do id, nunca o branco genérico." \
-            "Controle reorganizado: dois arcos limpos no canto direito (CHUTE/PASSE grandes, ENFIADA/CORRER/CARRINHO/TROCAR em volta), sem sobreposição e com alvo de dedo de 44 px ou mais em tela de celular." \
-            "Prévia de uniformes mais clara: as miniaturas mostram a figura inteira (camisa + calção + meia) e o modelo 3D usa o elenco real do time, então calção e meia aparecem com a cor certa." \
-            "Testes locais: 457/457 (1 skip de ambiente), sem falhas. Versão de testes: sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.52.md.")
+            "Prorrogação completa: mata-mata empatado vai para 90+2 → 105 → 105+2 → 120 → pênaltis. A HUD mostra 3ºT/4ºT e o resultado traz a disputa (5 × 4) em vez de \"EMPATE\"." \
+            "Copa do Mundo a cada 4 temporadas: a Caixa de Entrada do Escritório avisa CONVOCADO / NÃO CONVOCADO no ano de Copa e mostra a contagem regressiva nos outros anos; o botão de disputar a Copa só aparece na temporada certa." \
+            "Cutscene de conquista: cena 3D com estádio, taça girando e o time de braços erguidos, ligada no torneio (Champions/Libertadores) e na Copa do Mundo. Três formatos de taça, sem asset externo." \
+            "Neymar no XI do Brasil (camisa 10), além de CR7 em Portugal e Messi na Argentina. Vinícius Jr passou para a 20 para não repetir número." \
+            "Animação de chute em quatro tempos (armada, contato, acompanhamento, apoio) e queda em três tempos com ricochete de impacto — antes o boneco caía duro." \
+            "Menos travamentos: cache das estatísticas e dos cartões no snapshot (que roda a cada quadro) e projeção dos 22 atletas reaproveitando objetos na HUD." \
+            "Testes locais: 458/458 (1 skip de ambiente), sem falhas. Sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.53.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — campo 120×82, uniformes das seleções e controle reorganizado v0.5.52" \
+            gh release create "$TAG" --title "XFC 27 — prorrogação com pênaltis, Copa de 4 em 4 anos e cutscene de taça v0.5.53" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — campo 120×82, uniformes das seleções e controle reorganizado v0.5.52" \
+            gh release edit "$TAG" --title "XFC 27 — prorrogação com pênaltis, Copa de 4 em 4 anos e cutscene de taça v0.5.53" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

@@ -66,13 +66,17 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 // ganham o layout de controle. Menus de referência seguem idênticos.
 // v0.5.52: campo 120×82 (câmeras, remarcações e clamps em `match.js`) e o
 // novo layout dos botões de toque em `match3d.css`.
+// v0.5.53: mudanças de propósito — prorrogação de 105'/120' com pênaltis e o
+// cache das estatísticas em `match.js`; a HUD passa a mostrar 3ºT/4ºT e o
+// intervalo da prorrogação em `hud.js`; o Escritório mostra a Copa de 4 em 4
+// temporadas (contagem no cartão da seleção) em `career-reference.js`/CSS.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
-  "src/match3d/hud.js": "a34b820b6cb39db7f71d265f50b77111f5f2d594415dd16eaeaa31c028e7d387",
+  "src/match3d/hud.js": "dbfb92240093acb4e896e728a9ea19b2d31235a8c6f6fcde15ab8de0723c7567",
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
-  "src/match3d/match.js": "398bb87901d1a93fc4ae568e304c70913a4bba04f88c5179eaec3cb02c6565e4",
-  "src/screens/career-reference.js": "b6e26e088de10524f8a1fda6cf66ec868795f0194580ca3ce9f510a3fe398737",
-  "styles/career-reference.css": "e5b218e0ddae10b5361de627ebc467b98c5c96612efd868a4fcd63a8494a5ff5",
+  "src/match3d/match.js": "1c12f3843ad25c62b9ffbdd96ec65266f72fd8c1d4cffd47815ed8f899985fd7",
+  "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
+  "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   "styles/match3d.css": "37535288b1e291e67e267bcc4277460c4e387a9c3383c344e782bb1f68988908"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);

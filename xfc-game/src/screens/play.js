@@ -139,13 +139,16 @@ function teamMark(team, className = 'team-mark') {
 }
 
 /** Projeta um ponto do mundo 3D para as coordenadas do palco (1280x720). */
-function projectToStage(camera, position) {
+// `out` opcional: a tela de jogo projeta os 22 atletas a cada quadro e
+// reaproveita o mesmo objeto em vez de alocar um novo (menos lixo para o GC).
+function projectToStage(camera, position, out = null) {
   projection.set(position.x, position.y, position.z).project(camera);
-  return {
-    x: (projection.x * 0.5 + 0.5) * STAGE_WIDTH,
-    y: (-projection.y * 0.5 + 0.5) * STAGE_HEIGHT,
-    visible: projection.z < 1 && projection.z > -1
-  };
+  const target = out || {};
+  target.x = (projection.x * 0.5 + 0.5) * STAGE_WIDTH;
+  target.y = (-projection.y * 0.5 + 0.5) * STAGE_HEIGHT;
+  target.z = projection.z;
+  target.visible = projection.z < 1 && projection.z > -1;
+  return target;
 }
 
 export function playScreen(ctx, params = {}) {
@@ -337,7 +340,19 @@ export function playScreen(ctx, params = {}) {
   const unsubscribers = [];
 
   function buildMatch() {
+    // Mata-mata = competição eliminatória. Nesses jogos, empate em 90' leva a
+    // prorrogação (105'/120') e, persistindo, aos pênaltis. Liga/amistoso
+    // continua terminando em empate.
+    const knockOut = Boolean(
+      params.worldCupMatchId
+      || params.tournamentMatchId
+      || params.competition?.knockout
+      || params.competition?.format === 'Mata-mata'
+      || params.competition?.format === 'Final única'
+      || /final|copa|champions|libertadores|mata/i.test(params.competition?.id || '')
+    );
     match = createMatch({
+      knockOut,
       playerLockId:careerClub&&!careerManager?career.player.id:null,
       graphicsQuality:ctx.state.profile.graphicsQuality,
       canvas,
@@ -720,7 +735,11 @@ export function playScreen(ctx, params = {}) {
     const campaignResult = campaign && campaign.lastResult?.matchId === params.worldCupMatchId
       ? campaign.lastResult
       : null;
-    let winner = homeScore === awayScore ? null : homeScore > awayScore ? 'home' : 'away';
+    // Pênaltis vêm do motor (`event.penalties`/`event.winner`); a campanha só
+    // entra como reserva. Sem isso a final decidida nos pênaltis aparecia
+    // "EMPATE" mesmo com o jogo encerrado.
+    const shootout = Array.isArray(event.penalties) ? event.penalties : null;
+    let winner = event.winner || (homeScore === awayScore ? null : homeScore > awayScore ? 'home' : 'away');
     if (!winner && campaignResult?.winner) winner = campaignResult.winner === home.id ? 'home' : 'away';
     const champion = winner === 'home' ? home : winner === 'away' ? away : null;
 
@@ -732,7 +751,10 @@ export function playScreen(ctx, params = {}) {
         el('b', { text: `+${matchReward.coins} MOEDAS` }),
         el('span', { text: 'adicionadas ao Ultimate Team' })
       ),
-      campaignResult?.decidedBy === 'penalties' && el('div', { class: 'result__penalties', text: 'VITÓRIA NOS PÊNALTIS' }),
+      (shootout || campaignResult?.decidedBy === 'penalties') && el('div', { class: 'result__penalties' },
+        el('b', { text: 'DISPUTA DE PÊNALTIS' }),
+        shootout ? el('span', { text: `${shootout[0]} × ${shootout[1]}` }) : null
+      ),
       el('div', { class: 'result__teams' },
         el('div', { class: `result__team${winner === 'home' ? ' is-winner' : ''}` },
           teamMark(home, 'result__crest'),
@@ -964,41 +986,55 @@ export function playScreen(ctx, params = {}) {
   ));
   overlay.classList.add('is-visible');
 
+  // Buffers reaproveitados pelo laço de HUD (ver `projectToStage`).
+  const projectionPoint = { x: 0, y: 0, z: 0, visible: true };
+  const controlledPoint = { x: 0, y: 0, z: 0, visible: true };
+  const projectedPlayers = [];
   const frame = () => {
     if (!match) return;
     const snapshot = match.world.snapshot();
     lastSnapshot = snapshot;
     // Etiquetas sobre a cabeça de TODOS os atletas (como no eFootball/FC Mobile).
+    // Os objetos e o vetor de projeção são reaproveitados entre quadros: a HUD
+    // agora desenha 8x por segundo e recriar 22 objetos por quadro (com um
+    // vetor novo para cada) era lixo de memória suficiente para engasgar em
+    // celular modests.
     const all = match.world.members('home').concat(match.world.members('away'));
     const controlledPlayer = all.find(player => match.world.isUserControlled(player)) || null;
-    // Projetar posição de todos os jogadores para o stage
-    const projectedPlayers = all.map(player => {
-      const point = projectToStage(match.engine.camera, {
+    if (projectedPlayers.length !== all.length) {
+      projectedPlayers.length = 0;
+      for (let index = 0; index < all.length; index += 1) {
+        projectedPlayers.push({ id: '', number: 0, name: '', side: '', active: true, visible: false, x: 0, y: 0, z: 0 });
+      }
+    }
+    for (let index = 0; index < all.length; index += 1) {
+      const player = all[index];
+      projectToStage(match.engine.camera, {
         x: player.root.position.x,
         y: 2.32,
         z: player.root.position.z
-      });
+      }, projectionPoint);
       // Verificar se está atrás do plano da câmera (não mostrar nome)
-      const visible = point.z > 0 && point.x > 20 && point.x < 1260 && point.y > 20 && point.y < 700;
-      return {
-        id: player.id || `${player.side}-${player.number}`,
-        number: player.number,
-        name: player.name,
-        side: player.side,
-        active: player.active !== false,
-        visible,
-        x: point.x,
-        y: point.y,
-        z: point.z
-      };
-    });
+      const visible = projectionPoint.z > 0 && projectionPoint.x > 20 && projectionPoint.x < 1260
+        && projectionPoint.y > 20 && projectionPoint.y < 700;
+      const entry = projectedPlayers[index];
+      entry.id = player.id || `${player.side}-${player.number}`;
+      entry.number = player.number;
+      entry.name = player.name;
+      entry.side = player.side;
+      entry.active = player.active !== false;
+      entry.visible = visible;
+      entry.x = projectionPoint.x;
+      entry.y = projectionPoint.y;
+      entry.z = projectionPoint.z;
+    }
     let controlled = null;
     if (controlledPlayer) {
       const point = projectToStage(match.engine.camera, {
         x: controlledPlayer.root.position.x,
         y: 2.32,
         z: controlledPlayer.root.position.z
-      });
+      }, controlledPoint);
       controlled = { player: controlledPlayer, x: point.x, y: point.y, z: point.z, visible: point.z > 0 };
     }
     hud?.update(snapshot, projectedPlayers, {

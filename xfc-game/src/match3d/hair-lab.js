@@ -54,43 +54,85 @@ function blade(root,tip,width,depth,lean=0){
 }
 const BUILDERS={
  'lab-reference-mohawk':c=>{
-  // Moicano do Neymar 2011/12: faixa central alta e ESPESSA, laterais
-  // raspadas e pontas descoloridas. A primeira versão usava lâminas e lia
-  // como "placas" empilhadas; aqui as mechas são tubos afinados (mesmo
-  // gerador do Ragnarok) em três camadas, o que dá volume sem virar caixa.
+  // Moicano do Neymar 2011/12: crista central ALTA e ESTREITA, varrida para a
+  // FRENTE, laterais raspadas, pontas descoloridas.
+  //
+  // Convenção do `surface(a, t)`: `t` é a LATITUDE (0 = topo, + = testa,
+  // − = nuca) e `a` é o AZIMUTE lateral (+ = +X).
+  //
+  // A lição de todas as tentativas anteriores: mechas soltas não formam bloco
+  // e mechas que só sobem deixam vão. Aqui cada seção transversal da crista é
+  // uma "tenda": cume único no centro (a=0) descendo até o couro nas duas
+  // bordas (a=±0,10). Isso dá um bloco sólido, sempre encostado na cabeça.
   const parts=[];
-  // Base curta em toda a coroa: em 2011/12 o Neymar raspava as laterais, não
-  // raspar até o couro — sem essa camada a cabeça parece careca sob a crista.
-  parts.push(...swept(c,{count:14,rows:1,start:.88,end:-1.00,volume:.0055,width:.011,steps:2,sides:4}));
-  // Superfície: t positivo é para FRENTE (testa), negativo para a NUCA.
-  const root=(x,t)=>c.surface(Math.atan2(x,t),Math.hypot(x,t),.0012);
-  // Camada principal: da testa (t≈1.0) até a nuca (t≈-1.25).
-  for(let i=0;i<34;i++){
-    const t=1.00-(i/33)*2.25;
-    const x=Math.sin(i*2.3)*.0018;
-    const crest=Math.exp(-Math.pow((t+.06)/.90,2));
-    const jag=.80+.30*(Math.sin(i*3.1)*.5+.5);
-    const h=(.030+.072*crest)*jag;
-    const p=root(x,t);
-    const mid=p.clone().add(V(x,h*.62,-.010-h*.10));
-    const tip=p.clone().add(V(x*1.5,h,-.030-h*.34));
-    parts.push(strand([p,mid,tip],.0125,.0065,4,4));
-  }
-  // Duas camadas de fora para dentro: alargam o bloco sem perder o topo afiado
-  // (a de fora é mais baixa, como o corte de 2011).
-  for(const [band,k] of [[.022,.90],[.040,.72],[.052,.50]]){
-    for(const side of [-1,1])for(let i=0;i<10;i++){
-      const t=.92-(i/9)*2.05;
-      const crest=Math.exp(-Math.pow((t+.06)/.90,2));
-      const h=(.026+.062*crest)*k;
-      const p=root(side*band,t);
-      parts.push(strand([p,p.clone().add(V(side*band*.35,h*.58,-.008)),p.clone().add(V(side*band*.6,h,-.026-h*.30))],.013,.007,2,4));
+  // Perfil do cume ao longo da cabeça (t). Mais alto na frente.
+  const ridge=t=>{
+    const f=Math.max(0,Math.min(1,(t+.34)/1.30));
+    return .014+.054*Math.pow(f,.8);
+  };
+  const ROWS=9;
+  for(let i=0;i<ROWS;i++){
+    const t=-.34+(i/ROWS)*1.30;
+    const h=ridge(t);
+    // 7 mechas da tenda: -0,10 … +0,10 rad. A do centro é a mais alta.
+    const SPAN=7;
+    for(let j=0;j<SPAN;j++){
+      const s=(j/(SPAN-1))*2-1;               // -1..1
+      const a=s*.10;
+      // Altura cai pela borda; na borda a mecha deita no couro.
+      const lift=Math.pow(Math.cos(s*Math.PI/2),.42);
+      const base=c.surface(a,t,.0012);
+      // Irregularidade suave: mechas vizinhas não terminam todas no mesmo
+      // plano (era isso que dava o aspecto de "dentes de pente").
+      const jag=1+.08*Math.sin(i*2.1+j*1.7);
+      const mid=base.clone();mid.y+=h*lift*.55;mid.z+=h*(.02+.08*Math.max(0,t));
+      const tip=base.clone();tip.y+=h*lift*jag;tip.z+=h*(.05+.18*Math.max(0,t))*(.4+.6*lift);
+      // Bloco levemente à frente do centro do crânio (o corte de 2011 começa
+      // na linha do cabelo, não no meio da cabeça).
+      const shift=.010;
+      base.z+=shift;mid.z+=shift;tip.z+=shift*.6;
+      parts.push(strand([base,mid,tip],.0130,.0085,5,6));
     }
   }
-  // Nuca: fios que descem curtos e colados, integrando a faixa à cabeça.
-  for(const x of [-.022,-.011,0,.011,.022])for(let i=0;i<3;i++){
-    const t=-1.02-i*.08,p=root(x*.9,t),q=root(x*.7,t-.09);
-    parts.push(strand([p,q.clone().add(V(x*.1,-.004,-.008))],.010,.006,3,3));
+  // Malha contínua por baixo das mechas: fecha os vãos entre elas, que faziam
+  // a crista parecer um pente visto de perfil. "Tenda" 9x14 com cume em a=0
+  // caindo até o couro nas bordas.
+  {
+    const COLS=9,MROWS=14;
+    const pos=[],uv=[],idx=[];
+    for(let r=0;r<=MROWS;r++){
+      const t=-.34+(r/MROWS)*1.30;
+      const h=ridge(t);
+      for(let col=0;col<=COLS;col++){
+        const sv=(col/COLS)*2-1;
+        const lift=Math.pow(Math.cos(sv*Math.PI/2),.42);
+        const base=c.surface(sv*.10,t,.0010);
+        const p=base.clone();
+        const crown=Math.min(1,Math.max(0,(.92-Math.abs(t-.62))/.30));
+        p.y+=h*lift*.95*crown+.0015;
+        p.z+=h*(.05+.18*Math.max(0,t))*(.4+.6*lift)+.010;
+        pos.push(p.x,p.y,p.z);uv.push(col/COLS,r/MROWS);
+      }
+    }
+    for(let r=0;r<MROWS;r++)for(let col=0;col<COLS;col++){
+      const a0=r*(COLS+1)+col,b0=a0+1,c0=a0+(COLS+1),d0=c0+1;
+      idx.push(a0,c0,b0,b0,c0,d0);
+    }
+    const g=new T.BufferGeometry();
+    g.setAttribute('position',new T.Float32BufferAttribute(pos,3));
+    g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));
+    g.setIndex(idx);g.computeVertexNormals();
+    parts.push(g);
+  }
+  // Fios rasgados nas laterais (a de ±0,16 a ±0,95 rad), deitados no couro.
+  for(const side of [-1,1])for(let i=0;i<6;i++){
+    const a=side*(.17+i*.14);
+    const pts=[];
+    for(let j=0;j<=4;j++){
+      const t=.60-(j/4)*1.22;
+      pts.push(c.surface(a,t,.0013).add(V(0,.0022,0)));
+    }
+    parts.push(strand(pts,.0085,.0045,4,4));
   }
   return parts;
  },
