@@ -70,14 +70,17 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 // cache das estatísticas em `match.js`; a HUD passa a mostrar 3ºT/4ºT e o
 // intervalo da prorrogação em `hud.js`; o Escritório mostra a Copa de 4 em 4
 // temporadas (contagem no cartão da seleção) em `career-reference.js`/CSS.
+// v0.5.54: os nomes flutuantes sobre TODOS os jogadores saíram do HUD por
+// pedido (a camada `hud__tags-layer` e o CSS de `hud__nametag` foram removidos);
+// o cartão fixo do atleta, o do adversário e a etiqueta do controlado ficam.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
-  "src/match3d/hud.js": "dbfb92240093acb4e896e728a9ea19b2d31235a8c6f6fcde15ab8de0723c7567",
+  "src/match3d/hud.js": "cde60c4f0b840bdd797984270ad6600ab8089ec9c55d935838fff0735fd7af36",
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
-  "src/match3d/match.js": "1c12f3843ad25c62b9ffbdd96ec65266f72fd8c1d4cffd47815ed8f899985fd7",
+  "src/match3d/match.js": "5c35293147eedf86d0f8b0be9b42ddae0c31a27ff2d1bf0255d8d45e76087a7e",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
-  "styles/match3d.css": "37535288b1e291e67e267bcc4277460c4e387a9c3383c344e782bb1f68988908"
+  "styles/match3d.css": "2dab82889330b7d7b3cc812971f0f8c9f0a94fbac023a6d7463a36a8ddf31b07"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });

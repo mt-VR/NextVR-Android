@@ -3986,6 +3986,10 @@ export function createMatch(options = {}) {
       const scoringSide = side > 0 ? 'home' : 'away';
       const insideGoal = Math.abs(position.z) < GOAL.width / 2 && position.y < GOAL.height;
       if (insideGoal) {
+        // Bola já dentro do gol (a fase 'goal' segura o jogo, mas a física
+        // pode empurrar a bola mais para dentro da rede): não conta de novo.
+        // Sem esta guarda, um gol de bola forte podia virar 2×0 no placar.
+        if (phase.name === 'goal' && ball.state.goalPocket === scoringSide * 1) return;
         // O goleiro ainda pode defender: quanto mais perto do chute, mais
         // chance de chegar na bola.
         const keeper = members(opponentOf(scoringSide)).find(player => player.isKeeper && player.active);

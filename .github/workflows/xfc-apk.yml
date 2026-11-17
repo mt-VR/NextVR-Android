@@ -184,22 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.53
+          TAG=xfc-gameplay-v0.5.54
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.53 (versionCode 59), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.54 (versionCode 60), commit ${GITHUB_SHA}." \
             "" \
-            "Prorrogação completa: mata-mata empatado vai para 90+2 → 105 → 105+2 → 120 → pênaltis. A HUD mostra 3ºT/4ºT e o resultado traz a disputa (5 × 4) em vez de \"EMPATE\"." \
-            "Copa do Mundo a cada 4 temporadas: a Caixa de Entrada do Escritório avisa CONVOCADO / NÃO CONVOCADO no ano de Copa e mostra a contagem regressiva nos outros anos; o botão de disputar a Copa só aparece na temporada certa." \
-            "Cutscene de conquista: cena 3D com estádio, taça girando e o time de braços erguidos, ligada no torneio (Champions/Libertadores) e na Copa do Mundo. Três formatos de taça, sem asset externo." \
-            "Neymar no XI do Brasil (camisa 10), além de CR7 em Portugal e Messi na Argentina. Vinícius Jr passou para a 20 para não repetir número." \
-            "Animação de chute em quatro tempos (armada, contato, acompanhamento, apoio) e queda em três tempos com ricochete de impacto — antes o boneco caía duro." \
-            "Menos travamentos: cache das estatísticas e dos cartões no snapshot (que roda a cada quadro) e projeção dos 22 atletas reaproveitando objetos na HUD." \
-            "Testes locais: 458/458 (1 skip de ambiente), sem falhas. Sem benchmark de FPS em telefone físico. Detalhes: xfc-game/docs/v0.5.53.md.")
+            "Nomes flutuantes sobre os jogadores REMOVIDOS: cada atleta tinha uma etiqueta de número e nome voando sobre a cabeça durante a partida. A camada inteira saiu do HUD; ficam só o cartão do atleta, o do adversário e a etiqueta do controlado, todos fixos." \
+            "Gol contado duas vezes corrigido: um chute forte que cruzava a linha podia virar 2 × 0 porque o detector de linha de fundo rodava de novo com a bola já na rede. Agora há guarda de idempotência." \
+            "Herda a v0.5.53: prorrogação com pênaltis, Copa de 4 em 4 temporadas na Caixa de Entrada do Escritório, cutscene de conquista de título, Neymar no XI do Brasil, chute e queda refeitos e menos travamentos." \
+            "Testes locais: xfc-game 28/28 em três execuções seguidas; classicos + customização 8/8. Detalhes: xfc-game/docs/v0.5.54.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — prorrogação com pênaltis, Copa de 4 em 4 anos e cutscene de taça v0.5.53" \
+            gh release create "$TAG" --title "XFC 27 — nomes flutuantes removidos e gol duplo corrigido v0.5.54" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — prorrogação com pênaltis, Copa de 4 em 4 anos e cutscene de taça v0.5.53" \
+            gh release edit "$TAG" --title "XFC 27 — nomes flutuantes removidos e gol duplo corrigido v0.5.54" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \
