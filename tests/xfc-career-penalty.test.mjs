@@ -107,7 +107,8 @@ test('carreira referência: criação, cabelo/chuteira salvos, painéis e aparê
  await p.getByLabel('País do clube').selectOption('Espanha');await p.getByLabel('Clube inicial').selectOption('real-madrid');
  await p.getByLabel('Nome do atleta').fill('Atleta Teste');await p.getByLabel('Posição',{exact:true}).selectOption('CB');
  await p.getByRole('button',{name:/Cabeça Rosto/}).click();await p.getByLabel('Cabelo',{exact:true}).selectOption('lab-reference-mohawk');
- await p.getByRole('button',{name:/Acessórios Chuteiras/}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('#ee4235');
+ // v0.5.55: chuteira por modelo do catálogo (o '#ee4235' antigo é o red-court).
+ await p.getByRole('button',{name:/Acessórios Chuteiras/}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('red-court');
  await p.getByRole('button',{name:'Começar carreira',exact:true}).click();await p.getByRole('button',{name:'Pular apresentação',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();
  assert.ok((await p.locator('.season-profile,.career-reference-profile').textContent()).includes('Real Madrid'));
  for(const label of ['Meu Clube','Configurações']){
@@ -119,12 +120,14 @@ test('carreira referência: criação, cabelo/chuteira salvos, painéis e aparê
  await p.waitForSelector('.career-reference-art');assert.match(await p.locator('.career-reference-art').getAttribute('src'),/season\/office\.png$/);
  assert.match(await p.locator('.career-reference-office-profile').innerText(),/Real Madrid/);
  await p.keyboard.press('Escape');
- await p.getByRole('button',{name:'Personalizar',exact:true}).click();await p.getByRole('button',{name:'Acessórios',exact:true}).click();await p.getByLabel('Chuteira',{exact:true}).selectOption('#b3ef36');await p.getByRole('button',{name:'Salvar personalização',exact:true}).click();
+ await p.getByRole('button',{name:'Personalizar',exact:true}).click();await p.getByRole('button',{name:'Acessórios',exact:true}).click();// v0.5.55: chuteira virou catálogo de modelos (Velox/Kinex/Aurea...). O
+// "Verde-lima" antigo corresponde ao modelo acid-green.
+ await p.getByLabel('Chuteira',{exact:true}).selectOption('acid-green');await p.getByRole('button',{name:'Salvar personalização',exact:true}).click();
  await p.reload();await p.evaluate(async()=>{(await import('/src/main.js')).go('career');});
- const c=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).career);assert.equal(c.player.appearance.bootColor,'#b3ef36');assert.equal(c.player.appearance.hairStyle,'lab-reference-mohawk');assert.equal(c.clubId,'real-madrid');
+ const c=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).career);assert.equal(c.player.appearance.boot,'acid-green');assert.equal(c.player.appearance.hairStyle,'lab-reference-mohawk');assert.equal(c.clubId,'real-madrid');
  await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();await p.getByRole('button',{name:'Continuar Carreira',exact:true}).click();await p.getByRole('button',{name:'Vamos Jogar',exact:true}).click();await p.getByRole('button',{name:'Confirmar escalação',exact:true}).click();await p.getByRole('button',{name:'Jogar partida',exact:true}).click();await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible',{timeout:60000});
  const hero=await p.evaluate(()=>{const m=window.__xfcMatch;m.stop();const h=m.controlled[m.world.userSide];return{id:h.rosterId,role:h.role,look:h.model.root.userData.appearance,model:h.model.root.userData.modelId,ovr:h.ovr};});
- assert.equal(hero.id,'career-player');assert.equal(hero.role,'CB');assert.equal(hero.model,'xfc-footballer-glb');assert.equal(hero.look.bootColor,'#b3ef36');assert.equal(hero.look.hairStyle,'lab-reference-mohawk');assert.equal(hero.ovr,57);assert.deepEqual(errors,[]);
+ assert.equal(hero.id,'career-player');assert.equal(hero.role,'CB');assert.equal(hero.model,'xfc-footballer-glb');assert.equal(hero.look.boot,'acid-green');assert.equal(hero.look.hairStyle,'lab-reference-mohawk');assert.equal(hero.ovr,57);assert.deepEqual(errors,[]);
  }finally{await b.close();server.close();}
 });
 

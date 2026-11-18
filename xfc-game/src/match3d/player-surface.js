@@ -321,3 +321,111 @@ export function paintEyelidShadow(map, skinTone) {
   paintedEyes.set(key, texture);
   return texture;
 }
+
+// Textura da chuteira.
+//
+// O sapato do rig (`shoes06`) espalha os 313 vértices pelas UVs do atlas
+// inteiro, e o mapeamento espelha a imagem no pé (texto saía de cabeça para
+// baixo). Por isso a textura é desenhada em camadas que funcionam em qualquer
+// orientação: cabedal da cor da chuteira, faixa de contraste, entressola clara
+// e sola escura com travas. A marca fica pequena e repetida, como etiqueta
+// costurada — ler o nome de cabeça para baixo não acontece mais.
+const bootTextures = new Map();
+export function bootTexture(boot, size = 512) {
+  if (typeof document === 'undefined' || !boot) return null;
+  const key = `${boot.id}:${size}`;
+  if (bootTextures.has(key)) return bootTextures.get(key);
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const c = canvas.getContext('2d');
+  const px = h => Math.round(size * h);
+
+  // 1) Cabedal: cor principal com degradê suave (luz do bico ao calcanhar).
+  const body = c.createLinearGradient(0, 0, 0, size);
+  body.addColorStop(0, shade(boot.color, 1.18));
+  body.addColorStop(0.35, boot.color);
+  body.addColorStop(0.62, shade(boot.color, 0.86));
+  body.addColorStop(1, shade(boot.color, 0.68));
+  c.fillStyle = body;
+  c.fillRect(0, 0, size, size);
+
+  // 2) Faixa de velocidade: atravessa a chuteira na diagonal, com duas linhas
+  //    finas. Desenhada duas vezes (normal e espelhada) para dar a volta no pé.
+  const stripe = () => {
+    c.save();
+    c.translate(0, px(0.46));
+    c.rotate(-0.10);
+    c.fillStyle = boot.accent;
+    c.fillRect(-size * 0.25, 0, size * 1.5, px(0.085));
+    c.globalAlpha = 0.5;
+    c.fillRect(-size * 0.25, px(0.12), size * 1.5, px(0.014));
+    c.fillRect(-size * 0.25, px(-0.035), size * 1.5, px(0.014));
+    c.restore();
+  };
+  stripe();
+
+  // 3) Costura do cabedal: pontilhado claro ao longo da faixa.
+  c.globalAlpha = 0.32;
+  c.fillStyle = shade(boot.color, 1.55);
+  for (let x = 0; x < size; x += px(0.055)) {
+    c.beginPath();
+    c.arc(x + px(0.02), px(0.62), Math.max(1, size * 0.004), 0, Math.PI * 2);
+    c.fill();
+  }
+  c.globalAlpha = 1;
+
+  // 4) Entressola clara: uma faixa limpa, larga o bastante para aparecer na
+  //    lateral do sapato em qualquer orientação de UV.
+  c.fillStyle = boot.sole;
+  c.fillRect(0, px(0.74), size, px(0.12));
+
+  // 5) Sola: mais escura na ponta da textura, com as travas.
+  c.fillStyle = shade(boot.sole, 0.72);
+  c.fillRect(0, px(0.86), size, px(0.14));
+  c.fillStyle = shade(boot.sole, 0.5);
+  for (let x = 0; x < size; x += px(0.125)) {
+    c.beginPath();
+    c.ellipse(x + px(0.062), px(0.93), px(0.026), px(0.036), 0, 0, Math.PI * 2);
+    c.fill();
+  }
+
+  // 6) Marca: como o sapato espelha a textura, texto ficaria de cabeça para
+  //    baixo. O símbolo do modelo (não tem "para cima") marca a lateral sem
+  //    esse problema, e a inicial da marca aparece na palmilha/lateral.
+  const mark = boot.mark || '◆';
+  c.fillStyle = boot.accent;
+  c.globalAlpha = 0.95;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.font = `${Math.round(size * 0.11)}px Arial, sans-serif`;
+  for (let row = 0; row < 2; row += 1) {
+    for (let col = 0; col < 2; col += 1) {
+      c.fillText(mark, size * (0.26 + col * 0.46), size * (0.18 + row * 0.22));
+    }
+  }
+  // Traço curto de contraste no bico, como a ponteira das chuteiras de corrida.
+  c.globalAlpha = 0.85;
+  c.fillStyle = boot.accent;
+  c.fillRect(size * 0.08, size * 0.665, size * 0.30, size * 0.014);
+  c.fillRect(size * 0.62, size * 0.665, size * 0.30, size * 0.014);
+  c.globalAlpha = 1;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  bootTextures.set(key, texture);
+  return texture;
+}
+
+/** Clareia/escurece um hex mantendo a saturação. */
+function shade(hex, factor) {
+  const value = String(hex).replace('#', '');
+  const full = value.length === 3 ? value.split('').map(ch => ch + ch).join('') : value;
+  const num = parseInt(full, 16);
+  const clamp = n => Math.max(0, Math.min(255, Math.round(n)));
+  const r = clamp(((num >> 16) & 255) * factor);
+  const g = clamp(((num >> 8) & 255) * factor);
+  const b = clamp((num & 255) * factor);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}

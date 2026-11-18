@@ -141,11 +141,6 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
     )
   );
 
-  const tagName = el('span', { class: 'hud__tag-name', text: '' });
-  const tag = el('div', { class: 'hud__tag' },
-    el('span', { class: 'hud__tag-bar' }),
-    tagName
-  );
 
   const radarCanvas = el('canvas', { class: 'hud__radar', width: 208, height: 132 });
   const radar = el('div', { class: 'hud__radar-wrap' }, radarCanvas);
@@ -324,7 +319,6 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
     scoreboard,
     playerChip,
     foeChip,
-    tag,
     feed,
     radar,
     banner,
@@ -525,19 +519,6 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
       paintChip(focusPlayer);
       paintFoe(nearestOpponent(players, ball, player));
 
-      // Tag sob a cabeça do controlado; durante o gol acompanha o autor.
-      const focusProjected = goalScorer
-        ? (players || []).find(item => item.id === goalScorer.id)
-        : controlled;
-      if (focusProjected?.visible && focusPlayer) {
-        tagName.textContent = String(focusPlayer.name).toUpperCase();
-        tag.style.left = `${focusProjected.x}px`;
-        tag.style.top = `${focusProjected.y}px`;
-        tag.classList.toggle('is-goal-focus', Boolean(goalScorer));
-        tag.classList.add('is-visible');
-      } else {
-        tag.classList.remove('is-visible', 'is-goal-focus');
-      }
     },
     /**
      * Modo console: com controle conectado o HUD fica limpo — placar e pause.

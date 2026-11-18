@@ -996,8 +996,11 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       'placar compacto da referência: posse continua disponível em FATOS DA PARTIDA na pausa');
     assert.equal(await page.locator('.hud__poss-fill').count(), 1,
       'a barra de posse tem o preenchimento do mandante');
-    assert.equal(await page.locator('.hud__tag').count(), 1,
-      'a HUD mantém o elemento de etiqueta para o atleta controlado');
+    // v0.5.55: nenhum nome flutua sobre o campo — nem o do controlado.
+    assert.equal(await page.locator('.hud__tag').count(), 0,
+      'a HUD não desenha nome sobre a cabeça do atleta controlado');
+    assert.equal(await page.locator('.hud__nametag').count(), 0,
+      'a HUD não desenha nome sobre nenhum jogador');
     assert.equal(await page.locator('.hud__cards').count(), 1,
       'o placar inclui o resumo dos cartões por equipe');
     assert.equal(await page.locator('.hud__card-chip').count(), 4,

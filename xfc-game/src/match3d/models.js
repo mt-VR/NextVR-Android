@@ -24,7 +24,8 @@ import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from '../../vendor/SkeletonUtils.js';
 import { BONE_KEYS, maskBones } from './animation.js';
 
-import { applyCareerSurface, recolorSurface, paintEyelidShadow, smoothSkinGeometry, shirtGeometry, jerseyTexture } from './player-surface.js';
+import { applyCareerSurface, recolorSurface, paintEyelidShadow, smoothSkinGeometry, shirtGeometry, jerseyTexture, bootTexture } from './player-surface.js';
+import { bootFor } from '../data/boots.js';
 
 const MODEL_URL = 'assets/players/models/footballer.glb';
 /** Nome sem o prefixo do Mixamo (o arquivo pode vir como `mixamorig:Hips`). */
@@ -252,7 +253,11 @@ export function createGltfPlayer(options = {}) {
 
   const primary = new THREE.Color(isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary);
   const secondary = new THREE.Color(isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary);
-  root.userData.appearance = { skinTone, hairColor, hairStyle, bootColor, source: options.appearanceSource, ...Object.fromEntries(['height','weight','body','face','beard','moustache','brows','socks','gloves','gloveModel','wristband','wristbandSide','celebration'].map(k=>[k,options[k]])) };
+  // Modelo de chuteira resolvido uma vez (id novo, cor antiga ou padrão).
+  const bootModel = bootFor(options.boot || options.bootId || bootColor);
+  // `boot` (modelo do catálogo) entra no userData junto com `bootColor`: o
+  // editor e os testes leem daqui a aparência que realmente está no pé.
+  root.userData.appearance = { skinTone, hairColor, hairStyle, bootColor, boot: bootModel.id, source: options.appearanceSource, ...Object.fromEntries(['height','weight','body','face','beard','moustache','brows','socks','gloves','gloveModel','wristband','wristbandSide','celebration'].map(k=>[k,options[k]])) };
   const ownedTextures = [];
   const shadowMeshes = [];
   const materials = [];
@@ -286,7 +291,16 @@ export function createGltfPlayer(options = {}) {
       if(name === 'Micah | anatomical body.body' && skinTone) clone.map=recolorSurface(material.map,skinTone);
 
       if(name === 'Micah | anatomical body.low-poly') clone.map=paintEyelidShadow(material.map,skinTone);
-      if(name === 'Micah | anatomical body.shoes06' && bootColor) clone.map=recolorSurface(material.map,bootColor,.08);
+      if(name === 'Micah | anatomical body.shoes06'){
+        // Chuteira: modelo do catálogo (cabedal, faixa, sola, marca) em vez de
+        // um recolor de cor única. `boot` também chega pelo editor de carreira
+        // como id ('gold-elite'); `bootColor` é o campo antigo do save.
+        const boot=bootModel;
+        const texture=bootTexture(boot);
+        if(texture){clone.map=texture;clone.color.set('#ffffff');ownedTextures.push(texture);}
+        else if(bootColor) clone.map=recolorSurface(material.map,bootColor,.08);
+        clone.roughness=.62;clone.metalness=boot.plate==='control'?.12:.05;
+      }
       if(name === 'Athletic socks | ribbed white knit' && kit.socks) clone.color.set(kit.socks);
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
       applyCareerSurface(clone,options);
@@ -1052,6 +1066,31 @@ export function createGltfPlayer(options = {}) {
           addBoneRotation(bones[side+'UpLeg'],.34,0,0,w);
           addBoneRotation(bones[side+'Leg'],.7,0,0,w);
           addBoneRotation(bones.spine2,.06,0,0,w);
+        }
+      }
+      // Vida em campo: parado, o atleta respira, olha em volta e redistribui o
+      // peso de um pé para o outro. Sem isso ele fica com a pose congelada do
+      // clipe `idle` e parece um manequim — o pedido de "jogadores mais
+      // articulados" começa por aqui. Vale só quando não há gesto tocando.
+      if(!gesture.name){
+        const still=Math.max(0,1-state.locomotionWeights.jog-state.locomotionWeights.run);
+        if(still>.01){
+          // Respiração: peito sobe/desce devagar, ombros acompanham.
+          const idleBreath=Math.sin(breathing*Math.PI*1.15);
+          addBoneRotation(bones.spine2,-.012*idleBreath,0,0,still);
+          addBoneRotation(bones.spine,.008*idleBreath,0,0,still);
+          addBoneRotation(bones.leftArm,0,0,.022*idleBreath,still);
+          addBoneRotation(bones.rightArm,0,0,-.022*idleBreath,still);
+          // Cabeça viva: olha para os lados em ciclos diferentes do corpo.
+          const look=Math.sin(breathing*.42)*.16+Math.sin(breathing*.17)*.09;
+          addBoneRotation(bones.head,Math.sin(breathing*.33)*.03,look,0,still);
+          addBoneRotation(bones.neck,0,look*.35,0,still);
+          // Peso do corpo: o quadril oscila e um joelho destrava de cada vez.
+          const sway=Math.sin(breathing*.55);
+          addBoneRotation(bones.hips,0,0,sway*.022,still);
+          addBoneRotation(bones.leftUpLeg,.02*Math.max(0,sway),0,0,still);
+          addBoneRotation(bones.rightUpLeg,.02*Math.max(0,-sway),0,0,still);
+          bones.hips.position.y+=.004*idleBreath*still;
         }
       }
       applyGesture(step);

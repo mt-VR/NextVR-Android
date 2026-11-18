@@ -1,4 +1,6 @@
 import {queueCareerPresentation} from './career-presentations.js';
+import {bootFor,BOOT_LIST} from './boots.js';
+const BOOT_IDS=BOOT_LIST.map(boot=>boot.id);
 import {LAB_HAIR,GLOVE_LABELS,ACCESSORY_LABELS} from './player-customization.js';
 // Carreira local de UM atleta. Nunca muta o catálogo global nem as moedas do UT.
 import {TEAMS,getTeam} from './teams.js';
@@ -19,7 +21,11 @@ const pick=(list,value,fallback)=>Object.hasOwn(list,value)?value:fallback;
 const hairId=value=>value==='lab-mohawk'?'lab-reference-mohawk':value;
 export function careerAppearance(value={}){return {
  hairStyle:pick(CAREER_HAIR,hairId(value.hairStyle),'short'),hairColor:pick(CAREER_HAIR_COLORS,value.hairColor,'#24180f'),
- bootColor:pick(CAREER_BOOTS,value.bootColor,'#171b20'),skinTone:pick(CAREER_SKIN,value.skinTone,'#bd8868'),
+ bootColor:pick(CAREER_BOOTS,value.bootColor,'#171b20'),
+ // `boot` é o modelo do catálogo (v0.5.55). Saves antigos não têm o campo e
+ // caem no `bootColor`, que `bootFor()` traduz para um modelo equivalente.
+ boot:BOOT_IDS.includes(value.boot)?value.boot:bootFor(value.bootColor).id,
+ skinTone:pick(CAREER_SKIN,value.skinTone,'#bd8868'),
  beard:pick(CAREER_BEARD,value.beard,'none'),face:pick(CAREER_FACE,value.face,'natural'),body:pick(CAREER_BODY,value.body,'normal'),
  moustache:pick({none:1,classic:1},value.moustache,'none'),brows:pick({natural:1,thick:1},value.brows,'natural'),
  height:Math.round(cap(value.height??175,160,200)),weight:Math.round(cap(value.weight??68,55,100)),

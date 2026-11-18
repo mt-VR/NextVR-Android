@@ -184,19 +184,21 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.54
+          TAG=xfc-gameplay-v0.5.55
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.54 (versionCode 60), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.55 (versionCode 61), commit ${GITHUB_SHA}." \
             "" \
-            "Nomes flutuantes sobre os jogadores REMOVIDOS: cada atleta tinha uma etiqueta de número e nome voando sobre a cabeça durante a partida. A camada inteira saiu do HUD; ficam só o cartão do atleta, o do adversário e a etiqueta do controlado, todos fixos." \
-            "Gol contado duas vezes corrigido: um chute forte que cruzava a linha podia virar 2 × 0 porque o detector de linha de fundo rodava de novo com a bola já na rede. Agora há guarda de idempotência." \
-            "Herda a v0.5.53: prorrogação com pênaltis, Copa de 4 em 4 temporadas na Caixa de Entrada do Escritório, cutscene de conquista de título, Neymar no XI do Brasil, chute e queda refeitos e menos travamentos." \
-            "Testes locais: xfc-game 28/28 em três execuções seguidas; classicos + customização 8/8. Detalhes: xfc-game/docs/v0.5.54.md.")
+            "Agora NENHUM nome flutua sobre o campo: além das etiquetas dos 22 atletas (v0.5.54), saiu também a do atleta controlado — o `hud__tag` acompanhava o jogador e poluía a visão de jogo." \
+            "Chuteiras de verdade: 7 modelos com marca e identidade (Velox Falcon Preto/Branco/Neon, Kinex Arena Vermelha/Azul, Aurea Edição Ouro, Terra Clássica Preta), cada um com cabedal, faixa de velocidade, entressola, sola com travas e símbolo próprio desenhados numa textura dedicada. Antes eram só 4 cores num recolor." \
+            "Jogadores mais articulados: parado, o atleta respira, olha em volta e transfere o peso de um pé para o outro — antes ficava congelado na pose do clipe idle." \
+            "Rede com física, chute em quatro tempos e queda em três tempos já estavam no jogo e continuam." \
+            "Sobre modelos do Sketchfab: a rede deste ambiente bloqueia sketchfab.com e media.sketchfab.com (erro de SSL). Não foi possível baixar modelo de lá; para integrar um GLB é preciso enviar o arquivo." \
+            "Testes: xfc-game 28/28, carreira 8/8, temporada 8/8. Suíte completa 457/458 (1 skip). Detalhes: xfc-game/docs/v0.5.55.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — nomes flutuantes removidos e gol duplo corrigido v0.5.54" \
+            gh release create "$TAG" --title "XFC 27 — chuteiras com marca, zero nomes no campo e atletas mais vivos v0.5.55" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — nomes flutuantes removidos e gol duplo corrigido v0.5.54" \
+            gh release edit "$TAG" --title "XFC 27 — chuteiras com marca, zero nomes no campo e atletas mais vivos v0.5.55" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

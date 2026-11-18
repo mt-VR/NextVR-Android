@@ -654,43 +654,6 @@
   transition: width 240ms ease;
 }
 
-/* --------------------------------------- nome sobre a cabeça do atleta -- */
-
-.hud__tag {
-  position: absolute;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  transform: translate(-50%, -100%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 160ms ease, left 120ms linear, top 120ms linear;
-}
-
-.hud__tag.is-visible {
-  opacity: 1;
-}
-
-.hud__tag-bar {
-  width: 30px;
-  height: 3px;
-  border-radius: 2px;
-  background: #facc2e;
-  box-shadow: 0 0 8px rgba(250, 204, 46, 0.85);
-}
-
-.hud__tag-name {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: #ffffff;
-  text-transform: uppercase;
-  white-space: nowrap;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.5);
-}
-
 .hud__radar-wrap {
   position: absolute;
   bottom: 14px;

@@ -7,7 +7,8 @@ import {kitsOf,kitSvg} from '../data/kits.js';
 import {TEAM_COUNTRIES,countryTeams} from '../data/team-groups.js';
 import {getTeam} from '../data/teams.js';
 import {createManagerCareer,saveCareerSlot} from '../data/career-services.js';
-import {createCareer,careerTeam,careerAppearance,customiseCareer,CAREER_POSITIONS,CAREER_HAIR_COLORS,CAREER_BOOTS,CAREER_SKIN,CAREER_NATIONS,CAREER_BEARD,CAREER_FACE,CAREER_BODY} from '../data/career.js';
+import {createCareer,careerTeam,careerAppearance,customiseCareer,CAREER_POSITIONS,CAREER_HAIR_COLORS,CAREER_SKIN,CAREER_NATIONS,CAREER_BEARD,CAREER_FACE,CAREER_BODY} from '../data/career.js';
+import {bootFor,bootOptions} from '../data/boots.js';
 
 // Permite "arrastar pra baixo" com o mouse sem brigar com selects/inputs.
 // Em telas de toque, o overflow nativo (touch-action:pan-y) já faz o scroll.
@@ -57,7 +58,7 @@ export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,
  hairStyle.querySelector('select').dataset.saveId=look.hairStyle;
  const head=[el('p',{text:'Laboratório: novos cortes são protótipos deste atleta. Não alteram o elenco automaticamente.'}),hairStyle,choose('hairColor','Cor do cabelo',CAREER_HAIR_COLORS,look.hairColor),choose('face','Rosto',CAREER_FACE,look.face),choose('beard','Barba',CAREER_BEARD,look.beard),choose('moustache','Bigode',{none:'Sem bigode',classic:'Clássico'},look.moustache),choose('brows','Sobrancelhas',{natural:'Naturais',thick:'Espessas'},look.brows)];
  const uniform=[label('Uniforme',kit),number('number','Número da camisa',draft.player.number,1,99),choose('socks','Meião',{long:'Longo',short:'Curto'},look.socks)];
- const accessories=[choose('bootColor','Chuteira',CAREER_BOOTS,look.bootColor),choose('gloveModel','Modelo de luva',{winter:'Frio · jogador de linha',pro:'Goleiro · acolchoada'},look.gloveModel),choose('gloves','Luvas',GLOVE_LABELS,look.gloves),choose('wristband','Munhequeira',ACCESSORY_LABELS,look.wristband),choose('wristbandSide','Pulsos',{left:'Esquerdo',right:'Direito',both:'Os dois'},look.wristbandSide)];
+ const accessories=[choose('boot','Chuteira',bootOptions(),look.boot||bootFor(look.bootColor).id),choose('gloveModel','Modelo de luva',{winter:'Frio · jogador de linha',pro:'Goleiro · acolchoada'},look.gloveModel),choose('gloves','Luvas',GLOVE_LABELS,look.gloves),choose('wristband','Munhequeira',ACCESSORY_LABELS,look.wristband),choose('wristbandSide','Pulsos',{left:'Esquerdo',right:'Direito',both:'Os dois'},look.wristbandSide)];
  const animation=[choose('celebration','Comemoração',{arms:'Braços erguidos',fist:'Punho no alto',wide:'Braços abertos'},look.celebration),button('Testar comemoração',()=>preview?.celebrate())];
  const settings=[choose('foot','Pé preferido',{Right:'Direito',Left:'Esquerdo'},draft.player.foot),choose('nationality','Nacionalidade',Object.fromEntries(CAREER_NATIONS.map(t=>[t,t])),draft.player.nationality)];
  const groups={appearance,head,uniform,accessories,animation,settings};
