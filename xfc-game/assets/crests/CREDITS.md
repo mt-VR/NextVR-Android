@@ -90,3 +90,13 @@ Escudos reais para identificação dos clubes, baixados de espelhos públicos; i
 
 | Swansea City | `swansea-city.png` | https://github.com/crazycodertr/soccer-team-logos/blob/4b132d37fc3875239408ed344be58608c93fcedf/logos/swansea-city.gif |
 | FC Tokyo | `fc-tokyo.png` | https://github.com/crazycodertr/soccer-team-logos/blob/4b132d37fc3875239408ed344be58608c93fcedf/logos/fc-tokyo.gif |
+
+
+## Seleções (`nations/`)
+
+Os 211 brasões em `assets/crests/nations/<código>.png` são gerados pelo XFC
+(`tools/generate-nation-crests.mjs` + `tools/rasterize-nation-crests.mjs`) a
+partir das cores oficiais da camisa (`src/data/nation-kits.js`) e do código da
+bandeira. Não são marcas das federações — são distintivos próprios do jogo,
+para o HUD, o Kick Off e a tela de resultado. Regenerar os PNGs se as cores
+da tabela de uniformes mudarem.

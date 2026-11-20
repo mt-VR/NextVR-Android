@@ -7,7 +7,7 @@ import {KICKOFF_NATIONAL_TEAMS,getKickoffNationalTeam} from '../data/worldcup.js
 // Seleções no Kick Off: mesmo cartão do clube (nome, bandeira, escudo, notas).
 const NATIONS=KICKOFF_NATIONAL_TEAMS.map(team=>({
   id:team.id,name:team.name,country:team.name,league:'Seleções',
-  flag:team.flagCode,crest:`assets/flags/${team.flagCode}.svg`,
+  flag:team.flagCode,crest:team.crest||`assets/crests/nations/${team.flagCode}.png`,
   stars:team.stars||3,
   ratings:{att:team.ratings.ATT,mid:team.ratings.MID,def:team.ratings.DEF,
     ovr:Math.round((team.ratings.ATT+team.ratings.MID+team.ratings.DEF)/3)},

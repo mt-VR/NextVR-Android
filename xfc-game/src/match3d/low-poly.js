@@ -107,34 +107,41 @@ export function attachLowPolySilhouette(root, bones, options = {}) {
 
   // ---------------------------------------------------------------- tronco --
   // Peito (camisa): mais largo em cima, achatado em Z, com as ombreiras.
-  add(bones.spine2, paint(tube(.172, .146, .30, 8, .62)), shirt, [0, .03, 0]);
+  add(bones.spine2, paint(tube(.182, .154, .30, 8, .62)), shirt, [0, .03, 0]);
   // Abdômen (camisa): comprido de propósito, para sobrepor o peito e a cintura
   // (os dois ossos ficam a 1.339 e 1.07 — sem sobreposição aparece um vão).
-  add(bones.spine, paint(tube(.147, .143, .30, 8, .64)), shirt, [0, .03, 0]);
+  add(bones.spine, paint(tube(.155, .150, .30, 8, .64)), shirt, [0, .03, 0]);
   // Cintura/quadril (short).
-  add(bones.hips, tube(.152, .142, .20, 8, .66), shorts, [0, .00, 0]);
+  add(bones.hips, tube(.163, .152, .20, 8, .66), shorts, [0, .00, 0]);
   // Gola: anel de camisa que fecha o vão entre pescoço e peito.
   add(bones.spine2, tube(.092, .072, .06, 8, .9), trimMat, [0, .163, 0]);
 
   // ------------------------------------------------------- pescoço e cabeça --
-  // O osso do pescoço fica em 1.473 e o da cabeça em 1.569: o tubo tem de
-  // preencher exatamente esse intervalo, senão vira um cano esticado.
-  add(bones.neck, tube(.052, .058, .11, 6), skin, [0, .04, 0]);
-  // Cabeça: esfera de 7×5 lados, levemente alongada.
-  const head = add(bones.head, ball(.098, 7, 5), skin, [0, .10, .004]);
-  head.scale.set(.94, 1.10, .99);
-  // Queixo, para a cabeça não flutuar sobre o osso.
-  add(bones.head, tube(.058, .048, .075, 6), skin, [0, .014, .002]);
+  // O osso do pescoço fica em 1.473 e o da cabeça em 1.569.
+  //
+  // CORREÇÃO DO QUEIXO: antes a cabeça era uma esfera deslocada (+0,10) mais
+  // um tubo de queixo próprio (+0,014). Os dois giravam em torno do pivô do
+  // osso com raios diferentes, então ao inclinar a cabeça a esfera ia para um
+  // lado e o tubo ficava para trás — "o queixo quebra para um lado".
+  //
+  // Agora a cabeça é UM volume: a esfera fica centrada no pivô (0, +0,055) e
+  // recebe uma única transformação. O queixo é a própria metade inferior da
+  // esfera — forma contínua, girando em bloco com o resto do crânio. O pescoço
+  // é mais alto para entrar por dentro dela: a junta não abre nem no limite
+  // do curso da cabeça.
+  add(bones.neck, tube(.056, .062, .14, 6), skin, [0, .052, 0]);
+  const head = add(bones.head, ball(.100, 7, 5), skin, [0, .055, .004]);
+  head.scale.set(.95, 1.20, 1.00);
   // Nariz: uma cunha pequena, o suficiente para o perfil não ser uma bola.
-  add(bones.head, new THREE.ConeGeometry(.021, .048, 4), skin, [0, .085, .097], [Math.PI / 2, 0, 0]);
+  add(bones.head, new THREE.ConeGeometry(.021, .048, 4), skin, [0, .075, .099], [Math.PI / 2, 0, 0]);
   // Olhos: dois quadradinhos escuros — em PSP não havia íris, só mancha.
   for (const side of [-1, 1]) {
     add(bones.head, new THREE.BoxGeometry(.032, .017, .012), eyeMat,
-      [side * .034, .118, .088], [0, side * .12, 0]);
+      [side * .034, .112, .091], [0, side * .12, 0]);
   }
   // Cabelo: calota facetada por cima da cabeça, com a risca do penteado.
-  const hair = add(bones.head, ball(.104, 7, 4), hairMat, [0, .135, -.006]);
-  hair.scale.set(.99, .62, 1.0);
+  const hair = add(bones.head, ball(.106, 7, 4), hairMat, [0, .118, -.006]);
+  hair.scale.set(1.0, .64, 1.01);
 
   // ------------------------------------------------------------ braços -----
   for (const side of ['left', 'right']) {
@@ -143,8 +150,8 @@ export function attachLowPolySilhouette(root, bones, options = {}) {
     // Manga curta (camisa) sobre a parte de cima do braço.
     add(bones[side + 'Arm'], tube(.064, .058, .10, 6), shirtSolid, [0, -.06, 0]);
     // Braço e antebraço nus.
-    add(bones[side + 'Arm'], tube(.058, .050, LENGTHS.upperArm, 6), skin, [0, -.10, 0]);
-    add(bones[side + 'ForeArm'], tube(.049, .040, LENGTHS.foreArm, 6), skin, [0, -.12, 0]);
+    add(bones[side + 'Arm'], tube(.063, .054, LENGTHS.upperArm, 6), skin, [0, -.10, 0]);
+    add(bones[side + 'ForeArm'], tube(.053, .043, LENGTHS.foreArm, 6), skin, [0, -.12, 0]);
     // Mão fechada.
     const hand = add(bones[side + 'Hand'], ball(.045, 5, 3), skin, [0, -.045, 0]);
     hand.scale.set(.8, 1.15, .7);
@@ -155,15 +162,15 @@ export function attachLowPolySilhouette(root, bones, options = {}) {
   // ------------------------------------------------------------ pernas -----
   for (const side of ['left', 'right']) {
     // Coxa (short até a metade).
-    add(bones[side + 'UpLeg'], tube(.106, .097, .20, 6), shorts, [0, -.10, 0]);
+    add(bones[side + 'UpLeg'], tube(.124, .113, .20, 6), shorts, [0, -.10, 0]);
     // Coxa nua, do fim do short até o joelho.
-    add(bones[side + 'UpLeg'], tube(.093, .078, .26, 6), skin, [0, -.30, 0]);
+    add(bones[side + 'UpLeg'], tube(.109, .092, .26, 6), skin, [0, -.30, 0]);
     // Joelho: esfera pequena para a dobra não abrir vão.
-    add(bones[side + 'Leg'], ball(.070, 6, 3), skin, [0, .005, 0]);
+    add(bones[side + 'Leg'], ball(.082, 6, 3), skin, [0, .005, 0]);
     // Meião até abaixo do joelho.
-    add(bones[side + 'Leg'], tube(.072, .052, LENGTHS.lowerLeg, 6), socks, [0, -.205, 0]);
+    add(bones[side + 'Leg'], tube(.088, .062, LENGTHS.lowerLeg, 6), socks, [0, -.205, 0]);
     // Chuteira: caixa achatada, bico para frente (+Z é o lado do pé).
-    add(bones[side + 'Foot'], new THREE.BoxGeometry(.082, .072, LENGTHS.foot), bootMat, [0, -.015, .055]);
+    add(bones[side + 'Foot'], new THREE.BoxGeometry(.094, .074, LENGTHS.foot), bootMat, [0, -.015, .055]);
   }
 
   // O modelo original continua montado (é o reserva se a silhueta for desligada).

@@ -289,7 +289,7 @@ test('carreira: ENCERRAR após expulsão liquida a partida e mostra resultado', 
     await page.waitForSelector('.play-dismissal', { timeout: 8000 });
     await page.getByRole('button', { name: 'ENCERRAR PARTIDA', exact: true }).click();
     await page.waitForSelector('.result__title');
-    assert.match(await page.locator('.result__title').innerText(), /FIM DE JOGO/);
+    assert.match(await page.locator('.result__title').innerText(), /RESULTADO DA PARTIDA/);
     const c = await page.evaluate(() => JSON.parse(localStorage.getItem('xfc.profile.v1')).career);
     assert.equal(c.pending, null, 'partida pendente foi liquidada');
     assert.equal(c.totals.matches, 1);

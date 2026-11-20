@@ -187,7 +187,7 @@ function athleticLimbs(model){
       const child=bone.children.find(b=>b.isBone);if(!child)return null;
       const origin=bone.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
       const end=child.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
-      return {origin,axis:end.sub(origin).normalize(),gain:/Leg$/.test(name)?.09:.07};
+      return {origin,axis:end.sub(origin).normalize(),gain:/Leg$/.test(name)?.13:.07};
     });
     const v=new THREE.Vector3(),radial=new THREE.Vector3(),delta=new THREE.Vector3();
     for(let i=0;i<position.count;i++){
@@ -251,9 +251,14 @@ export function createGltfPlayer(options = {}) {
     box = bindPoseBounds(model);
     size = box.getSize(new THREE.Vector3());
   }
-  const targetHeight = options.height ? Math.max(1.6,Math.min(2,options.height/100)) : 1.75;
+  // v0.5.57: atletas maiores em campo (o usuário pediu "jogadores maiores").
+  // A faixa de estatura real continua valendo: 1,70 a 2,05 m, com 1,88 m como
+  // padrão. Antes o padrão era 1,75 m e o teto 2,00 m — em campo eles pareciam
+  // franzinos ao lado das traves e do círculo central.
+  const baseHeight = lowPoly ? 1.90 : 1.88;
+  const targetHeight = options.height ? Math.max(1.70,Math.min(2.05,options.height/100)) : baseHeight;
   root.userData.targetHeight=targetHeight;
-  root.userData.limbRadialGain={arms:1.07,legs:1.09};
+  root.userData.limbRadialGain={arms:1.07,legs:1.13};
   const scale = size.y > 0.01 ? targetHeight / size.y : 1;
   model.scale.setScalar(scale);
   if(options.body){const width=({lean:.96,normal:1,strong:1.04}[options.body]||1)*Math.max(.95,Math.min(1.07,1+((options.weight||68)-68)*.002));model.scale.x*=width;model.scale.z*=width;}

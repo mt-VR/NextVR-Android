@@ -13,7 +13,10 @@ function nation(id, name, flagCode, stars, ratings, colors, players, bench = [])
     id,
     name,
     flagCode,
-    crest: flagCode,
+    // v0.5.57: brasão gerado (assets/crests/nations/<flag>.png) no lugar do
+    // código da bandeira. teamMark/HUD/resultado usam PNG quando o caminho
+    // começa com assets/; a bandeira continua disponível em flagCode.
+    crest: `assets/crests/nations/${flagCode}.png`,
     stars,
     ratings,
     colors: {

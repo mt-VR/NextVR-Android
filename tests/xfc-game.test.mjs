@@ -835,8 +835,8 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.deepEqual(occupiedSlots, [11, 11], 'cada XI nacional ocupa onze posições distintas no 4-3-3');
     const countryMatch = await page.locator('.showcase__matchup').textContent();
     assert.ok(countryMatch?.toUpperCase().includes('ARGENTINA'), 'a partida de campanha abre com as seleções corretas');
-    assert.equal(await page.locator('.showcase__crest.team-mark--flag').count(), 2,
-      'as bandeiras das duas seleções aparecem no pré-jogo');
+    assert.equal(await page.locator('img.showcase__crest').count(), 2,
+      'os escudos das duas seleções aparecem no pré-jogo');
     await page.click('.showcase__enter');
     await page.evaluate(() => {
       const match = window.__xfcMatch;
@@ -1580,7 +1580,7 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       }));
       throw new Error(`resultado não apareceu: ${JSON.stringify({ diagnostic, errors })}`);
     }
-    assert.equal((await page.locator('.result__title').textContent()).trim(), 'FIM DE JOGO');
+    assert.equal((await page.locator('.result__title').textContent()).trim(), 'RESULTADO DA PARTIDA');
     assert.ok(await page.locator('.result__crest').count() === 2, 'o resultado mostra os dois escudos');
     assert.ok(await page.locator('.btn:has-text("REJOGAR")').count(), 'o resultado tem REJOGAR');
     assert.ok(await page.locator('.btn:has-text("VOLTAR AO MENU")').count(), 'o resultado tem VOLTAR AO MENU');

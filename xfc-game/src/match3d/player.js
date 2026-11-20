@@ -1010,7 +1010,7 @@ function buildHair(style, hairMaterial) {
  * @param {string} [options.photo] retrato do atleta (os jogadores reais)
  * @param {string} [options.hairStyle] penteado (short, curly, afro, mohawk, neymar, side, bob, bald)
  * @param {boolean} [options.stylized] rosto 3D (olhos, sobrancelhas, boca) — padrão para todo o elenco
- * @param {number} [options.heightScale] variação de altura (0.94–1.07)
+ * @param {number} [options.heightScale] variação de altura (0.98–1.07)
  */
 export function createPlayer3D(options = {}) {
   const {
@@ -2244,6 +2244,6 @@ export function lookFor(index) {
     skinTone: SKIN_TONES[(index * 3 + (index % 4)) % SKIN_TONES.length],
     hairColor: HAIR_COLORS[(index * 5 + 2) % HAIR_COLORS.length],
     hairStyle: HAIR_STYLES[seed % HAIR_STYLES.length],
-    heightScale: 0.94 + (seed % 130) / 1000
+    heightScale: 0.98 + (seed % 90) / 1000
   };
 }

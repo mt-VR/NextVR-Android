@@ -84,7 +84,8 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/match3d/match.js": "a11ad34bb6b2a5099ab30bfd5418cabebe50897afef0f888d2fb1ee5a3cd7fcb",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
-  "styles/match3d.css": "8c4f053bec7a43ad3d05e41c98e3b90e254c2cda56259ec753216e2ab5c1bc27"
+  // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).
+  "styles/match3d.css": "c12c0827de615ad7e661e156bb2677467d71bedb3fefb84305b0152df08064ba"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });

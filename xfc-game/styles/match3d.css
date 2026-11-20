@@ -923,12 +923,12 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  width: 460px;
-  padding: 12px 18px;
+  gap: 4px;
+  width: 480px;
+  padding: 10px 18px;
   border-radius: 10px;
-  background: rgba(4, 18, 30, 0.66);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(4, 12, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .result__stat {
@@ -1037,13 +1037,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
+  /* v0.5.57: overlay no estilo EA FC — estádio visível atrás, título +
+     CASA/FORA + placar grande + escudos. A tela existente é a base. */
   background:
-    radial-gradient(120% 85% at 50% -12%, rgba(46, 240, 168, 0.16), transparent 48%),
-    radial-gradient(90% 80% at 50% 118%, rgba(63, 215, 255, 0.14), transparent 55%),
-    radial-gradient(circle at 50% 46%, rgba(20, 46, 66, 0.55), transparent 62%),
-    #02081a;
+    linear-gradient(180deg, rgba(6, 12, 22, 0.42) 0%, rgba(6, 12, 22, 0.62) 38%, rgba(4, 8, 16, 0.86) 100%);
   animation: prematch-in 320ms ease both;
 }
 
@@ -1067,13 +1066,25 @@
 .result__title {
   position: relative;
   z-index: 1;
-  color: #cfe6ef;
-  font-size: 15px;
+  margin: 0;
+  color: #f4f7fb;
+  font-size: 22px;
   font-weight: 800;
-  letter-spacing: 0.46em;
-  text-indent: 0.46em;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
   text-transform: uppercase;
-  text-shadow: none;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.65);
+}
+
+.result__comp {
+  position: relative;
+  z-index: 1;
+  margin-top: -4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 240, 248, 0.72);
 }
 
 .result__teams {
@@ -1081,17 +1092,19 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 64px;
-  margin-top: 4px;
+  justify-content: center;
+  gap: 36px;
+  width: min(920px, 94%);
+  margin-top: 8px;
 }
 
 .result__team {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  width: 230px;
-  opacity: 0.58;
+  gap: 10px;
+  width: 240px;
+  opacity: 0.82;
   transition: opacity 300ms ease;
 }
 
@@ -1100,26 +1113,44 @@
 }
 
 .result__team.is-winner .result__crest {
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 34px rgba(46, 240, 168, 0.6));
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 28px rgba(255, 214, 64, 0.55));
 }
 
 .result__team.is-winner .result__name {
-  color: var(--accent);
+  color: #ffe27a;
 }
 
+.result__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 3px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.result__pill--home { background: #1c6ad6; }
+.result__pill--away { background: #1f9a4a; }
+
 .result__crest {
-  width: 108px;
-  height: 108px;
+  width: 128px;
+  height: 128px;
   object-fit: contain;
   transition: transform 260ms ease, filter 260ms ease;
   filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.6));
 }
 
 .result__name {
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-align: center;
   text-transform: uppercase;
   line-height: 1.25;
@@ -1128,12 +1159,12 @@
 .result__score {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
   padding: 6px 8px;
 }
 
 .result__score b {
-  font-size: 104px;
+  font-size: 96px;
   font-weight: 800;
   line-height: 0.95;
   color: #ffffff;
@@ -1142,9 +1173,9 @@
 }
 
 .result__score span {
-  font-size: 40px;
+  font-size: 42px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .result__winner {

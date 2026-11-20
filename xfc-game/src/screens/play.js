@@ -92,7 +92,7 @@ function playableNationalTeam(team) {
     isNationalTeam: true,
     substitutes,
     shortName: team.name,
-    crest: null,
+    crest: team.crest || (team.flagCode ? `assets/crests/nations/${team.flagCode}.png` : null),
     league: 'Copa do Mundo',
     formation: '4-3-3',
     colors,
@@ -746,7 +746,11 @@ export function playScreen(ctx, params = {}) {
 
     overlay.replaceChildren(el('div', { class: 'result' },
       el('div', { class: 'result__flare' }),
-      el('h2', { class: 'result__title', text: 'FIM DE JOGO' }),
+      el('h2', { class: 'result__title', text: 'RESULTADO DA PARTIDA' }),
+      el('div', { class: 'result__comp', text: params.competition?.title
+        || (params.worldCupMatchId ? 'XFC WORLD CUP™'
+          : params.tournamentMatchId ? 'Campeonato'
+            : careerClub ? 'Carreira' : 'Partida amistosa') }),
       matchReward && el('div', { class: 'result__reward' },
         el('span', { class: 'result__reward-icon', text: '✦' }),
         el('b', { text: `+${matchReward.coins} MOEDAS` }),
@@ -758,17 +762,19 @@ export function playScreen(ctx, params = {}) {
       ),
       el('div', { class: 'result__teams' },
         el('div', { class: `result__team${winner === 'home' ? ' is-winner' : ''}` },
+          el('span', { class: 'result__pill result__pill--home', text: 'CASA' }),
           teamMark(home, 'result__crest'),
           el('b', { class: 'result__name', text: home.name })
         ),
         el('div', { class: 'result__score' },
           el('b', { text: String(homeScore) }),
-          el('span', { text: '×' }),
+          el('span', { text: '-' }),
           el('b', { text: String(awayScore) })
         ),
         el('div', { class: `result__team${winner === 'away' ? ' is-winner' : ''}` },
-          el('b', { class: 'result__name', text: away.name }),
-          teamMark(away, 'result__crest')
+          el('span', { class: 'result__pill result__pill--away', text: 'FORA' }),
+          teamMark(away, 'result__crest'),
+          el('b', { class: 'result__name', text: away.name })
         )
       ),
       el('div', { class: 'result__stats' },

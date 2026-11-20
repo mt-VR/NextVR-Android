@@ -184,21 +184,21 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.56
+          TAG=xfc-gameplay-v0.5.57
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.56 (versionCode 62), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.57 (versionCode 63), commit ${GITHUB_SHA}." \
             "" \
-            "Atletas LOW-POLY no estilo PES 2013 de PSP / Bomba Patch. Em Ajustes > Gráficos há um seletor novo, 'Visual dos jogadores': Moderno ou Low-poly PSP. No modo low-poly o atleta vira uma silhueta de ~580 triângulos visíveis (contra 6.422 da malha cheia, 91% menos), com facetas grandes e material chapado — mesmo corpo, mesmo uniforme, mesmas animações." \
-            "A silhueta é feita de volumes próprios presos aos OSSOS do rig, então correr, chutar, cair e comemorar continuam funcionando. As listras do uniforme aparecem por cor de faceta, sem textura, como nos jogos de PSP. Cabelo, olhos, gola, meião e chuteira continuam identificáveis." \
-            "Tentativa descartada e registrada: decimar a malha original (grade espacial e colapso de aresta). Três versões foram testadas em render e reprovadas — rasgavam o corpo e embaralhavam skinning e UVs. Não será retomada." \
-            "Desempenho medido no renderer real com 22 atletas: 13,75 ms por quadro no modo moderno e 10,43 ms no low-poly (24% mais rápido). É a opção indicada para celular fraco." \
-            "A malha detalhada continua montada e volta sozinha se você trocar a opção de volta para Moderno. Nada do gameplay, HUD, controles ou menus mudou." \
-            "Testes: 459/461 na suíte completa (1 falha de timing em 'partidas rápidas', que passa isolada e já falhava antes; 1 skip). Novos testes em tests/xfc-low-poly.test.mjs. Detalhes: xfc-game/docs/v0.5.56.md.")
+            "Queixo low-poly: a cabeça era esfera + tubo com offsets diferentes no osso, então ao virar o queixo ficava para trás. Agora a cabeça é um volume só, centrado no pivô, e gira em bloco." \
+            "Jogadores maiores (padrão 1,88–1,90 m) com canelas e coxas mais grossas, no low-poly e no moderno." \
+            "Tela de resultado no estilo EA FC: RESULTADO DA PARTIDA, CASA/FORA, placar grande e os escudos dos times. A tela existente foi a base — não foi refeita do zero." \
+            "Escudos de todas as 211 seleções da FIFA (brasões gerados com as cores da camisa) no Kick Off, HUD e resultado. Clubes continuam com os PNGs que já tínhamos." \
+            "Grama mais escura e saturada, com as faixas de corte em destaque. O verde claro de menta saiu." \
+            "Testes: xfc-low-poly, xfc-classic-players e xfc-game. Detalhes: xfc-game/docs/v0.5.57.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — atletas low-poly no estilo PES 2013 de PSP v0.5.56" \
+            gh release create "$TAG" --title "XFC 27 — queixo, jogadores maiores, resultado EA FC, escudos e grama v0.5.57" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — atletas low-poly no estilo PES 2013 de PSP v0.5.56" \
+            gh release edit "$TAG" --title "XFC 27 — queixo, jogadores maiores, resultado EA FC, escudos e grama v0.5.57" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \
