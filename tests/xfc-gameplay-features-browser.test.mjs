@@ -194,7 +194,7 @@ async function commitHeroFoul(page, { dangerous }) {
     const rival = side === 'home' ? 'away' : 'home';
     const hero = m.controlled[side];
     const victim = m.teams[rival].players.find(p => p.active && !p.isKeeper);
-    const x = dangerous ? 40 : 10;
+    const x = dangerous ? m.world.pitch.halfLength - 12 : 10;
     m.ball.reset(0, 0);
     m.ball.attachTo(victim);
     m.ball.state.owner = victim;
@@ -440,7 +440,7 @@ test('gol real: a rede do estádio deforma (animação conectada à física da b
       m.phase.name = 'goal'; m.phase.timer = 0; m.phase.restart = null;
       m.ball.reset(0, 0);
       m.ball.state.goalPocket = 1;
-      m.ball.state.position.set(52.2, 1, 0);
+      m.ball.state.position.set(m.world.pitch.halfLength - 8, 1, 0);
       m.ball.state.velocity.set(28, 0, 0);
       m.ball.state.owner = null;
       for (let i = 0; i < 80; i++) m.world.tick(1 / 120);

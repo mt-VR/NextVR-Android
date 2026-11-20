@@ -8,9 +8,9 @@ import { padFamily, padLabels } from '../xfc-game/src/ui/gamepad.js';
 import { KICKOFF_NATIONAL_TEAMS, getKickoffNationalTeam } from '../xfc-game/src/data/worldcup.js';
 
 test('campo é maior que o oficial (105 × 68) e continua simétrico', () => {
-  // v0.5.52: 120×82 (era 112×74).
-  assert.equal(PITCH.length, 120);
-  assert.equal(PITCH.width, 82);
+  // v0.5.58: 140×96 (era 120×82).
+  assert.equal(PITCH.length, 140);
+  assert.equal(PITCH.width, 96);
   assert.equal(PITCH.halfLength, PITCH.length / 2);
   assert.equal(PITCH.halfWidth, PITCH.width / 2);
   assert.ok(PITCH.length > 105 && PITCH.width > 68, 'pedido: aumentar largura e tamanho do campo');

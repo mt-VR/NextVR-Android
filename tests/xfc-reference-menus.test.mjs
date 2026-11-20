@@ -73,7 +73,7 @@ test('sete cartões abrem fundamentos distintos; goleiro é controlável, escant
       assert.equal(r.drill,drill);
       if(drill==='free')assert.ok(Math.abs(r.x)<2);
       // Treino de finalização: a 28,8 m da linha do gol do campo atual.
-      if(drill==='shooting')assert.ok(r.x<42&&r.x>PITCH.halfLength-40);
+      if(drill==='shooting')assert.ok(r.x>PITCH.halfLength-40&&r.x<PITCH.halfLength-15);
       if(drill==='dribble')assert.equal(r.cones,6);
       if(drill==='corner'){assert.ok(r.z>33);assert.equal(r.cross,true);assert.ok(r.lift>1);assert.equal(r.receiver,true);}
       if(drill==='keeper'){assert.equal(r.keeper,true);assert.equal(r.dive,true);assert.ok(r.shots>=1);}
