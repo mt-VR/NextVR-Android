@@ -196,6 +196,7 @@ function trainingSessionScreen(ctx, params, drill) {
     stadium: 0,
     training: true,
     graphicsQuality:ctx.state.profile.graphicsQuality,
+      playerStyle:ctx.state.profile.playerStyle || 'modern',
     trainingDrill: drill.id,
     onEvent: showTrainingEvent
   });

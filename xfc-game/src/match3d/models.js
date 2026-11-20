@@ -1,6 +1,7 @@
 import {labHairGeometry,labHairMaterial,CAREER_HAIR_ALIAS} from './hair-lab.js';
 import {addPlayerAccessories} from './player-accessories.js';
 import {classicIdentity,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
+import {attachLowPolySilhouette} from './low-poly.js';
 import {anthemMouth,anthemSway} from './prematch.js';
 // Adaptação low poly clássica do Micah CC0; roupa/rig/UVs preservados.
 // Cabelos sólidos e variantes faciais locais, sem assets extraídos de PES.
@@ -214,12 +215,19 @@ export function createGltfPlayer(options = {}) {
     skinTone, hairColor = '#251a12', hairStyle = 'short', bootColor = null
   } = options;
 
+  // Estilo do modelo: 'modern' (malha cheia) ou 'low-poly' (PES 2013 de PSP:
+  // menos triângulos, normais facetadas e tudo fosco). O estilo também pode vir
+  // do perfil (`graphicsQuality === 'psp'`) pela opção `lowPoly`.
+  const lowPoly = options.lowPoly === true || options.visualStyle === 'low-poly'
+    || String(options.look||options.visualStyle||'').includes('low-poly')
+    || options.playerStyle === 'low-poly-psp' || options.playerStyle === 'psp';
+
   const renderHair=options.careerHair?(CAREER_HAIR_ALIAS[hairStyle]||hairStyle):hairStyle;
   const root = new THREE.Group();
   root.name = 'xfc-footballer-glb';
   root.userData.modelId = 'xfc-footballer-glb';
   root.userData.detailLevel = simplified ? 'mobile' : 'full';
-  root.userData.visualStyle='classic-ps2';
+  root.userData.visualStyle=lowPoly?'low-poly-psp':'classic-ps2';
   const identity=classicIdentity(options.name);root.userData.faceVariant=identity;
 
   const model = cloneSkeleton(pack.scene);
@@ -252,8 +260,7 @@ export function createGltfPlayer(options = {}) {
   model.position.y = -box.min.y * scale;
 
   const primary = new THREE.Color(isKeeper ? (kit.keeperPrimary || '#f5c518') : kit.primary);
-  const secondary = new THREE.Color(isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary);
-  // Modelo de chuteira resolvido uma vez (id novo, cor antiga ou padrão).
+  const secondary = new THREE.Color(isKeeper ? (kit.keeperSecondary || '#1a1a1a') : kit.secondary);  // Modelo de chuteira resolvido uma vez (id novo, cor antiga ou padrão).
   const bootModel = bootFor(options.boot || options.bootId || bootColor);
   // `boot` (modelo do catálogo) entra no userData junto com `bootColor`: o
   // editor e os testes leem daqui a aparência que realmente está no pé.
@@ -305,6 +312,14 @@ export function createGltfPlayer(options = {}) {
       if (name === 'Micah | bottom') clone.color.set(kit.shorts || secondary);
       applyCareerSurface(clone,options);
       classicMaterial(clone);
+      if(lowPoly){
+        // Facetado de propósito: sem normal map, sem bump, rugosidade alta.
+        clone.normalMap=null;
+        clone.roughness=Math.max(clone.roughness??1,.92);
+        clone.metalness=0;
+        clone.flatShading=true;
+        clone.needsUpdate=true;
+      }
       materials.push(clone);
       return clone;
     });
@@ -348,6 +363,15 @@ export function createGltfPlayer(options = {}) {
     rightLeg: findBone(model, 'RightLeg'),
     rightFoot: findBone(model, 'RightFoot')
   };
+
+  // Estilo PSP (PES 2013 / Bomba Patch): silhueta própria de pouquíssimos
+  // polígonos presa aos mesmos ossos, com a malha densa escondida.
+  if (lowPoly) {
+    const silhouette = attachLowPolySilhouette(root, bones, {
+      kit, skinTone, hairColor, bootColor: bootModel.color
+    });
+    root.userData.lowPoly = { triangles: silhouette.triangles, materials: silhouette.materials.length };
+  }
 
   // ------------------------------------------------------------- boca do hino --
   // O esqueleto Mixamo não tem mandíbula: em vez de girar um osso que não

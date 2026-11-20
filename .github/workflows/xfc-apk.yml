@@ -184,21 +184,21 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.55
+          TAG=xfc-gameplay-v0.5.56
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.55 (versionCode 61), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.56 (versionCode 62), commit ${GITHUB_SHA}." \
             "" \
-            "Agora NENHUM nome flutua sobre o campo: além das etiquetas dos 22 atletas (v0.5.54), saiu também a do atleta controlado — o `hud__tag` acompanhava o jogador e poluía a visão de jogo." \
-            "Chuteiras de verdade: 7 modelos com marca e identidade (Velox Falcon Preto/Branco/Neon, Kinex Arena Vermelha/Azul, Aurea Edição Ouro, Terra Clássica Preta), cada um com cabedal, faixa de velocidade, entressola, sola com travas e símbolo próprio desenhados numa textura dedicada. Antes eram só 4 cores num recolor." \
-            "Jogadores mais articulados: parado, o atleta respira, olha em volta e transfere o peso de um pé para o outro — antes ficava congelado na pose do clipe idle." \
-            "Rede com física, chute em quatro tempos e queda em três tempos já estavam no jogo e continuam." \
-            "Sobre modelos do Sketchfab: a rede deste ambiente bloqueia sketchfab.com e media.sketchfab.com (erro de SSL). Não foi possível baixar modelo de lá; para integrar um GLB é preciso enviar o arquivo." \
-            "Testes: xfc-game 28/28, carreira 8/8, temporada 8/8. Suíte completa 457/458 (1 skip). Detalhes: xfc-game/docs/v0.5.55.md.")
+            "Atletas LOW-POLY no estilo PES 2013 de PSP / Bomba Patch. Em Ajustes > Gráficos há um seletor novo, 'Visual dos jogadores': Moderno ou Low-poly PSP. No modo low-poly o atleta vira uma silhueta de ~580 triângulos visíveis (contra 6.422 da malha cheia, 91% menos), com facetas grandes e material chapado — mesmo corpo, mesmo uniforme, mesmas animações." \
+            "A silhueta é feita de volumes próprios presos aos OSSOS do rig, então correr, chutar, cair e comemorar continuam funcionando. As listras do uniforme aparecem por cor de faceta, sem textura, como nos jogos de PSP. Cabelo, olhos, gola, meião e chuteira continuam identificáveis." \
+            "Tentativa descartada e registrada: decimar a malha original (grade espacial e colapso de aresta). Três versões foram testadas em render e reprovadas — rasgavam o corpo e embaralhavam skinning e UVs. Não será retomada." \
+            "Desempenho medido no renderer real com 22 atletas: 13,75 ms por quadro no modo moderno e 10,43 ms no low-poly (24% mais rápido). É a opção indicada para celular fraco." \
+            "A malha detalhada continua montada e volta sozinha se você trocar a opção de volta para Moderno. Nada do gameplay, HUD, controles ou menus mudou." \
+            "Testes: 459/461 na suíte completa (1 falha de timing em 'partidas rápidas', que passa isolada e já falhava antes; 1 skip). Novos testes em tests/xfc-low-poly.test.mjs. Detalhes: xfc-game/docs/v0.5.56.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — chuteiras com marca, zero nomes no campo e atletas mais vivos v0.5.55" \
+            gh release create "$TAG" --title "XFC 27 — atletas low-poly no estilo PES 2013 de PSP v0.5.56" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — chuteiras com marca, zero nomes no campo e atletas mais vivos v0.5.55" \
+            gh release edit "$TAG" --title "XFC 27 — atletas low-poly no estilo PES 2013 de PSP v0.5.56" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

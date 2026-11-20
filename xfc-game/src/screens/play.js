@@ -355,6 +355,7 @@ export function playScreen(ctx, params = {}) {
       knockOut,
       playerLockId:careerClub&&!careerManager?career.player.id:null,
       graphicsQuality:ctx.state.profile.graphicsQuality,
+      playerStyle:ctx.state.profile.playerStyle || 'modern',
       canvas,
       home,
       away,

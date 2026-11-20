@@ -425,6 +425,8 @@ export function createMatch(options = {}) {
         isKeeper,
         graphics:engine.graphics,
         simplified: options.simplifiedPlayers ?? engine.lowPower,
+        // Visual dos jogadores escolhido no perfil (Ajustes › Gráficos).
+        playerStyle: options.playerStyle ?? 'modern',
         skinTone: look.skinTone,
         hairColor: look.hairColor,
         hairStyle: look.hairStyle,
