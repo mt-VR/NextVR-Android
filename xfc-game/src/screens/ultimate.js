@@ -331,16 +331,58 @@ export function ultimateTeamScreen(ctx, params = {}) {
       `${u.inventory.length} cartas • ${u.lifetime.played} partidas UT • ${u.lifetime.wins} vitórias • ${u.lifetime.goals} gols`,
     );
     const name = input("Nome do clube", u.clubName);
+    const file = el("input", {
+      type: "file",
+      accept: "image/png,image/jpeg,image/webp",
+      "aria-label": "Enviar brasão do clube",
+    });
+    file.addEventListener("change", () => {
+      const picked = file.files?.[0];
+      if (!picked) return;
+      if (picked.size > 280000) {
+        notice.textContent = "A imagem do brasão precisa ter menos de 280 KB.";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        UT.setUtIdentity(profile, { name: name.value, logo: reader.result });
+        persist();
+        paint();
+      };
+      reader.readAsDataURL(picked);
+    });
+    const presets = [
+      ["assets/brand/xfc-icon.png", "XFC"],
+      ["assets/crests/fc-barcelona.png", "Barcelona"],
+      ["assets/crests/real-madrid.png", "Real Madrid"],
+      ["assets/crests/nations/br.png", "Brasil"],
+    ];
     main.append(
       el(
         "div",
-        { class: "ut-toolbar" },
-        name,
-        button("Salvar nome", () => {
-          u.clubName = name.value.trim().slice(0, 30) || "Meu Clube XFC";
-          persist();
-          paint();
-        }),
+        { class: "ut-identity" },
+        el("img", { class: "ut-identity__crest", src: u.clubLogo || "assets/brand/xfc-icon.png", alt: `Brasão de ${u.clubName}` }),
+        el("div", { class: "ut-identity__fields" },
+          name,
+          button("Salvar nome", () => {
+            UT.setUtIdentity(profile, { name: name.value });
+            persist();
+            paint();
+          }),
+          el("label", { class: "ut-identity__upload" }, "Trocar brasão", file),
+          el("div", { class: "ut-identity__presets" },
+            ...presets.map(([src, label]) => el("button", {
+              type: "button",
+              class: "ut-identity__preset",
+              "aria-label": `Brasão ${label}`,
+              onClick: () => {
+                UT.setUtIdentity(profile, { logo: src });
+                persist();
+                paint();
+              },
+            }, el("img", { src, alt: label })))
+          )
+        ),
         button("Meu elenco", () => go("squad")),
       ),
     );

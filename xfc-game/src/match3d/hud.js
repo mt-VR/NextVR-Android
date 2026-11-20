@@ -40,7 +40,14 @@ function teamMark(team) {
   );
 }
 
+function laligaMark() {
+  return el('span', { class: 'laliga-board__mark', 'aria-hidden': 'true', html:
+    '<svg viewBox="0 0 64 64" width="42" height="42"><rect width="64" height="64" fill="#e10600"/><path fill="#fff" d="M12 10h16c8 0 14 3 17 9 2 4 1 9-2 12l-7 8 12 17h-15l-10-15H19v15H12V10zm7 7v16h8c5 0 8-2 8-7s-3-9-9-9H19z"/></svg>'
+  });
+}
+
 export function createHud({ root, home, away, userSide = 'home', careerRating = false, onSetPieceChange = () => {}, stageBox = null }) {
+  const spanishLeague = home?.country === 'Espanha' && away?.country === 'Espanha';
   const homeCrest = teamMark(home);
   const awayCrest = teamMark(away);
   const homeScore = el('b', { class: 'hud__score', text: '0' });
@@ -89,8 +96,26 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
     el('span', { class: 'hud__rating-scale', text: '0–10' })
   );
 
+  const addedChip = el('span', { class: 'laliga-board__added', hidden: true, text: '' });
   // Mesmos dados nas duas apresentações: transmissão e faixa escura da pausa.
-  const scoreboard = el('div', { class: 'hud__scoreboard' },
+  // Clássico espanhol: o placar da foto (LaLiga), sem redesenhar outro layout.
+  const scoreboard = spanishLeague
+    ? el('div', { class: 'hud__scoreboard hud__scoreboard--laliga' },
+        el('div', { class: 'laliga-board', 'aria-label': 'Placar LaLiga' },
+          el('div', { class: 'laliga-board__row laliga-board__row--top' },
+            laligaMark(),
+            el('span', { class: 'laliga-board__name', text: abbreviationOf(home) }),
+            el('span', { class: 'laliga-board__goals' }, homeScore)
+          ),
+          el('div', { class: 'laliga-board__row laliga-board__row--bottom' },
+            addedChip,
+            clock,
+            el('span', { class: 'laliga-board__name', text: abbreviationOf(away) }),
+            el('span', { class: 'laliga-board__goals' }, awayScore)
+          )
+        )
+      )
+    : el('div', { class: 'hud__scoreboard' },
     el('div', { class: 'hud__sc-main' },
       el('div',{class:'hud__sc-wing hud__sc-wing--home'},homeCrest,el('span',{class:'hud__team',text:abbreviationOf(home)}),homeEjection),
       el('div',{class:'hud__sc-score'},homeScore,el('span',{class:'hud__dash',text:'-'}),awayScore),
@@ -452,6 +477,9 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
       homeScore.textContent = String(snapshot.score[0]);
       awayScore.textContent = String(snapshot.score[1]);
       clock.textContent = (snapshot.display||"0'00").replace("'",':');
+      const extra = Number(snapshot.added) || 0;
+      addedChip.hidden = extra <= 0;
+      addedChip.textContent = extra > 0 ? `+${extra}` : '';
       // Prorrogação tem dois tempos extras: 1ºT/2ºT viram 3ºT/4ºT (105'/120'),
       // senão o relógio chegava a 105 mostrando "2ºT" e parecia bug.
       const half = snapshot.half === 1 ? '1ºT' : snapshot.half === 2 ? '2ºT' : '';

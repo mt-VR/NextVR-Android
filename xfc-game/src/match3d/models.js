@@ -255,8 +255,11 @@ export function createGltfPlayer(options = {}) {
   // A faixa de estatura real continua valendo: 1,70 a 2,05 m, com 1,88 m como
   // padrão. Antes o padrão era 1,75 m e o teto 2,00 m — em campo eles pareciam
   // franzinos ao lado das traves e do círculo central.
-  const baseHeight = lowPoly ? 1.90 : 1.88;
-  const targetHeight = options.height ? Math.max(1.70,Math.min(2.05,options.height/100)) : baseHeight;
+  // v0.5.60: em partida os atletas ficam maiores na tela (pedido: tamanho
+  // do print DFL). Fora do jogo (laboratório/testes) a estatura 1,88 m segue.
+  const presence = Number(options.pitchPresence) > 0 ? Number(options.pitchPresence) : 1;
+  const baseHeight = (lowPoly ? 1.90 : 1.88) * presence;
+  const targetHeight = (options.height ? Math.max(1.70,Math.min(2.05,options.height/100)) : (lowPoly ? 1.90 : 1.88)) * presence;
   root.userData.targetHeight=targetHeight;
   root.userData.limbRadialGain={arms:1.07,legs:1.13};
   const scale = size.y > 0.01 ? targetHeight / size.y : 1;

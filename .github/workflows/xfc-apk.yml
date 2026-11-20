@@ -184,19 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.59
+          TAG=xfc-gameplay-v0.5.60
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.59 (versionCode 65), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.60 (versionCode 66), commit ${GITHUB_SHA}." \
             "" \
-            "Kick Off/amistoso voltam ao gramado 120×82 e à câmera antiga." \
-            "Carreira: campo 140×96 e câmera mais perto." \
-            "Elencos da Copa 2022 (Neymar/Messi/CR7), Skip na cerimônia, calção azul do Brasil e rede mais realista." \
-            "Detalhes: xfc-game/docs/v0.5.59.md.")
+            "Ultimate Team: nome e brasão do clube personalizáveis." \
+            "Jogadores maiores em campo. Placar LaLiga nos clássicos espanhóis." \
+            "Goleiro pega a bola com a mão e lança." \
+            "Detalhes: xfc-game/docs/v0.5.60.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — campo da carreira, Copa 2022 e Skip v0.5.59" \
+            gh release create "$TAG" --title "XFC 27 — UT clube, placar LaLiga e goleiro v0.5.60" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — campo da carreira, Copa 2022 e Skip v0.5.59" \
+            gh release edit "$TAG" --title "XFC 27 — UT clube, placar LaLiga e goleiro v0.5.60" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

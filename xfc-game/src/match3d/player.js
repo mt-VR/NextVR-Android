@@ -1558,7 +1558,8 @@ export function createPlayer3D(options = {}) {
   cardMesh.visible = false;
   arms[1].forearm.add(cardMesh);
 
-  root.scale.setScalar(heightScale);
+  const presence = Number(options.pitchPresence) > 0 ? Number(options.pitchPresence) : 1;
+  root.scale.setScalar(heightScale * presence);
   // A lista de malhas que projetam sombra é montada uma vez: o LOD liga e
   // desliga a sombra dinâmica sem varrer o rig a cada quadro.
   const shadowMeshes = [];

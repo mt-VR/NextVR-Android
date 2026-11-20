@@ -203,6 +203,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
       const dz = Number(direction?.z) || 0;
       state.goalPocket = 0;
       state.offside=null;state.reception=null;
+      state.keeperHands = false;
       state.rainbow = state.recovery = null;
       // Um novo chute/passe limpa qualquer proteção de bola parada anterior.
       // A falta/pênalti rearma a proteção logo depois (match.js).
@@ -226,6 +227,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
       state.lastIntentionalTouch = player;
       state.velocity.set(0, 0, 0);
       state.guidance = null;
+      state.keeperHands = Boolean(player?.isKeeper || player?.isGK);
     },
     /**
      * Avança a física. `players` é a lista de quem pode tocar a bola.
@@ -242,12 +244,14 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
 
       if (state.owner) {
         // A bola fica presa ao pé do dono, um pouco à frente.
+        // Goleiro com a bola nas mãos: na altura do peito, à frente do corpo.
         const owner = state.owner;
         const forward = owner.facing || new THREE.Vector3(0, 0, 1);
+        const hands = Boolean(state.keeperHands);
         position.set(
-          (owner.x??owner.root.position.x) + forward.x * 0.45,
-          BALL.radius,
-          (owner.z??owner.root.position.z) + forward.z * 0.45
+          (owner.x??owner.root.position.x) + forward.x * (hands ? 0.32 : 0.45),
+          hands ? 1.22 : BALL.radius,
+          (owner.z??owner.root.position.z) + forward.z * (hands ? 0.32 : 0.45)
         );
         mesh.position.copy(position);
         shadow.position.set(position.x, 0.02, position.z);
@@ -334,6 +338,21 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
         state.lastTouch=player;
         // Na falta/pênalti a bola NÃO gruda em ninguém (só no batedor, antes
         // do chute). Barreira e goleiro apenas rebatem e o jogo volta ao normal.
+        const keeperCatch = (player.isKeeper || player.isGK) && !protectedContact
+          && position.y < 1.9
+          && Math.hypot(velocity.x, velocity.z) < 12
+          && Math.abs(Math.abs(position.x) - PITCH.halfLength) < 16.5
+          && Math.abs(position.z) < 20.2;
+        if(keeperCatch){
+          this.attachTo(player);
+          state.keeperHands = true;
+          state.reception={player,from,wasPass,offside:state.offside};
+          state.offside=null;
+          player.model?.catchBall?.();
+          player.model?.carryBall?.(1.1);
+          mesh.position.copy(position);shadow.position.set(position.x,.02,position.z);
+          return null;
+        }
         if(!player.isKeeper&&!player.isGK&&!protectedContact){
           const offside=state.offside;
           this.attachTo(player);

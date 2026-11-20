@@ -432,6 +432,9 @@ export function createMatch(options = {}) {
         simplified: options.simplifiedPlayers ?? engine.lowPower,
         // Visual dos jogadores escolhido no perfil (Ajustes › Gráficos).
         playerStyle: options.playerStyle ?? 'modern',
+        // Presença em campo: o print de referência mostra atletas bem maiores
+        // do que 1,88 m na lente de transmissão. Só vale na partida.
+        pitchPresence: 1.34,
         skinTone: look.skinTone,
         hairColor: look.hairColor,
         hairStyle: look.hairStyle,
@@ -567,6 +570,30 @@ export function createMatch(options = {}) {
       z: clampZ(taker.z + inward),
       active: false, side: taker.side, vx: 0, vz: 0
     };
+  }
+
+  /** Goleiro segura a bola nas mãos e lança para um companheiro. */
+  function keeperDistribute(player) {
+    if (!player?.isKeeper || ball.state.owner !== player) return false;
+    ball.state.keeperHands = true;
+    player.vx = 0;
+    player.vz = 0;
+    if (!player.keeperThrowAt) {
+      player.keeperThrowAt = elapsedWorldTime + 0.8;
+      player.model.catchBall?.();
+      player.model.carryBall?.(1.05);
+    }
+    if (isUserControlled(player)) return true;
+    if (elapsedWorldTime < player.keeperThrowAt) return true;
+    const mates = members(player.side).filter(mate => mate.active && !mate.isKeeper);
+    const target = mates.find(mate => ['RB', 'LB', 'CB', 'CDM'].includes(mate.role))
+      || mates[0];
+    if (!target) return false;
+    player.keeperThrowAt = 0;
+    ball.state.keeperHands = false;
+    player.model.throwIn?.(0.72);
+    kickBall(player, target, { lob: true, power: 14, lift: 0.32 });
+    return true;
   }
 
   function kickBall(player, target, { power = 18, lob = false, through = false, targetPoint = null, curve = 0, lift = null, requested = false } = {}) {
@@ -2394,6 +2421,7 @@ export function createMatch(options = {}) {
       return Math.hypot(input.moveX, input.moveZ) > 0.12;
     },
     kickBall,
+    keeperDistribute,
     shootBall,
     diveKeeper: (keeper, dir, flightId) => diveKeeper(keeper, dir, flightId),
     updatePenaltyKeeper,
@@ -2585,6 +2613,9 @@ export function createMatch(options = {}) {
         penalties: clock.penalties || null,
         winner: clock.winner || null,
         display: formatClock(),
+        added: clock.half === 1
+          ? (clock.minutes >= 45 ? clock.added : 0)
+          : (clock.minutes >= 90 ? clock.added : 0),
           half: clock.half,
         phase: phase.name,
         kickoffSide: phase.name === 'kickoff' ? phase.side : null,
@@ -3968,13 +3999,29 @@ export function createMatch(options = {}) {
         &&position.y<.8&&distance<.85;
       if(speed>8&&!receiving)continue;
       const recovery=ball.state.recovery;
-      const radius=recovery?.player===player && elapsedWorldTime<recovery.until ? recovery.radius : 1;
+      const keeperClaim=player.isKeeper && position.y<1.85 && speed<12
+        && Math.abs(Math.abs(player.x)-PITCH.halfLength)<18 && Math.abs(player.z)<22;
+      const radius=recovery?.player===player && elapsedWorldTime<recovery.until ? recovery.radius
+        : keeperClaim ? 1.45 : 1;
       if (distance < radius && distance < bestDistance) {
         bestDistance = distance;
         best = player;
       }
     }
     if (best) {
+      if (best.isKeeper) {
+        const inBox = Math.abs(Math.abs(best.x) - PITCH.halfLength) < 18 && Math.abs(best.z) < 22;
+        if (!inBox) return;
+        const from=ball.state.lastIntentionalTouch,wasPass=!!ball.state.passTarget,offside=ball.state.offside;
+        ball.attachTo(best);
+        ball.state.keeperHands = true;
+        best.keeperThrowAt = elapsedWorldTime + 0.85;
+        best.model.catchBall?.();
+        best.model.carryBall?.(1.15);
+        ball.state.offside=null;ball.state.lastTouch=best;
+        receiveBall(best,from,wasPass,offside);
+        return;
+      }
       const from=ball.state.lastIntentionalTouch,wasPass=!!ball.state.passTarget,offside=ball.state.offside;
       ball.attachTo(best);ball.state.offside=null;ball.state.lastTouch=best;
       receiveBall(best,from,wasPass,offside);

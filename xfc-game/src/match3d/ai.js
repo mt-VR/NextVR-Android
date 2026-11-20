@@ -136,6 +136,10 @@ export function createTeamAI({ side, world, tempo = 1 }) {
 
   /** Decisão do jogador que está com a bola. */
   function onBall(player, dt) {
+    if ((player.isGK || player.isKeeper) && world.keeperDistribute) {
+      world.keeperDistribute(player, dt);
+      return;
+    }
     const ball = world.ball.state;
     const rivals = opponents().filter(rival => rival.active);
     let pressure = Infinity;
@@ -368,11 +372,17 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         } else if (!owner && inBox && player === chaser
           && ball.position.y < 1.7
           && Math.hypot(ball.position.x - player.x, ball.position.z - player.z) < 7.5) {
-          // Só sai da linha para recolher uma bola solta quando é o defensor
-          // mais bem colocado; não larga o gol para disputar uma bola distante.
-          targetX = ball.position.x + ball.velocity.x * 0.16;
-          targetZ = ball.position.z + ball.velocity.z * 0.16;
-          speed = Math.min(CHASE_SPEED,CHASE_SPEED*(.9+.1*tactics.press));
+          // Recolhe a bola solta: chega nela e PARA, em vez de orbitar em volta.
+          const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);
+          if (gap < 1.4) {
+            targetX = player.x;
+            targetZ = player.z;
+            speed = 0;
+          } else {
+            targetX = ball.position.x;
+            targetZ = ball.position.z;
+            speed = Math.min(CHASE_SPEED,CHASE_SPEED*(.9+.1*tactics.press));
+          }
         }
       } else if (player === chaser && !owner) {
         // Persegue a bola com uma pequena antecipação; o segundo mais próximo
