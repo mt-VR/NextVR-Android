@@ -1339,6 +1339,10 @@ test('partidas rápidas: escolha, pré-jogo, partida 3D e resultado', { timeout:
       for (const player of players) player.active = false;
       match.phase.name = 'play';
       match.phase.restart = null;
+      // A partida continua no rAF entre os `evaluate`. Com atletas maiores um
+      // gol ao vivo pode entrar no placar no intervalo — zera antes de medir.
+      match.teams.home.score = 0;
+      match.teams.away.score = 0;
       match.ball.state.owner = null;
       match.ball.state.position.set(match.world.pitch.halfLength - 0.05, 1.2, 0);
       match.ball.state.velocity.set(20, 0, 0);
