@@ -169,7 +169,7 @@ test('carreira no menu principal e câmera Pro atrás do atleta em casa/fora, co
     // Isola câmera/entrada das colisões e faltas da IA durante os passos manuais.
     for(const player of [...m.teams.home.players,...m.teams.away.players])if(player!==hero)player.active=false;
     hero.x=0;hero.z=0;hero.vx=hero.vz=0;m.ball.attachTo(hero);
-    for(let i=0;i<120;i++)m.world.tick(1/60);
+    for(let i=0;i<300;i++)m.world.tick(1/60);
     const resting={behind:(m.engine.camera.position.x-hero.x)*sign,lateral:m.engine.camera.position.z-hero.z,height:m.engine.camera.position.y,fov:m.engine.camera.fov};
     const startX=hero.x;m.world.input.moveZ=1;for(let i=0;i<45;i++)m.world.tick(1/60);
     const forward=(hero.x-startX)*sign;m.world.input.moveZ=0;
