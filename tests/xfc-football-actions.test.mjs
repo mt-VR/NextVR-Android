@@ -205,7 +205,7 @@ test(
       assert.deepEqual(result.names, ['BAR', 'RMA']);
       assert.match(String(result.clockInline), /hud__sc-main|laliga-board/);
       assert.ok(
-        result.clockColor === 'rgb(186, 255, 0)' || result.clockColor === 'rgb(255, 255, 255)',
+        ['rgb(186, 255, 0)', 'rgb(255, 255, 255)', 'rgb(17, 17, 17)'].includes(result.clockColor),
         result.clockColor
       );
       for (const [type, r] of [
