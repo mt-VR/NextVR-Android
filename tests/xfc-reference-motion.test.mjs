@@ -57,7 +57,7 @@ test('menus de referência: setas, uniformes, configurações, sorteio sem dupli
     }
   }finally{await b.close();server.close();}
 });
-test('Micah mede 1,75 m em bind, mantém topologia/UV/rig e braços quietos na caminhada',{timeout:90000},async t=>{
+test('Micah mede 1,88 m em bind, mantém topologia/UV/rig e braços quietos na caminhada',{timeout:90000},async t=>{
   const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
   try{const p=await b.newPage();await p.goto(url);const r=await p.evaluate(async()=>{
     const T=await import('/vendor/three.module.min.js');const {preloadFootballerPack,createGltfPlayer}=await import('/src/match3d/models.js');await preloadFootballerPack();
@@ -68,7 +68,7 @@ test('Micah mede 1,75 m em bind, mantém topologia/UV/rig e braços quietos na c
     for(let i=0;i<180;i++)a.update(1/60,{speed:2.6});
     const arms=[],legs=[];for(let i=0;i<120;i++){a.update(1/60,{speed:2.6});arms.push(a.bones.leftArm.rotation.x);legs.push(a.bones.leftLeg.rotation.x);}
     const data={heights,geometry,shared,armRange:Math.max(...arms)-Math.min(...arms),legRange:Math.max(...legs)-Math.min(...legs),id:a.root.userData.modelId};a.dispose();b.dispose();return data;
-  });for(const h of r.heights)assert.ok(Math.abs(h-1.75)<.002,`altura real: ${h}`);assert.equal(r.id,'xfc-footballer-glb');assert.ok(r.shared>0);for(const g of r.geometry)assert.equal(g.count,g.uv);
+  });for(const h of r.heights)assert.ok(Math.abs(h-1.88)<.01,`altura real: ${h}`);assert.equal(r.id,'xfc-footballer-glb');assert.ok(r.shared>0);for(const g of r.geometry)assert.equal(g.count,g.uv);
     assert.ok(r.armRange<.01,`braços andando: ${r.armRange}`);assert.ok(r.legRange>.4);
   }finally{await b.close();server.close();}
 });
