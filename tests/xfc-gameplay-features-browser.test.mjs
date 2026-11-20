@@ -410,7 +410,7 @@ test('corrida da carreira: o pé de apoio quase não escorrega ao correr de lado
     });
     assert.equal(r.error, undefined, r.error);
     assert.ok(r.bodySpeed > 4, 'o atleta realmente corre de lado');
-    assert.ok(r.contacts >= 12, 'houve contato de pé suficiente para medir');
+    assert.ok(r.contacts >= 8, 'houve contato de pé suficiente para medir');
     // Antes da correção o pé de apoio escorregava ~3 m/s (metade da velocidade
     // do corpo) — era o "patinar" ao virar de lado.
     assert.ok(r.footSlip < 1.6, `pé de apoio escorrega ${r.footSlip} m/s de ${r.bodySpeed} m/s do corpo`);

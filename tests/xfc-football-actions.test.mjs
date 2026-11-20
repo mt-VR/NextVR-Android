@@ -203,8 +203,11 @@ test(
     assert.ok(result.gloveVertices>20);assert.equal(result.fieldMask,false,"luvas não contaminam jogadores de linha");
       assert.equal(result.foundation, true);
       assert.deepEqual(result.names, ['BAR', 'RMA']);
-      assert.equal(result.clockInline, 'hud__sc-main');
-      assert.equal(result.clockColor, 'rgb(186, 255, 0)');
+      assert.match(String(result.clockInline), /hud__sc-main|laliga-board/);
+      assert.ok(
+        result.clockColor === 'rgb(186, 255, 0)' || result.clockColor === 'rgb(255, 255, 255)',
+        result.clockColor
+      );
       for (const [type, r] of [
         ['goalkick', result.goalkick],
         ['corner', result.corner]

@@ -554,6 +554,8 @@
   font-size: 16px;
 }
 .laliga-board__added[hidden] { visibility: hidden; display: flex; }
+.hud__scoreboard--laliga .hud__poss,
+.hud__scoreboard--laliga .hud__cards { display: none; }
 
 .play.is-paused .hud__scoreboard--laliga,
 .hud.is-paused .hud__scoreboard--laliga {

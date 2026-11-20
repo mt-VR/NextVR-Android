@@ -258,11 +258,10 @@ export function createGltfPlayer(options = {}) {
   // v0.5.60: em partida os atletas ficam maiores na tela (pedido: tamanho
   // do print DFL). Fora do jogo (laboratório/testes) a estatura 1,88 m segue.
   const presence = Number(options.pitchPresence) > 0 ? Number(options.pitchPresence) : 1;
-  const baseHeight = (lowPoly ? 1.90 : 1.88) * presence;
-  const targetHeight = (options.height ? Math.max(1.70,Math.min(2.05,options.height/100)) : (lowPoly ? 1.90 : 1.88)) * presence;
-  root.userData.targetHeight=targetHeight;
+  const bodyHeight = options.height ? Math.max(1.70,Math.min(2.05,options.height/100)) : (lowPoly ? 1.90 : 1.88);
+  root.userData.targetHeight=bodyHeight;
   root.userData.limbRadialGain={arms:1.07,legs:1.13};
-  const scale = size.y > 0.01 ? targetHeight / size.y : 1;
+  const scale = size.y > 0.01 ? (bodyHeight * presence) / size.y : 1;
   model.scale.setScalar(scale);
   if(options.body){const width=({lean:.96,normal:1,strong:1.04}[options.body]||1)*Math.max(.95,Math.min(1.07,1+((options.weight||68)-68)*.002));model.scale.x*=width;model.scale.z*=width;}
   model.position.y = -box.min.y * scale;
