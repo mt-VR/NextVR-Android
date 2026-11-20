@@ -37,10 +37,11 @@ import { createGltfPlayer, gltfPlayersEnabled } from './models.js';
 import { installAnimationApi } from './animation.js';
 import { createTeamAI } from './ai.js';
 import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
-import { PITCH, GOAL, BALL, FORMATION_433 } from './constants.js';
+import { PITCH, GOAL, BALL, FORMATION_433, applyPitchLayout } from './constants.js';
 import {
   BROADCAST_CAMERA_LIMITS,
   BROADCAST_CAMERA_SIDE,
+  setBroadcastCameraLayout,
   broadcastCameraPose,
   cameraRelativeMovementFromStick,
   cornerCameraPose,
@@ -92,6 +93,10 @@ export function createMatch(options = {}) {
     userSide = 'home',
     stadium = 0
   } = options;
+
+  const largePitch = Boolean(options.largePitch);
+  applyPitchLayout(largePitch ? 'career' : 'standard');
+  setBroadcastCameraLayout(largePitch ? 'career' : 'standard');
 
   const engine = createEngine(canvas,{graphicsQuality:options.graphicsQuality});
   const stadiumMesh = buildStadium(engine.scene, {
@@ -363,8 +368,8 @@ export function createMatch(options = {}) {
       accent: colors.trim || colors.accent || '#ffffff',
       pattern: kit?.pattern || 'solid',
       libraryFront:kit?.libraryFront,libraryBack:kit?.libraryBack,
-      shorts: kit?.shorts || colors.primary,
-      socks: kit?.socks || colors.primary,
+      shorts: kit?.shorts || colors.shorts || colors.primary,
+      socks: kit?.socks || colors.socks || colors.primary,
       print: kit?.print || colors.trim || '#ffffff'
     };
   }
@@ -2513,7 +2518,7 @@ export function createMatch(options = {}) {
       return { id: beat.id, index: beat.index, label: beat.label, caption: beat.caption, progress: beat.progress, total: beat.total };
     },
 
-    /** Pula para o fim da cerimônia (testes e capturas; não é botão do jogo). */
+    /** Pula a cerimônia (botão Skip na UI, Start no controle, testes). */
     skipEntrance() {
       if (!entrance) return false;
       entrance.time = PREMATCH_TOTAL;
@@ -3040,10 +3045,12 @@ export function createMatch(options = {}) {
     const rightZ = forwardX;
     const speed = playerSpeed(player);
     const isPenalty=training.enabled&&training.drill==='penalty';
-    const cameraDistance = isPenalty?6.8:9.2 + Math.min(1.2, speed * 0.1);
+    // Carreira: lente mais perto (pedido v0.5.59). Treino permanece em 9,2 m.
+    const followDistance = training.enabled ? 9.2 : 7;
+    const cameraDistance = isPenalty?6.8:followDistance + Math.min(1.2, speed * 0.1);
     const desiredX = player.x - forwardX * cameraDistance;
-    // Mantém o eixo Pro; altura suficiente para ver a bola além do atleta a 5 m.
-    const desiredY = isPenalty?4.8:4.7 + Math.min(0.3, speed * 0.035);
+    const followHeight = training.enabled ? 4.7 : 4.15;
+    const desiredY = isPenalty?4.8:followHeight + Math.min(0.3, speed * 0.035);
     const desiredZ = player.z - forwardZ * cameraDistance;
 
     const ballDx = ball.state.position.x - player.x;
@@ -4321,6 +4328,8 @@ export function createMatch(options = {}) {
       engine.stop();
     },
     dispose() {
+      applyPitchLayout('standard');
+      setBroadcastCameraLayout('standard');
       world.dispose?.();
       if(trainingCones.length){trainingCones[0].geometry.dispose();trainingCones[0].material.dispose();}
       trainingCones.forEach(cone=>engine.scene.remove(cone));

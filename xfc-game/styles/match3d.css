@@ -2187,6 +2187,27 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+.entrance__skip {
+  pointer-events: auto;
+  margin-top: 4px;
+  padding: 7px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 18, 32, 0.88);
+  color: #e8f4ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.entrance__skip:hover,
+.entrance__skip:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ---------------------------------------------------------- pré-jogo: XI -- */
 
 .showcase__lineups {

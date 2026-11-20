@@ -77,36 +77,34 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
  * `BROADCAST_CAMERA_LIMITS` é o teto do zoom "mais aberta" do menu de pausa:
  * sem ele, o `cameraZoom` de 1,2 levaria a lente para dentro da arquibancada.
  */
-const CAMERA_HEIGHT = 20;
-/** Recuo da lente em relação ao eixo do campo (entre a lateral e o muro). */
-const CAMERA_Z = 56;
-const CAMERA_Z_MIN = 46;
-const CAMERA_Z_MAX = 68;
-/** Distância em Z do alvo: define a inclinação (27° com a altura de 16 m). */
-const CAMERA_TARGET_AHEAD = 32;
-const CAMERA_FOV = 54;
-/** Fração do deslocamento da bola aplicada à câmera (movimento do PES). */
-const CAMERA_PAN_FACTOR = 1;
-/** A lente segue a bola em Z: recua quando o lance vem para o lado dela. */
-const CAMERA_Z_FOLLOW = 0.6;
-/** A mira sobe quando a bola está longe: o olhar acompanha a jogada. */
-const CAMERA_AIM_LIFT = 0.25;
-const CAMERA_AIM_BASE = -2;
-/**
- * Aproximação quando o lance está no lado de CIMA do quadro — o lado oposto ao
- * da lente, `z` negativo, que é onde a bola fica mais longe. A lente não pode
- * entrar no gramado (a lateral está a 34 m do eixo), então "ir pra mais perto"
- * é fechar a objetiva: `CAMERA_TOP_ZOOM` encolhe o fov até esse lado e a mira
- * sobe junto (o tilt do eFootball já existente). Nada muda o lado de cá.
- */
-const CAMERA_TOP_ZOOM = 0.2;
+// v0.5.59: Kick Off volta à lente pré-0.5.58 (16 m / 45 m). A carreira, no
+// campo maior, chega mais perto para o atleta não virar um ponto no gramado.
+const CAMERA_PRESETS = {
+  standard: {
+    height: 16, z: 45, zMin: 38, zMax: 52.5, targetAhead: 32, fov: 54,
+    panFactor: 1, zFollow: 0.6, aimLift: 0.25, aimBase: -2, topZoom: 0.2
+  },
+  career: {
+    height: 13.2, z: 38, zMin: 32, zMax: 48, targetAhead: 24, fov: 50,
+    panFactor: 1, zFollow: 0.5, aimLift: 0.22, aimBase: -1.4, topZoom: 0.16
+  }
+};
+
+let cameraPreset = CAMERA_PRESETS.standard;
+
+/** Kick Off = `standard`; carreira = `career` (lente mais perto). */
+export function setBroadcastCameraLayout(kind = 'standard') {
+  cameraPreset = kind === 'career' ? CAMERA_PRESETS.career : CAMERA_PRESETS.standard;
+  BROADCAST_CAMERA_LIMITS.maxZ = cameraPreset.zMax;
+  return cameraPreset;
+}
 
 /** Teto do zoom do menu de pausa: a lente nunca entra na arquibancada. */
 export const BROADCAST_CAMERA_LIMITS = {
   minHeight: 8,
   maxHeight: 22,
-  minZ: 36,
-  maxZ: CAMERA_Z_MAX
+  minZ: 32,
+  maxZ: CAMERA_PRESETS.standard.zMax
 };
 
 /**
@@ -116,26 +114,23 @@ export const BROADCAST_CAMERA_LIMITS = {
  * a jogada. `side` escolhe a lateral (o jogo usa sempre a mesma, para o
  * analógico não inverter); `velocity` dá a antecipação do movimento.
  */
-export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velocity = null) {
+export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velocity = null, layout) {
+  const preset = layout === 'career' ? CAMERA_PRESETS.career
+    : layout === 'standard' ? CAMERA_PRESETS.standard
+    : cameraPreset;
   const fixedSide = side < 0 ? -1 : 1;
   const ballX = clamp((Number(position?.x) || 0) + clamp((Number(velocity?.x) || 0) * 0.35, -6, 6),
     -PITCH.halfLength - 4, PITCH.halfLength + 4);
   const ballZ = Number(position?.z) || 0;
-  // A lente vai com a bola no comprimento do campo e recua quando o lance vem
-  // para o lado dela: a lateral do gramado passa 11 m abaixo da lente.
-  const panX = clamp(ballX * CAMERA_PAN_FACTOR, -PITCH.halfLength, PITCH.halfLength);
-  const lensZ = clamp(CAMERA_Z + ballZ * CAMERA_Z_FOLLOW, CAMERA_Z_MIN, CAMERA_Z_MAX);
-  const aimZ = lensZ - CAMERA_TARGET_AHEAD;
-  // A mira sobe quando a bola está do lado oposto e desce quando ela vem para
-  // cá — é o tilt da câmera do eFootball, não um quadro fixo deslizando.
-  const aimY = clamp((aimZ - ballZ) * CAMERA_AIM_LIFT + CAMERA_AIM_BASE, -3, 14);
-  // O lado de cima do quadro é o oposto ao da lente (`z` negativo), onde o
-  // lance está mais longe: lá a objetiva fecha e o lance chega maior.
+  const panX = clamp(ballX * preset.panFactor, -PITCH.halfLength, PITCH.halfLength);
+  const lensZ = clamp(preset.z + ballZ * preset.zFollow, preset.zMin, preset.zMax);
+  const aimZ = lensZ - preset.targetAhead;
+  const aimY = clamp((aimZ - ballZ) * preset.aimLift + preset.aimBase, -3, 14);
   const far = clamp(-ballZ / PITCH.halfWidth, 0, 1);
   return {
-    position: { x: panX, y: CAMERA_HEIGHT, z: fixedSide * lensZ },
+    position: { x: panX, y: preset.height, z: fixedSide * lensZ },
     target: { x: panX, y: aimY, z: fixedSide * aimZ },
-    fov: CAMERA_FOV * (1 - far * CAMERA_TOP_ZOOM)
+    fov: preset.fov * (1 - far * preset.topZoom)
   };
 }
 

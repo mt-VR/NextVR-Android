@@ -184,7 +184,7 @@ test('carreira no menu principal e câmera Pro atrás do atleta em casa/fora, co
     return{side:m.world.userSide,mode:m.world.cameraMode,id:m.controlled[m.world.userSide].rosterId,resting,forward,right,camera,paused,distance};
    });
    assert.equal(result.side,round===0?'away':'home');assert.equal(result.mode,'pro');assert.equal(result.id,'career-player');
-   assert.ok(Math.abs(result.resting.behind+9.2)<.05,JSON.stringify(result));assert.ok(Math.abs(result.resting.lateral)<.05);assert.ok(Math.abs(result.resting.height-4.7)<.05);assert.ok(Math.abs(result.resting.fov-52)<.05);
+   assert.ok(Math.abs(result.resting.behind+7)<.05,JSON.stringify(result));assert.ok(Math.abs(result.resting.lateral)<.05);assert.ok(Math.abs(result.resting.height-4.15)<.05);assert.ok(Math.abs(result.resting.fov-52)<.05);
    assert.ok(result.forward>1);assert.ok(result.right>1);assert.deepEqual(result.camera,result.paused);assert.ok(result.distance<12);
   }
   assert.deepEqual(errors,[]);

@@ -21,7 +21,7 @@ test('rede: impulso localizado, bordas fixas e retorno ao repouso sem trabalho p
       }
   }
   assert.ok(
-    peak > 0.1 && peak <= 0.7,
+    peak > 0.18 && peak <= 1.15,
     `deformação visível e limitada: ${peak}`
   );
   for (let i = 0; i < 600; i++) net.update(1 / 60);
@@ -48,7 +48,7 @@ test('rede: resposta coerente a 30/60/120 Hz, força limitada, dt inválido igno
     net.update(0.1);
   }
   assert.ok(
-    net.displacement.every((d) => Number.isFinite(d) && Math.abs(d) <= 0.701)
+    net.displacement.every((d) => Number.isFinite(d) && Math.abs(d) <= 1.151)
   );
 });
 

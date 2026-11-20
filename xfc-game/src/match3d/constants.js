@@ -4,13 +4,27 @@
 // se comportem como num campo de futebol: o jogador importado tem 1,75 m, a bola 22 cm
 // de diâmetro e o gol tem 7,32 x 2,44 m.
 
-// v0.5.58: 140×96. O usuário pediu o gramado grandão como nos estádios reais.
-// Continua acima do oficial (105×68); as formações acompanham via FORMATION_SCALE.
-export const PITCH = {
+// v0.5.59: Kick Off / amistoso voltam ao gramado pré-0.5.58 (120×82). Só a
+// carreira usa o campo grandão (140×96) com a câmera mais perto.
+export const STANDARD_PITCH = Object.freeze({
+  length: 120,
+  width: 82,
+  halfLength: 60,
+  halfWidth: 41
+});
+
+export const CAREER_PITCH = Object.freeze({
   length: 140,
   width: 96,
   halfLength: 70,
   halfWidth: 48
+});
+
+export const PITCH = {
+  length: STANDARD_PITCH.length,
+  width: STANDARD_PITCH.width,
+  halfLength: STANDARD_PITCH.halfLength,
+  halfWidth: STANDARD_PITCH.halfWidth
 };
 
 export const GOAL = {
@@ -25,25 +39,49 @@ export const BALL = {
   mass: 0.43
 };
 
-/** Posições de referência da formação 4-3-3 (metros, do gol próprio ao adversário). */
-// Escala junto com o campo 120×82 (antes era pensada para 112×74): as
-// posições crescem na mesma proporção para o time não ficar "encolhido" com
-// um monte de gramado nas costas e para as linhas continuarem equidistantes.
-const FORMATION_SCALE = { x: PITCH.length / 112, z: PITCH.width / 74 };
-const at = (role, x, z) => ({ role, x: +(x * FORMATION_SCALE.x).toFixed(1), z: +(z * FORMATION_SCALE.z).toFixed(1) });
-export const FORMATION_433 = [
-  at('GK', -51, 0),
-  at('RB', -35, 23),
-  at('CB', -38.5, -8.5),
-  at('CB', -38.5, 8.5),
-  at('LB', -35, -23),
-  at('CM', -17, -11),
-  at('CDM', -22.5, 2),
-  at('CAM', -6.5, 8.5),
-  at('LW', 2, 24),
-  at('ST', 6.5, 0),
-  at('RW', 2, -24)
+/** Posições de referência da formação 4-3-3 no campo 112×74 (antes da escala). */
+const FORMATION_BASE = [
+  { role: 'GK', x: -51, z: 0 },
+  { role: 'RB', x: -35, z: 23 },
+  { role: 'CB', x: -38.5, z: -8.5 },
+  { role: 'CB', x: -38.5, z: 8.5 },
+  { role: 'LB', x: -35, z: -23 },
+  { role: 'CM', x: -17, z: -11 },
+  { role: 'CDM', x: -22.5, z: 2 },
+  { role: 'CAM', x: -6.5, z: 8.5 },
+  { role: 'LW', x: 2, z: 24 },
+  { role: 'ST', x: 6.5, z: 0 },
+  { role: 'RW', x: 2, z: -24 }
 ];
+
+export const FORMATION_433 = FORMATION_BASE.map(slot => ({ ...slot }));
+
+function rebuildFormation() {
+  const scaleX = PITCH.length / 112;
+  const scaleZ = PITCH.width / 74;
+  for (let index = 0; index < FORMATION_BASE.length; index += 1) {
+    const base = FORMATION_BASE[index];
+    FORMATION_433[index].role = base.role;
+    FORMATION_433[index].x = +(base.x * scaleX).toFixed(1);
+    FORMATION_433[index].z = +(base.z * scaleZ).toFixed(1);
+  }
+}
+
+/**
+ * Troca o gramado ativo. O motor lê `PITCH` em todo canto; a carreira pede o
+ * campo maior, o resto do jogo fica no 120×82.
+ */
+export function applyPitchLayout(kind = 'standard') {
+  const source = kind === 'career' ? CAREER_PITCH : STANDARD_PITCH;
+  PITCH.length = source.length;
+  PITCH.width = source.width;
+  PITCH.halfLength = source.halfLength;
+  PITCH.halfWidth = source.halfWidth;
+  rebuildFormation();
+  return PITCH;
+}
+
+rebuildFormation();
 
 /** Formato tático usado pela IA do jogo (4-3-3). */
 export const TACTICS = {

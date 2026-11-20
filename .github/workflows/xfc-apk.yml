@@ -184,19 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.58
+          TAG=xfc-gameplay-v0.5.59
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.58 (versionCode 64), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.59 (versionCode 65), commit ${GITHUB_SHA}." \
             "" \
-            "Escudos REAIS das 211 seleções (os da galeria FootyLogos / football-logos.cc do HTML enviado). Os brasões gerados saíram." \
-            "No Kick Off as seleções se separam por LETRA (A–Z), não por América/Ásia/confederação." \
-            "Campo maior: 140×96 m, câmera mais recuada — gramado grandão como estádio real." \
-            "Detalhes: xfc-game/docs/v0.5.58.md.")
+            "Kick Off/amistoso voltam ao gramado 120×82 e à câmera antiga." \
+            "Carreira: campo 140×96 e câmera mais perto." \
+            "Elencos da Copa 2022 (Neymar/Messi/CR7), Skip na cerimônia, calção azul do Brasil e rede mais realista." \
+            "Detalhes: xfc-game/docs/v0.5.59.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — escudos reais, seleções por letra e campo grandão v0.5.58" \
+            gh release create "$TAG" --title "XFC 27 — campo da carreira, Copa 2022 e Skip v0.5.59" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — escudos reais, seleções por letra e campo grandão v0.5.58" \
+            gh release edit "$TAG" --title "XFC 27 — campo da carreira, Copa 2022 e Skip v0.5.59" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

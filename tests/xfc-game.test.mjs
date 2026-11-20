@@ -439,10 +439,11 @@ test('Copa inclui as 32 seleções de 2022 com XI nacional jogável', () => {
       `${team.name} traz números e notas de titulares válidos`);
     assert.ok(team.colors.primary && team.colors.secondary, `${team.name} tem cores de uniforme próprias`);
   }
-  // v0.5.50: elenco da seleção atualizado (Vinícius, Raphinha, Bruno Guimarães).
-  // A Copa continua com as 32 seleções de 2022, mas os nomes do Brasil são de hoje.
+  // v0.5.59: XI da Copa de 2022 (Neymar 10, Vinícius e Raphinha no ataque).
   assert.ok(getNationalTeam('brazil').players.some(player => player.name === 'Vinícius Júnior'),
-    'a seleção brasileira usa o elenco atual');
+    'Vinícius Júnior no ataque do Brasil 2022');
+  assert.ok(getNationalTeam('brazil').players.some(player => player.name === 'Neymar Jr'),
+    'Neymar é o 10 do Brasil');
   assert.ok(getNationalTeam('argentina').players.some(player => player.name === 'Lionel Messi'),
     'a Argentina usa nomes da geração de 2022');
 });

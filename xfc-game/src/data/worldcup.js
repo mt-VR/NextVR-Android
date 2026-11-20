@@ -53,24 +53,24 @@ export const NATIONAL_TEAMS = [
     ['Boulaye Dia', 9, 'ST', 78], ['Iliman Ndiaye', 13, 'LW', 77]
   ]),
   nation('netherlands', 'Países Baixos', 'nl', 4, { ATT: 84, MID: 84, DEF: 84 }, ['#f36c21', '#ffffff', '#21468b'], [
-    ['Bart Verbruggen', 23, 'GK', 82], ['Denzel Dumfries', 22, 'RB', 82], ['Jurrien Timber', 2, 'CB', 84],
-    ['Virgil van Dijk', 4, 'CB', 88], ['Nathan Aké', 5, 'LB', 82], ['Jerdy Schouten', 15, 'CDM', 81],
-    ['Frenkie de Jong', 21, 'CM', 87], ['Tijjani Reijnders', 14, 'CM', 85], ['Xavi Simons', 7, 'RW', 85],
-    ['Memphis Depay', 10, 'ST', 84], ['Cody Gakpo', 8, 'LW', 84]
+    ['Andries Noppert', 23, 'GK', 78], ['Denzel Dumfries', 22, 'RB', 82], ['Jurrien Timber', 2, 'CB', 80],
+    ['Virgil van Dijk', 4, 'CB', 88], ['Nathan Aké', 5, 'LB', 82], ['Frenkie de Jong', 21, 'CDM', 87],
+    ['Marten de Roon', 15, 'CM', 80], ['Steven Berghuis', 11, 'CM', 80], ['Steven Bergwijn', 7, 'RW', 80],
+    ['Memphis Depay', 10, 'ST', 84], ['Cody Gakpo', 8, 'LW', 82]
   ], [
-    ['Mark Flekken', 1, 'GK', 80], ['Micky van de Ven', 6, 'CB', 83], ['Matthijs de Ligt', 3, 'CB', 84],
-    ['Ryan Gravenberch', 18, 'CM', 83], ['Teun Koopmeiners', 20, 'CM', 82], ['Donyell Malen', 9, 'RW', 82],
+    ['Remko Pasveer', 1, 'GK', 76], ['Matthijs de Ligt', 3, 'CB', 84], ['Daley Blind', 17, 'LB', 80],
+    ['Teun Koopmeiners', 20, 'CM', 81], ['Ryan Gravenberch', 12, 'CM', 78], ['Donyell Malen', 18, 'RW', 80],
     ['Wout Weghorst', 19, 'ST', 79]
   ]),
   nation('england', 'Inglaterra', 'en', 4, { ATT: 86, MID: 85, DEF: 84 }, ['#f4f4f4', '#19366f', '#d23b4b'], [
-    ['Jordan Pickford', 1, 'GK', 84], ['Reece James', 2, 'RB', 84], ['John Stones', 5, 'CB', 84],
-    ['Marc Guéhi', 6, 'CB', 83], ['Myles Lewis-Skelly', 3, 'LB', 80], ['Declan Rice', 4, 'CDM', 87],
-    ['Jude Bellingham', 22, 'CM', 89], ['Cole Palmer', 8, 'CAM', 86], ['Bukayo Saka', 17, 'RW', 87],
-    ['Harry Kane', 9, 'ST', 90], ['Anthony Gordon', 10, 'LW', 83]
+    ['Jordan Pickford', 1, 'GK', 84], ['Kyle Walker', 2, 'RB', 84], ['John Stones', 5, 'CB', 85],
+    ['Harry Maguire', 6, 'CB', 82], ['Luke Shaw', 3, 'LB', 82], ['Declan Rice', 4, 'CDM', 86],
+    ['Jude Bellingham', 22, 'CM', 84], ['Jordan Henderson', 8, 'CM', 82], ['Bukayo Saka', 17, 'RW', 86],
+    ['Harry Kane', 9, 'ST', 90], ['Phil Foden', 20, 'LW', 86]
   ], [
-    ['Dean Henderson', 13, 'GK', 80], ['Trent Alexander-Arnold', 18, 'RB', 85], ['Ezri Konsa', 14, 'CB', 82],
-    ['Kobbie Mainoo', 19, 'CM', 82], ['Phil Foden', 20, 'CAM', 86], ['Marcus Rashford', 11, 'LW', 83],
-    ['Ollie Watkins', 21, 'ST', 83]
+    ['Nick Pope', 13, 'GK', 82], ['Trent Alexander-Arnold', 18, 'RB', 85], ['Eric Dier', 15, 'CB', 80],
+    ['Kalvin Phillips', 14, 'CM', 80], ['Mason Mount', 19, 'CAM', 83], ['Raheem Sterling', 10, 'LW', 85],
+    ['Marcus Rashford', 11, 'ST', 84]
   ]),
   nation('usa', 'Estados Unidos', 'us', 3, { ATT: 76, MID: 77, DEF: 75 }, ['#ffffff', '#1b3f8b', '#d9273f'], [
     ['Matt Turner', 1, 'GK', 77], ['Sergiño Dest', 2, 'RB', 78], ['Walker Zimmerman', 3, 'CB', 76],
@@ -124,9 +124,9 @@ export const NATIONAL_TEAMS = [
     ['Adrien Rabiot', 14, 'CM', 82], ['Antoine Griezmann', 7, 'CM', 87], ['Ousmane Dembélé', 11, 'RW', 85],
     ['Olivier Giroud', 9, 'ST', 84], ['Kylian Mbappé', 10, 'LW', 92]
   ], [
-    ['Mike Maignan', 16, 'GK', 85], ['Jules Koundé', 5, 'RB', 83], ['Ibrahima Konaté', 15, 'CB', 83],
-    ['Eduardo Camavinga', 6, 'CM', 84], ['Warren Zaïre-Emery', 18, 'CM', 82], ['Ousmane Dembélé', 11, 'RW', 85],
-    ['Marcus Thuram', 20, 'ST', 84]
+    ['Mike Maignan', 16, 'GK', 85], ['Benjamin Pavard', 2, 'RB', 80], ['Ibrahima Konaté', 24, 'CB', 81],
+    ['Youssouf Fofana', 13, 'CM', 80], ['Kingsley Coman', 20, 'RW', 84], ['Marcus Thuram', 26, 'ST', 82],
+    ['Randal Kolo Muani', 12, 'ST', 81]
   ]),
   nation('australia', 'Austrália', 'au', 3, { ATT: 74, MID: 73, DEF: 73 }, ['#08794a', '#f2cd31', '#ffffff'], [
     ['Mathew Ryan', 1, 'GK', 77], ['Milos Degenek', 2, 'RB', 74], ['Harry Souttar', 19, 'CB', 78],
@@ -152,9 +152,9 @@ export const NATIONAL_TEAMS = [
     ['Pedri', 26, 'CM', 86], ['Gavi', 9, 'CM', 83], ['Marco Asensio', 10, 'RW', 82],
     ['Álvaro Morata', 7, 'ST', 84], ['Ferran Torres', 11, 'LW', 83]
   ], [
-    ['David Raya', 1, 'GK', 84], ['Dani Carvajal', 20, 'RB', 84], ['Robin Le Normand', 3, 'CB', 84],
-    ['Martín Zubimendi', 6, 'CDM', 84], ['Fabián Ruiz', 8, 'CM', 84], ['Lamine Yamal', 19, 'RW', 85],
-    ['Nico Williams', 17, 'LW', 84]
+    ['David Raya', 1, 'GK', 80], ['César Azpilicueta', 2, 'RB', 80], ['Eric García', 3, 'CB', 78],
+    ['Koke', 8, 'CM', 82], ['Dani Olmo', 21, 'CAM', 84], ['Nico Williams', 12, 'LW', 80],
+    ['Ansu Fati', 25, 'ST', 80]
   ]),
   nation('costa-rica', 'Costa Rica', 'cr', 2, { ATT: 72, MID: 71, DEF: 73 }, ['#174a92', '#ffffff', '#d72839'], [
     ['Keylor Navas', 1, 'GK', 84], ['Keysher Fuller', 4, 'RB', 72], ['Óscar Duarte', 6, 'CB', 73],
@@ -203,17 +203,14 @@ export const NATIONAL_TEAMS = [
     ['Andrej Kramarić', 9, 'ST', 83], ['Ivan Perišić', 14, 'LW', 84]
   ]),
   nation('brazil', 'Brasil', 'br', 5, { ATT: 89, MID: 88, DEF: 85 }, ['#f6d61b', '#16733b', '#ffffff', '#246bd1', '#10274b'], [
-    // Elenco atual (v0.5.50): nomes de hoje no lugar da escalação de 2022.
-    ['Alisson', 1, 'GK', 89], ['Vanderson', 2, 'RB', 82], ['Marquinhos', 4, 'CB', 86],
-    ['Gabriel Magalhães', 3, 'CB', 85], ['Alex Sandro', 6, 'LB', 81], ['Bruno Guimarães', 5, 'CDM', 87],
-    ['Lucas Paquetá', 7, 'CM', 84], ['Raphinha', 11, 'RW', 88], ['Vinícius Júnior', 20, 'LW', 90],
-    // Neymar é o 10 da seleção (escopo aprovado): entra no XI no lugar de um
-    // dos atacantes gerados e usa o cabelo dele (moicano) no modelo 3D.
-    ['Rodrygo', 9, 'ST', 86], ['Neymar Jr', 10, 'LW', 89]
+    // Copa 2022 (pedido v0.5.59): Neymar 10, não elenco de clube.
+    ['Alisson', 1, 'GK', 89], ['Danilo', 2, 'RB', 82], ['Thiago Silva', 3, 'CB', 86],
+    ['Marquinhos', 4, 'CB', 87], ['Alex Sandro', 6, 'LB', 81], ['Casemiro', 5, 'CDM', 88],
+    ['Lucas Paquetá', 7, 'CM', 84], ['Neymar Jr', 10, 'CAM', 90], ['Raphinha', 11, 'RW', 83],
+    ['Richarlison', 9, 'ST', 82], ['Vinícius Júnior', 20, 'LW', 86]
   ], [
-    // Reservas da convocação: entram no lugar de quem sai, não no XI.
-    ['Matheus Cunha', 12, 'GK', 80], ['Danilo', 14, 'RB', 79], ['Éder Militão', 13, 'CB', 84],
-    ['Casemiro', 15, 'CDM', 82], ['André', 16, 'CDM', 80], ['Martinelli', 17, 'LW', 82], ['Endrick', 21, 'ST', 79]
+    ['Ederson', 23, 'GK', 88], ['Éder Militão', 14, 'CB', 84], ['Bruno Guimarães', 17, 'CDM', 82],
+    ['Fabinho', 15, 'CDM', 84], ['Antony', 19, 'RW', 81], ['Rodrygo', 21, 'ST', 82], ['Gabriel Jesus', 18, 'ST', 81]
   ]),
   nation('serbia', 'Sérvia', 'rs', 3, { ATT: 81, MID: 78, DEF: 75 }, ['#c9233b', '#173f8c', '#ffffff'], [
     ['Vanja Milinković-Savić', 23, 'GK', 80], ['Nikola Milenković', 4, 'RB', 80], ['Miloš Veljković', 5, 'CB', 77],

@@ -81,11 +81,11 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
   // v0.5.56: `match.js` ganhou uma linha que repassa `playerStyle` (visual
   // low-poly de PSP) para o modelo. Nada do gameplay, HUD ou controles mudou.
-  "src/match3d/match.js": "a11ad34bb6b2a5099ab30bfd5418cabebe50897afef0f888d2fb1ee5a3cd7fcb",
+  "src/match3d/match.js": "3a0624fc424e1a39e062690b8f8bf15887addb0ffe4985817efa81d89a62cc13",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).
-  "styles/match3d.css": "c12c0827de615ad7e661e156bb2677467d71bedb3fefb84305b0152df08064ba"
+  "styles/match3d.css": "c42cd8ec934dce0924dbe32bd8afd55fede5dc92d9adaaa7b7010ae098bafd20"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });
@@ -97,7 +97,7 @@ test('câmera de transmissão: fov fecha no lado de cima e não muda do lado de 
  const {broadcastCameraPose}=await import('../xfc-game/src/match3d/camera.js');
  const {PITCH}=await import('../xfc-game/src/match3d/constants.js');
  const mid=broadcastCameraPose({x:0,y:0,z:0},1,null);
- assert.equal(mid.position.x,0);assert.equal(mid.position.z,56);assert.equal(mid.fov,54);
+ assert.equal(mid.position.x,0);assert.equal(mid.position.z,45);assert.equal(mid.fov,54);
  const top=broadcastCameraPose({x:0,y:0,z:-PITCH.halfWidth},1,null);
  const near=broadcastCameraPose({x:0,y:0,z:PITCH.halfWidth},1,null);
  assert.ok(top.fov<mid.fov,'bola no lado de cima: a objetiva fecha');
@@ -106,7 +106,7 @@ test('câmera de transmissão: fov fecha no lado de cima e não muda do lado de 
  for(const z of [-34,-20,0,20,30]){
   const pose=broadcastCameraPose({x:-30,y:0,z},1,null);
   assert.equal(pose.position.x,-30,'a lente acompanha a bola em X');
-  assert.equal(pose.position.y,20,'a altura da lente não muda com a bola');
+  assert.equal(pose.position.y,16,'a altura da lente não muda com a bola');
  }
  assert.ok(broadcastCameraPose({x:0,y:0,z:-34},1,null).fov<=broadcastCameraPose({x:0,y:0,z:-20},1,null).fov,
   'quanto mais para cima, mais fechada a objetiva');

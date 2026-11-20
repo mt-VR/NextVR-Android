@@ -13,7 +13,7 @@ import { el, padButton } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg } from '../data/kits.js';
-import { nationColors } from '../data/nation-kits.js';
+import { nationColors, nationKits } from '../data/nation-kits.js';
 import { getNationalTeam, recordCampaignMatchResult } from '../data/worldcup.js';
 import {
   getCompetition,
@@ -40,14 +40,14 @@ const STAGE_HEIGHT = 720;
 const projection = new THREE.Vector3();
 
 const NATIONAL_COLORS = {
-  brazil: { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b' },
-  argentina: { primary: '#79c6e8', secondary: '#ffffff', trim: '#1a4f91', keeperPrimary: '#293444', keeperSecondary: '#f4c542' },
-  france: { primary: '#173c78', secondary: '#e6424a', trim: '#ffffff', keeperPrimary: '#d5b52e', keeperSecondary: '#222222' },
-  england: { primary: '#f4f4f4', secondary: '#19366f', trim: '#d23b4b', keeperPrimary: '#42a76b', keeperSecondary: '#173523' },
-  spain: { primary: '#d92332', secondary: '#f5ca31', trim: '#f4f4f4', keeperPrimary: '#2963bd', keeperSecondary: '#13264a' },
-  portugal: { primary: '#b82132', secondary: '#176b43', trim: '#f0c743', keeperPrimary: '#e0e3eb', keeperSecondary: '#343a47' },
-  germany: { primary: '#f3f3f3', secondary: '#222222', trim: '#d6323b', keeperPrimary: '#f0bd32', keeperSecondary: '#222222' },
-  italy: { primary: '#1566a5', secondary: '#f5f5f5', trim: '#1f8b58', keeperPrimary: '#e5d644', keeperSecondary: '#263238' }
+  brazil: { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b', shorts: '#183891', socks: '#ffffff' },
+  argentina: { primary: '#79c6e8', secondary: '#ffffff', trim: '#1a4f91', keeperPrimary: '#293444', keeperSecondary: '#f4c542', shorts: '#1a1a1a', socks: '#ffffff' },
+  france: { primary: '#173c78', secondary: '#e6424a', trim: '#ffffff', keeperPrimary: '#d5b52e', keeperSecondary: '#222222', shorts: '#f4f4f4', socks: '#e6424a' },
+  england: { primary: '#f4f4f4', secondary: '#19366f', trim: '#d23b4b', keeperPrimary: '#42a76b', keeperSecondary: '#173523', shorts: '#19366f', socks: '#f4f4f4' },
+  spain: { primary: '#d92332', secondary: '#f5ca31', trim: '#f4f4f4', keeperPrimary: '#2963bd', keeperSecondary: '#13264a', shorts: '#1a3d8f', socks: '#d92332' },
+  portugal: { primary: '#b82132', secondary: '#176b43', trim: '#f0c743', keeperPrimary: '#e0e3eb', keeperSecondary: '#343a47', shorts: '#176b43', socks: '#b82132' },
+  germany: { primary: '#f3f3f3', secondary: '#222222', trim: '#d6323b', keeperPrimary: '#f0bd32', keeperSecondary: '#222222', shorts: '#222222', socks: '#f3f3f3' },
+  italy: { primary: '#1566a5', secondary: '#f5f5f5', trim: '#1f8b58', keeperPrimary: '#e5d644', keeperSecondary: '#263238', shorts: '#f5f5f5', socks: '#1566a5' }
 };
 
 function playableNationalTeam(team) {
@@ -107,7 +107,7 @@ function playableNationalTeam(team) {
 }
 
 function resolvePlayableTeam(id) {
-  return getTeam(id) || playableNationalTeam(getNationalTeam(id)) || getTeam('fc-barcelona');
+  return getTeam(id) || playableNationalTeam(getNationalTeam(id)) || playableNationalTeam(getNationalTeam('brazil'));
 }
 
 /** Time escolhido no Kick Off, clube ou seleção, com as cores do uniforme. */
@@ -122,8 +122,12 @@ function kickoffSide(id, overrideColors) {
 }
 
 function kitForTeam(team, index = 0) {
-  if (team.isNationalTeam || team.id==='xfc-ut') {
-    return { name: `${team.name} Home`, colors: team.colors, pattern: 'solid' };
+  if (team.isNationalTeam) {
+    const kits = nationKits(team);
+    return kits[index] || kits[0];
+  }
+  if (team.id==='xfc-ut') {
+    return { name: `${team.name} Home`, colors: team.colors, pattern: 'solid', shorts: team.colors?.secondary, socks: team.colors?.secondary };
   }
   const kits = kitsOf(team.id);
   return kits[index] || kits[0];
@@ -366,7 +370,8 @@ export function playScreen(ctx, params = {}) {
       userSide,
       onEvent: handleEvent,
       gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:away.plan || ctx.state.profile.gamePlans?.[away.id]},
-      stadium: stadiumIndex
+      stadium: stadiumIndex,
+      largePitch: Boolean(careerClub)
     });
     hud = createHud({
       root: stageBox,
@@ -385,7 +390,12 @@ export function playScreen(ctx, params = {}) {
       onCharge:value=>match?.world.setShotCharge(value),
       onCommand: (name, payload) => {
         // Start/Options no controle abre o mesmo menu de pausa.
-        if (name === 'pause') { if (stage === 'live') showPause(); else if (stage === 'paused') resumeMatch(); return; }
+        if (name === 'pause') {
+          if (stage === 'entrance') { skipCeremony(); return; }
+          if (stage === 'live') showPause();
+          else if (stage === 'paused') resumeMatch();
+          return;
+        }
         if (paused || stage !== 'live') return;
         if (name === 'pass') kickSound(0.5);
         else if (name === 'lob') kickSound(0.65);
@@ -643,13 +653,29 @@ export function playScreen(ctx, params = {}) {
           )
         ),
         el('div', { class: 'entrance__steps' }, ...entranceSteps),
-        entranceCaption
+        entranceCaption,
+        el('button', {
+          class: 'entrance__skip',
+          type: 'button',
+          text: 'Skip',
+          'aria-label': 'Pular cerimônia',
+          onClick: event => {
+            event.stopPropagation();
+            skipCeremony();
+          }
+        })
       )
     );
     match?.world.setPaused(false);
     match?.engine.start();
     const started = match?.world.startEntrance?.({ duration: 3.6 });
     if (!started) beginLive();
+  }
+
+  /** Pula túnel, hino e alinhamento e vai direto ao apito. */
+  function skipCeremony() {
+    if (stage !== 'entrance') return;
+    match?.world.skipEntrance?.();
   }
 
   /**
@@ -1089,6 +1115,10 @@ export function playScreen(ctx, params = {}) {
         if (stage === 'paused') {
           if(pausePanel){pausePanel();return true;}
           resumeMatch();
+          return true;
+        }
+        if (stage === 'entrance') {
+          skipCeremony();
           return true;
         }
         if (stage === 'prematch') {

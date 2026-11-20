@@ -217,28 +217,30 @@ export function nationColors(team) {
   // `#f0f1f4` é o preenchimento antigo das 179 seleções geradas: não é uma
   // cor de camisa, é a ausência de cor.
   const generic = !existing || String(existing.primary || '').toLowerCase() === '#f0f1f4';
-  if (!generic) return existing;
+  if (!generic) return withShorts(team.id, existing);
   const [primary, secondary, trim, keeperPrimary, keeperSecondary] =
     NATION_KITS[team.id] || FALLBACK_KITS[hashId(team.id) % FALLBACK_KITS.length];
-  return { primary, secondary, trim, keeperPrimary, keeperSecondary };
+  return withShorts(team.id, { primary, secondary, trim, keeperPrimary, keeperSecondary });
 }
 
 /** Uniformes da seleção para o carrossel do Kick Off (casa e visitante). */
 export function nationKits(team) {
-  const colors = nationColors(team) || { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b' };
+  const colors = nationColors(team) || withShorts(team?.id, { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b' });
   const name = team?.name || 'Seleção';
+  const homeShorts = colors.shorts || '#183891';
+  const homeSocks = colors.socks || '#ffffff';
   return [
     {
       name: `${name} Home`,
-      colors: { primary: colors.primary, secondary: colors.secondary, trim: colors.trim },
+      colors: { primary: colors.primary, secondary: colors.secondary, trim: colors.trim, shorts: homeShorts, socks: homeSocks, keeperPrimary: colors.keeperPrimary, keeperSecondary: colors.keeperSecondary },
       pattern: 'solid',
-      shorts: colors.secondary,
-      socks: colors.secondary,
+      shorts: homeShorts,
+      socks: homeSocks,
       keeper: { primary: colors.keeperPrimary || '#f2c94c', secondary: colors.keeperSecondary || '#20232a' }
     },
     {
       name: `${name} Away`,
-      colors: { primary: colors.secondary, secondary: colors.primary, trim: colors.trim },
+      colors: { primary: colors.secondary, secondary: colors.primary, trim: colors.trim, shorts: colors.primary, socks: colors.primary, keeperPrimary: colors.keeperSecondary, keeperSecondary: colors.keeperPrimary },
       pattern: 'solid',
       shorts: colors.primary,
       socks: colors.primary,
@@ -248,3 +250,78 @@ export function nationKits(team) {
 }
 
 export const NATION_KIT_COLORS = NATION_KITS;
+
+/**
+ * Calção e meiões do uniforme de verdade — a camisa sozinha não basta.
+ * Brasil casa: amarelo + calção AZUL (nunca verde). Argentina 2022: calção preto.
+ */
+export const NATION_SHORTS = {
+  brazil: { shorts: '#183891', socks: '#ffffff' },
+  argentina: { shorts: '#1a1a1a', socks: '#ffffff' },
+  portugal: { shorts: '#176b43', socks: '#b82132' },
+  france: { shorts: '#f4f4f4', socks: '#e6424a' },
+  england: { shorts: '#19366f', socks: '#f4f4f4' },
+  spain: { shorts: '#1a3d8f', socks: '#d92332' },
+  germany: { shorts: '#222222', socks: '#f3f3f3' },
+  italy: { shorts: '#f5f5f5', socks: '#1566a5' },
+  netherlands: { shorts: '#f36c21', socks: '#f36c21' },
+  belgium: { shorts: '#d92735', socks: '#d92735' },
+  croatia: { shorts: '#ffffff', socks: '#d92738' },
+  uruguay: { shorts: '#17233f', socks: '#78c9e8' },
+  mexico: { shorts: '#087346', socks: '#ffffff' },
+  poland: { shorts: '#d6243b', socks: '#ffffff' },
+  usa: { shorts: '#1b3f8b', socks: '#d9273f' },
+  japan: { shorts: '#173b80', socks: '#173b80' },
+  'south-korea': { shorts: '#d9273c', socks: '#d9273c' },
+  morocco: { shorts: '#c82335', socks: '#c82335' },
+  senegal: { shorts: '#ffffff', socks: '#087b45' },
+  ghana: { shorts: '#d7263d', socks: '#d7263d' },
+  cameroon: { shorts: '#087748', socks: '#087748' },
+  switzerland: { shorts: '#e32035', socks: '#e32035' },
+  serbia: { shorts: '#173f8c', socks: '#c9233b' },
+  denmark: { shorts: '#ffffff', socks: '#d51d35' },
+  tunisia: { shorts: '#ffffff', socks: '#d32639' },
+  australia: { shorts: '#08794a', socks: '#f2cd31' },
+  wales: { shorts: '#d51d36', socks: '#d51d36' },
+  iran: { shorts: '#ffffff', socks: '#d92336' },
+  'saudi-arabia': { shorts: '#ffffff', socks: '#08784d' },
+  ecuador: { shorts: '#15499a', socks: '#d92732' },
+  qatar: { shorts: '#8a1538', socks: '#8a1538' },
+  'costa-rica': { shorts: '#174a92', socks: '#d72839' },
+  canada: { shorts: '#d92639', socks: '#d92639' },
+  chile: { shorts: '#1c3f7a', socks: '#d01b2c' },
+  colombia: { shorts: '#1c3f7a', socks: '#d01b2c' },
+  peru: { shorts: '#ffffff', socks: '#d01b2c' },
+  paraguay: { shorts: '#1c3f7a', socks: '#d01b2c' },
+  nigeria: { shorts: '#0a7a3d', socks: '#ffffff' },
+  egypt: { shorts: '#ffffff', socks: '#d01b2c' },
+  algeria: { shorts: '#0a7a3d', socks: '#ffffff' },
+  ireland: { shorts: '#ffffff', socks: '#0a7a3d' },
+  scotland: { shorts: '#1c3f7a', socks: '#1c3f7a' },
+  sweden: { shorts: '#1c3f7a', socks: '#f2d12c' },
+  norway: { shorts: '#ffffff', socks: '#d01b2c' },
+  ukraine: { shorts: '#1e6fd0', socks: '#f2d12c' }
+};
+
+function luminance(hex) {
+  const value = String(hex || '').replace('#', '');
+  if (value.length < 6) return 0.5;
+  const r = parseInt(value.slice(0, 2), 16) / 255;
+  const g = parseInt(value.slice(2, 4), 16) / 255;
+  const b = parseInt(value.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function defaultShorts(primary, secondary) {
+  if (luminance(primary) > 0.55) {
+    return luminance(secondary) > 0.55 ? '#1a2744' : secondary;
+  }
+  return '#f4f4f4';
+}
+
+function withShorts(id, colors) {
+  const extra = NATION_SHORTS[id];
+  const shorts = extra?.shorts || colors.shorts || defaultShorts(colors.primary, colors.secondary);
+  const socks = extra?.socks || colors.socks || (luminance(colors.primary) > 0.55 ? colors.primary : colors.secondary);
+  return { ...colors, shorts, socks };
+}
