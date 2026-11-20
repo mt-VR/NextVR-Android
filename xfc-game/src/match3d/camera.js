@@ -77,11 +77,11 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
  * `BROADCAST_CAMERA_LIMITS` é o teto do zoom "mais aberta" do menu de pausa:
  * sem ele, o `cameraZoom` de 1,2 levaria a lente para dentro da arquibancada.
  */
-const CAMERA_HEIGHT = 16;
+const CAMERA_HEIGHT = 20;
 /** Recuo da lente em relação ao eixo do campo (entre a lateral e o muro). */
-const CAMERA_Z = 45;
-const CAMERA_Z_MIN = 38;
-const CAMERA_Z_MAX = 52.5;
+const CAMERA_Z = 56;
+const CAMERA_Z_MIN = 46;
+const CAMERA_Z_MAX = 68;
 /** Distância em Z do alvo: define a inclinação (27° com a altura de 16 m). */
 const CAMERA_TARGET_AHEAD = 32;
 const CAMERA_FOV = 54;

@@ -2,7 +2,7 @@
 //
 // Usa o Chromium do projeto (@sparticuz/chromium, já dependência de teste):
 // não há biblioteca de SVG no Node e instalar uma exigiria rede. Rodar depois
-// de tools/generate-nation-crests.mjs.
+// de tools/import-nation-crests.mjs.
 //
 // Uso: node tools/rasterize-nation-crests.mjs
 import {readFileSync, writeFileSync} from 'node:fs';
@@ -37,7 +37,11 @@ try {
         image.onerror = reject;
         image.src = url;
       });
-      context.drawImage(image, 0, 0, 256, 256);
+      // Contain: o brasão não estica. Fundo transparente.
+      const scale = Math.min(256 / image.width, 256 / image.height);
+      const w = image.width * scale, h = image.height * scale;
+      context.clearRect(0, 0, 256, 256);
+      context.drawImage(image, (256 - w) / 2, (256 - h) / 2, w, h);
       URL.revokeObjectURL(url);
       out.push({flag: item.flag, data: canvas.toDataURL('image/png')});
     }

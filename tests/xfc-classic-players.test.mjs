@@ -97,7 +97,7 @@ test('câmera de transmissão: fov fecha no lado de cima e não muda do lado de 
  const {broadcastCameraPose}=await import('../xfc-game/src/match3d/camera.js');
  const {PITCH}=await import('../xfc-game/src/match3d/constants.js');
  const mid=broadcastCameraPose({x:0,y:0,z:0},1,null);
- assert.equal(mid.position.x,0);assert.equal(mid.position.z,45);assert.equal(mid.fov,54);
+ assert.equal(mid.position.x,0);assert.equal(mid.position.z,56);assert.equal(mid.fov,54);
  const top=broadcastCameraPose({x:0,y:0,z:-PITCH.halfWidth},1,null);
  const near=broadcastCameraPose({x:0,y:0,z:PITCH.halfWidth},1,null);
  assert.ok(top.fov<mid.fov,'bola no lado de cima: a objetiva fecha');
@@ -106,7 +106,7 @@ test('câmera de transmissão: fov fecha no lado de cima e não muda do lado de 
  for(const z of [-34,-20,0,20,30]){
   const pose=broadcastCameraPose({x:-30,y:0,z},1,null);
   assert.equal(pose.position.x,-30,'a lente acompanha a bola em X');
-  assert.equal(pose.position.y,16,'a altura da lente não muda com a bola');
+  assert.equal(pose.position.y,20,'a altura da lente não muda com a bola');
  }
  assert.ok(broadcastCameraPose({x:0,y:0,z:-34},1,null).fov<=broadcastCameraPose({x:0,y:0,z:-20},1,null).fov,
   'quanto mais para cima, mais fechada a objetiva');

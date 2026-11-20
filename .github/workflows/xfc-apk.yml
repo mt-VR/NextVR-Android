@@ -184,21 +184,19 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.57
+          TAG=xfc-gameplay-v0.5.58
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.57 (versionCode 63), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.58 (versionCode 64), commit ${GITHUB_SHA}." \
             "" \
-            "Queixo low-poly: a cabeça era esfera + tubo com offsets diferentes no osso, então ao virar o queixo ficava para trás. Agora a cabeça é um volume só, centrado no pivô, e gira em bloco." \
-            "Jogadores maiores (padrão 1,88–1,90 m) com canelas e coxas mais grossas, no low-poly e no moderno." \
-            "Tela de resultado no estilo EA FC: RESULTADO DA PARTIDA, CASA/FORA, placar grande e os escudos dos times. A tela existente foi a base — não foi refeita do zero." \
-            "Escudos de todas as 211 seleções da FIFA (brasões gerados com as cores da camisa) no Kick Off, HUD e resultado. Clubes continuam com os PNGs que já tínhamos." \
-            "Grama mais escura e saturada, com as faixas de corte em destaque. O verde claro de menta saiu." \
-            "Testes: xfc-low-poly, xfc-classic-players e xfc-game. Detalhes: xfc-game/docs/v0.5.57.md.")
+            "Escudos REAIS das 211 seleções (os da galeria FootyLogos / football-logos.cc do HTML enviado). Os brasões gerados saíram." \
+            "No Kick Off as seleções se separam por LETRA (A–Z), não por América/Ásia/confederação." \
+            "Campo maior: 140×96 m, câmera mais recuada — gramado grandão como estádio real." \
+            "Detalhes: xfc-game/docs/v0.5.58.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — queixo, jogadores maiores, resultado EA FC, escudos e grama v0.5.57" \
+            gh release create "$TAG" --title "XFC 27 — escudos reais, seleções por letra e campo grandão v0.5.58" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — queixo, jogadores maiores, resultado EA FC, escudos e grama v0.5.57" \
+            gh release edit "$TAG" --title "XFC 27 — escudos reais, seleções por letra e campo grandão v0.5.58" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

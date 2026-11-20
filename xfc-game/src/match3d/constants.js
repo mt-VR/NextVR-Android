@@ -4,13 +4,13 @@
 // se comportem como num campo de futebol: o jogador importado tem 1,75 m, a bola 22 cm
 // de diâmetro e o gol tem 7,32 x 2,44 m.
 
-// v0.5.52: 120×82 (era 112×74). Continua acima do oficial (105×68) para dar
-// a sensação de estádio grande e abrir espaço para o jogo pelas pontas.
+// v0.5.58: 140×96. O usuário pediu o gramado grandão como nos estádios reais.
+// Continua acima do oficial (105×68); as formações acompanham via FORMATION_SCALE.
 export const PITCH = {
-  length: 120,
-  width: 82,
-  halfLength: 60,
-  halfWidth: 41
+  length: 140,
+  width: 96,
+  halfLength: 70,
+  halfWidth: 48
 };
 
 export const GOAL = {
