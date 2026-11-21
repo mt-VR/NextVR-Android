@@ -335,6 +335,9 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     let chaserDistance = Infinity;
     for (const player of members()) {
       if (!player.active || player === owner || world.isUserControlled(player)) continue;
+      // Quem acabou de passar não vai buscar a própria bola: o companheiro
+      // precisa ter tempo de receber o toque.
+      if (player === ball.lastIntentionalTouch && (ball.flightTime || 0) < 0.7) continue;
       const d = distance(player.x, player.z, ball.position.x, ball.position.z);
       // O goleiro só busca a bola quando ela está perto do seu gol.
       const weight = player.isKeeper ? d * 2.2 : d;

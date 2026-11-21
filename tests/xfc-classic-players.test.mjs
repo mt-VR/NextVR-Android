@@ -79,9 +79,8 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
  const baseline={
   "src/match3d/hud.js": "43939e6083e8772dfaecd7f0f0ef23192c17e2ef80b6054a4f9c0ae3a8ea0285",
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
-  // v0.5.56: `match.js` ganhou uma linha que repassa `playerStyle` (visual
-  // low-poly de PSP) para o modelo. Nada do gameplay, HUD ou controles mudou.
-  "src/match3d/match.js": "c9bb148d039271e1f22f2cb38fd75b1595207b03eb4a4447a7d5740fd04138d8",
+  // v0.5.70: falta (barreira/corredor) e recepção do treino coletivo.
+  "src/match3d/match.js": "5eec6de6a279986813acbffeb919f84dbed87472ac25d486ddf27e0e869fbee8",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).

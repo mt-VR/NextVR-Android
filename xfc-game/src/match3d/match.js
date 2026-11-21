@@ -3324,7 +3324,9 @@ export function createMatch(options = {}) {
       const receiver = teams.home.players
         .filter(item => item.active)
         .map(item => ({ player: item, distance: Math.hypot(item.x - position.x, item.z - position.z) }))
-        .filter(item => item.distance < 1.18 && (Math.hypot(ball.state.velocity.x,ball.state.velocity.z)<12
+        .filter(item => item.distance < 1.18
+          && !(training.lastPassFrom && item.player.id === training.lastPassFrom && ball.state.flightTime < 0.55)
+          && (Math.hypot(ball.state.velocity.x,ball.state.velocity.z)<12
           || (ball.state.passTarget===item.player&&ball.state.flightTime<2.4&&position.y<.8&&item.distance<.85)))
         .sort((a, b) => a.distance - b.distance)[0]?.player;
       if (receiver) receiveTrainingBall(receiver);
