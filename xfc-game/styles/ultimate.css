@@ -894,7 +894,7 @@
 .ut.ut--reference{display:block;background:#02050b;}
 .ut--reference>.ut-header,.ut--reference>.ut-nav,.ut--reference>.ut-footer{display:none;}
 .ut--reference>.ut-main{position:absolute;inset:0;padding:0;overflow:hidden;}
-.ut-ref{position:absolute;inset:0;background-size:100% 100%;background-repeat:no-repeat;}
+.ut-ref{position:absolute;inset:0;background-size:100% 100%;background-repeat:no-repeat;background-position:center;image-rendering:-webkit-optimize-contrast;image-rendering:high-quality;transform:translateZ(0);}
 .ut-ref>*{position:absolute;box-sizing:border-box;}
 .ut-ref-sr{width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
 .ut-ref-hit{border:1px solid transparent;background:transparent;color:transparent;cursor:pointer;border-radius:5px;}

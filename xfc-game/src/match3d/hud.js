@@ -25,6 +25,12 @@ function abbreviationOf(team) {
   return clean.slice(0, 3).toUpperCase() || '???';
 }
 
+function setEjection(node, count) {
+  const n = Math.max(0, Number(count) || 0);
+  node.hidden = n === 0;
+  node.querySelector('.hud__sc-ejection-count').textContent = n > 1 ? `×${n}` : '';
+}
+
 function teamMark(team) {
   if (team?.crest?.startsWith('assets/')) {
     return el('img', { class: 'hud__crest', src: team.crest, alt: `Escudo do ${team.name}` });
@@ -34,7 +40,8 @@ function teamMark(team) {
   );
 }
 
-export function createHud({ root, home, away, userSide = 'home', onSetPieceChange = () => {} }) {
+export function createHud({ root, home, away, userSide = 'home', careerRating = false, onSetPieceChange = () => {}, stageBox = null }) {
+  const spanishLeague = home?.country === 'Espanha' && away?.country === 'Espanha';
   const homeCrest = teamMark(home);
   const awayCrest = teamMark(away);
   const homeScore = el('b', { class: 'hud__score', text: '0' });
@@ -65,12 +72,47 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
     teamCards(away, awayYellowCards, awayRedCards, 'away')
   );
 
+  // Expulsão: um cartão vermelho aparece EMBAIXO do time que perdeu o jogador.
+  const ejectionChip = side => el('span', { class: `hud__sc-ejection hud__sc-ejection--${side}`, hidden: true, 'aria-label': 'Jogador expulso' },
+    el('i', { class: 'hud__sc-ejection-card' }),
+    el('b', { class: 'hud__sc-ejection-count', text: '' })
+  );
+  const homeEjection = ejectionChip('home');
+  const awayEjection = ejectionChip('away');
+
+  // Nota AO VIVO do atleta (só no modo carreira de jogador).
+  const ratingValue = el('b', { class: 'hud__rating-value', text: '6.0' });
+  const ratingFill = el('i', { class: 'hud__rating-fill' });
+  const ratingBadge = el('div', { class: 'hud__rating', 'aria-label': 'Nota do jogador na partida' },
+    el('span', { class: 'hud__rating-label', text: 'NOTA' }),
+    ratingValue,
+    el('div', { class: 'hud__rating-bar' }, ratingFill),
+    el('span', { class: 'hud__rating-scale', text: '0–10' })
+  );
+
+  const addedChip = el('span', { class: 'laliga-board__added', hidden: true, text: '' });
   // Mesmos dados nas duas apresentações: transmissão e faixa escura da pausa.
-  const scoreboard = el('div', { class: 'hud__scoreboard' },
+  // Clássico espanhol: a foto do print, com gols/relógio/siglas ao vivo por cima.
+  const scoreboard = spanishLeague
+    ? el('div', { class: 'hud__scoreboard hud__scoreboard--laliga' },
+        el('div', { class: 'laliga-board hud__sc-main', 'aria-label': 'Placar LaLiga' },
+          el('img', { class: 'laliga-board__print', src: 'assets/hud/laliga-print.png', alt: '' }),
+          el('span', { class: 'laliga-board__name hud__team laliga-board__home', text: abbreviationOf(home) }),
+          el('span', { class: 'laliga-board__goals laliga-board__home-goals' }, homeScore),
+          addedChip,
+          clock,
+          el('span', { class: 'laliga-board__name hud__team laliga-board__away', text: abbreviationOf(away) }),
+          el('span', { class: 'laliga-board__goals laliga-board__away-goals' }, awayScore),
+          halfLabel
+        ),
+        possessionBar,
+        discipline
+      )
+    : el('div', { class: 'hud__scoreboard' },
     el('div', { class: 'hud__sc-main' },
-      el('div',{class:'hud__sc-wing hud__sc-wing--home'},homeCrest,el('span',{class:'hud__team',text:abbreviationOf(home)})),
+      el('div',{class:'hud__sc-wing hud__sc-wing--home'},homeCrest,el('span',{class:'hud__team',text:abbreviationOf(home)}),homeEjection),
       el('div',{class:'hud__sc-score'},homeScore,el('span',{class:'hud__dash',text:'-'}),awayScore),
-      el('div',{class:'hud__sc-wing hud__sc-wing--away'},el('span',{class:'hud__team',text:abbreviationOf(away)}),awayCrest),
+      el('div',{class:'hud__sc-wing hud__sc-wing--away'},el('span',{class:'hud__team',text:abbreviationOf(away)}),awayCrest,awayEjection),
       clock, halfLabel
     ),
     el('div', { class: 'hud__sc-foot' },
@@ -117,14 +159,6 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
     )
   );
 
-  const tagName = el('span', { class: 'hud__tag-name', text: '' });
-  const tag = el('div', { class: 'hud__tag' },
-    el('span', { class: 'hud__tag-bar' }),
-    tagName
-  );
-
-  // Etiquetas de nome sobre a cabeça de TODOS os jogadores (não só o controlado).
-  const nameTagsLayer = el('div', { class: 'hud__tags-layer' });
 
   const radarCanvas = el('canvas', { class: 'hud__radar', width: 208, height: 132 });
   const radar = el('div', { class: 'hud__radar-wrap' }, radarCanvas);
@@ -303,19 +337,17 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
     scoreboard,
     playerChip,
     foeChip,
-    tag,
-    nameTagsLayer,
     feed,
     radar,
     banner,
-    setPiecePanel
+    setPiecePanel,
+    careerRating ? ratingBadge : null
   );
   root.appendChild(node);
 
   const context = radarCanvas.getContext('2d');
   let lastChipId = null;
   let lastFoeId = null;
-  const nameTagEls = new Map(); // player.id → { el, x, y }
 
   function drawRadar(players, ball, controlled) {
     const width = radarCanvas.width;
@@ -438,8 +470,18 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
       homeScore.textContent = String(snapshot.score[0]);
       awayScore.textContent = String(snapshot.score[1]);
       clock.textContent = (snapshot.display||"0'00").replace("'",':');
+      const extra = Number(snapshot.added) || 0;
+      addedChip.hidden = extra <= 0;
+      addedChip.textContent = extra > 0 ? `+${extra}` : '';
+      // Prorrogação tem dois tempos extras: 1ºT/2ºT viram 3ºT/4ºT (105'/120'),
+      // senão o relógio chegava a 105 mostrando "2ºT" e parecia bug.
       const half = snapshot.half === 1 ? '1ºT' : snapshot.half === 2 ? '2ºT' : '';
-      const halfText = snapshot.phase === 'halftime' ? 'INTERVALO' : snapshot.phase === 'fulltime' ? 'FIM DE JOGO' : half;
+      const extraHalf = snapshot.extra === 'extra1' ? '3ºT' : snapshot.extra === 'extra2' ? '4ºT' : '';
+      const deciding = snapshot.extra ? extraHalf : half;
+      const halfText = snapshot.phase === 'halftime' ? 'INTERVALO'
+        : snapshot.phase === 'fulltime' ? 'FIM DE JOGO'
+        : snapshot.phase === 'etbreak' ? 'INTERVALO'
+        : deciding || half;
       if (halfLabel.textContent !== halfText) halfLabel.textContent = halfText;
       const poss = Array.isArray(snapshot.poss) ? snapshot.poss : [50, 50];
       possFill.style.width = `${Math.max(0, Math.min(100, poss[0]))}%`;
@@ -450,6 +492,8 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
       homeRedCards.textContent = String(cards.home?.red ?? 0);
       awayYellowCards.textContent = String(cards.away?.yellow ?? 0);
       awayRedCards.textContent = String(cards.away?.red ?? 0);
+      setEjection(homeEjection, cards.home?.red ?? 0);
+      setEjection(awayEjection, cards.away?.red ?? 0);
 
       const restart = snapshot.restart;
       const analysis = restart?.analysis;
@@ -496,56 +540,33 @@ export function createHud({ root, home, away, userSide = 'home', onSetPieceChang
       paintChip(focusPlayer);
       paintFoe(nearestOpponent(players, ball, player));
 
-      // Tags de nome para TODOS os jogadores ativos
-      for (const p of players || []) {
-        if (!p.active) continue;
-        if (!p.visible) {
-          const existing = nameTagEls.get(p.id);
-          if (existing) {
-            existing.el.classList.remove('is-visible');
-          }
-          continue;
-        }
-        let entry = nameTagEls.get(p.id);
-        if (!entry) {
-          const tagEl = el('div', { class: 'hud__nametag' },
-            el('span', { class: 'hud__nametag-num', text: String(p.number) }),
-            el('span', { class: 'hud__nametag-name', text: String(p.name).toUpperCase() })
-          );
-          entry = { el: tagEl, x: 0, y: 0 };
-          nameTagEls.set(p.id, entry);
-          nameTagsLayer.appendChild(tagEl);
-        }
-        const isControlled = controlled?.player && p.id === controlled.player.id;
-        const isScorer = goalScorer && p.id === goalScorer.id;
-        entry.el.classList.toggle('is-controlled', !!isControlled);
-        entry.el.classList.toggle('is-scorer', !!isScorer);
-        entry.el.classList.add('is-visible');
-        entry.el.style.left = `${p.x}px`;
-        entry.el.style.top = `${p.y}px`;
+    },
+    /**
+     * Modo console: com controle conectado o HUD fica limpo — placar e pause.
+     * O radar, o cartão do jogador e os avisos de toque somem (o controle já
+     * mostra tudo no próprio aparelho), e o rodapé ganha a legenda dos botões.
+     */
+    setPadMode(connected, family = 'generic') {
+      const on = Boolean(connected);
+      node.classList.toggle('hud--gamepad', on);
+      stageBox?.classList.toggle('play--gamepad', on);
+      if (stageBox) {
+        const legend = family === 'playstation'
+          ? '✕ passe · △ chute · □ enfiada · ○ carrinho · R2 correr · OPTIONS pausar'
+          : family === 'xbox'
+            ? 'A passe · Y chute · X enfiada · B carrinho · RT correr · MENU pausar'
+            : 'A passe · Y chute · X enfiada · B carrinho · RT correr · START pausar';
+        stageBox.dataset.padLegend = legend;
       }
-      // Remove tags de jogadores inativos
-      for (const [id, entry] of nameTagEls) {
-        const stillActive = (players || []).some(p => p.id === id && p.active && p.visible);
-        if (!stillActive) {
-          entry.el.remove();
-          nameTagEls.delete(id);
-        }
-      }
-
-      // Tag sob a cabeça do controlado; durante o gol acompanha o autor.
-      const focusProjected = goalScorer
-        ? (players || []).find(item => item.id === goalScorer.id)
-        : controlled;
-      if (focusProjected?.visible && focusPlayer) {
-        tagName.textContent = String(focusPlayer.name).toUpperCase();
-        tag.style.left = `${focusProjected.x}px`;
-        tag.style.top = `${focusProjected.y}px`;
-        tag.classList.toggle('is-goal-focus', Boolean(goalScorer));
-        tag.classList.add('is-visible');
-      } else {
-        tag.classList.remove('is-visible', 'is-goal-focus');
-      }
+    },
+    /** Atualiza a nota AO VIVO (0–10) do atleta da carreira. */
+    setRating(value) {
+      if (!careerRating) return;
+      const v = Math.max(0, Math.min(10, Number(value) || 0));
+      ratingValue.textContent = v.toFixed(1);
+      ratingFill.style.width = `${v * 10}%`;
+      ratingBadge.classList.toggle('is-high', v >= 8);
+      ratingBadge.classList.toggle('is-low', v < 5);
     },
     /** Mostra um aviso grande (gol, cartão, intervalo). */
     showBanner(text, kind = 'info', duration = 2200) {

@@ -155,6 +155,41 @@ export function kickSound(strength = 0.6) {
   osc.stop(now + 0.18);
 }
 
+/** Rede tremendo no gol (impacto na malha). speed ~ m/s da bola. */
+export function netRattle(speed = 16) {
+  const audio = ac();
+  if (!audio) return;
+  const now = audio.currentTime;
+  const duration = 0.55 + Math.min(0.7, (Number(speed) || 16) / 40);
+  const bufferSize = Math.floor(audio.sampleRate * duration);
+  const buffer = audio.createBuffer(1, bufferSize, audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i += 1) {
+    const fall = 1 - i / bufferSize;
+    data[i] = (Math.random() * 2 - 1) * fall * fall;
+  }
+  const noise = audio.createBufferSource();
+  noise.buffer = buffer;
+  const band = audio.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.value = 1400;
+  band.Q.value = 3.2;
+  const high = audio.createBiquadFilter();
+  high.type = 'highpass';
+  high.frequency.value = 700;
+  const gain = audio.createGain();
+  const peak = 0.16 + Math.min(0.22, (Number(speed) || 16) / 90);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(peak, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  noise.connect(high);
+  high.connect(band);
+  band.connect(gain);
+  gain.connect(audio.destination);
+  noise.start(now);
+  noise.stop(now + duration);
+}
+
 /** Clique curto de interface. */
 export function uiClick() {
   const audio = ac();

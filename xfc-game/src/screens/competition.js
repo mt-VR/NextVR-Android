@@ -316,10 +316,22 @@ export function competitionScreen(ctx, params = {}) {
   const layout = LAYOUT[competition.id] || LAYOUT['uefa-champions-league'];
   const menuItems = MENUS[competition.id] || MENUS['uefa-champions-league'];
   const returnTo = params.returnTo || 'modes';
+  // Aberto pela carreira: voltar retorna às Competições da carreira, sem cair
+  // no menu de modos.
+  const returnHome = returnTo === 'career'
+    ? () => ctx.go('career', {kind: params.kind || 'player', view: 'competitions'})
+    : () => ctx.go(returnTo);
   const stadium = STADIUMS[competition.stadiumIndex] || STADIUMS[0];
   const baseURI = globalThis.document?.baseURI || 'about:blank';
   let panel = PANEL_IDS.has(params.panel) ? params.panel : 'home';
   let tournament = tournamentOf(ctx, competition.id);
+  // Carreira: o torneio já nasce com o clube do atleta no pote, em vez de o
+  // usuário escolher de novo um time que ele não dirige.
+  const careerClubId = returnTo === 'career' && params.careerClubId ? params.careerClubId : null;
+  if (!tournament && careerClubId && competition.pool.includes(careerClubId)) {
+    tournament = createTournament(competition.id, { teamId: careerClubId, random: Math.random });
+    storeTournament(ctx, tournament);
+  }
   if (tournament) simulateRound(tournament, { random: Math.random });
 
   const root = el('div', {
@@ -370,10 +382,10 @@ export function competitionScreen(ctx, params = {}) {
         else if(i===2)ctx.go('customise',{returnTo:'competition',returnParams:{competitionId:competition.id,returnTo}});
         else if(i===3)show('scorers');
         else if(i===4)show('gallery');
-        else ctx.go(returnTo);
+        else returnHome();
       }
     },el('span',{class:'ref-sr',text:label}))));
-    for(const [label,left,action]of [['Selecionar','2.8%',()=>show('play')],['Voltar','14.2%',()=>ctx.go(returnTo)]])reference.append(el('button',{type:'button',class:'comp__reference-button','aria-label':label,style:{left,top:'92%',width:'11%',height:'7%'},onClick:action}));
+    for(const [label,left,action]of [['Selecionar','2.8%',()=>show('play')],['Voltar','14.2%',()=>returnHome()]])reference.append(el('button',{type:'button',class:'comp__reference-button','aria-label':label,style:{left,top:'92%',width:'11%',height:'7%'},onClick:action}));
     reference.append(el('small',{class:'comp__edition-note',text:competition.tagline+' · edição XFC'}));
     artboard.append(reference);
   }
@@ -423,10 +435,10 @@ export function competitionScreen(ctx, params = {}) {
         class: 'comp__menu-item comp__menu-item--back',
         type: 'button',
         dataset: { panel: 'back' },
-        onClick: () => ctx.go(returnTo)
+        onClick: returnHome
       },
         iconEl('back'),
-        el('span', { class: 'comp__menu-label', text: returnTo === 'menu' ? 'Voltar ao Menu' : 'Voltar aos Modos' })
+        el('span', { class: 'comp__menu-label', text: returnTo === 'menu' ? 'Voltar ao Menu' : returnTo === 'career' ? 'Voltar à Carreira' : 'Voltar aos Modos' })
       )
     );
   }
@@ -583,7 +595,7 @@ export function competitionScreen(ctx, params = {}) {
       el('button', {
         class: 'comp__hint',
         type: 'button',
-        onClick: () => (panel === 'home' ? ctx.go(returnTo) : show('home'))
+        onClick: () => (panel === 'home' ? returnHome() : show('home'))
       },
         el('span', { class: 'comp__hint-key', text: '✕' }),
         el('span', { text: panel === 'home' ? 'Voltar' : 'Início' })
@@ -1076,6 +1088,38 @@ export function competitionScreen(ctx, params = {}) {
 
   /* ----------------------------------------------------------------- final --- */
 
+  /**
+   * Abre a cutscene de conquista com os dados do título. A cena precisa do
+   * clube (cores/escudo) e do herói; em torneio de clube, o capitão do elenco.
+   */
+  function watchTrophyCinematic(state, championTeam) {
+    const clubId = championTeam?.clubId || tournament.userTeamId;
+    const roster = championTeam?.roster || championTeam?.players || [];
+    const captain = roster.find(player => player.position !== 'GK') || roster[0] || null;
+    ctx.go('trophy', {
+      returnTo: 'competition',
+      returnParams: { competitionId: competition.id },
+      event: {
+        title: `${competition.name.toUpperCase()} ${competition.year}`,
+        competition: competition.name,
+        competitionId: competition.id,
+        clubId,
+        clubName: championTeam?.name || competitionTeamName(tournament.userTeamId),
+        season: competition.year,
+        colors: championTeam?.colors || competitionTeam(tournament.userTeamId)?.colors || null,
+        kit: championTeam?.colors ? {
+          primary: championTeam.colors.primary, secondary: championTeam.colors.secondary,
+          shorts: championTeam.colors.secondary, socks: championTeam.colors.secondary
+        } : null,
+        squadSize: 5,
+        player: captain ? {
+          name: captain.name, number: captain.number ?? 10,
+          appearance: captain.appearance || null
+        } : null
+      }
+    });
+  }
+
   function finalPanel() {
     const finalFixture = tournament.fixtures.find(fixture => fixture.stage === 'final');
     const champion = tournament.champion ? competitionTeam(tournament.champion) : null;
@@ -1118,6 +1162,11 @@ export function competitionScreen(ctx, params = {}) {
           el('p', { class: 'comp__panel-copy', text: tournament.champion === tournament.userTeamId
             ? 'Você levantou a taça. Comece um novo sorteio para defender o título.'
             : 'O campeonato terminou. Faça um novo sorteio e tente o título.' }),
+          // Quem levantou a taça ganha a comemoração 3D (e pode rever a cena).
+          tournament.champion === tournament.userTeamId && el('button', {
+            class: 'comp__cta comp__cta--play', type: 'button',
+            onClick: () => watchTrophyCinematic(tournament, champion)
+          }, 'VER A COMEMORAÇÃO  🏆'),
           el('button', {
             class: 'comp__ghost', type: 'button',
             onClick: () => startNewTournament(tournament.userTeamId)
@@ -1194,7 +1243,7 @@ export function competitionScreen(ctx, params = {}) {
           show('home');
           return true;
         }
-        ctx.go(returnTo);
+        returnHome();
         return true;
       }
       return false;

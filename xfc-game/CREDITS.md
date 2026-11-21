@@ -196,3 +196,90 @@ sobre botões DOM. Origem e processo em `assets/ui/pause/CREDITS.md`. Campo e
 placar não são imagens estáticas: preservam a partida/dados reais. O placar ao
 vivo segue `IMG_20261111_001747.jpg` em DOM/CSS (escudos existentes e siglas
 variáveis); na pausa usa a faixa preta da segunda referência.
+
+## Ajustes v0.5.35
+
+- `assets/ui/season/backdrops/*.jpg`: derivados das mesmas quatro artes de
+  carreira fornecidas pelo usuário; extensão das colunas de borda para preencher
+  telas largas sem cortar controles, repetir texto ou deformar atletas. Processo
+  reproduzível em `tools/career-backdrops.mjs`. Mesmos direitos das artes originais.
+- `footballer.glb`: reprocessado a partir do mesmo arquivo Micah CC0 fixado no
+  manifest. Simplificação menos agressiva (.42/.001), sem substituir corpo/rig.
+  Normais suaves e mechas leves são adaptações locais; não são escaneamentos,
+  cabelo capturado ou modelos fotorrealistas licenciados de terceiros.
+
+## Correção v0.5.36
+
+Os derivados `season/backdrops` e seu gerador foram removidos após rejeição do
+preenchimento lateral. As quatro PNG originais são apresentadas diretamente em
+todo o quadro, com expansão horizontal autorizada pelo usuário. Sem imagem nova,
+recorte, blur ou alteração de autoria/licença.
+
+## Jogadores clássicos — v0.5.37
+
+Direção visual baseada SOMENTE nos atletas das capturas fornecidas pelo usuário:
+`Screenshot_2026-11-09-12-24-38-173_com.igpsp.jpg`,
+`Screenshot_2026-11-09-12-44-59-089_com.igpsp.jpg` e
+`Screenshot_2026-11-09-12-47-08-655_com.igpsp.jpg`.
+Não foram extraídos/embutidos modelos, texturas, HUD, anúncios ou controles de
+Bomba Patch/PES/emulador. As capturas não viraram assets do jogo.
+
+A base continua derivada do Micah CC0 creditado no manifest; reotimização por
+`tools/classic-footballer.mjs`, texturas difusas reduzidas e rig/UVs preservados.
+Cortes sólidos em `classic-player.js` são geometria local autoral; variações de
+rosto são deformações locais, não escaneamentos de atletas reais. O arquivo
+`hair-fibers.js` da tentativa de realismo anterior foi retirado. As marcas dos
+uniformes existentes continuam com a procedência já documentada.
+
+## Laboratório experimental — v0.5.38
+
+Geometrias de cabelo em `hair-lab.js` são construções procedurais locais em
+famílias diferentes (mechas, cordões, cachos, cristas, tufos e topo plano), com
+suporte recortado da cabeça CC0 existente. As luvas derivam da geometria das mãos
+e dos pesos desse mesmo modelo; munhequeiras são volumes locais ajustados ao
+pulso. Nenhum asset externo novo, extração de PES ou alteração de licença.
+Protótipos não aprovados como acabamento artístico final.
+
+## Apresentações da carreira — v0.5.39
+
+Palco do CT/sala de imprensa, móveis, contrato, caneta, camisa de apresentação,
+câmeras/fotógrafos e poses de mãos fechadas são geometrias procedurais locais.
+Reutilizam o ator CC0 já creditado, as cores/escudos e os uniformes existentes
+no projeto. Nenhum vídeo, mocap, modelo ou textura de outro jogo foi extraído.
+As mãos de preensão são específicas da cena; o rig e o GLB das partidas não
+foram alterados. Acabamento estilizado ainda em evolução.
+
+## Atualização de carreira e marca — v0.5.40
+
+- Entrada e ícone fornecidos pelo usuário, utilizados diretamente (sem geração
+  ou redesenho). Entrada: `assets/brand/launch-xfc27.png`, SHA256
+  `67bcab1206e7ec23cf422bbefa0a35043f8c30b10659025f912df0891c6e927d`.
+  Original do ícone: `../design/brand/xfc27-icon-original.png`, SHA256
+  `3a3dec6cb59d28fd2ecabf558bd046864eab24edd6d5725df3e188803ef2ae0c`.
+  Recorte, padding proporcional e densidades: `tools/prepare-brand.py`.
+  Não foi inferida licença pública/CC0 para essas imagens fornecidas.
+- Referência de moicano enviada pelo usuário: somente referência visual;
+  geometria procedural própria, sem extrair malha/textura do jogo mostrado.
+  Ragnarok é interpretação independente, não asset oficial do Neymar.
+- Mãos cinematográficas, textura procedural de materiais, foco por profundidade
+  e aquecimento: código/geometria do projeto; GLB Micah CC0 e sua licença
+  permanecem inalterados. Juntas digitais são locais à apresentação.
+
+## Jogabilidade, replay e carreira — v0.5.41
+
+Passe direcional, proteção de bola parada, câmera Pro, nota ao vivo, replay
+automático, indicador de expulsão, painel de espectador e o editor rolável são
+código local do projeto. Nenhum modelo, textura, vídeo, mocap, som, captura de
+replay ou asset de outro jogo foi adicionado. O GLB Micah CC0, o rig de 22 ossos,
+as artes de entrada/ícone enviadas e os quatro menus de referência permanecem
+inalterados; a rede do gol usa a física procedural já existente. Sem nova
+aprovação de acabamento artístico ou licença inferida.
+
+## Corrida, replay e cabelo — v0.5.42
+
+Ciclo de corrida, câmera do replay e gatilhos automáticos são código local.
+O moicano de crista foi REMOVIDO do catálogo (pedido do usuário); o moicano da
+referência continua sendo geometria procedural própria, sem extrair malha ou
+textura do jogo mostrado. Nenhum asset externo novo, nenhuma captura de vídeo ou
+mocap. GLB Micah CC0, rig de 22 ossos, artes enviadas e menus permanecem
+inalterados; sem nova aprovação artística.

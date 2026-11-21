@@ -2,13 +2,17 @@ package com.xfesports.xfc;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
 import android.content.res.AssetManager;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -33,6 +37,8 @@ public class MainActivity extends Activity {
     private static final String ASSET_ROOT = "game";
 
     private WebView webView;
+    private ValueCallback<Uri[]> filePathCallback;
+    private static final int FILE_CHOOSER = 4101;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -52,12 +58,30 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(false);
+        settings.setAllowContentAccess(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
 
         webView.setWebViewClient(new AssetClient(getAssets()));
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                    FileChooserParams params) {
+                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                filePathCallback = callback;
+                Intent intent = params != null ? params.createIntent() : new Intent(Intent.ACTION_GET_CONTENT);
+                intent.setType("image/*");
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                try {
+                    startActivityForResult(Intent.createChooser(intent, "Galeria"), FILE_CHOOSER);
+                } catch (Exception error) {
+                    filePathCallback = null;
+                    return false;
+                }
+                return true;
+            }
+        });
         setContentView(webView);
         hideSystemBars();
         webView.loadUrl(ORIGIN + "index.html");
@@ -80,6 +104,19 @@ public class MainActivity extends Activity {
         if (hasFocus) {
             hideSystemBars();
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER) {
+            Uri[] result = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+            if (filePathCallback != null) {
+                filePathCallback.onReceiveValue(result);
+                filePathCallback = null;
+            }
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override

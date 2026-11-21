@@ -5,6 +5,7 @@
 
 import { THREE, canvasTexture, softShadowTexture } from './engine.js';
 import { createAnimationController, rigFromModel } from './animation.js';
+import { anthemMouth, anthemSway } from './prematch.js';
 
 const SKIN_TONES = [0xf0c8a0, 0xd9a066, 0xb87a4a, 0x8d5a34, 0x6b4226, 0xf5d9b8];
 const HAIR_COLORS = [0x1b1310, 0x2e2018, 0x4a3222, 0x6b4a2c, 0x8f6a3c, 0xd8c08a, 0x2b2b2b];
@@ -252,12 +253,14 @@ function buildStylizedFace(head, { lowDetail = false, skinTone = 0xd9a066 } = {}
   }
 
   const mouth = new THREE.Mesh(eyeball, lip);
+  mouth.name = 'xfc-player-mouth';
   mouth.position.set(0, -0.0495, 0.0708);
   mouth.scale.set(0.0168, 0.0052, 0.0052);
   group.add(mouth);
 
   if (!lowDetail) {
     const lowerLip = new THREE.Mesh(eyeball, new THREE.MeshLambertMaterial({ color: 0xa9584a }));
+    lowerLip.name = 'xfc-player-lower-lip';
     lowerLip.position.set(0, -0.0552, 0.0698);
     lowerLip.scale.set(0.0144, 0.0036, 0.0044);
     group.add(lowerLip);
@@ -1007,7 +1010,7 @@ function buildHair(style, hairMaterial) {
  * @param {string} [options.photo] retrato do atleta (os jogadores reais)
  * @param {string} [options.hairStyle] penteado (short, curly, afro, mohawk, neymar, side, bob, bald)
  * @param {boolean} [options.stylized] rosto 3D (olhos, sobrancelhas, boca) — padrão para todo o elenco
- * @param {number} [options.heightScale] variação de altura (0.94–1.07)
+ * @param {number} [options.heightScale] variação de altura (0.98–1.07)
  */
 export function createPlayer3D(options = {}) {
   const {
@@ -1023,6 +1026,7 @@ export function createPlayer3D(options = {}) {
     skinTone = SKIN_TONES[0],
     hairColor = HAIR_COLORS[0],
     hairStyle = 'short',
+    bootColor = '#171b20',
     heightScale = 1,
     photo = null,
     simplified = false,
@@ -1080,8 +1084,8 @@ export function createPlayer3D(options = {}) {
   const socksMaterial = new THREE.MeshLambertMaterial({ color: accent });
   const sockBandMaterial = new THREE.MeshLambertMaterial({ color: 0xf4f6f8 });
   const bootMaterial = lowDetail
-    ? new THREE.MeshLambertMaterial({ color: 0x171b20 })
-    : new THREE.MeshPhongMaterial({ color: 0x171b20, specular: 0x50545a, shininess: 28 });
+    ? new THREE.MeshLambertMaterial({ color: bootColor })
+    : new THREE.MeshPhongMaterial({ color: bootColor, specular: 0x50545a, shininess: 28 });
   const soleMaterial = lowDetail
     ? new THREE.MeshLambertMaterial({ color: 0x2a2f36 })
     : new THREE.MeshPhongMaterial({ color: 0x2a2f36, specular: 0x585d63, shininess: 22 });
@@ -1233,7 +1237,13 @@ export function createPlayer3D(options = {}) {
     innerEar.scale.set(0.009, 0.018, 0.006);
     head.add(innerEar);
   }
-  if (stylized) buildStylizedFace(head, { lowDetail, skinTone });
+  // Rosto estilizado: guarda boca e lábio para o hino (a boca abre e fecha).
+  const stylizedFace = stylized ? buildStylizedFace(head, { lowDetail, skinTone }) : null;
+  const mouthMesh = stylizedFace?.getObjectByName('xfc-player-mouth') || null;
+  const lowerLipMesh = stylizedFace?.getObjectByName('xfc-player-lower-lip') || null;
+  const mouthBase = mouthMesh ? mouthMesh.scale.clone() : null;
+  const mouthBaseZ = mouthMesh ? mouthMesh.position.z : 0;
+  const lowerLipBaseY = lowerLipMesh ? lowerLipMesh.position.y : 0;
   const hair = buildHair(hairStyle, hairMaterial);
   if (hair) {
     hair.name = 'xfc-player-hair';
@@ -1548,7 +1558,8 @@ export function createPlayer3D(options = {}) {
   cardMesh.visible = false;
   arms[1].forearm.add(cardMesh);
 
-  root.scale.setScalar(heightScale);
+  const presence = Number(options.pitchPresence) > 0 ? Number(options.pitchPresence) : 1;
+  root.scale.setScalar(heightScale * presence);
   // A lista de malhas que projetam sombra é montada uma vez: o LOD liga e
   // desliga a sombra dinâmica sem varrer o rig a cada quadro.
   const shadowMeshes = [];
@@ -1584,12 +1595,36 @@ export function createPlayer3D(options = {}) {
   let slideDir = 1;
   let receiveTimer = 0;
   let receiveDuration = 0.42;
+  // Lateral cobrado com as mãos: bola nas mãos atrás da cabeça e arremesso.
+  let throwTimer = 0;
+  let throwDuration = 0.72;
   let reactionTimer = 0;
   let reactionDuration = 0;
   let reactionKind = '';
+  // Gesto de chamar o jogador para conversa.
+  let callTimer = 0;
+  let callAmount = 0;
+  let elapsedCallTime = 0;
+  let callElapsedTotal = 0;
+  // Queda prolongada (vítima de falta): o atleta fica no gramado até o tempo
+  // acabar, em vez de dar um pulo e levantar.
+  let downTimer = 0;
+  let downDuration = 0;
+  let downKind = 'body';
+  // Canto do hino: abre/fecha a boca e dá o balanço do corpo. `0` = desligado.
+  let anthemTimer = 0;
+  let anthemElapsed = 0;
+  let anthemSeed = 0;
+  let anthemIntensity = 0;
 
   /** Pose neutra do rig: base de todo quadro (as camadas somam sobre ela). */
   function resetRigPose() {
+    // O hino é a única camada que mexe na boca: fora dele a boca fica fechada.
+    if (!anthemTimer && mouthMesh) {
+      mouthMesh.scale.copy(mouthBase);
+      mouthMesh.position.z = mouthBaseZ;
+      if (lowerLipMesh) lowerLipMesh.position.y = lowerLipBaseY;
+    }
     body.position.set(0, 0, 0);
     body.rotation.set(0, 0, 0);
     head.rotation.set(0, 0, 0);
@@ -1604,6 +1639,60 @@ export function createPlayer3D(options = {}) {
     }
   }
 
+  /** Abre a boca e balança o corpo no ritmo do hino (camada final do quadro). */
+  function applyAnthem(dt, state) {
+    if (!anthemTimer) return;
+    anthemElapsed += dt;
+    anthemTimer = Math.max(0, anthemTimer - dt);
+    const intensity = anthemIntensity;
+    if (anthemTimer <= 0 || intensity <= 0.001) {
+      anthemTimer = 0;
+      if (mouthMesh) {
+        mouthMesh.scale.copy(mouthBase);
+        mouthMesh.position.z = mouthBaseZ;
+        if (lowerLipMesh) lowerLipMesh.position.y = lowerLipBaseY;
+      }
+      return;
+    }
+    const time = anthemElapsed;
+    const seed = anthemSeed;
+    if (mouthMesh) {
+      const openness = anthemMouth(time, seed) * intensity;
+      // Boca: abre na vertical, alarga um pouco e o lábio de baixo desce.
+      mouthMesh.scale.set(
+        mouthBase.x * (1 + openness * 0.16),
+        mouthBase.y * (1 + openness * 2.35),
+        mouthBase.z * (1 + openness * 0.3)
+      );
+      mouthMesh.position.z = mouthBaseZ + openness * 0.0012;
+      if (lowerLipMesh) lowerLipMesh.position.y = lowerLipBaseY - openness * 0.0075;
+    }
+    const sway = anthemSway(time, seed);
+    // Balanço pequeno: ombro, tronco e cabeça, sem quebrar a caminhada.
+    body.rotation.z += sway.side * 0.35 * intensity;
+    body.rotation.x += Math.abs(sway.side) * 0.16 * intensity;
+    head.rotation.x -= sway.nod * 0.9 * intensity;
+    head.rotation.y += sway.side * 1.5 * intensity;
+    // Mãos para trás/costas: a pose clássica de hino é com os braços atrás do
+    // corpo, não caídos, e o peito estufado na hora de cantar alto.
+    const loud = Math.max(0, Math.min(1, anthemMouth(time, seed)));
+    arms[0].shoulder.rotation.x = -0.20 - .06 * intensity + Math.sin(time * 1.7 + seed * 9) * .02;
+    arms[1].shoulder.rotation.x = -0.20 - .06 * intensity + Math.sin(time * 1.7 + seed * 9 + .8) * .02;
+    arms[0].shoulder.rotation.z = -0.44 * intensity;
+    arms[1].shoulder.rotation.z = 0.44 * intensity;
+    arms[0].forearm.rotation.x = -0.62 * intensity;
+    arms[1].forearm.rotation.x = -0.62 * intensity;
+    body.position.y = 0.012 + Math.abs(sway.side) * 0.006;
+    // Peito para cima nas notas altas: o corpo acompanha o canto.
+    body.rotation.x -= loud * 0.07 * intensity;
+    // Palavras no ritmo: uma pequena ênfase de cabeça em cada sílaba.
+    head.rotation.x -= Math.max(0, anthemMouth(time + .06, seed) - anthemMouth(time, seed)) * 2.2 * intensity;
+    // Quadril/base: ninguém fica travado como estátua.
+    const breathe = Math.sin(time * 1.5 + seed * 6) * 0.02 * intensity;
+    legs[0].hip.rotation.x += breathe;
+    legs[1].hip.rotation.x -= breathe;
+  }
+
   const api = {
     root,
     body,
@@ -1616,10 +1705,53 @@ export function createPlayer3D(options = {}) {
       celebrateStyle = CELEBRATION_STYLES.has(style) ? style : 'classic';
       celebrateElapsed = 0;
     },
+    /**
+     * Canto do hino: a boca abre nas sílabas (rig clássico) e o corpo balança
+     * devagar. `intensity` 0..1 controla o quanto o atleta "canta junto".
+     */
+    anthem(duration = 5, intensity = 1) {
+      anthemTimer = Math.max(0.2, Number(duration) || 5);
+      anthemElapsed = 0;
+      anthemSeed = (number % 7) / 7 + (name?.length % 5) / 5;
+      anthemIntensity = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+    },
+    /** Encerra o canto (a boca volta a fechar na pose neutra). */
+    stopAnthem() {
+      anthemTimer = 0;
+      anthemIntensity = 0;
+      if (mouthMesh) {
+        mouthMesh.scale.copy(mouthBase);
+        mouthMesh.position.z = mouthBaseZ;
+        if (lowerLipMesh) lowerLipMesh.position.y = lowerLipBaseY;
+      }
+    },
+    get singing() {
+      return anthemTimer > 0;
+    },
+    /** Tempo restante no chão (0 = de pé). Usado por testes e diagnósticos. */
+    get downFor() {
+      return downTimer;
+    },
+    get downReason() {
+      return downKind;
+    },
     /** Sinal de arbitragem: o braço direito sobe apitando. */
     header(duration = 0.38) { headerDuration = duration; headerTimer = duration; },
+    /**
+     * Cobrança de lateral: mãos na bola acima/atrás da cabeça e arremesso.
+     * Interpola com o tempo restante para a pose não ficar dura.
+     */
+    throwIn(duration = 0.72) {
+      throwDuration = Math.max(0.2, Number(duration) || 0.72);
+      throwTimer = throwDuration;
+    },
     signal(duration = 1.1) {
       signalTimer = duration;
+    },
+    /** Gesto de "venha aqui": braço estendido, chamando o jogador. */
+    callOver(intensity = 1) {
+      callTimer = 0.12;
+      callAmount = Math.max(0, Math.min(1, intensity));
     },
     /** Mostra o cartão (amarelo ou vermelho) na mão direita. */
     prepareCard(duration = 0.58) {
@@ -1653,7 +1785,23 @@ export function createPlayer3D(options = {}) {
       receiveTimer = receiveDuration;
     },
     /** Queda, impacto, protesto ou caminhada de expulsão. */
-    react(kind = 'fall', duration = 0.82) {
+    /**
+     * Queda real: o atleta vai ao chão, fica caído (não levanta no meio da
+     * animação) e leva a mão ao rosto quando pede `handOnFace`.
+     * `down` é o que o jogo usa para vítima de carrinho; `fall` continua
+     * existindo como cambaleio curto.
+     */
+    react(kind = 'fall', duration = 0.82, options = {}) {
+      if (kind === 'down') {
+        downKind = options.handOnFace ? 'face' : 'body';
+        downTimer = Math.max(0.6, duration || 2.4);
+        downDuration = downTimer;
+        slideTimer = 0;
+        diveTimer = 0;
+        cardTimer = 0;
+        reactionTimer = 0;
+        return;
+      }
       if (kind === 'ejected') {
         slideTimer = 0;
         diveTimer = 0;
@@ -1670,6 +1818,62 @@ export function createPlayer3D(options = {}) {
       // blend, IK) escrevem DEPOIS e nunca acumulam offset de um quadro no outro.
       resetRigPose();
       for (const leg of legs) leg.foot.rotation.x = 0;
+      callElapsedTotal += dt;
+      // Caído no gramado: pose fixa, sobrepondo tudo (o atleta não corre nem
+      // chuta enquanto está no chão). Bloqueia o resto da animação base.
+      if (downTimer > 0) {
+        downTimer = Math.max(0, downTimer - dt);
+        // Entrada em 0,20 s e saída em 0,42 s: cair rápido e levantar devagar,
+        // com um "quique" de amortecimento — a queda rígida de antes parecia
+        // um boneco tombando.
+        const enteringRaw = Math.min(1, (downDuration - downTimer) / 0.20);
+        const entering = enteringRaw * enteringRaw * (3 - 2 * enteringRaw);
+        const leavingRaw = Math.min(1, downTimer / 0.42);
+        const leaving = leavingRaw * leavingRaw * (3 - 2 * leavingRaw);
+        const lie = Math.min(entering, leaving);   // 0 = de pé, 1 = no chão
+        const t = 1 - downTimer / Math.max(0.01, downDuration);
+        // Respiração/contorção: o atleta no chão nunca fica imóvel.
+        const breath = Math.sin(t * 6.4) * 0.018 * lie;
+        const writhing = downKind === 'face'
+          ? Math.sin(t * 5.5) * 0.05 * lie : 0;
+        // Impacto: no primeiro instante o tronco torce para o lado do choque.
+        const thud = Math.max(0, 1 - t / 0.22) * Math.min(1, lie);
+        // Deitado de costas: o corpo gira em torno de X e cai para o lado.
+        body.rotation.x = -1.42 * lie + writhing + breath;
+        body.rotation.z = slideDir * (0.16 * lie + thud * 0.16);
+        body.position.y = -0.52 * lie;
+        body.rotation.y = slideDir * 0.25 * lie;
+        // Pernas dobradas, joelhos para cima, oscilando com a dor.
+        const kick = Math.sin(t * 7.3) * 0.06 * lie;
+        legs[0].hip.rotation.x = 0.55 * lie + writhing * 2 + kick;
+        legs[1].hip.rotation.x = 0.85 * lie - writhing * 2 - kick * 0.7;
+        legs[0].knee.rotation.x = -0.95 * lie - Math.abs(kick) * 1.4;
+        legs[1].knee.rotation.x = -0.62 * lie - Math.abs(kick);
+        legs[0].foot.rotation.x = -0.2 * lie;
+        legs[1].foot.rotation.x = -0.25 * lie;
+        if (downKind === 'face') {
+          // Mão no rosto: um braço protege a cara, o outro fica no gramado.
+          arms[1].shoulder.rotation.x = -1.05 * lie;
+          arms[1].shoulder.rotation.z = 0.95 * lie;
+          arms[1].forearm.rotation.x = -1.65 * lie;
+          arms[0].shoulder.rotation.x = -0.35 * lie;
+          arms[0].shoulder.rotation.z = -0.62 * lie;
+          arms[0].forearm.rotation.x = -0.55 * lie;
+          head.rotation.x = -0.22 * lie;
+          head.rotation.y = slideDir * 0.18 * lie;
+        } else {
+          // Braços abertos no gramado, com um leve tremor de respiração.
+          arms[0].shoulder.rotation.x = -0.28 * lie + breath * 2;
+          arms[1].shoulder.rotation.x = -0.22 * lie - breath * 2;
+          arms[0].shoulder.rotation.z = -0.75 * lie;
+          arms[1].shoulder.rotation.z = 0.7 * lie;
+          arms[0].forearm.rotation.x = -0.25 * lie;
+          arms[1].forearm.rotation.x = -0.3 * lie;
+          head.rotation.x = -0.3 * lie + breath * 1.5;
+          head.rotation.y = slideDir * 0.12 * lie;
+        }
+        return;
+      }
       receiveTimer = Math.max(0, receiveTimer - dt);
       const receiveProgress = 1 - receiveTimer / receiveDuration;
       const receiveEnvelope = receiveTimer > 0
@@ -1700,6 +1904,20 @@ export function createPlayer3D(options = {}) {
         head.rotation.x = -0.15;
         head.rotation.y = diveDir * 0.3;
         return;
+      }
+      // Chamando o jogador: braço esticado para a frente, mão abanando.
+      if (callTimer > 0) {
+        callTimer = Math.max(0, callTimer - dt);
+        const wave = Math.sin(elapsedCallTime * 7) * 0.22;
+        elapsedCallTime += dt;
+        arms[1].shoulder.rotation.x = -1.28 * callAmount;
+        arms[1].shoulder.rotation.z = -0.34 * callAmount;
+        arms[1].forearm.rotation.x = -0.5 * callAmount + wave;
+        arms[0].shoulder.rotation.x = -0.12;
+        arms[0].forearm.rotation.x = -0.2;
+        head.rotation.x = -0.06 * callAmount;
+        body.rotation.x = 0.02;
+        callTimer = Math.max(callTimer, 0.02);
       }
       // Cartão ao alto: o árbitro mostra amarelo/vermelho para a torcida ver.
       if (cardPrepTimer > 0) {
@@ -1756,20 +1974,22 @@ export function createPlayer3D(options = {}) {
       if (slideTimer > 0) {
         slideTimer = Math.max(0, slideTimer - dt);
         const progress = 1 - slideTimer / Math.max(0.01, slideDuration);
-        const recovery = Math.max(0, Math.min(1, (progress - 0.58) / 0.42));
-        body.position.y = 0.025 + recovery * 0.08;
-        body.rotation.x = 0.48 * (1 - recovery);
-        body.rotation.z = slideDir * 0.98 * (1 - recovery);
-        arms[0].shoulder.rotation.x = -1.62;
-        arms[1].shoulder.rotation.x = -1.54;
-        arms[0].shoulder.rotation.z = slideDir * 0.32;
-        arms[1].shoulder.rotation.z = slideDir * 0.32;
-        arms[0].forearm.rotation.x = -0.35;
-        arms[1].forearm.rotation.x = -0.35;
-        legs[0].hip.rotation.x = 0.9 * (1 - recovery) - 0.12 * recovery;
-        legs[1].hip.rotation.x = -0.76 * (1 - recovery) + 0.12 * recovery;
-        legs[0].knee.rotation.x = 0.64 * (1 - recovery);
-        legs[1].knee.rotation.x = 0.3 * (1 - recovery);
+        const recovery = Math.max(0, Math.min(1, (progress - 0.7) / 0.3));
+        const lie = 1 - recovery;
+        body.position.y = 0.02 + recovery * 0.1;
+        body.rotation.x = 0.22 * lie;
+        body.rotation.y = slideDir * 0.42 * lie;
+        body.rotation.z = slideDir * 1.18 * lie;
+        arms[0].shoulder.rotation.x = -1.85 * lie;
+        arms[1].shoulder.rotation.x = -0.55 * lie;
+        arms[0].shoulder.rotation.z = slideDir * 0.85 * lie;
+        arms[1].shoulder.rotation.z = slideDir * 0.22 * lie;
+        arms[0].forearm.rotation.x = -0.55 * lie;
+        arms[1].forearm.rotation.x = -0.2 * lie;
+        legs[0].hip.rotation.x = 0.18 * lie;
+        legs[1].hip.rotation.x = -1.35 * lie;
+        legs[0].knee.rotation.x = 0.12 * lie;
+        legs[1].knee.rotation.x = 1.55 * lie;
         return;
       }
       if (reactionTimer > 0) {
@@ -1789,6 +2009,22 @@ export function createPlayer3D(options = {}) {
           legs[0].knee.rotation.x = Math.max(0, -step) * 0.28;
           legs[1].knee.rotation.x = Math.max(0, step) * 0.28;
           head.rotation.x = -0.17;
+          return;
+        }
+        if (reactionKind === 'listen') {
+          // Jogador escutando a explicação do árbitro: cabeça baixa, mãos
+          // para trás, peso em uma perna só.
+          head.rotation.x = 0.26;
+          head.rotation.y = Math.sin(callElapsedTotal * 2.4) * 0.06;
+          arms[0].shoulder.rotation.x = 0.42;
+          arms[1].shoulder.rotation.x = 0.42;
+          arms[0].forearm.rotation.x = -0.5;
+          arms[1].forearm.rotation.x = -0.5;
+          body.rotation.x = 0.1;
+          body.position.y = 0;
+          legs[0].hip.rotation.x = 0.06;
+          legs[1].hip.rotation.x = -0.04;
+          legs[0].knee.rotation.x = 0.08;
           return;
         }
         body.position.y = reactionKind === 'fall' ? 0.04 + pulse * 0.12 : pulse * 0.04;
@@ -1826,6 +2062,28 @@ export function createPlayer3D(options = {}) {
           legs[0].knee.rotation.x = legs[1].knee.rotation.x = 0.05;
         }
         head.rotation.x = reactionKind === 'fall' ? 0.18 : -0.12;
+        return;
+      }
+      if (throwTimer > 0) {
+        throwTimer = Math.max(0, throwTimer - dt);
+        // 0 = bola atrás da cabeça, 1 = braços já estendidos à frente.
+        const progress = 1 - throwTimer / throwDuration;
+        const swing = progress < 0.55
+          ? -1 + progress / 0.55            // arma o arremesso
+          : -0.02 + (progress - 0.55) / 0.45 * 1.15; // solta e acompanha
+        const raise = progress < 0.55 ? 1 : Math.max(0, 1 - (progress - 0.55) / 0.45);
+        arms[0].shoulder.rotation.x = -2.15 * raise + swing * 0.9;
+        arms[1].shoulder.rotation.x = -2.15 * raise + swing * 0.9;
+        arms[0].shoulder.rotation.z = 0.34 - raise * 0.12;
+        arms[1].shoulder.rotation.z = -0.34 + raise * 0.12;
+        arms[0].forearm.rotation.x = -1.15 * raise;
+        arms[1].forearm.rotation.x = -1.15 * raise;
+        body.rotation.x = -0.1 * raise + 0.1 * Math.max(0, progress - 0.6);
+        head.rotation.x = -0.16 * raise;
+        legs[0].hip.rotation.x = 0.04;
+        legs[1].hip.rotation.x = -0.04;
+        legs[0].knee.rotation.x = 0.03;
+        legs[1].knee.rotation.x = 0.03;
         return;
       }
       if (celebrateTimer > 0) {
@@ -1963,6 +2221,7 @@ export function createPlayer3D(options = {}) {
         kickLeg: kickLegIndex === 0 ? 'L' : 'R',
         facingAngle: root.rotation.y
       });
+      applyAnthem(dt, state);
     },
     dispose() {
       disposePlayerObject(root);
@@ -1988,6 +2247,6 @@ export function lookFor(index) {
     skinTone: SKIN_TONES[(index * 3 + (index % 4)) % SKIN_TONES.length],
     hairColor: HAIR_COLORS[(index * 5 + 2) % HAIR_COLORS.length],
     hairStyle: HAIR_STYLES[seed % HAIR_STYLES.length],
-    heightScale: 0.94 + (seed % 130) / 1000
+    heightScale: 0.98 + (seed % 90) / 1000
   };
 }

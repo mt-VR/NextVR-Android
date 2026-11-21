@@ -12,7 +12,12 @@ test('postura: apoio quase estendido e recuperação distinta de caminhada/corri
    if(pose.stance)assert.ok(pose.knee<.50,'flexão de amortecimento pequena na perna de apoio');
    assert.ok(Number.isFinite(pose.hip));assert.ok(pose.knee<1.85);
  }
- assert.ok(runningLegPose(.78,1,1).lift>runningLegPose(.78,1,0).lift);
+ // A elevação da perna é medida pelo pico da recuperação: na v0.5.43 o
+ // calcanhar sobe mais cedo no voo (pico antes do meio do balanço), então
+ // comparar um único instante não distingue mais corrida de caminhada.
+ const peakLift=running=>{let peak=0;for(let i=0;i<240;i++)peak=Math.max(peak,runningLegPose(i/240,1,running).lift);return peak;};
+ assert.ok(peakLift(1)>.22&&peakLift(0)<.13,'picos de elevação de corrida e caminhada');
+ assert.ok(peakLift(1)>peakLift(0)*2,'corrida recupera bem mais alto que a caminhada');
  for(const point of [{x:0,z:0},{x:20,z:-12},{x:-35,z:25}]){
    const round=pitchToPlan(planToPitch(point));assert.ok(Math.hypot(round.x-point.x,round.z-point.z)<1e-8);
  }
@@ -26,7 +31,11 @@ test('toque: carga imóvel completa gera superchute; sprint distingue gestos e c
      const host=document.createElement('div');host.style.cssText='position:fixed;inset:0;z-index:100';document.body.appendChild(host);
      window.ctrl=createControls({root:host,onCommand:(name,opts)=>calls.push({name,opts}),onSprint:x=>sprints.push(x),onMove(){}});
    });
-   const shot=p.locator('.ctrl-btn--shoot');const r=await shot.boundingBox();await p.mouse.move(r.x+r.width/2,r.y+r.height/2);await p.mouse.down();await p.waitForTimeout(1150);
+   const shot=p.locator('.ctrl-btn--shoot');const r=await shot.boundingBox();await p.mouse.move(r.x+r.width/2,r.y+r.height/2);await p.mouse.down();
+   // A carga cheia é desenhada por um timer de 40 ms; sob carga no CI o timer
+   // pode atrasar. Espera o estado chegar em vez de cravar o relógio.
+   await p.waitForTimeout(1150);
+   await p.waitForFunction(()=>document.querySelector('.ctrl-btn--shoot')?.dataset.shotType==='power',null,{timeout:8000}).catch(()=>{});
    assert.equal(await shot.getAttribute('data-shot-type'),'power');await p.mouse.up();
    assert.equal(await p.evaluate(()=>calls[0].opts.kind),'power');assert.equal(await p.evaluate(()=>calls[0].opts.strength),1);
    await shot.click();assert.equal(await p.evaluate(()=>calls[1].opts.kind),'normal');
@@ -45,7 +54,7 @@ test('toque: carga imóvel completa gera superchute; sprint distingue gestos e c
 test('pausa real: congela simulação/render; plano arrasta sem teleporte, persiste e retoma',{timeout:120000},async t=>{
  const {server,url}=await startXfcServer({port:0});const b=await launchOrSkip(t);if(!b){server.close();return;}
  try{
-   const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.keyboard.press('Enter');await p.click('.launch__enter');await p.click('[data-menu-item="quick"]');await p.click('.quick__actions .continue-btn');await p.click('.stadiums__card:first-child');await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+   const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(url);await p.keyboard.press('Enter');await p.click('.launch__enter');await p.click('[data-menu-item="quick"]');await p.click('.quick__actions .continue-btn');await p.click('.stadiums__card:first-child');await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible',{timeout:60000});
    await p.evaluate(()=>{const m=__xfcMatch;m.phase.name='play';m.phase.restart=null;m.world.command('pass');});
    await p.click('.play__pause-button');
    const capture=()=>p.evaluate(()=>{const m=__xfcMatch;return{clock:{...m.clock},ball:m.ball.state.position.toArray(),velocity:m.ball.state.velocity.toArray(),players:[...m.teams.home.players,...m.teams.away.players].map(x=>[x.x,x.z,x.vx,x.vz]),frames:m.engine.state.frames,camera:m.engine.camera.position.toArray(),phase:m.phase.name};});
@@ -85,7 +94,7 @@ test('referências: placar ao vivo branco/lima, pausa preta com cinco ações e 
  const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
  try{
   const p=await b.newPage({viewport:{width:1280,height:720}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
-  await p.evaluate(async()=>(await import('/src/main.js')).go('play',{home:'palmeiras',away:'santos'}));await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible');
+  await p.evaluate(async()=>(await import('/src/main.js')).go('play',{home:'palmeiras',away:'santos'}));await p.click('.showcase__enter');await p.waitForSelector('.hud.is-visible',{timeout:60000});
   await p.evaluate(()=>{const m=__xfcMatch;m.teams.home.score=3;m.teams.away.score=0;m.clock.minutes=61+7.1/60;m.clock.half=2;m.world.setPaused(true);m.stop();document.querySelector('.hud__scoreboard').dataset.sameBoard='original';});
   await p.waitForFunction(()=>document.querySelector('.hud__clock').textContent==='61:07');
   assert.deepEqual(await p.locator('.hud__team').allTextContents(),['PAL','SAN']);assert.deepEqual(await p.locator('.hud__score').allTextContents(),['3','0']);

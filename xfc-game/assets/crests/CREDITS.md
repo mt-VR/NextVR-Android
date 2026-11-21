@@ -90,3 +90,13 @@ Escudos reais para identificação dos clubes, baixados de espelhos públicos; i
 
 | Swansea City | `swansea-city.png` | https://github.com/crazycodertr/soccer-team-logos/blob/4b132d37fc3875239408ed344be58608c93fcedf/logos/swansea-city.gif |
 | FC Tokyo | `fc-tokyo.png` | https://github.com/crazycodertr/soccer-team-logos/blob/4b132d37fc3875239408ed344be58608c93fcedf/logos/fc-tokyo.gif |
+
+
+## Seleções (`nations/`)
+
+Os 211 brasões em `assets/crests/nations/<código>.png` são os escudos reais
+das federações, rasterizados a 256 px a partir dos SVG da coleção
+[football-logos.cc](https://football-logos.cc/national-teams/) (a mesma
+família do pack HTML `XFC27_Escudos_Selecoes_Mundo.html` / FootyLogos).
+Pertencem às respectivas federações; uso ilustrativo no protótipo.
+Importar de novo com `tools/import-nation-crests.mjs` + `tools/rasterize-nation-crests.mjs`.

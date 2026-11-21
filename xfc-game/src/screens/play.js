@@ -1,4 +1,7 @@
-import {currentCareer,careerTeam,settleCareer} from '../data/career.js';
+import {getCareer,careerRoster,settleManager,managerTeam} from '../data/career-services.js';
+import {plannedTeam} from '../data/game-plan.js';
+import {settleCareer} from '../data/career.js';
+import {createCareerRating} from '../data/career-rating.js';
 import {graphicsSettings} from '../ui/graphics-settings.js';
 // Tela da partida: a apresentação pré-jogo (cinematográfica), o jogo 3D em
 // si e o resultado final.
@@ -10,6 +13,7 @@ import { el, padButton } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg } from '../data/kits.js';
+import { nationColors, nationKits } from '../data/nation-kits.js';
 import { getNationalTeam, recordCampaignMatchResult } from '../data/worldcup.js';
 import {
   getCompetition,
@@ -24,29 +28,34 @@ import { ultimateMatchTeam, settleUtMatch } from '../data/ultimate.js';
 import { flagSvg } from '../ui/flags.js';
 import { createMatch } from '../match3d/match.js';
 import { createControls } from '../match3d/controls.js';
+import { gamepad } from '../main.js';
 import { createHud } from '../match3d/hud.js';
 import * as THREE from '../../vendor/three.module.min.js';
 import { cheer, whistle, kickSound, applause, boo } from '../audio.js';
 import { STADIUMS, attachStadiumDome } from '../match3d/stadiums.js';
+import { PREMATCH_BEATS } from '../match3d/prematch.js';
 
 const STAGE_WIDTH = 1280;
 const STAGE_HEIGHT = 720;
 const projection = new THREE.Vector3();
 
 const NATIONAL_COLORS = {
-  brazil: { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b' },
-  argentina: { primary: '#79c6e8', secondary: '#ffffff', trim: '#1a4f91', keeperPrimary: '#293444', keeperSecondary: '#f4c542' },
-  france: { primary: '#173c78', secondary: '#e6424a', trim: '#ffffff', keeperPrimary: '#d5b52e', keeperSecondary: '#222222' },
-  england: { primary: '#f4f4f4', secondary: '#19366f', trim: '#d23b4b', keeperPrimary: '#42a76b', keeperSecondary: '#173523' },
-  spain: { primary: '#d92332', secondary: '#f5ca31', trim: '#f4f4f4', keeperPrimary: '#2963bd', keeperSecondary: '#13264a' },
-  portugal: { primary: '#b82132', secondary: '#176b43', trim: '#f0c743', keeperPrimary: '#e0e3eb', keeperSecondary: '#343a47' },
-  germany: { primary: '#f3f3f3', secondary: '#222222', trim: '#d6323b', keeperPrimary: '#f0bd32', keeperSecondary: '#222222' },
-  italy: { primary: '#1566a5', secondary: '#f5f5f5', trim: '#1f8b58', keeperPrimary: '#e5d644', keeperSecondary: '#263238' }
+  brazil: { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b', shorts: '#183891', socks: '#ffffff' },
+  argentina: { primary: '#79c6e8', secondary: '#ffffff', trim: '#1a4f91', keeperPrimary: '#293444', keeperSecondary: '#f4c542', shorts: '#1a1a1a', socks: '#ffffff' },
+  france: { primary: '#173c78', secondary: '#e6424a', trim: '#ffffff', keeperPrimary: '#d5b52e', keeperSecondary: '#222222', shorts: '#f4f4f4', socks: '#e6424a' },
+  england: { primary: '#f4f4f4', secondary: '#19366f', trim: '#d23b4b', keeperPrimary: '#42a76b', keeperSecondary: '#173523', shorts: '#19366f', socks: '#f4f4f4' },
+  spain: { primary: '#d92332', secondary: '#f5ca31', trim: '#f4f4f4', keeperPrimary: '#2963bd', keeperSecondary: '#13264a', shorts: '#1a3d8f', socks: '#d92332' },
+  portugal: { primary: '#b82132', secondary: '#176b43', trim: '#f0c743', keeperPrimary: '#e0e3eb', keeperSecondary: '#343a47', shorts: '#176b43', socks: '#b82132' },
+  germany: { primary: '#f3f3f3', secondary: '#222222', trim: '#d6323b', keeperPrimary: '#f0bd32', keeperSecondary: '#222222', shorts: '#222222', socks: '#f3f3f3' },
+  italy: { primary: '#1566a5', secondary: '#f5f5f5', trim: '#1f8b58', keeperPrimary: '#e5d644', keeperSecondary: '#263238', shorts: '#f5f5f5', socks: '#1566a5' }
 };
 
 function playableNationalTeam(team) {
   if (!team) return null;
-  const colors = team.colors || NATIONAL_COLORS[team.id] || NATIONAL_COLORS.brazil;
+  // `nationColors` cobre as 179 seleções que não têm uniforme no cadastro
+  // (antes todas caíam no branco genérico); as 8 da carreira mantêm a paleta
+  // própria em NATIONAL_COLORS.
+  const colors = NATIONAL_COLORS[team.id] || nationColors(team) || team.colors;
   const players = (team.players || []).map((player, index) => {
     const rating = player.rating || 75;
     const position = player.position || 'CM';
@@ -70,11 +79,20 @@ function playableNationalTeam(team) {
       }
     };
   });
+  // Convocação além do XI (seleções do save novo): vai para o banco.
+  const substitutes = (team.bench || []).map((player, index) => ({
+    id: `${team.id}-bench-${player.number || index + 12}`,
+    name: player.name, fullName: player.name, number: player.number || index + 12,
+    pos: player.position === 'AM' ? 'CAM' : (player.position || 'CM'),
+    ovr: player.rating || 75, rating: player.rating || 75, photo: null,
+    stats: { pace: 75, shooting: 70, passing: 72, dribbling: 72, defending: 65, physical: 72 }
+  }));
   return {
     ...team,
     isNationalTeam: true,
+    substitutes,
     shortName: team.name,
-    crest: null,
+    crest: team.crest || (team.flagCode ? `assets/crests/nations/${team.flagCode}.png` : null),
     league: 'Copa do Mundo',
     formation: '4-3-3',
     colors,
@@ -89,12 +107,27 @@ function playableNationalTeam(team) {
 }
 
 function resolvePlayableTeam(id) {
-  return getTeam(id) || playableNationalTeam(getNationalTeam(id)) || getTeam('fc-barcelona');
+  return getTeam(id) || playableNationalTeam(getNationalTeam(id)) || playableNationalTeam(getNationalTeam('brazil'));
+}
+
+/** Time escolhido no Kick Off, clube ou seleção, com as cores do uniforme. */
+function kickoffSide(id, overrideColors) {
+  const club = getTeam(id);
+  if (club) return { team: club, national: false };
+  const nation = getNationalTeam(id);
+  if (!nation) return { team: null, national: false };
+  const playable = playableNationalTeam(nation);
+  if (overrideColors) playable.colors = { ...playable.colors, ...overrideColors };
+  return { team: playable, national: true };
 }
 
 function kitForTeam(team, index = 0) {
-  if (team.isNationalTeam || team.id==='xfc-ut') {
-    return { name: `${team.name} Home`, colors: team.colors, pattern: 'solid' };
+  if (team.isNationalTeam) {
+    const kits = nationKits(team);
+    return kits[index] || kits[0];
+  }
+  if (team.id==='xfc-ut') {
+    return { name: `${team.name} Home`, colors: team.colors, pattern: 'solid', shorts: team.colors?.secondary, socks: team.colors?.secondary };
   }
   const kits = kitsOf(team.id);
   return kits[index] || kits[0];
@@ -110,21 +143,32 @@ function teamMark(team, className = 'team-mark') {
 }
 
 /** Projeta um ponto do mundo 3D para as coordenadas do palco (1280x720). */
-function projectToStage(camera, position) {
+// `out` opcional: a tela de jogo projeta os 22 atletas a cada quadro e
+// reaproveita o mesmo objeto em vez de alocar um novo (menos lixo para o GC).
+function projectToStage(camera, position, out = null) {
   projection.set(position.x, position.y, position.z).project(camera);
-  return {
-    x: (projection.x * 0.5 + 0.5) * STAGE_WIDTH,
-    y: (-projection.y * 0.5 + 0.5) * STAGE_HEIGHT,
-    visible: projection.z < 1 && projection.z > -1
-  };
+  const target = out || {};
+  target.x = (projection.x * 0.5 + 0.5) * STAGE_WIDTH;
+  target.y = (-projection.y * 0.5 + 0.5) * STAGE_HEIGHT;
+  target.z = projection.z;
+  target.visible = projection.z < 1 && projection.z > -1;
+  return target;
 }
 
 export function playScreen(ctx, params = {}) {
-  const career=params.careerMatchId?currentCareer(ctx.state.profile):null;
-  const careerClub=career&&career.pending?.id===params.careerMatchId?careerTeam(career):null;
+  const career=params.careerMatchId?getCareer(ctx.state.profile,params.careerKind||'player'):null;
+  const careerManager=career?.kind==='manager';
+  const careerClub=career&&career.pending?.id===params.careerMatchId?plannedTeam(careerRoster(career,careerManager?'manager':'player'),career.plan,careerManager?null:career.player.id):null;
+  const isPlayerCareer=Boolean(careerClub&&!careerManager&&career);
+  const heroId=isPlayerCareer?career.player.id:null;
+  const rating=isPlayerCareer?createCareerRating():null;
   const careerPerformance={goals:0,shots:0,passes:0};
-  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || resolvePlayableTeam(params.home || ctx.state.selection.home);
-  const away = (careerClub?.id===params.away?careerClub:null) || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
+  // Kick Off com seleções: o id nacional tem prioridade e usa as cores
+  // escolhidas na tela de uniformes (o clube de mesmo nome não existe aqui).
+  const homePick=kickoffSide(params.home || ctx.state.selection.home, params.homeColors);
+  const awayPick=kickoffSide(params.away || ctx.state.selection.away || 'real-madrid', params.awayColors);
+  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || (careerManager&&managerTeam(career,params.home)) || homePick.team || resolvePlayableTeam(params.home || ctx.state.selection.home);
+  const away = (careerClub?.id===params.away?careerClub:null) || (careerManager&&managerTeam(career,params.away)) || awayPick.team || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
   const homeKit = kitForTeam(home, params.homeKit ?? 0);
   const awayKit = kitForTeam(away, params.awayKit ?? 0);
   const userSide = params.userSide === 'away' ? 'away' : 'home';
@@ -135,7 +179,12 @@ export function playScreen(ctx, params = {}) {
 
   let stage = 'prematch';
   let paused = false;
+  // Painel da cerimônia (cena atual + legenda). Recriado a cada partida.
+  let entranceCaption = null;
+  let entranceSteps = [];
   let lastSnapshot = { score: [0, 0], display: "0'00", half: 1, phase: 'kickoff' };
+  // Expulsão do herói da carreira.
+  let spectatorMode = false, dismissalShown = false;
 
   const canvas = el('canvas', {
     class: 'play__canvas',
@@ -291,11 +340,26 @@ export function playScreen(ctx, params = {}) {
   let initializeTimer = 0;
   let initialized = false;
   let unmounted = false;
+  // Limpezas de listeners da partida (gamepad, etc.).
+  const unsubscribers = [];
 
   function buildMatch() {
+    // Mata-mata = competição eliminatória. Nesses jogos, empate em 90' leva a
+    // prorrogação (105'/120') e, persistindo, aos pênaltis. Liga/amistoso
+    // continua terminando em empate.
+    const knockOut = Boolean(
+      params.worldCupMatchId
+      || params.tournamentMatchId
+      || params.competition?.knockout
+      || params.competition?.format === 'Mata-mata'
+      || params.competition?.format === 'Final única'
+      || /final|copa|champions|libertadores|mata/i.test(params.competition?.id || '')
+    );
     match = createMatch({
-      playerLockId:careerClub?career.player.id:null,
+      knockOut,
+      playerLockId:careerClub&&!careerManager?career.player.id:null,
       graphicsQuality:ctx.state.profile.graphicsQuality,
+      playerStyle:ctx.state.profile.playerStyle || 'modern',
       canvas,
       home,
       away,
@@ -305,20 +369,33 @@ export function playScreen(ctx, params = {}) {
       difficulty,
       userSide,
       onEvent: handleEvent,
-      gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:ctx.state.profile.gamePlans?.[away.id]},
-      stadium: stadiumIndex
+      gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:away.plan || ctx.state.profile.gamePlans?.[away.id]},
+      stadium: stadiumIndex,
+      largePitch: Boolean(careerClub)
     });
     hud = createHud({
       root: stageBox,
+      stageBox,
       home,
       away,
       userSide,
+      careerRating: isPlayerCareer,
       onSetPieceChange: options => match?.world.setPieceOptions(options)
     });
+    hud?.setRating(rating ? rating.value : 6);
     controls = createControls({
+      playerCareer:!!careerClub&&!careerManager,
+      padGamepad:gamepad,
       root: stageBox,
       onCharge:value=>match?.world.setShotCharge(value),
       onCommand: (name, payload) => {
+        // Start/Options no controle abre o mesmo menu de pausa.
+        if (name === 'pause') {
+          if (stage === 'entrance') { skipCeremony(); return; }
+          if (stage === 'live') showPause();
+          else if (stage === 'paused') resumeMatch();
+          return;
+        }
         if (paused || stage !== 'live') return;
         if (name === 'pass') kickSound(0.5);
         else if (name === 'lob') kickSound(0.65);
@@ -326,6 +403,11 @@ export function playScreen(ctx, params = {}) {
         match.world.command(name, payload);
       },
       onMove: (x, z) => {
+        // Analógico do controle também tira o jogador da saída de bola (o
+        // toque no stick é gesto de "entrar em campo", como no console).
+        // Precisa vir ANTES do guard de fase: no pré-jogo a fase ainda não é
+        // 'live', e era justamente aí que o gamepad ficava preso.
+        if (Math.hypot(x, z) > 0.2) startFromKickoff();
         if (paused || stage !== 'live') return;
         match.world.input.moveX = x;
         match.world.input.moveZ = z;
@@ -337,6 +419,17 @@ export function playScreen(ctx, params = {}) {
     });
     // Os controles só entram depois do pré-jogo.
     controls.setEnabled(false);
+    // Controle Xbox/PlayStation: com ele conectado os botões virtuais somem
+    // (fica só o placar e o pause) e o jogo é dirigido pelo gamepad.
+    const applyPadMode = ({ connected, family }) => {
+      stageBox.classList.toggle('play--gamepad', Boolean(connected));
+      controls?.setPadMode?.(Boolean(connected), family);
+      hud?.setPadMode?.(Boolean(connected), family);
+    };
+    const stopPadWatch = gamepad.onChange(applyPadMode);
+    applyPadMode({ connected: gamepad.connected, family: gamepad.family });
+    stageBox.dataset.padLegend = stageBox.dataset.padLegend || '';
+    unsubscribers.push(stopPadWatch);
     match.start();
     // O jogo fica congelado no pré-jogo — o relógio só corre quando o
     // usuário toca para entrar em campo. O laço de render também para:
@@ -356,7 +449,9 @@ export function playScreen(ctx, params = {}) {
     const userGoals = userSide === 'home' ? event.score[0] : event.score[1];
     const rivalGoals = userSide === 'home' ? event.score[1] : event.score[0];
     if(careerClub){
-      const result=settleCareer(career,params.careerMatchId,event.score,careerPerformance);
+      // Nota ao vivo (6→10) vira a nota oficial da partida na carreira.
+      if(rating)careerPerformance.liveRating=rating.value;
+      const result=careerManager?settleManager(career,params.careerMatchId,event.score):settleCareer(career,params.careerMatchId,event.score,careerPerformance);
       matchReward={coins:0,goals:result?.goals||0};saveProfile(ctx.state);return;
     }
     if(params.ultimateMatchId){
@@ -390,13 +485,41 @@ export function playScreen(ctx, params = {}) {
   }
 
   function handleEvent(event) {
+    if(event.type==='pass-request')controls?.passFeedback(event.reason,event.accepted);
     if(careerClub&&(event.player||event.scorer)?.rosterId===career.player.id){
       if(event.type==='goal')careerPerformance.goals++;
       if(event.type==='shot')careerPerformance.shots++;
       if(event.type==='pass')careerPerformance.passes++;
     }
+    // Nota AO VIVO 0–10 (começa 6): gol +2, assistência +1, passe certo,
+    // chute perigoso e drible concluído valem décimos.
+    if(rating){
+      if(event.type==='goal'){
+        if(event.scorer?.rosterId===heroId)rating.award('goal');
+        else if(event.assist?.rosterId===heroId)rating.award('assist');
+      }else if(event.type==='shot'&&event.dangerous&&event.player?.rosterId===heroId)rating.award('shot');
+      else if(event.type==='pass-completed'&&event.from?.rosterId===heroId)rating.award('pass');
+      else if(event.type==='dribble'&&event.player?.rosterId===heroId)rating.award('dribble');
+      hud?.setRating(rating.value);
+    }
+    // Herói expulso: oferece ENCERRAR ou ASSISTIR.
+    if(isPlayerCareer&&event.type==='card'&&event.color==='red'&&event.player?.rosterId===heroId)showDismissal(event);
     if (!hud) return;
     switch (event.type) {
+      case 'entrance-beat': {
+        if (!entranceCaption) break;
+        entranceCaption.textContent = event.caption || '';
+        entranceCaption.classList.remove('is-fresh');
+        // Reflow curto para a legenda entrar com fade a cada virada de cena.
+        void entranceCaption.offsetWidth;
+        entranceCaption.classList.add('is-fresh');
+        for (const step of entranceSteps) {
+          const index = PREMATCH_BEATS.findIndex(beat => beat.id === step.dataset.beat);
+          step.classList.toggle('is-current', index === event.index);
+          step.classList.toggle('is-done', index < event.index);
+        }
+        break;
+      }
       case 'entrance-end': {
         beginLive();
         break;
@@ -412,7 +535,7 @@ export function playScreen(ctx, params = {}) {
           name: scorerName,
           score: `${homeScore} × ${awayScore}`
         });
-        hud.pushEvent(`⚽ ${event.minute}' ${team.name} — ${scorerName}`, 'goal');
+        hud.pushEvent(`⚽ ${Math.floor(event.minute)}' ${team.name} — ${scorerName}`, 'goal');
         // A câmera fecha no autor, que corre com os braços erguidos; o nome
         // permanece sob a cabeça e no cartão da HUD durante a comemoração.
         try {
@@ -437,7 +560,7 @@ export function playScreen(ctx, params = {}) {
         const color = event.color === 'red' ? '🟥' : '🟨';
         if (event.color === 'red') boo();
         else whistle('short');
-        hud.pushEvent(`${color} ${event.minute}' ${team.name} — ${event.player.name}`, event.color);
+        hud.pushEvent(`${color} ${Math.floor(event.minute)}' ${team.name} — ${event.player.name}`, event.color);
         break;
       }
       case 'offside': {
@@ -472,6 +595,10 @@ export function playScreen(ctx, params = {}) {
         }
         break;
       }
+      case 'addedtime':
+        // Acréscimo anunciado no telão/placar, como o quarto árbitro.
+        hud.showBanner(`ACRÉSCIMOS · ${event.minutes} MIN`, 'info', 2400);
+        break;
       case 'halftime':
         whistle('double');
         hud.showBanner('INTERVALO', 'info', 2600);
@@ -503,6 +630,14 @@ export function playScreen(ctx, params = {}) {
     stage = 'entrance';
     paused = false;
     overlay.classList.add('is-visible', 'is-entrance');
+    // Painel da cerimônia: a cena, a legenda do momento e os quatro capítulos.
+    // A ordem é fixa e o marcador anda junto com o motor (`entrance-beat`).
+    entranceCaption = el('span', { class: 'entrance__caption', text: PREMATCH_BEATS[0].caption });
+    entranceSteps = PREMATCH_BEATS.map((beat, index) => el('span', {
+      class: `entrance__step${index === 0 ? ' is-current' : ''}`,
+      dataset: { beat: beat.id },
+      text: beat.label
+    }));
     overlay.replaceChildren(
       el('div', { class: 'entrance' },
         el('span', { class: 'entrance__eyebrow', text: STADIUMS[stadiumIndex]?.name || 'ESTÁDIO XFC' }),
@@ -517,7 +652,18 @@ export function playScreen(ctx, params = {}) {
             el('b', { text: away.name })
           )
         ),
-        el('span', { class: 'entrance__caption', text: 'OS TIMES ESTÃO ENTRANDO EM CAMPO' })
+        el('div', { class: 'entrance__steps' }, ...entranceSteps),
+        entranceCaption,
+        el('button', {
+          class: 'entrance__skip',
+          type: 'button',
+          text: 'Skip',
+          'aria-label': 'Pular cerimônia',
+          onClick: event => {
+            event.stopPropagation();
+            skipCeremony();
+          }
+        })
       )
     );
     match?.world.setPaused(false);
@@ -526,9 +672,27 @@ export function playScreen(ctx, params = {}) {
     if (!started) beginLive();
   }
 
+  /** Pula túnel, hino e alinhamento e vai direto ao apito. */
+  function skipCeremony() {
+    if (stage !== 'entrance') return;
+    match?.world.skipEntrance?.();
+  }
+
+  /**
+   * Analógico do controle na primeira jogada: sai do congelamento do pré-jogo
+   * e entra em campo como o toque faria. Sem isso, quem joga no gamepad
+   * ficava preso no relógio parado até achar o botão na tela.
+   */
+  function startFromKickoff() {
+    if (stage !== 'prematch') return;
+    startMatch();
+  }
+
   /** Fim da entrada: HUD, controles e a saída de bola. */
   function beginLive() {
     stage = 'live';
+    entranceCaption = null;
+    entranceSteps = [];
     overlay.replaceChildren();
     overlay.classList.remove('is-visible', 'is-entrance');
     setPauseButtonVisible(true);
@@ -598,32 +762,45 @@ export function playScreen(ctx, params = {}) {
     const campaignResult = campaign && campaign.lastResult?.matchId === params.worldCupMatchId
       ? campaign.lastResult
       : null;
-    let winner = homeScore === awayScore ? null : homeScore > awayScore ? 'home' : 'away';
+    // Pênaltis vêm do motor (`event.penalties`/`event.winner`); a campanha só
+    // entra como reserva. Sem isso a final decidida nos pênaltis aparecia
+    // "EMPATE" mesmo com o jogo encerrado.
+    const shootout = Array.isArray(event.penalties) ? event.penalties : null;
+    let winner = event.winner || (homeScore === awayScore ? null : homeScore > awayScore ? 'home' : 'away');
     if (!winner && campaignResult?.winner) winner = campaignResult.winner === home.id ? 'home' : 'away';
     const champion = winner === 'home' ? home : winner === 'away' ? away : null;
 
     overlay.replaceChildren(el('div', { class: 'result' },
       el('div', { class: 'result__flare' }),
-      el('h2', { class: 'result__title', text: 'FIM DE JOGO' }),
+      el('h2', { class: 'result__title', text: 'RESULTADO DA PARTIDA' }),
+      el('div', { class: 'result__comp', text: params.competition?.title
+        || (params.worldCupMatchId ? 'XFC WORLD CUP™'
+          : params.tournamentMatchId ? 'Campeonato'
+            : careerClub ? 'Carreira' : 'Partida amistosa') }),
       matchReward && el('div', { class: 'result__reward' },
         el('span', { class: 'result__reward-icon', text: '✦' }),
         el('b', { text: `+${matchReward.coins} MOEDAS` }),
         el('span', { text: 'adicionadas ao Ultimate Team' })
       ),
-      campaignResult?.decidedBy === 'penalties' && el('div', { class: 'result__penalties', text: 'VITÓRIA NOS PÊNALTIS' }),
+      (shootout || campaignResult?.decidedBy === 'penalties') && el('div', { class: 'result__penalties' },
+        el('b', { text: 'DISPUTA DE PÊNALTIS' }),
+        shootout ? el('span', { text: `${shootout[0]} × ${shootout[1]}` }) : null
+      ),
       el('div', { class: 'result__teams' },
         el('div', { class: `result__team${winner === 'home' ? ' is-winner' : ''}` },
+          el('span', { class: 'result__pill result__pill--home', text: 'CASA' }),
           teamMark(home, 'result__crest'),
           el('b', { class: 'result__name', text: home.name })
         ),
         el('div', { class: 'result__score' },
           el('b', { text: String(homeScore) }),
-          el('span', { text: '×' }),
+          el('span', { text: '-' }),
           el('b', { text: String(awayScore) })
         ),
         el('div', { class: `result__team${winner === 'away' ? ' is-winner' : ''}` },
-          el('b', { class: 'result__name', text: away.name }),
-          teamMark(away, 'result__crest')
+          el('span', { class: 'result__pill result__pill--away', text: 'FORA' }),
+          teamMark(away, 'result__crest'),
+          el('b', { class: 'result__name', text: away.name })
         )
       ),
       el('div', { class: 'result__stats' },
@@ -661,10 +838,13 @@ export function playScreen(ctx, params = {}) {
             type: 'button',
             onClick: () => ctx.go('worldcup', {
               mode: params.worldCupMode || campaign?.mode || '2027',
-              returnTo: params.worldCupReturnTo || 'modes'
+              returnTo: params.worldCupReturnTo || 'modes',
+              // Copa convocada dentro da carreira: o botão volta para a Copa
+              // da carreira, e o "voltar" dela retorna às competições.
+              ...(params.worldCupCareer ? {fromCareer: true, kind: 'player'} : {})
             })
           }, 'CONTINUAR COPA')
-          : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career')},'VOLTAR À CARREIRA')
+          : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career',{view:'hub',kind:careerManager?'manager':'player'})},'VOLTAR À CARREIRA')
           : params.ultimateMatchId ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('ultimate')},'VOLTAR AO CLUBE')
           : el('button', {
             class: 'btn btn--primary',
@@ -722,35 +902,33 @@ export function playScreen(ctx, params = {}) {
           const base=pitchToPlan(next);
           if(!match.world.setGamePlan(entry.id,base))return;
           point=next;
+          // Escalação mexida NA PARTIDA não altera a oficial: a posição vale só
+          // para este jogo (fica no `match` e sai com ele). No plano de jogo
+          // fora da partida (elenco/central), sim, é salva na carreira.
+          if(params.careerMatchId||params.ultimateMatchId){
+            if(params.ultimateMatchId&&ctx.state.profile.ut?.pending){
+              const u=ctx.state.profile.ut;u.pending.squad.positions[entry.rosterId]=next;
+              const saved=u.squads.find(s=>s.id===u.pending.squad.id);if(saved)saved.positions[entry.rosterId]=next;
+              home.plan[entry.rosterId]=base;
+            }
+            return;
+          }
           ctx.state.profile.gamePlans||={};ctx.state.profile.gamePlans[userTeam.id]||={};
           ctx.state.profile.gamePlans[userTeam.id][entry.rosterId]=base;
-          if(params.ultimateMatchId&&ctx.state.profile.ut?.pending){
-            const u=ctx.state.profile.ut;u.pending.squad.positions[entry.rosterId]=next;
-            const saved=u.squads.find(s=>s.id===u.pending.squad.id);if(saved)saved.positions[entry.rosterId]=next;
-            home.plan[entry.rosterId]=base;
-          }
           saveProfile(ctx.state);
         }});
       }
       panel('PLANO DE JOGO',el('p',{text:'Arraste as cartinhas livremente. No teclado, selecione uma carta e use as setas. As novas posições orientam a equipe ao retomar, sem teletransportar o lance.'}),pitch);
     }
-    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go(careerClub?'career':params.ultimateMatchId?'ultimate':'menu');
+    const leave=()=>params.tournamentMatchId?ctx.go('competition',{competitionId:params.tournamentCompetitionId,returnTo:params.tournamentReturnTo||'modes',panel:'play'}):ctx.go(careerClub?'career':params.ultimateMatchId?'ultimate':'menu',careerClub?{view:'hub',kind:careerManager?'manager':'player'}:{});
     const confirm=(title,message,action)=>panel(title,el('p',{text:message}),el('button',{type:'button',class:'pause-reference__confirm',onClick:action,text:'CONFIRMAR'}));
     const actions=[
       ['resume','▶','CONTINUAR PARTIDA',resumeMatch],
       ['restart','↻','REINICIAR PARTIDA',()=>confirm('REINICIAR PARTIDA','Recomeçar este confronto do zero? O placar atual será descartado.',()=>ctx.go('play',{...params,home:home.id,away:away.id,homeKit:params.homeKit||0,awayKit:params.awayKit||0}))],
       ['settings','⚙','CONFIGURAÇÕES',()=>panel('CONFIGURAÇÕES',
         graphicsSettings(ctx.state),
-        el('button',{type:'button',class:'pause-reference__back',text:'REVER ÚLTIMO LANCE',onClick:()=>{
-          if(!match.world.replay.available){panel('REPLAY',el('p',{text:'Jogue alguns segundos para gravar um lance.'}));return;}
-          const replayOverlay=el('div',{class:'play-replay'},el('span',{text:'REPLAY · último lance · câmera lenta'}),el('button',{type:'button',text:'Voltar à pausa',onClick:()=>match.world.replay.stop()}));
-          const finish=()=>{replayOverlay.remove();overlay.style.visibility='';stageBox.classList.remove('is-replay');pausePanel=closeDetail;};
-          overlay.style.visibility='hidden';stageBox.classList.add('is-replay');stageBox.append(replayOverlay);
-          if(!match.world.replay.start(finish)){finish();return;}
-          pausePanel=()=>match.world.replay.stop();
-        }}),
         el('p',{text:'CHUTE: segure até a carga completa para superchute. CORRER: segure para correr; arraste para cima para chapéu ou para baixo para pedalada.'}),
-        el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
+        careerClub&&!careerManager ? el('p',{text:'Câmera Pro · acompanha seu atleta, como nos treinos.'}) : el('label',{class:'pause-reference__setting'},el('span',{text:'Câmera de transmissão'}),el('select',{'aria-label':'Distância da câmera',onChange:e=>match.world.setCameraZoom(Number(e.target.value))},
           el('option',{value:'1',selected:match.world.cameraZoom===1,text:'Padrão'}),el('option',{value:'1.2',selected:match.world.cameraZoom===1.2,text:'Mais aberta'}))),
         el('p',{text:'Teclado: WASD/setas para mover, Shift para correr, J/E para passar, K para carregar o chute e F para carrinho.'}),
         el('button',{type:'button',class:'pause-reference__back',dataset:{pauseAction:'plan'},onClick:showPlan,text:'PLANO DE JOGO'}))],
@@ -777,7 +955,57 @@ export function playScreen(ctx, params = {}) {
     pausePanel=null;stage='live';paused=false;stageBox.classList.remove('is-paused');
     setPauseButtonVisible(true);match?.world.setPaused(false);
     overlay.replaceChildren();overlay.classList.remove('is-visible');
-    controls?.setEnabled(true);match?.resumeRender();
+    if(!spectatorMode)controls?.setEnabled(true);
+    match?.resumeRender();
+  }
+
+  // -------------------------------- expulsão do herói (carreira jogador) ----
+
+  function showDismissal(event) {
+    if (dismissalShown || !match) return;
+    dismissalShown = true;
+    match.stop();
+    match.world.setPaused(true);
+    controls?.setEnabled(false);
+    setPauseButtonVisible(false);
+    stage = 'dismissed';
+    const choose = watch => {
+      if (stage !== 'dismissed') return;
+      if (watch) {
+        spectatorMode = true;
+        match.world.setSpectator(true);
+        stage = 'live';
+        overlay.replaceChildren();
+        overlay.classList.remove('is-visible');
+        setPauseButtonVisible(true);
+        match.world.setPaused(false);
+        match.resumeRender();
+      } else {
+        const snapshot = match.world.snapshot();
+        const endEvent = {
+          score: Array.isArray(snapshot.score) ? snapshot.score.slice() : [0, 0],
+          stats: snapshot.stats,
+          phase: 'fulltime'
+        };
+        match.stop();
+        match.world.setPaused(true);
+        controls?.setEnabled(false);
+        creditMatch(endEvent);
+        showResult(endEvent);
+      }
+    };
+    overlay.replaceChildren(el('div', { class: 'play-dismissal' },
+      el('div', { class: 'play-dismissal__card', 'aria-hidden': 'true' }),
+      el('span', { class: 'play-dismissal__eyebrow', text: 'EXPULSÃO' }),
+      el('h2', { class: 'play-dismissal__title', text: 'CARTÃO VERMELHO' }),
+      el('p', { class: 'play-dismissal__text',
+        text: `${event.player?.name || 'Seu jogador'} foi expulso. Quer encerrar a partida ou assistir o resto do jogo como espectador?` }),
+      el('div', { class: 'play-dismissal__actions' },
+        el('button', { class: 'btn btn--primary', type: 'button', text: 'ASSISTIR', onClick: () => choose(true) }),
+        el('button', { class: 'btn', type: 'button', text: 'ENCERRAR PARTIDA', onClick: () => choose(false) })
+      )
+    ));
+    overlay.classList.add('is-visible');
   }
 
   // ------------------------------------------------------------- montagem --
@@ -791,41 +1019,55 @@ export function playScreen(ctx, params = {}) {
   ));
   overlay.classList.add('is-visible');
 
+  // Buffers reaproveitados pelo laço de HUD (ver `projectToStage`).
+  const projectionPoint = { x: 0, y: 0, z: 0, visible: true };
+  const controlledPoint = { x: 0, y: 0, z: 0, visible: true };
+  const projectedPlayers = [];
   const frame = () => {
     if (!match) return;
     const snapshot = match.world.snapshot();
     lastSnapshot = snapshot;
     // Etiquetas sobre a cabeça de TODOS os atletas (como no eFootball/FC Mobile).
+    // Os objetos e o vetor de projeção são reaproveitados entre quadros: a HUD
+    // agora desenha 8x por segundo e recriar 22 objetos por quadro (com um
+    // vetor novo para cada) era lixo de memória suficiente para engasgar em
+    // celular modests.
     const all = match.world.members('home').concat(match.world.members('away'));
     const controlledPlayer = all.find(player => match.world.isUserControlled(player)) || null;
-    // Projetar posição de todos os jogadores para o stage
-    const projectedPlayers = all.map(player => {
-      const point = projectToStage(match.engine.camera, {
+    if (projectedPlayers.length !== all.length) {
+      projectedPlayers.length = 0;
+      for (let index = 0; index < all.length; index += 1) {
+        projectedPlayers.push({ id: '', number: 0, name: '', side: '', active: true, visible: false, x: 0, y: 0, z: 0 });
+      }
+    }
+    for (let index = 0; index < all.length; index += 1) {
+      const player = all[index];
+      projectToStage(match.engine.camera, {
         x: player.root.position.x,
         y: 2.32,
         z: player.root.position.z
-      });
+      }, projectionPoint);
       // Verificar se está atrás do plano da câmera (não mostrar nome)
-      const visible = point.z > 0 && point.x > 20 && point.x < 1260 && point.y > 20 && point.y < 700;
-      return {
-        id: player.id || `${player.side}-${player.number}`,
-        number: player.number,
-        name: player.name,
-        side: player.side,
-        active: player.active !== false,
-        visible,
-        x: point.x,
-        y: point.y,
-        z: point.z
-      };
-    });
+      const visible = projectionPoint.z > 0 && projectionPoint.x > 20 && projectionPoint.x < 1260
+        && projectionPoint.y > 20 && projectionPoint.y < 700;
+      const entry = projectedPlayers[index];
+      entry.id = player.id || `${player.side}-${player.number}`;
+      entry.number = player.number;
+      entry.name = player.name;
+      entry.side = player.side;
+      entry.active = player.active !== false;
+      entry.visible = visible;
+      entry.x = projectionPoint.x;
+      entry.y = projectionPoint.y;
+      entry.z = projectionPoint.z;
+    }
     let controlled = null;
     if (controlledPlayer) {
       const point = projectToStage(match.engine.camera, {
         x: controlledPlayer.root.position.x,
         y: 2.32,
         z: controlledPlayer.root.position.z
-      });
+      }, controlledPoint);
       controlled = { player: controlledPlayer, x: point.x, y: point.y, z: point.z, visible: point.z > 0 };
     }
     hud?.update(snapshot, projectedPlayers, {
@@ -865,6 +1107,7 @@ export function playScreen(ctx, params = {}) {
         items[(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();return true;
       }
       if (event.key === 'Escape' || event.key === 'Backspace') {
+        if (stage === 'dismissed') { return true; } // exige escolha explícita
         if (stage === 'live') {
           showPause();
           return true;
@@ -872,6 +1115,10 @@ export function playScreen(ctx, params = {}) {
         if (stage === 'paused') {
           if(pausePanel){pausePanel();return true;}
           resumeMatch();
+          return true;
+        }
+        if (stage === 'entrance') {
+          skipCeremony();
           return true;
         }
         if (stage === 'prematch') {
@@ -888,6 +1135,8 @@ export function playScreen(ctx, params = {}) {
       cancelAnimationFrame(initializeFrame);
       clearTimeout(initializeTimer);
       clearInterval(timer);
+      for (const off of unsubscribers) off?.();
+      unsubscribers.length = 0;
       dome?.dispose();
       controls?.dispose();
       hud?.dispose();

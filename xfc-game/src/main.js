@@ -10,6 +10,7 @@ import { el, clear } from './ui/dom.js';
 import { introScreen } from './screens/intro.js';
 import { launchScreen } from './screens/launch.js';
 import { menuScreen } from './screens/menu.js';
+import { teamSelectionScreen } from './screens/team-selection.js';
 import { kickoffScreen } from './screens/kickoff.js';
 import { kitsScreen } from './screens/kits.js';
 import { squadScreen } from './screens/squad.js';
@@ -23,7 +24,9 @@ import { customiseScreen } from './screens/customise.js';
 import { ultimateTeamScreen } from './screens/ultimate.js';
 import { trainingScreen } from './screens/training.js';
 import { competitionScreen } from './screens/competition.js';
+import { trophyCinematic } from './screens/trophy-cinematic.js';
 import { unlockAudio } from './audio.js';
+import { createGamepad } from './ui/gamepad.js';
 
 // No Android, um toque longo em um botão abria o balão de "abrir/copiar" do
 // WebView. O jogo usa botões reais; o menu de contexto é bloqueado apenas
@@ -49,6 +52,7 @@ const registry = {
   launch: launchScreen,
   menu: menuScreen,
   kickoff: kickoffScreen,
+  friendly: (ctx,params={})=>teamSelectionScreen(ctx,{...params,selectionRoute:'friendly'}),
   kits: kitsScreen,
   squad: squadScreen,
   match: matchScreen,
@@ -61,10 +65,118 @@ const registry = {
   worldcup: worldCupScreen,
   ultimate: ultimateTeamScreen,
   training: trainingScreen,
-  competition: competitionScreen
+  competition: competitionScreen,
+  // Comemoração de título (Champions, Copa, Libertadores, Brasileirão...):
+  // cena 3D curta com a taça girando e o time com os braços erguidos.
+  trophy: trophyCinematic
 };
 
 let current = null;
+
+/* ------------------------------------------------------ controle console --- */
+
+// Um único leitor de gamepad para o app inteiro, criado dentro do cenário em
+// que o jogo roda (menus). O `.app` ganha a classe `has-gamepad`, que esconde
+// os controles virtuais da partida e mostra o rodapé com os botões do controle.
+export const gamepad = createGamepad({
+  onMenuCommand: name => navigateWithPad(name)
+});
+
+function focusable() {
+  const scope = host || document;
+  return [...scope.querySelectorAll('button:not([disabled]), [tabindex="0"], select, input, a[href]')]
+    .filter(node => node.offsetParent !== null && !node.closest('[hidden]'));
+}
+
+/** Move o foco para o próximo elemento na direção pedida (grade ou lista). */
+function moveFocus(direction) {
+  const items = focusable();
+  if (!items.length) return;
+  const active = document.activeElement;
+  if (!items.includes(active)) { items[0].focus(); return; }
+  const box = active.getBoundingClientRect();
+  const cx = box.left + box.width / 2;
+  const cy = box.top + box.height / 2;
+  const axis = direction === 'left' || direction === 'right' ? 'x' : 'y';
+  const sign = direction === 'right' || direction === 'down' ? 1 : -1;
+  let best = null;
+  let bestScore = Infinity;
+  for (const node of items) {
+    if (node === active) continue;
+    const rect = node.getBoundingClientRect();
+    const dx = rect.left + rect.width / 2 - cx;
+    const dy = rect.top + rect.height / 2 - cy;
+    const primary = axis === 'x' ? dx * sign : dy * sign;
+    if (primary <= 4) continue;
+    const secondary = axis === 'x' ? Math.abs(dy) : Math.abs(dx);
+    // Prefere a mesma linha/coluna: o desvio lateral pesa mais que a distância.
+    const score = primary + secondary * 2.2;
+    if (score < bestScore) { bestScore = score; best = node; }
+  }
+  if (best) best.focus();
+}
+
+/** Navegação "tipo console" nos menus: direcional anda, A clica, B volta. */
+let padNoticeShown = false;
+export function navigateWithPad(name) {
+  if (!current) return false;
+  const active = document.activeElement;
+  if (name === 'confirm') {
+    if (active && active !== document.body && typeof active.click === 'function') {
+      active.click();
+      return true;
+    }
+    const items = focusable();
+    if (items.length) { items[0].click(); return true; }
+    return false;
+  }
+  if (name === 'back') {
+    // B é o mesmo que Escape no teclado: cada tela já sabe o que fazer.
+    const handled = current.onKey?.({ key: 'Escape', code: 'Escape', preventDefault() {} });
+    if (!handled) {
+      const back = host?.querySelector('.ref-back, [data-pad-back]');
+      if (back) back.click();
+    }
+    return true;
+  }
+  if (name === 'tabLeft' || name === 'tabRight') {
+    const tabs = [...(host?.querySelectorAll('[data-pad-tab]') || [])];
+    if (!tabs.length) return false;
+    const index = tabs.indexOf(active);
+    const next = tabs[(index + (name === 'tabLeft' ? tabs.length - 1 : 1)) % tabs.length];
+    next?.focus();
+    return true;
+  }
+  if (['up', 'down', 'left', 'right'].includes(name)) {
+    moveFocus(name);
+    return true;
+  }
+  return false;
+}
+
+// Laço de navegação: roda só quando há controle conectado, para não gastar
+// bateria em celulares sem gamepad.
+let padFrame = 0;
+let padLast = 0;
+function padLoop(now) {
+  padFrame = requestAnimationFrame(padLoop);
+  const dt = Math.min(0.1, (now - padLast) / 1000 || 0.016);
+  padLast = now;
+  const onMatch = document.body.dataset.screen === 'play';
+  gamepad.setMenuMode(!onMatch);
+  const result = gamepad.poll(dt, { enabled: true });
+  // Só mexe no DOM quando o estado muda: nada de tocar a árvore toda quadro.
+  if (result.connected !== padWasConnected || result.family !== padWasFamily) {
+    padWasConnected = result.connected;
+    padWasFamily = result.family;
+    document.querySelector('.app')?.classList.toggle('has-gamepad', result.connected);
+    document.body.dataset.gamepad = result.connected ? result.family : '';
+    if (result.connected && !padNoticeShown) { padNoticeShown = true; toast(`Controle ${result.family === 'playstation' ? 'PlayStation' : result.family === 'xbox' ? 'Xbox' : 'conectado'} detectado`, { variant: 'info', duration: 2200 }); }
+  }
+}
+let padWasConnected = false;
+let padWasFamily = '';
+if (typeof requestAnimationFrame === 'function') padFrame = requestAnimationFrame(padLoop);
 
 /* --------------------------------------------------------------- palco --- */
 
