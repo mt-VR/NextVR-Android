@@ -642,9 +642,9 @@ export function createGltfPlayer(options = {}) {
         const enter=ease(0,.16),recover=ease(.72,1),slide=enter*(1-recover);
         const push=ease(.62,.84)*(1-ease(.84,1));
         const lead=dir>=0?1:-1;
-        bones.hips.position.y=bindHipY-(gesture.mask&&!gesture.mask.has('Hips')?0:gesture.weight)*.92*slide*w;
-        addBoneRotation(bones.hips,.22*slide,lead*.55*slide,-1.15*slide*dir,w);
-        addBoneRotation(bones.spine2,.18*slide+.16*push,lead*.28*slide,0,w);
+        bones.hips.position.y=bindHipY-(gesture.mask&&!gesture.mask.has('Hips')?0:gesture.weight)*1.12*slide*w;
+        addBoneRotation(bones.hips,-.12*slide,lead*.28*slide,-.92*slide*dir,w);
+        addBoneRotation(bones.spine2,.12*slide+.16*push,lead*.22*slide,0,w);
         addBoneRotation(bones.leftUpLeg,(-.35-1.55*(lead<0?1:0))*slide,0,.55*slide*lead,w);
         addBoneRotation(bones.leftLeg,(lead<0?0.08:1.85)*slide+.4*push,0,0,w);
         addBoneRotation(bones.leftFoot,(lead<0?-.15:.45)*slide,0,0,w);

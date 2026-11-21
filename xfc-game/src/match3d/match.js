@@ -3090,12 +3090,11 @@ export function createMatch(options = {}) {
     const rightZ = forwardX;
     const speed = playerSpeed(player);
     const isPenalty=training.enabled&&training.drill==='penalty';
-    // Pênalti: câmera no eixo da marca, gol no centro do quadro.
+    // Pênalti: atrás do cobrador (eixo da marca), olhando o gol no centro.
     if (isPenalty) {
       const goalX = PITCH.halfLength;
-      const spotX = PITCH.halfLength - 11;
-      const desiredX = spotX - 7.4;
-      const desiredY = 2.55;
+      const desiredX = player.x - 6.8;
+      const desiredY = 4.8;
       const desiredZ = 0;
       const targetX = goalX;
       const targetY = 1.18;
