@@ -238,14 +238,22 @@ export function nationKits(team) {
       socks: homeSocks,
       keeper: { primary: colors.keeperPrimary || '#f2c94c', secondary: colors.keeperSecondary || '#20232a' }
     },
-    {
-      name: `${name} Away`,
-      colors: { primary: colors.secondary, secondary: colors.primary, trim: colors.trim, shorts: colors.primary, socks: colors.primary, keeperPrimary: colors.keeperSecondary, keeperSecondary: colors.keeperPrimary },
-      pattern: 'solid',
-      shorts: colors.primary,
-      socks: colors.primary,
-      keeper: { primary: colors.keeperSecondary || '#20232a', secondary: colors.keeperPrimary || '#f2c94c' }
-    }
+    (() => {
+      const away = NATION_AWAY[team?.id];
+      const primary = away?.primary || colors.secondary;
+      const secondary = away?.secondary || colors.primary;
+      const trim = away?.trim || colors.trim;
+      const shorts = away?.shorts || colors.primary;
+      const socks = away?.socks || colors.primary;
+      return {
+        name: `${name} Away`,
+        colors: { primary, secondary, trim, shorts, socks, keeperPrimary: colors.keeperSecondary, keeperSecondary: colors.keeperPrimary },
+        pattern: 'solid',
+        shorts,
+        socks,
+        keeper: { primary: colors.keeperSecondary || '#20232a', secondary: colors.keeperPrimary || '#f2c94c' }
+      };
+    })()
   ];
 }
 
@@ -255,6 +263,11 @@ export const NATION_KIT_COLORS = NATION_KITS;
  * Calção e meiões do uniforme de verdade — a camisa sozinha não basta.
  * Brasil casa: amarelo + calção AZUL (nunca verde). Argentina 2022: calção preto.
  */
+/** Segundo uniforme: Brasil = camisa azul e calção branco. */
+export const NATION_AWAY = {
+  brazil: { primary: '#1c4fd8', secondary: '#ffffff', trim: '#ffffff', shorts: '#ffffff', socks: '#1c4fd8' }
+};
+
 export const NATION_SHORTS = {
   brazil: { shorts: '#183891', socks: '#ffffff' },
   argentina: { shorts: '#1a1a1a', socks: '#ffffff' },

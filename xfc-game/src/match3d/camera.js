@@ -79,14 +79,16 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
  */
 // v0.5.59: Kick Off volta à lente pré-0.5.58 (16 m / 45 m). A carreira, no
 // campo maior, chega mais perto para o atleta não virar um ponto no gramado.
+// Tele Broadcast (EA FC): altura ~16–20, zoom baixo, segue a bola, atletas
+// grandes no quadro, pouco das laterais. Não cola no jogador.
 const CAMERA_PRESETS = {
   standard: {
-    height: 16, z: 45, zMin: 38, zMax: 52.5, targetAhead: 32, fov: 54,
-    panFactor: 1, zFollow: 0.6, aimLift: 0.25, aimBase: -2, topZoom: 0.2
+    height: 18, z: 50, zMin: 44, zMax: 58, targetAhead: 28, fov: 46,
+    panFactor: 1, zFollow: 0.42, aimLift: 0.16, aimBase: -1.1, topZoom: 0.14
   },
   career: {
-    height: 13.2, z: 38, zMin: 32, zMax: 48, targetAhead: 24, fov: 50,
-    panFactor: 1, zFollow: 0.5, aimLift: 0.22, aimBase: -1.4, topZoom: 0.16
+    height: 19, z: 54, zMin: 46, zMax: 62, targetAhead: 30, fov: 48,
+    panFactor: 1, zFollow: 0.38, aimLift: 0.14, aimBase: -1, topZoom: 0.12
   }
 };
 
@@ -102,8 +104,8 @@ export function setBroadcastCameraLayout(kind = 'standard') {
 /** Teto do zoom do menu de pausa: a lente nunca entra na arquibancada. */
 export const BROADCAST_CAMERA_LIMITS = {
   minHeight: 8,
-  maxHeight: 22,
-  minZ: 32,
+  maxHeight: 24,
+  minZ: 36,
   maxZ: CAMERA_PRESETS.standard.zMax
 };
 

@@ -7,7 +7,7 @@ import {kitsOf,kitSvg} from '../data/kits.js';
 import {TEAM_COUNTRIES,countryTeams} from '../data/team-groups.js';
 import {getTeam} from '../data/teams.js';
 import {createManagerCareer,saveCareerSlot} from '../data/career-services.js';
-import {createCareer,careerTeam,careerAppearance,customiseCareer,CAREER_POSITIONS,CAREER_HAIR_COLORS,CAREER_SKIN,CAREER_NATIONS,CAREER_BEARD,CAREER_FACE,CAREER_BODY} from '../data/career.js';
+import {createCareer,careerTeam,careerAppearance,customiseCareer,CAREER_POSITIONS,CAREER_HAIR_COLORS,CAREER_SKIN,CAREER_NATIONS,CAREER_BEARD,CAREER_FACE,CAREER_BODY,CAREER_TATTOO,CAREER_MASK} from '../data/career.js';
 import {bootFor,bootOptions} from '../data/boots.js';
 
 // Permite "arrastar pra baixo" com o mouse sem brigar com selects/inputs.
@@ -51,12 +51,12 @@ export function careerEditor(ctx,{career:c,view,kind,category,customReturnTo,go,
  country.addEventListener('change',()=>{fill();paintClub();sync();rebuildKit();showPreview();});clubs.addEventListener('change',()=>{paintClub();sync();rebuildKit();showPreview();});
  const kit=select('Uniforme',{},String(c?.kitIndex||0));controls.kit=kit;kit.disabled=blocked;
  function rebuildKit(){kit.replaceChildren(...kitsOf(editing?c.clubId:clubs.value).map((k,i)=>el('option',{value:i,text:k.name||`Uniforme ${i+1}`,selected:i===(draft.kitIndex||0)})));}rebuildKit();kit.addEventListener('change',()=>{sync();showPreview();});
- const appearance=[label('Nome',name),choose('position','Posição',CAREER_POSITIONS,draft.player.position),number('height','Altura (cm)',look.height,160,200),number('weight','Peso (kg)',look.weight,55,100),choose('body','Corpo',CAREER_BODY,look.body),choose('skinTone','Tom de pele',CAREER_SKIN,look.skinTone)];
+ const appearance=[label('Nome',name),choose('position','Posição',CAREER_POSITIONS,draft.player.position),number('height','Altura (cm)',look.height,160,200),number('weight','Peso (kg)',look.weight,55,100),choose('body','Corpo',CAREER_BODY,look.body),choose('skinTone','Tom de pele',CAREER_SKIN,look.skinTone),choose('tattoo','Tatuagem',CAREER_TATTOO,look.tattoo)];
  const hairStyle=choose('hairStyle','Cabelo',LAB_HAIR,CAREER_HAIR_ALIAS[look.hairStyle]||look.hairStyle);
  // O <select> mostra o corte RENDERIZADO (ex.: lab-reference-mohawk), mas o
  // save continua no id apelidado (ex.: 'mohawk'), como nos saves antigos.
  hairStyle.querySelector('select').dataset.saveId=look.hairStyle;
- const head=[el('p',{text:'Laboratório: novos cortes são protótipos deste atleta. Não alteram o elenco automaticamente.'}),hairStyle,choose('hairColor','Cor do cabelo',CAREER_HAIR_COLORS,look.hairColor),choose('face','Rosto',CAREER_FACE,look.face),choose('beard','Barba',CAREER_BEARD,look.beard),choose('moustache','Bigode',{none:'Sem bigode',classic:'Clássico'},look.moustache),choose('brows','Sobrancelhas',{natural:'Naturais',thick:'Espessas'},look.brows)];
+ const head=[el('p',{text:'Laboratório: novos cortes são protótipos deste atleta. Não alteram o elenco automaticamente.'}),hairStyle,choose('hairColor','Cor do cabelo',CAREER_HAIR_COLORS,look.hairColor),choose('face','Rosto',CAREER_FACE,look.face),choose('beard','Barba',CAREER_BEARD,look.beard),choose('moustache','Bigode',{none:'Sem bigode',classic:'Clássico'},look.moustache),choose('brows','Sobrancelhas',{natural:'Naturais',thick:'Espessas'},look.brows),choose('faceMask','Máscara facial',CAREER_MASK,look.faceMask)];
  const uniform=[label('Uniforme',kit),number('number','Número da camisa',draft.player.number,1,99),choose('socks','Meião',{long:'Longo',short:'Curto'},look.socks)];
  const accessories=[choose('boot','Chuteira',bootOptions(),look.boot||bootFor(look.bootColor).id),choose('gloveModel','Modelo de luva',{winter:'Frio · jogador de linha',pro:'Goleiro · acolchoada'},look.gloveModel),choose('gloves','Luvas',GLOVE_LABELS,look.gloves),choose('wristband','Munhequeira',ACCESSORY_LABELS,look.wristband),choose('wristbandSide','Pulsos',{left:'Esquerdo',right:'Direito',both:'Os dois'},look.wristbandSide)];
  const animation=[choose('celebration','Comemoração',{arms:'Braços erguidos',fist:'Punho no alto',wide:'Braços abertos'},look.celebration),button('Testar comemoração',()=>preview?.celebrate())];

@@ -15,6 +15,8 @@ export const CAREER_NATIONS=['Brasil','Espanha','Argentina','Portugal','França'
 export const CAREER_BEARD={none:'Sem barba',stubble:'Por fazer',full:'Cheia',goatee:'Cavanhaque'};
 export const CAREER_FACE={natural:'Natural',slim:'Fino',broad:'Largo'};
 export const CAREER_BODY={normal:'Equilibrado',lean:'Magro',strong:'Atlético'};
+export const CAREER_TATTOO={none:'Sem tatuagem',sleeve:'Manga no braço',calf:'Panturrilha',chest:'Peito'};
+export const CAREER_MASK={none:'Sem máscara',black:'Preta',white:'Branca',team:'Do clube'};
 const pick=(list,value,fallback)=>Object.hasOwn(list,value)?value:fallback;
 // O laboratório deixou de ter o moicano de crista (retirado a pedido): um save
 // antigo com `lab-mohawk` cai no moicano da referência, não em "careca".
@@ -30,7 +32,8 @@ export function careerAppearance(value={}){return {
  moustache:pick({none:1,classic:1},value.moustache,'none'),brows:pick({natural:1,thick:1},value.brows,'natural'),
  height:Math.round(cap(value.height??175,160,200)),weight:Math.round(cap(value.weight??68,55,100)),
  socks:pick({long:1,short:1},value.socks,'long'),gloves:pick(GLOVE_LABELS,value.gloves,'none'),gloveModel:pick({winter:1,pro:1},value.gloveModel,'winter'),
- wristband:pick(ACCESSORY_LABELS,value.wristband,'none'),wristbandSide:pick({left:1,right:1,both:1},value.wristbandSide,'left'),celebration:pick({arms:1,fist:1,wide:1},value.celebration,'arms')
+ wristband:pick(ACCESSORY_LABELS,value.wristband,'none'),wristbandSide:pick({left:1,right:1,both:1},value.wristbandSide,'left'),celebration:pick({arms:1,fist:1,wide:1},value.celebration,'arms'),
+ tattoo:pick(CAREER_TATTOO,value.tattoo,'none'),faceMask:pick(CAREER_MASK,value.faceMask,'none')
 };}
 export function careerOverall(c){return Math.round(Object.values(c.player.stats).reduce((a,b)=>a+b,0)/6);}
 export function customiseCareer(c,values={},opts={}){

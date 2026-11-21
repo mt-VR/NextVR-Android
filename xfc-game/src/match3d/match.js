@@ -10,7 +10,7 @@ import {directionalPassTarget} from './directional-pass.js';
 // O módulo é agnóstico da interface: avisa o que aconteceu por `onEvent` e
 // recebe os comandos do jogador por `world.command`.
 
-import { penaltyTarget, choosePenaltyLane, rainbowProfile, rainbowPoint } from './football-actions.js';
+import { penaltyTarget, choosePenaltyLane, rainbowProfile, rainbowPoint, shotGoalTargetZ } from './football-actions.js';
 import { createEngine, THREE } from './engine.js';
 import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
@@ -32,12 +32,12 @@ import {
   tunnelSlot,
   walkoutPath
 } from './prematch.js';
-import { cheer } from '../audio.js';
+import { cheer, kickSound, netRattle } from '../audio.js';
 import { createGltfPlayer, gltfPlayersEnabled } from './models.js';
 import { installAnimationApi } from './animation.js';
 import { createTeamAI } from './ai.js';
 import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
-import { PITCH, GOAL, BALL, FORMATION_433, applyPitchLayout } from './constants.js';
+import { PITCH, GOAL, BALL, FORMATION_433, applyPitchLayout, applyGoalPresence } from './constants.js';
 import {
   BROADCAST_CAMERA_LIMITS,
   BROADCAST_CAMERA_SIDE,
@@ -96,6 +96,7 @@ export function createMatch(options = {}) {
 
   const largePitch = Boolean(options.largePitch);
   applyPitchLayout(largePitch ? 'career' : 'standard');
+  applyGoalPresence(1.34);
   setBroadcastCameraLayout(largePitch ? 'career' : 'standard');
 
   const engine = createEngine(canvas,{graphicsQuality:options.graphicsQuality});
@@ -108,7 +109,7 @@ export function createMatch(options = {}) {
   });
   const ball = createBall(engine.scene, {
     lowPower: engine.lowPower,
-    onNetImpact: event => stadiumMesh.hitNet(event),
+    onNetImpact: event => { stadiumMesh.hitNet(event); netRattle(event?.speed || 18); },
     onAerialTouch: event => aerialHeader(event)
   });
   const aimGeometry=new THREE.BufferGeometry();
@@ -1755,6 +1756,8 @@ export function createMatch(options = {}) {
       score: [teams.home.score, teams.away.score],
       minute: clock.minutes
     });
+    cheer({ duration: 2.8, peak: 0.55 });
+    netRattle(26);
   }
 
   // Árbitro: uniforme preto com acentos amarelos — distinto dos dois times.
@@ -2173,8 +2176,9 @@ export function createMatch(options = {}) {
     const strength = Math.max(0, Math.min(1, opts.strength ?? 0.45));
     const shotKind = opts.kind || (opts.placed ? 'placed' : 'normal');
     if(opts.restartType==='penalty'||(training.enabled&&training.drill==='penalty'))return shootPenalty(player,opts);
-    const stick = Math.abs(input.moveZ) > 0.25 ? Math.sign(input.moveZ) : 0;
     const sign = attackSign(player.side);
+    const aimZ = shotGoalTargetZ(input.moveX, input.moveZ, sign, GOAL.width);
+    kickSound(shotKind === 'power' ? 1 : shotKind === 'placed' ? 0.55 : 0.7);
 
     if (direct) {
       const aim = clampSetPiece(Number(opts.aim) || 0, -1, 1);
@@ -2189,7 +2193,7 @@ export function createMatch(options = {}) {
       const power = basePower + strength * (kind === 'power' ? 15 : kind === 'curved' ? 8 : 10);
       const selectedCurve = Number.isFinite(Number(opts.curve))
         ? Number(opts.curve)
-        : stick ? -stick : Math.sign(aim || 1) * 0.45;
+        : aimZ ? Math.sign(aimZ) : Math.sign(aim || 1) * 0.45;
       const curve = opts.restartType === 'freekick'
         ? clampSetPiece(Number.isFinite(Number(opts.curve)) ? Number(opts.curve) : 0, -1, 1)
         : kind === 'curved' ? clampSetPiece(selectedCurve, -1, 1) : 0;
@@ -2210,11 +2214,10 @@ export function createMatch(options = {}) {
     }
 
     if (shotKind === 'placed' || opts.placed) {
-      const sidePick = stick !== 0 ? -stick : rng() < 0.5 ? -1 : 1;
-      const target = { x: sign * PITCH.halfLength, z: sidePick * (GOAL.width / 2 - 0.75) };
+      const target = { x: sign * PITCH.halfLength, z: aimZ || 0 };
       shootBall(player, { power: 20.5 + strength * 2, spread: 0.008, target, kind: 'placed', lift: 0.085 });
     } else if (shotKind === 'curved') {
-      const lateral = stick !== 0 ? -stick * 2.4 : (rng() < 0.5 ? -1 : 1) * 1.2;
+      const lateral = aimZ !== 0 ? aimZ : 0;
       shootBall(player, {
         power: 18 + strength * 12,
         spread: 0.012,
@@ -2223,10 +2226,10 @@ export function createMatch(options = {}) {
         lift: 0.28 + strength * 0.18,
         curve: Number.isFinite(Number(opts.curve))
           ? clampSetPiece(Number(opts.curve), -1, 1)
-          : stick ? -stick : (rng() < 0.5 ? -1 : 1)
+          : Math.sign(aimZ || 0)
       });
     } else if (shotKind === 'power') {
-      const lateral = stick !== 0 ? -stick * 2.1 : (rng() - 0.5) * 1.4;
+      const lateral = aimZ !== 0 ? aimZ : 0;
       shootBall(player, {
         power: 43 + strength * 9,
         spread: 0.012 + strength * 0.014,
@@ -2235,7 +2238,7 @@ export function createMatch(options = {}) {
         lift: 0.035
       });
     } else {
-      const lateral = stick !== 0 ? -stick * 3.1 : (rng() - 0.5) * 2.4;
+      const lateral = aimZ !== 0 ? aimZ : 0;
       const power = 15 + strength * 16.5;
       const spread = 0.03 + strength * 0.055;
       shootBall(player, { power, spread, target: { x: sign * PITCH.halfLength, z: lateral }, kind: strength > 0.62 ? 'power' : 'normal' });

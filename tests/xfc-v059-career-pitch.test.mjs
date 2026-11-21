@@ -16,13 +16,13 @@ test('Kick Off permanece 120×82; a carreira tem gramado 140×96 à parte', () =
   assert.equal(FORMATION_433[0].role, 'GK');
 });
 
-test('câmera de transmissão do Kick Off é a antiga; a da carreira chega mais perto', () => {
+test('câmera Tele Broadcast no Kick Off; carreira um pouco mais alta no campo maior', () => {
   const kickoff = broadcastCameraPose({ x: 0, y: 0, z: 0 }, 1, null, 'standard');
   const career = broadcastCameraPose({ x: 0, y: 0, z: 0 }, 1, null, 'career');
-  assert.equal(kickoff.position.y, 16);
-  assert.equal(kickoff.position.z, 45);
-  assert.ok(career.position.y < kickoff.position.y, 'carreira: lente mais baixa');
-  assert.ok(Math.abs(career.position.z) < Math.abs(kickoff.position.z), 'carreira: lente mais perto da lateral');
+  assert.equal(kickoff.position.y, 18);
+  assert.equal(kickoff.position.z, 50);
+  assert.ok(career.position.y >= kickoff.position.y, 'carreira: não cola no jogador');
+  assert.ok(Math.abs(career.position.z) >= Math.abs(kickoff.position.z), 'carreira: afasta no gramado maior');
 });
 
 test('Brasil 2022: Neymar 10, Messi e CR7 nas seleções, sem elenco de clube', () => {
@@ -47,4 +47,11 @@ test('uniforme do Brasil tem calção azul, não verde', () => {
   assert.notEqual(kit.shorts.toLowerCase(), '#16733b');
   assert.equal(colors.shorts.toLowerCase(), '#183891');
   assert.match(kit.socks, /^#ffffff$/i);
+});
+
+test('Brasil reserva: camisa azul e calção branco', () => {
+  const brazil = getNationalTeam('brazil');
+  const away = nationKits(brazil)[1];
+  assert.match(away.colors.primary, /^#1c4fd8$/i);
+  assert.match(away.shorts, /^#ffffff$/i);
 });

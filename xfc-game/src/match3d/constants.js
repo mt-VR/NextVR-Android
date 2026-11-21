@@ -27,12 +27,33 @@ export const PITCH = {
   halfWidth: STANDARD_PITCH.halfWidth
 };
 
-export const GOAL = {
+/** Medida FIFA da trave: 7,32 m × 2,44 m. */
+export const FIFA_GOAL = Object.freeze({
   width: 7.32,
   height: 2.44,
   depth: 2.2,
   postRadius: 0.06
+});
+
+export const GOAL = {
+  width: FIFA_GOAL.width,
+  height: FIFA_GOAL.height,
+  depth: FIFA_GOAL.depth,
+  postRadius: FIFA_GOAL.postRadius
 };
+
+/**
+ * Na partida os atletas têm presença 1,34×. Sem o mesmo fator a trave FIFA
+ * fica menor que o goleiro. Fora do jogo a medida volta a 7,32 × 2,44.
+ */
+export function applyGoalPresence(presence = 1) {
+  const scale = Number.isFinite(Number(presence)) && Number(presence) > 0 ? Number(presence) : 1;
+  GOAL.width = FIFA_GOAL.width * scale;
+  GOAL.height = FIFA_GOAL.height * scale;
+  GOAL.depth = FIFA_GOAL.depth * scale;
+  GOAL.postRadius = FIFA_GOAL.postRadius * scale;
+  return GOAL;
+}
 
 export const BALL = {
   radius: 0.11,
@@ -77,6 +98,7 @@ export function applyPitchLayout(kind = 'standard') {
   PITCH.width = source.width;
   PITCH.halfLength = source.halfLength;
   PITCH.halfWidth = source.halfWidth;
+  applyGoalPresence(1);
   rebuildFormation();
   return PITCH;
 }

@@ -41,4 +41,33 @@ export function addPlayerAccessories(model,options,materials,ownedGeometries){
    band.name=side==='Left'?'xfc-career-wristband':'xfc-career-wristband-right';const index=body.skeleton.bones.indexOf(hand);const bind=new T.Matrix4().makeTranslation((loX+hiX)/2,1.040,(loZ+hiZ)/2);body.skeleton.boneInverses[index].clone().multiply(bind).decompose(band.position,band.quaternion,band.scale);band.userData.bindWristY=1.040;hand.add(band);materials.push(material);ownedGeometries.push(g);
   }
  }
+ const ink=options.tattoo&&options.tattoo!=='none'?options.tattoo:null;
+ if(ink){
+  const boneName=ink==='calf'?'LeftUpLeg':ink==='chest'?'Spine2':'LeftArm';
+  const bone=body.skeleton.bones.find(b=>b.name.endsWith(boneName)||b.name===boneName);
+  if(bone){
+   const g=ink==='chest'?new T.SphereGeometry(0.07,10,8):new T.CylinderGeometry(0.038,0.042,0.16,10,1,true);
+   const material=new T.MeshStandardMaterial({color:0x1a2430,roughness:0.92,metalness:0,side:T.DoubleSide,transparent:true,opacity:0.82});
+   const mesh=new T.Mesh(g,material);
+   mesh.name='xfc-career-tattoo';
+   if(ink==='chest')mesh.position.set(0,0.04,0.05);
+   else if(ink==='calf')mesh.position.set(0,-0.18,0);
+   else mesh.position.set(0,-0.08,0);
+   bone.add(mesh);materials.push(material);ownedGeometries.push(g);
+  }
+ }
+ const mask=options.faceMask&&options.faceMask!=='none'?options.faceMask:null;
+ if(mask){
+  const head=body.skeleton.bones.find(b=>/Head$/.test(b.name));
+  if(head){
+   const g=new T.SphereGeometry(1,12,10);
+   const color=mask==='white'?0xf4f4f0:mask==='team'?0x1c4fd8:0x161719;
+   const material=new T.MeshStandardMaterial({color,roughness:0.78,metalness:0.05});
+   const mesh=new T.Mesh(g,material);
+   mesh.name='xfc-career-facemask';
+   mesh.scale.set(0.062,0.048,0.07);
+   mesh.position.set(0,-0.02,0.07);
+   head.add(mesh);materials.push(material);ownedGeometries.push(g);
+  }
+ }
 }

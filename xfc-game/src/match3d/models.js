@@ -1002,10 +1002,10 @@ export function createGltfPlayer(options = {}) {
       const dz = target.z - root.position.z;
       const delta = Math.atan2(dx, dz) - root.rotation.y;
       const angle = Math.atan2(Math.sin(delta),Math.cos(delta));
-      const yaw = Math.max(-0.9, Math.min(0.9, angle));
-      bones.neck.rotation.y += yaw * 0.35;
-      bones.head.rotation.y += yaw * 0.5;
-      const pitch = Math.max(-0.35, Math.min(0.35, -(target.y || 0) * 0.12));
+      const yaw = Math.max(-0.7, Math.min(0.7, angle));
+      if (bones.neck) bones.neck.rotation.y = yaw * 0.22;
+      bones.head.rotation.y = yaw * 0.48;
+      const pitch = Math.max(-0.28, Math.min(0.28, -(target.y || 0) * 0.08));
       bones.head.rotation.x += pitch;
     },
 
@@ -1062,7 +1062,9 @@ export function createGltfPlayer(options = {}) {
         const twist=Math.sin(gaitPhase*Math.PI*2)*gaitWeight;
         bones.hips.rotation.y=-.035*twist;
         bones.spine.rotation.y=.06*twist;
-        bones.head.rotation.y=-.025*twist;
+        // Mesmo sentido do tronco: o queixo (pesos no pescoço) não vai contra o crânio.
+        bones.neck.rotation.y=.04*twist;
+        bones.head.rotation.y=.03*twist;
         bones.head.rotation.x=-.02*running;
         bones.spine2.rotation.x=0;
       }
@@ -1115,7 +1117,7 @@ export function createGltfPlayer(options = {}) {
           // Cabeça viva: olha para os lados em ciclos diferentes do corpo.
           const look=Math.sin(breathing*.42)*.16+Math.sin(breathing*.17)*.09;
           addBoneRotation(bones.head,Math.sin(breathing*.33)*.03,look,0,still);
-          addBoneRotation(bones.neck,0,look*.35,0,still);
+          addBoneRotation(bones.neck,0,look*.22,0,still);
           // Peso do corpo: o quadril oscila e um joelho destrava de cada vez.
           const sway=Math.sin(breathing*.55);
           addBoneRotation(bones.hips,0,0,sway*.022,still);

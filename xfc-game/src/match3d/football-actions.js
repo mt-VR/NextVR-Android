@@ -1,4 +1,4 @@
-import { PITCH } from './constants.js';
+import { PITCH, GOAL } from './constants.js';
 // Mecânicas pequenas e determinísticas, compartilhadas pelos testes e pelo jogo.
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const smoothstep = (x, a, b) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -125,6 +125,21 @@ export function contactTravel(running=1,stride=1){
   const r=clamp(running,0,1),s=clamp(stride,0,1.05*Math.max(1,stride));
   const front=.25+.38*r,back=.12+.22*r;
   return (front+back)*s;
+}
+
+/**
+ * Mira do chute: direita no analógico = trave direita do atleta (sentido do
+ * ataque). Sem o sinal invertido que mandava superchute e colocado só à esquerda.
+ */
+export function shotGoalTargetZ(moveX = 0, moveZ = 0, attack = 1, goalWidth = GOAL.width) {
+  const x = Number(moveX) || 0;
+  const z = Number(moveZ) || 0;
+  const lateral = Math.abs(x) >= 0.18 ? x : (Math.abs(z) >= 0.18 ? z : 0);
+  if (Math.abs(lateral) < 0.18) return 0;
+  const sign = attack < 0 ? -1 : 1;
+  const half = Math.max(0.6, (Number(goalWidth) || GOAL.width) / 2 - 0.42);
+  const zAim = lateral * sign * half;
+  return Math.max(-half, Math.min(half, zAim));
 }
 
 /** O joystick horizontal é relativo à câmera atrás do batedor. */
