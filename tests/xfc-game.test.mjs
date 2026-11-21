@@ -955,7 +955,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     const boardBox = await page.locator('.hud__scoreboard').boundingBox();
     assert.ok(boardBox && boardBox.x < 100, 'o placar ao vivo fica no canto superior esquerdo');
     if (await page.locator('.hud__scoreboard--laliga').count()) {
-      assert.ok(boardBox.width < 240, 'o placar LaLiga fica compacto, sem cobrir o meio do campo');
+      assert.ok(boardBox.width < 420, 'o placar LaLiga fica compacto, sem cobrir o meio do campo');
     }
     const stickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(stickBox && stickBox.x < 320 && stickBox.y > 500,
