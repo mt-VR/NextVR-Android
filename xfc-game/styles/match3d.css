@@ -561,7 +561,7 @@
   top: 50%;
   width: 42%;
   height: 50%;
-  background: transparent;
+  background: #111;
   color: #fff;
   font-size: 13px;
   line-height: 1;
@@ -576,7 +576,7 @@
   margin: 0;
 }
 .hud__scoreboard.hud__scoreboard--laliga .hud__sc-main .hud__score {
-  background: none;
+  background: #fff;
   -webkit-background-clip: border-box;
   background-clip: border-box;
   color: #111;
@@ -590,7 +590,7 @@
   top: 50%;
   width: 30px;
   height: 50%;
-  background: #21261f;
+  background: #111;
   color: #fff;
   font-size: 13px;
 }

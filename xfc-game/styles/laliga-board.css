@@ -28,7 +28,7 @@
   width: 42% !important;
   height: 50% !important;
   transform: none !important;
-  background: transparent !important;
+  background: #111 !important;
   color: #fff !important;
   clip-path: none !important;
   border: 0 !important;
@@ -50,7 +50,7 @@
   margin: 0 !important;
 }
 .hud__scoreboard.hud__scoreboard--laliga .hud__sc-main .hud__score {
-  background: none !important;
+  background: #fff !important;
   -webkit-background-clip: border-box !important;
   background-clip: border-box !important;
   color: #111 !important;
