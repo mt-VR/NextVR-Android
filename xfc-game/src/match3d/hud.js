@@ -101,7 +101,7 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
   // Clássico espanhol: o placar da foto (LaLiga), sem redesenhar outro layout.
   const scoreboard = spanishLeague
     ? el('div', { class: 'hud__scoreboard hud__scoreboard--laliga' },
-        el('div', { class: 'laliga-board', 'aria-label': 'Placar LaLiga' },
+        el('div', { class: 'laliga-board hud__sc-main', 'aria-label': 'Placar LaLiga' },
           el('div', { class: 'laliga-board__row laliga-board__row--top' },
             laligaMark(),
             el('span', { class: 'laliga-board__name hud__team', text: abbreviationOf(home) }),
@@ -111,7 +111,8 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
             addedChip,
             clock,
             el('span', { class: 'laliga-board__name hud__team', text: abbreviationOf(away) }),
-            el('span', { class: 'laliga-board__goals' }, awayScore)
+            el('span', { class: 'laliga-board__goals' }, awayScore),
+            halfLabel
           )
         ),
         possessionBar,

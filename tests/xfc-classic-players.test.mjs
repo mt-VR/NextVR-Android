@@ -77,7 +77,7 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 // flutua mais sobre o campo.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
-  "src/match3d/hud.js": "c1be8fab4745145b9dfaadb6dbae3f67c6abb5ee2f5a6a9a975b49b5646b1fae",
+  "src/match3d/hud.js": "5467fc8b20121efadaa5311ab6f6897769d9c1b4d46e7198a5a63231f6f9e039",
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
   // v0.5.56: `match.js` ganhou uma linha que repassa `playerStyle` (visual
   // low-poly de PSP) para o modelo. Nada do gameplay, HUD ou controles mudou.
@@ -85,7 +85,7 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).
-  "styles/match3d.css": "b138ec59e70330781a1bc87180a2751199dabc74bd8393f0cb3cdcd1fe6dbf41"
+  "styles/match3d.css": "a64e8610b885bee2f46e45c9362237b09d41fa5268897205d4478233b57f7527"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });

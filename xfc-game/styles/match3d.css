@@ -559,12 +559,20 @@
 .laliga-board__added[hidden] { visibility: hidden; display: flex; }
 .hud__scoreboard--laliga .hud__poss,
 .hud__scoreboard--laliga .hud__cards { display: none; }
+.hud__scoreboard--laliga .hud__half { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.play.is-paused .hud__scoreboard--laliga .hud__half,
+.hud.is-paused .hud__scoreboard--laliga .hud__half {
+  position: static; width: auto; height: auto; clip: auto; overflow: visible;
+}
 
+.play.is-paused .hud__scoreboard,
+.hud.is-paused .hud__scoreboard,
 .play.is-paused .hud__scoreboard--laliga,
 .hud.is-paused .hud__scoreboard--laliga {
-  left: auto;
-  right: 18px;
-  transform: none;
+  left: auto !important;
+  right: 18px !important;
+  top: 14px !important;
+  transform: none !important;
 }
 
 /* ------------------------------ cartão do jogador controlado (base esquerda) -- */
