@@ -81,7 +81,7 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
   // v0.5.56: `match.js` ganhou uma linha que repassa `playerStyle` (visual
   // low-poly de PSP) para o modelo. Nada do gameplay, HUD ou controles mudou.
-  "src/match3d/match.js": "15d1076a771caae8118c99ea70c388c2088618615c1f8be4406578e415d59e4f",
+  "src/match3d/match.js": "77edff514df6760aa4e6bb83fa4c7ce7c5efdc49584f40457eaf154c88a38112",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).

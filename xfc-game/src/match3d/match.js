@@ -37,7 +37,7 @@ import { createGltfPlayer, gltfPlayersEnabled } from './models.js';
 import { installAnimationApi } from './animation.js';
 import { createTeamAI } from './ai.js';
 import { steerPlayer, faceTowards, faceVelocity, playerSpeed, clampToPitch } from './movement.js';
-import { PITCH, GOAL, BALL, FORMATION_433, applyPitchLayout, applyGoalPresence } from './constants.js';
+import { PITCH, GOAL, BALL, FORMATION_433, applyPitchLayout } from './constants.js';
 import {
   BROADCAST_CAMERA_LIMITS,
   BROADCAST_CAMERA_SIDE,
@@ -96,7 +96,6 @@ export function createMatch(options = {}) {
 
   const largePitch = Boolean(options.largePitch);
   applyPitchLayout(largePitch ? 'career' : 'standard');
-  applyGoalPresence(1.34);
   setBroadcastCameraLayout(largePitch ? 'career' : 'standard');
 
   const engine = createEngine(canvas,{graphicsQuality:options.graphicsQuality});
@@ -433,9 +432,9 @@ export function createMatch(options = {}) {
         simplified: options.simplifiedPlayers ?? engine.lowPower,
         // Visual dos jogadores escolhido no perfil (Ajustes › Gráficos).
         playerStyle: options.playerStyle ?? 'modern',
-        // Presença em campo: o print de referência mostra atletas bem maiores
-        // do que 1,88 m na lente de transmissão. Só vale na partida.
-        pitchPresence: 1.34,
+        // Linha 1,34× (print). Goleiro fica na estatura FIFA: senão tapa a
+        // trave de 2,44 m.
+        pitchPresence: isKeeper ? 1 : 1.34,
         skinTone: look.skinTone,
         hairColor: look.hairColor,
         hairStyle: look.hairStyle,

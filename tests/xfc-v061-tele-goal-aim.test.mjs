@@ -1,21 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GOAL, FIFA_GOAL, applyGoalPresence, applyPitchLayout } from '../xfc-game/src/match3d/constants.js';
+import { GOAL, FIFA_GOAL, applyPitchLayout } from '../xfc-game/src/match3d/constants.js';
 import { shotGoalTargetZ } from '../xfc-game/src/match3d/football-actions.js';
 import { careerAppearance, CAREER_TATTOO, CAREER_MASK } from '../xfc-game/src/data/career.js';
 import { broadcastCameraPose } from '../xfc-game/src/match3d/camera.js';
 
-test('gol FIFA 7,32×2,44; na partida cresce com os atletas', () => {
+test('gol FIFA 7,32×2,44 na partida', () => {
   applyPitchLayout('standard');
   assert.equal(FIFA_GOAL.width, 7.32);
   assert.equal(FIFA_GOAL.height, 2.44);
   assert.equal(GOAL.width, 7.32);
   assert.equal(GOAL.height, 2.44);
-  applyGoalPresence(1.34);
-  assert.ok(Math.abs(GOAL.width - 7.32 * 1.34) < 1e-9);
-  assert.ok(Math.abs(GOAL.height - 2.44 * 1.34) < 1e-9);
-  applyPitchLayout('standard');
-  assert.equal(GOAL.width, 7.32);
 });
 
 test('mira direita manda o chute à direita do atleta, não à esquerda', () => {
