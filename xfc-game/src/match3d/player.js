@@ -1974,20 +1974,22 @@ export function createPlayer3D(options = {}) {
       if (slideTimer > 0) {
         slideTimer = Math.max(0, slideTimer - dt);
         const progress = 1 - slideTimer / Math.max(0.01, slideDuration);
-        const recovery = Math.max(0, Math.min(1, (progress - 0.58) / 0.42));
-        body.position.y = 0.025 + recovery * 0.08;
-        body.rotation.x = 0.48 * (1 - recovery);
-        body.rotation.z = slideDir * 0.98 * (1 - recovery);
-        arms[0].shoulder.rotation.x = -1.62;
-        arms[1].shoulder.rotation.x = -1.54;
-        arms[0].shoulder.rotation.z = slideDir * 0.32;
-        arms[1].shoulder.rotation.z = slideDir * 0.32;
-        arms[0].forearm.rotation.x = -0.35;
-        arms[1].forearm.rotation.x = -0.35;
-        legs[0].hip.rotation.x = 0.9 * (1 - recovery) - 0.12 * recovery;
-        legs[1].hip.rotation.x = -0.76 * (1 - recovery) + 0.12 * recovery;
-        legs[0].knee.rotation.x = 0.64 * (1 - recovery);
-        legs[1].knee.rotation.x = 0.3 * (1 - recovery);
+        const recovery = Math.max(0, Math.min(1, (progress - 0.7) / 0.3));
+        const lie = 1 - recovery;
+        body.position.y = 0.02 + recovery * 0.1;
+        body.rotation.x = 0.22 * lie;
+        body.rotation.y = slideDir * 0.42 * lie;
+        body.rotation.z = slideDir * 1.18 * lie;
+        arms[0].shoulder.rotation.x = -1.85 * lie;
+        arms[1].shoulder.rotation.x = -0.55 * lie;
+        arms[0].shoulder.rotation.z = slideDir * 0.85 * lie;
+        arms[1].shoulder.rotation.z = slideDir * 0.22 * lie;
+        arms[0].forearm.rotation.x = -0.55 * lie;
+        arms[1].forearm.rotation.x = -0.2 * lie;
+        legs[0].hip.rotation.x = 0.18 * lie;
+        legs[1].hip.rotation.x = -1.35 * lie;
+        legs[0].knee.rotation.x = 0.12 * lie;
+        legs[1].knee.rotation.x = 1.55 * lie;
         return;
       }
       if (reactionTimer > 0) {

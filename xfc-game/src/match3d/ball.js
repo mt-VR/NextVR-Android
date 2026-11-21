@@ -407,11 +407,15 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
         const side=Math.sign(position.x),denom=position.x-previousX;
         const t=denom?Math.max(0,Math.min(1,(side*PITCH.halfLength-previousX)/denom)):1;
         const y=previousY+(position.y-previousY)*t,z=previousZ+(position.z-previousZ)*t;
-        if(y<GOAL.height && Math.abs(z)<GOAL.width/2)state.goalPocket=side;
+        if(y<GOAL.height && Math.abs(z)<GOAL.width/2){
+          state.goalPocket=side;
+          const entrySpeed=Math.hypot(velocity.x,velocity.y,velocity.z);
+          if(entrySpeed>0.06)onNetImpact({side,surface:'back',speed:entrySpeed,point:{x:side*PITCH.halfLength,y,z}});
+        }
       }
       if(state.goalPocket){
         const side=state.goalPocket,back=PITCH.halfLength+GOAL.depth-BALL.radius;
-        const hit=(surface,speed)=>{if(speed>.25)onNetImpact({side,surface,speed,point:{x:position.x,y:position.y,z:position.z}});};
+        const hit=(surface,speed)=>{if(speed>.06)onNetImpact({side,surface,speed,point:{x:position.x,y:position.y,z:position.z}});};
         if(Math.abs(position.x)>back){
           position.x=side*back;hit('back',Math.abs(velocity.x));velocity.x=-side*Math.abs(velocity.x)*.16;velocity.y*=.65;velocity.z*=.65;
         }

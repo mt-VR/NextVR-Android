@@ -18,6 +18,6 @@ test('Brasil é o primeiro na letra B do Kick Off', async () => {
 
 test('chute colocado sai alto com curva', async () => {
   const src = await readFile('xfc-game/src/match3d/match.js', 'utf8');
-  assert.match(src, /kind: 'placed',\s*lift: 0\.3/s);
-  assert.match(src, /curve: Math\.sign\(aimZ \|\| 1\) \* 0\.62/);
+  assert.match(src, /kind: 'placed',\s*lift: 0\.205 \+ strength \* 0\.03/s);
+  assert.match(src, /curve: Math\.sign\(aimZ \|\| 1\) \* 0\.88/);
 });

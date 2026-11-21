@@ -64,8 +64,8 @@ import {
   strikeFromImpact
 } from './set-pieces.js';
 
-const HUMAN_SPEED = 6.6;
-const HUMAN_SPRINT = 8.4;
+const HUMAN_SPEED = 7.15;
+const HUMAN_SPRINT = 9.05;
 const GOAL_CELEBRATIONS = ['classic', 'airplane', 'point', 'knee-slide', 'fist-pump'];
 
 /** Gerador pseudoaleatório com semente (mulberry32). */
@@ -1762,14 +1762,17 @@ export function createMatch(options = {}) {
   // Árbitro: uniforme preto com acentos amarelos — distinto dos dois times.
   // Ele entra em campo, acompanha a jogada de perto e apita nas paralisações
   // (retomadas, impedimentos, faltas, cartões e início/fim de jogo).
-  const refereeModel = createPlayer3D({
-    kit: { primary: '#161a20', secondary: '#101319', accent: '#f5c518', pattern: 'solid' },
-    number: 1,
+  const refereeLook = {
+    kit: { primary: '#111318', secondary: '#0c0e12', accent: '#f5c518', shorts: '#111318', socks: '#f5c518', pattern: 'solid' },
     isKeeper: false,
     simplified: options.simplifiedPlayers ?? engine.lowPower,
+    hairColor: '#1a1410',
+    hairStyle: 'short'
+  };
+  const refereeModel = makePlayerModel({
+    ...refereeLook,
+    number: 1,
     skinTone: '#c98d5f',
-    hairColor: '#1f1712',
-    hairStyle: 'short',
     heightScale: 1.03
   });
   refereeModel.root.name='xfc-referee';
@@ -2214,13 +2217,15 @@ export function createMatch(options = {}) {
 
     if (shotKind === 'placed' || opts.placed) {
       const target = { x: sign * PITCH.halfLength, z: aimZ || 0 };
+      // Colocado: forte o bastante para voar e curvar, abaixo do superchute.
+      // ~26–29 m/s, elevação média e sidespin alto — a bola sobe, vira e cai no canto.
       shootBall(player, {
-        power: 16.5 + strength * 3,
-        spread: 0.004,
+        power: 24.8 + strength * 4.2,
+        spread: 0.003,
         target,
         kind: 'placed',
-        lift: 0.3,
-        curve: Math.sign(aimZ || 1) * 0.62
+        lift: 0.205 + strength * 0.03,
+        curve: Math.sign(aimZ || 1) * 0.88
       });
     } else if (shotKind === 'curved') {
       const lateral = aimZ !== 0 ? aimZ : 0;
@@ -3085,12 +3090,43 @@ export function createMatch(options = {}) {
     const rightZ = forwardX;
     const speed = playerSpeed(player);
     const isPenalty=training.enabled&&training.drill==='penalty';
+    // Pênalti: câmera no eixo da marca, gol no centro do quadro.
+    if (isPenalty) {
+      const goalX = PITCH.halfLength;
+      const spotX = PITCH.halfLength - 11;
+      const desiredX = spotX - 7.4;
+      const desiredY = 2.55;
+      const desiredZ = 0;
+      const targetX = goalX;
+      const targetY = 1.18;
+      const targetZ = 0;
+      const targetFov = 40;
+      if (!trainingCameraReady) {
+        camera.position.set(desiredX, desiredY, desiredZ);
+        cameraTarget.set(targetX, targetY, targetZ);
+        camera.fov = targetFov;
+        camera.updateProjectionMatrix();
+        trainingCameraReady = true;
+      } else {
+        const blend = 1 - Math.exp(-dt * 6.2);
+        camera.position.x += (desiredX - camera.position.x) * blend;
+        camera.position.y += (desiredY - camera.position.y) * blend;
+        camera.position.z += (desiredZ - camera.position.z) * blend;
+        cameraTarget.x += (targetX - cameraTarget.x) * blend;
+        cameraTarget.y += (targetY - cameraTarget.y) * blend;
+        cameraTarget.z += (targetZ - cameraTarget.z) * blend;
+        camera.fov += (targetFov - camera.fov) * blend;
+        if (Math.abs(camera.fov - targetFov) > 0.02) camera.updateProjectionMatrix();
+      }
+      camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+      return;
+    }
     // Carreira: lente mais perto (pedido v0.5.59). Treino permanece em 9,2 m.
     const followDistance = training.enabled ? 9.2 : 7;
-    const cameraDistance = isPenalty?6.8:followDistance + Math.min(1.2, speed * 0.1);
+    const cameraDistance = followDistance + Math.min(1.2, speed * 0.1);
     const desiredX = player.x - forwardX * cameraDistance;
     const followHeight = training.enabled ? 4.7 : 4.15;
-    const desiredY = isPenalty?4.8:followHeight + Math.min(0.3, speed * 0.035);
+    const desiredY = followHeight + Math.min(0.3, speed * 0.035);
     const desiredZ = player.z - forwardZ * cameraDistance;
 
     const ballDx = ball.state.position.x - player.x;
@@ -3103,9 +3139,9 @@ export function createMatch(options = {}) {
       : Math.max(5.5, Math.min(13, ballAhead));
     const lateral = Math.max(-1.4, Math.min(1.4, ballLateral * 0.12));
     const targetX = player.x + forwardX * lead + rightX * lateral;
-    const targetY = (isPenalty ? .25 : 1.2) + Math.min(0.45, Math.max(0, ball.state.position.y - 0.7) * 0.08);
+    const targetY = 1.2 + Math.min(0.45, Math.max(0, ball.state.position.y - 0.7) * 0.08);
     const targetZ = player.z + forwardZ * lead + rightZ * lateral;
-    const targetFov = isPenalty?46:training.shotActive ? 56 : 52;
+    const targetFov = training.shotActive ? 56 : 52;
 
     if (!trainingCameraReady) {
       camera.position.set(desiredX, desiredY, desiredZ);
@@ -3273,7 +3309,21 @@ export function createMatch(options = {}) {
     }
 
     if(training.drill==='penalty'&&!training.shotActive){
-      ball.state.position.set(PITCH.halfLength-11,BALL.radius,0);ball.mesh.position.copy(ball.state.position);
+      const spotX = PITCH.halfLength - 11;
+      ball.state.position.set(spotX, BALL.radius, 0);
+      ball.mesh.position.copy(ball.state.position);
+      const kicker = training.player;
+      if (kicker && !penaltyRunup) {
+        kicker.x = spotX - 5;
+        kicker.z = 0;
+        kicker.vx = kicker.vz = 0;
+        kicker.root.position.set(kicker.x, 0, 0);
+      }
+      if (training.keeper) {
+        training.keeper.x = PITCH.halfLength - 0.55;
+        training.keeper.z = 0;
+        training.keeper.root.position.set(training.keeper.x, 0, 0);
+      }
     }
     updateTrainingActors(dt);
     updateMarker(dt);
@@ -3311,14 +3361,10 @@ export function createMatch(options = {}) {
     // figurantes da cerimônia e ficam escondidos durante o jogo.
     ceremonyRefs.push({ actor: referee, model: refereeModel, main: true });
     for (let index = 0; index < 2; index += 1) {
-      const model = createPlayer3D({
-        kit: { primary: '#161a20', secondary: '#101319', accent: '#f5c518', pattern: 'solid' },
+      const model = makePlayerModel({
+        ...refereeLook,
         number: 2 + index,
-        isKeeper: false,
-        simplified: options.simplifiedPlayers ?? engine.lowPower,
         skinTone: index ? '#8d5a34' : '#c98d5f',
-        hairColor: '#1f1712',
-        hairStyle: 'short',
         heightScale: 1.02
       });
       model.root.name = `xfc-referee-assistant-${index + 1}`;
@@ -3939,8 +3985,20 @@ export function createMatch(options = {}) {
     const magnitude = Math.hypot(input.moveX, input.moveZ);
     if (magnitude > 0.12) {
       const movement = stickWorldDirection();
-      const targetX = player.x + movement.x * 6;
-      const targetZ = player.z + movement.z * 6;
+      let targetX = player.x + movement.x * 6;
+      let targetZ = player.z + movement.z * 6;
+      const loose = !ball.state.owner && ball.state.position.y < 1.45;
+      if (loose) {
+        const toBallX = ball.state.position.x - player.x;
+        const toBallZ = ball.state.position.z - player.z;
+        const dist = Math.hypot(toBallX, toBallZ);
+        const toward = dist > 0.05 ? (movement.x * toBallX + movement.z * toBallZ) / dist : 0;
+        // Vai na bola em linha reta: sem orbitar em volta tentando pegá-la.
+        if (dist < 9 && dist > 0.18 && toward > 0.12) {
+          targetX = ball.state.position.x;
+          targetZ = ball.state.position.z;
+        }
+      }
       steerPlayer(player, targetX, targetZ, dt, speed * Math.min(1, magnitude), { arrive: 0.2, turn: 10 });
     } else {
       const damping = Math.exp(-dt * 8.5);
@@ -3987,7 +4045,7 @@ export function createMatch(options = {}) {
     // Contatos rápidos já são resolvidos por varredura em ball.update.
     // Aqui recolhemos apenas bolas próximas que ainda não cruzaram o corpo.
     const speed = Math.hypot(ball.state.velocity.x, ball.state.velocity.z);
-    if (speed > 18) return;
+    if (speed > 24) return;
 
     const human = controlled[userSide];
     const candidates = [];
@@ -4006,12 +4064,12 @@ export function createMatch(options = {}) {
       // Chutes/interceptações continuam com o limite anterior de domínio.
       const receiving=ball.state.passTarget===player&&ball.state.flightTime<2.4
         &&position.y<.8&&distance<.85;
-      if(speed>8&&!receiving)continue;
+      if(speed>14&&!receiving&&distance>0.78)continue;
       const recovery=ball.state.recovery;
       const keeperClaim=player.isKeeper && position.y<1.85 && speed<12
         && Math.abs(Math.abs(player.x)-PITCH.halfLength)<18 && Math.abs(player.z)<22;
       const radius=recovery?.player===player && elapsedWorldTime<recovery.until ? recovery.radius
-        : keeperClaim ? 1.45 : 1;
+        : keeperClaim ? 1.45 : 1.18;
       if (distance < radius && distance < bestDistance) {
         bestDistance = distance;
         best = player;

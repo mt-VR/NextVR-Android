@@ -90,7 +90,14 @@ function header(ctx, returnTo, subtitle) {
 }
 
 function teamFlag(team, className = '') {
-  return el('span', { class: `worldcup__team-flag ${className}`.trim() }, flagSvg(team.flagCode));
+  if (team?.crest) {
+    return el('img', {
+      class: `worldcup__team-crest ${className}`.trim(),
+      src: team.crest,
+      alt: `Brasão ${team.name}`
+    });
+  }
+  return el('span', { class: `worldcup__team-flag ${className}`.trim() }, flagSvg(team?.flagCode || 'br'));
 }
 
 function teamSelectionScreen(ctx, { mode, returnTo, previousCampaign }) {
@@ -214,7 +221,7 @@ function campaignScreen(ctx, { campaign, mode, returnTo }) {
       dataset: { teamId: entry.id }
     },
       el('span', { class: 'worldcup__standings-rank', text: String(rank) }),
-      flagSvg(team.flagCode),
+      teamFlag(team),
       el('span', { class: 'worldcup__standings-name', text: team.name }),
       el('span', { class: 'worldcup__standings-played', text: String(entry.played) }),
       el('span', { class: 'worldcup__standings-won', text: String(entry.won) }),

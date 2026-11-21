@@ -16,11 +16,12 @@ export function createNetPanel({
     quietTime = 0;
   const fixedStep = 1 / 120;
   function impact(u, v, speed) {
-    if (![u, v, speed].every(Number.isFinite) || speed < 0.25) return false;
+    if (![u, v, speed].every(Number.isFinite) || speed < 0.06) return false;
     u = Math.max(0, Math.min(1, u));
     v = Math.max(0, Math.min(1, v));
     // Rede de gol: o chute abre um bolso e a malha ondula até voltar.
-    const strength = Math.min(22, speed * 1.08);
+    // Mesmo um toque leve já mexe os fios.
+    const strength = Math.min(24, Math.max(2.4, speed * 1.22));
     for (let y = 1; y < rows; y++)
       for (let x = 1; x < columns; x++) {
         const dx = (x / columns - u) * width,

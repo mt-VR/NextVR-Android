@@ -637,21 +637,24 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'tackle': {
-        // Uma perna estendida, outra recolhida. Segura o contato até o fim
-        // do deslizamento, depois apoia o braço e recupera sem levantar cedo.
-        const enter=ease(0,.22),recover=ease(.65,1),slide=enter*(1-recover);
-        const push=ease(.58,.78)*(1-ease(.78,1));
-        bones.hips.position.y=bindHipY-(gesture.mask&&!gesture.mask.has('Hips')?0:gesture.weight)*.72*slide*w;
-        addBoneRotation(bones.hips,-.18*slide,0,-.23*slide*dir,w);
-        addBoneRotation(bones.leftUpLeg,-1.48*slide,0,.12*slide,w);
-        addBoneRotation(bones.leftLeg,.13*slide+.45*push,0,0,w);
-        addBoneRotation(bones.leftFoot,.2*slide,0,0,w);
-        addBoneRotation(bones.rightUpLeg,-1.8*slide,0,-.18*slide,w);
-        addBoneRotation(bones.rightLeg,2.6*slide,0,0,w);
-        addBoneRotation(bones.rightFoot,-.65*slide,0,0,w);
-        addBoneRotation(bones.spine2,.32*slide+.2*push,0,0,w);
-        addBoneRotation(bones.leftArm,.35*slide,0,.7*slide,w);
-        addBoneRotation(bones.rightArm,.2*slide,0,-.65*slide,w);
+        // Carrinho de lado: quadril no chão, perna de contato esticada,
+        // a de trás recolhida, tronco de lado e o braço de apoio no gramado.
+        const enter=ease(0,.16),recover=ease(.72,1),slide=enter*(1-recover);
+        const push=ease(.62,.84)*(1-ease(.84,1));
+        const lead=dir>=0?1:-1;
+        bones.hips.position.y=bindHipY-(gesture.mask&&!gesture.mask.has('Hips')?0:gesture.weight)*.92*slide*w;
+        addBoneRotation(bones.hips,.22*slide,lead*.55*slide,-1.15*slide*dir,w);
+        addBoneRotation(bones.spine2,.18*slide+.16*push,lead*.28*slide,0,w);
+        addBoneRotation(bones.leftUpLeg,(-.35-1.55*(lead<0?1:0))*slide,0,.55*slide*lead,w);
+        addBoneRotation(bones.leftLeg,(lead<0?0.08:1.85)*slide+.4*push,0,0,w);
+        addBoneRotation(bones.leftFoot,(lead<0?-.15:.45)*slide,0,0,w);
+        addBoneRotation(bones.rightUpLeg,(-.35-1.55*(lead>0?1:0))*slide,0,-.55*slide*lead,w);
+        addBoneRotation(bones.rightLeg,(lead>0?0.08:1.85)*slide+.4*push,0,0,w);
+        addBoneRotation(bones.rightFoot,(lead>0?-.15:.45)*slide,0,0,w);
+        addBoneRotation(bones.leftArm,.55*slide,0,(.95-lead*.4)*slide,w);
+        addBoneRotation(bones.rightArm,.55*slide,0,(-.95-lead*.4)*slide,w);
+        addBoneRotation(bones.leftForeArm,-.55*slide,0,0,w);
+        addBoneRotation(bones.rightForeArm,-.55*slide,0,0,w);
         break;
       }
       case 'fall': {

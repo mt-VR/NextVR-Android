@@ -2,6 +2,49 @@
 // com folga exterior. O rig atual não possui ossos individuais de dedos.
 import {THREE as T} from './engine.js';
 import {ACCESSORY_COLORS} from '../data/player-customization.js';
+
+function tattooMap(kind){
+ const w=256,h=256;
+ let tex;
+ if(typeof document!=='undefined'){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const g=c.getContext('2d');
+  g.clearRect(0,0,w,h);
+  g.strokeStyle='rgba(22,18,16,0.92)';
+  g.fillStyle='rgba(22,18,16,0.78)';
+  g.lineCap='round';g.lineJoin='round';
+  const band=(y,amp=14)=>{g.beginPath();g.moveTo(12,y);g.bezierCurveTo(70,y-amp,186,y+amp,244,y);g.stroke();};
+  const star=(x,y,r)=>{g.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4-Math.PI/2,rr=i%2?r*.38:r;g[i?'lineTo':'moveTo'](x+Math.cos(a)*rr,y+Math.sin(a)*rr);}g.closePath();g.stroke();};
+  g.lineWidth=2.4;
+  if(kind==='sleeve'){
+   g.lineWidth=3.1;band(48,10);band(96,16);band(152,12);band(208,18);
+   g.lineWidth=2;star(128,78,22);star(86,168,14);star(176,188,16);
+   g.beginPath();g.moveTo(128,28);g.lineTo(158,70);g.lineTo(128,92);g.lineTo(98,70);g.closePath();g.stroke();
+   g.beginPath();g.moveTo(40,120);g.lineTo(70,150);g.lineTo(40,180);g.stroke();
+   g.beginPath();g.moveTo(216,120);g.lineTo(186,150);g.lineTo(216,180);g.stroke();
+  }else if(kind==='calf'){
+   g.lineWidth=3;band(70,12);band(186,14);
+   g.lineWidth=2.2;star(128,128,34);
+   g.beginPath();g.arc(128,128,48,0,Math.PI*2);g.stroke();
+   g.beginPath();g.moveTo(128,70);g.lineTo(128,186);g.moveTo(70,128);g.lineTo(186,128);g.stroke();
+  }else{
+   g.lineWidth=2.6;
+   g.beginPath();g.moveTo(128,36);g.quadraticCurveTo(188,88,228,128);g.quadraticCurveTo(188,168,128,220);g.stroke();
+   g.beginPath();g.moveTo(128,36);g.quadraticCurveTo(68,88,28,128);g.quadraticCurveTo(68,168,128,220);g.stroke();
+   star(128,128,28);
+   g.beginPath();g.arc(128,128,18,0,Math.PI*2);g.stroke();
+  }
+  tex=new T.CanvasTexture(c);
+ }else{
+  const data=new Uint8Array(w*h*4);
+  tex=new T.DataTexture(data,w,h,T.RGBAFormat);
+ }
+ tex.wrapS=tex.wrapT=T.RepeatWrapping;
+ tex.needsUpdate=true;
+ tex.colorSpace=T.SRGBColorSpace||tex.colorSpace;
+ return tex;
+}
+
 export function addPlayerAccessories(model,options,materials,ownedGeometries){
  let body;model.traverse(o=>{if(o.isSkinnedMesh&&[].concat(o.material).some(m=>m.name==='Micah | anatomical body.body'))body=o;});if(!body)return;
  const gloveColor=options.gloves===undefined&&options.isKeeper?'white':options.gloves;
@@ -46,13 +89,22 @@ export function addPlayerAccessories(model,options,materials,ownedGeometries){
   const boneName=ink==='calf'?'LeftUpLeg':ink==='chest'?'Spine2':'LeftArm';
   const bone=body.skeleton.bones.find(b=>b.name.endsWith(boneName)||b.name===boneName);
   if(bone){
-   const g=ink==='chest'?new T.SphereGeometry(0.07,10,8):new T.CylinderGeometry(0.038,0.042,0.16,10,1,true);
-   const material=new T.MeshStandardMaterial({color:0x1a2430,roughness:0.92,metalness:0,side:T.DoubleSide,transparent:true,opacity:0.82});
+   const g=ink==='chest'?new T.SphereGeometry(0.078,14,12):new T.CylinderGeometry(ink==='calf'?0.052:0.048,ink==='calf'?0.058:0.055,ink==='sleeve'?0.28:0.2,16,1,true);
+   const material=new T.MeshStandardMaterial({
+    map:tattooMap(ink),
+    color:0xffffff,
+    roughness:0.96,
+    metalness:0,
+    side:T.DoubleSide,
+    transparent:true,
+    depthWrite:false,
+    alphaTest:0.12
+   });
    const mesh=new T.Mesh(g,material);
    mesh.name='xfc-career-tattoo';
-   if(ink==='chest')mesh.position.set(0,0.04,0.05);
-   else if(ink==='calf')mesh.position.set(0,-0.18,0);
-   else mesh.position.set(0,-0.08,0);
+   if(ink==='chest'){mesh.position.set(0,0.05,0.055);mesh.scale.set(1.05,0.72,0.55);}
+   else if(ink==='calf')mesh.position.set(0,-0.22,0);
+   else mesh.position.set(0,-0.12,0);
    bone.add(mesh);materials.push(material);ownedGeometries.push(g);
   }
  }
