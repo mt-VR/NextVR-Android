@@ -16,9 +16,9 @@ import {
 // Velocidade de jogo em ritmo de futebol televisionado, não de arcade.
 // Antes: 6.3 / 8.1 / 7.4. Reduzido ~18% para o campo "render" maior e dar
 // tempo de leitura da jogada (pedido: "diminui a velocidade").
-const RUN_SPEED = 6.35;
-const SPRINT_SPEED = 7.85;
-const CHASE_SPEED = 7.55;
+const RUN_SPEED = 6.55;
+const SPRINT_SPEED = 8.15;
+const CHASE_SPEED = 7.95;
 const KEEPER_POSITION_SPEED = 5.15;
 const KEEPER_REACTION_SPEED = 6.4;
 
@@ -97,12 +97,12 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     const dz = best.z;
     const length = Math.hypot(dx, dz) || 1;
     const cover = {
-      x: best.x - (dx / length) * 2.8,
-      z: best.z - (dz / length) * 2.8
+      x: best.x - (dx / length) * 1.55,
+      z: best.z - (dz / length) * 1.55
     };
     return {
-      x: cover.x * 0.72 + target.x * 0.28,
-      z: cover.z * 0.72 + target.z * 0.28
+      x: cover.x * 0.88 + target.x * 0.12,
+      z: cover.z * 0.88 + target.z * 0.12
     };
   }
 
@@ -148,41 +148,50 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     }
 
     const distanceToGoal = Math.hypot(goalX - player.x, player.z);
-    // Só finaliza de dentro do "cone" de tiro: de muito longe da linha de
-    // fundo, o gol não é um alvo válido.
-    const inShootingRange = distanceToGoal < 32 && distanceToGoal > 3.2
-      && Math.abs(player.z) < 22 && Math.abs(player.z) < distanceToGoal * 1.05;
+    const inShootingRange = distanceToGoal < 24 && distanceToGoal > 3.2
+      && Math.abs(player.z) < 16 && Math.abs(player.z) < distanceToGoal * 1.15;
 
-    // Finalização: o rival ataca o gol de verdade. Com espaço, chuta mais
-    // frequentemente que antes (o usuário reclamou que eles não chutavam) e
-    // procura o rebote/canto quando o goleiro já está batido.
-    if (inShootingRange && chance(distanceToGoal < 16 ? 0.58 : 0.28, dt)) {
-      // Mira no canto menos guardado: assim a defesa não bloqueia fácil.
-      // Chutes de longe e sob pressão costumam sair tortos.
-      const miss = Math.min(0.22, 0.04 + distanceToGoal / 190 + (pressure < 3 ? 0.06 : 0));
+    // Chute quando está de frente para o gol; senão toca pro lado.
+    const wantShot = inShootingRange && (
+      distanceToGoal < 13
+        ? chance(pressure > 2.2 ? 0.46 : 0.28, dt)
+        : pressure > 3.6 && chance(0.14, dt)
+    );
+    if (wantShot) {
+      const miss = Math.min(0.16, 0.03 + distanceToGoal / 260 + (pressure < 2.4 ? 0.05 : 0));
       const accurate = world.rng() > miss;
       const z = accurate
         ? bestCorner(player)
-        : (world.rng() < 0.5 ? -1 : 1) * (3.5 + world.rng() * 1.6);
-      world.shootBall(player, { power: 21 + world.rng() * 7, target: { x: attackSign * PITCH.halfLength, z } });
+        : (world.rng() < 0.5 ? -1 : 1) * (3.2 + world.rng() * 1.2);
+      world.shootBall(player, {
+        power: 22 + world.rng() * 6,
+        target: { x: attackSign * PITCH.halfLength, z },
+        lift: 0.13 + world.rng() * 0.05
+      });
       return;
     }
 
-    // Passe só para frente: no ataque o rival não devolve para o zagueiro.
-    if (chance(0.018 * tactics.pass, dt)) {
-      const target = bestPassTarget(player, true) || bestPassTarget(player);
-      const ahead = target ? (target.x - player.x) * attackSign : -1;
-      if (target && ahead > 1.2) {
-        world.kickBall(player, target, { power: 16 + world.rng() * 6 });
+    // Tocar pro lado: passe quadrado para o companheiro aberto.
+    if (chance(0.038 * tactics.pass, dt)) {
+      const square = bestSquareTarget(player);
+      if (square) {
+        world.kickBall(player, square, { power: 12 + world.rng() * 5 });
         return;
       }
     }
 
-    // Lançamento em profundidade para o atacante, nunca para trás.
-    if (pressure > 3.2 && chance(0.012, dt)) {
+    if (chance(0.014 * tactics.pass, dt)) {
       const target = bestPassTarget(player, true);
-      if (target && (target.x - player.x) * attackSign > 4) {
-        world.kickBall(player, target, { lob: true, power: 24 });
+      if (target && (target.x - player.x) * attackSign > 2.4) {
+        world.kickBall(player, target, { power: 15 + world.rng() * 5 });
+        return;
+      }
+    }
+
+    if (pressure > 3.4 && chance(0.01, dt)) {
+      const target = bestPassTarget(player, true);
+      if (target && (target.x - player.x) * attackSign > 5) {
+        world.kickBall(player, target, { lob: true, power: 23 });
         return;
       }
     }
@@ -201,19 +210,15 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     // Condução: mira o gol e só desvia o suficiente para escapar do marcador.
     let targetX = goalX;
     let targetZ = 0;
-    if (nearest && nearestDistance < 2.8) {
+    if (nearest && nearestDistance < 3.1) {
       const side = Math.sign(player.z - nearest.z) || (world.rng() < 0.5 ? 1 : -1);
-      targetZ = side * (2.6 + (2.8 - nearestDistance) * 1.1);
-      // Drible curto: quando o marcador chega junto, o rival toca a bola
-      // para o lado e acelera — em vez de só correr reto e perder a bola.
-      if (nearestDistance < 1.9 && world.isPlayable() && chance(0.12, dt)) {
+      targetZ = side * (3.1 + (3.1 - nearestDistance) * 1.35);
+      if (nearestDistance < 2.15 && world.isPlayable() && chance(0.18, dt)) {
+        const cutX = player.x + attackSign * 3.4;
+        const cutZ = player.z + side * 2.4;
         world.kickBall(player, {
-          x: player.x + attackSign * 2.6,
-          z: player.z + side * 1.5,
-          active: false, vx: 0, vz: 0
-        }, { power: 9, requested: true, targetPoint: {
-          x: player.x + attackSign * 2.6, z: player.z + side * 1.5
-        } });
+          x: cutX, z: cutZ, active: false, vx: 0, vz: 0
+        }, { power: 11, requested: true, targetPoint: { x: cutX, z: cutZ } });
         return;
       }
     }
@@ -262,6 +267,28 @@ export function createTeamAI({ side, world, tempo = 1 }) {
       if (clearance < worst) worst = clearance;
     }
     return worst;
+  }
+
+  /** Companheiro aberto no lado, para o toque quadrado no ataque. */
+  function bestSquareTarget(player) {
+    let best = null;
+    let bestScore = -Infinity;
+    for (const mate of members()) {
+      if (!mate.active || mate === player || mate.isKeeper || mate.isGK) continue;
+      const ahead = (mate.x - player.x) * attackSign;
+      const side = Math.abs(mate.z - player.z);
+      const d = Math.hypot(mate.x - player.x, mate.z - player.z);
+      if (side < 4.5 || d < 5.5 || d > 22) continue;
+      if (ahead < -2.5 || ahead > 9) continue;
+      const lane = laneClearance(player.x, player.z, mate.x, mate.z);
+      if (lane < 0.32) continue;
+      const score = side * 1.35 + lane * 2.2 + ahead * 0.45 - d * 0.05;
+      if (score > bestScore) {
+        bestScore = score;
+        best = mate;
+      }
+    }
+    return best;
   }
 
   function bestPassTarget(player, forward = false) {
@@ -331,7 +358,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         if (d < 28 * 28) ranked.push({ player, d });
       }
       ranked.sort((a, b) => a.d - b.d);
-      for (const entry of ranked.slice(0, 2)) pressers.push(entry.player);
+      for (const entry of ranked.slice(0, 3)) pressers.push(entry.player);
     }
 
     for (const player of members()) {
@@ -402,20 +429,17 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         targetZ = ball.position.z + lane * 1.7;
         speed = Math.min(CHASE_SPEED, CHASE_SPEED * (.9 + .16 * tactics.press)) * pace;
         if (world.isPlayable() && owner && owner.side !== side
-          && gap < 2.8 && chance(0.01, dt)) world.tackle(player);
+          && gap < 2.6 && chance(0.022, dt)) world.tackle(player);
       } else if (player === chaser && owner && owner.side !== side) {
-        // O marcador mais próximo tenta o desarme, mas fica atrás da bola:
-        // se ficasse na frente, bloquearia todo chute.
-        targetX = owner.x - attackSign * 2.3;
-        targetZ = owner.z;
-        speed = Math.min(CHASE_SPEED,CHASE_SPEED*(.9+.1*tactics.press));
-        // Desarme em pé, e às vezes carrinho: o rival tenta a entrada quando
-        // está realmente perto e a jogada pede (bola no chão, pressão alta).
+        const sideCover = player.z >= owner.z ? 0.55 : -0.55;
+        targetX = owner.x - attackSign * 0.9;
+        targetZ = owner.z + sideCover;
+        speed = Math.min(CHASE_SPEED,CHASE_SPEED*(.95+.14*tactics.press))*pace;
         const gap = Math.hypot(owner.x - player.x, owner.z - player.z);
-        if (world.isPlayable() && chance(0.016, dt)) world.tackle(player);
-        if (world.isPlayable() && gap < 3.4 && !player.slideTackle
+        if (world.isPlayable() && chance(0.03, dt)) world.tackle(player);
+        if (world.isPlayable() && gap < 3.2 && !player.slideTackle
           && world.ball.state.position.y < 1.2
-          && chance(0.004 * (0.6 + tactics.press), dt)
+          && chance(0.008 * (0.7 + tactics.press), dt)
           && world.slideTackle?.(player)) {
           // o carrinho já dispara o próprio efeito; nada mais a fazer aqui
         }
