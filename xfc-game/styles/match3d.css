@@ -492,78 +492,81 @@
   opacity: 0.85;
 }
 
-/* Placar LaLiga — o print: logo | BAR | 0  /  +4 | 45:00 | RMA | 2 */
+/* Placar LaLiga — a foto do print; números ao vivo por cima. */
 .hud__scoreboard--laliga {
   left: 50%;
-  top: 28px;
+  top: 22px;
   right: auto;
   transform: translateX(-50%);
   z-index: 6;
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.55));
 }
 .hud__scoreboard--laliga .hud__sc-main {
-  display: grid;
-  gap: 0;
+  display: block;
+  position: relative;
+  width: 276px;
+  height: 128px;
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: #111;
+  background: transparent;
   box-shadow: none;
-}
-.laliga-board {
-  display: grid;
-  grid-template-columns: 48px 56px 86px 56px;
-  grid-template-rows: 48px 48px;
+  overflow: visible;
   font-family: Arial, Helvetica, sans-serif;
   font-weight: 900;
-  color: #111;
-  background: #111;
 }
-.laliga-board__mark {
-  grid-column: 2;
-  grid-row: 1;
-  display: flex;
-  background: #e10600;
+.laliga-board__print {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
 }
-.laliga-board__mark svg { display: block; width: 56px; height: 48px; }
-.laliga-board__home { grid-column: 3; grid-row: 1; }
-.laliga-board__home-goals { grid-column: 4; grid-row: 1; }
-.laliga-board__added { grid-column: 1; grid-row: 2; }
-.hud__scoreboard--laliga .hud__clock { grid-column: 2; grid-row: 2; }
-.laliga-board__away { grid-column: 3; grid-row: 2; }
-.laliga-board__away-goals { grid-column: 4; grid-row: 2; }
-.hud__scoreboard--laliga .hud__half { grid-column: 1; grid-row: 1; }
 .laliga-board__name,
 .laliga-board__goals,
 .hud__scoreboard--laliga .hud__clock,
 .laliga-board__added {
+  position: absolute;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  margin: 0;
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
+  font-weight: 900;
 }
-.laliga-board__name { background: #111; color: #fff; }
+.laliga-board__home { left: 34%; top: 0; width: 35%; height: 50%; }
+.laliga-board__away { left: 34%; top: 50%; width: 35%; height: 50%; }
+.laliga-board__home-goals { left: 69%; top: 0; width: 31%; height: 50%; }
+.laliga-board__away-goals { left: 69%; top: 50%; width: 31%; height: 50%; }
+.hud__scoreboard--laliga .hud__clock {
+  left: 0;
+  top: 50%;
+  width: 34%;
+  height: 50%;
+  background: #111;
+  color: #fff;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+.laliga-board__name { background: #111; color: #fff; font-size: 22px; }
 .laliga-board__goals,
 .hud__scoreboard--laliga .hud__score {
   background: #fff;
   color: #111;
   min-width: 0;
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 900;
 }
-.hud__scoreboard--laliga .hud__clock {
-  background: #111;
-  color: #fff;
-  margin: 0;
-  font-size: 18px;
-  letter-spacing: 0;
-}
 .laliga-board__added {
+  left: -44px;
+  top: 50%;
+  width: 42px;
+  height: 50%;
   background: #111;
   color: #fff;
-  font-size: 18px;
+  font-size: 20px;
 }
 .laliga-board__added[hidden] { visibility: hidden; display: flex; }
 .hud__scoreboard--laliga .hud__poss,

@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,career-market,career-office-evolve,leagues,gameplay-features,gameplay-features-browser}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,career-market,career-office-evolve,leagues,gameplay-features,gameplay-features-browser,v060-ut-laliga-keeper}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -184,17 +184,17 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.63
+          TAG=xfc-gameplay-v0.5.64
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.63 (versionCode 69), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.64 (versionCode 70), commit ${GITHUB_SHA}." \
             "" \
-            "Placar LaLiga do print (logo, BAR/RMA, +N, relógio). Linha lateral branca no rodapé." \
-            "Detalhes: xfc-game/docs/v0.5.63.md.")
+            "Placar LaLiga é a foto do print, com gols e relógio ao vivo por cima." \
+            "Detalhes: xfc-game/docs/v0.5.64.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — placar LaLiga e linha lateral v0.5.63" \
+            gh release create "$TAG" --title "XFC 27 — placar foto LaLiga v0.5.64" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — placar LaLiga e linha lateral v0.5.63" \
+            gh release edit "$TAG" --title "XFC 27 — placar foto LaLiga v0.5.64" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

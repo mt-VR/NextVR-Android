@@ -40,12 +40,6 @@ function teamMark(team) {
   );
 }
 
-function laligaMark() {
-  return el('span', { class: 'laliga-board__mark', 'aria-hidden': 'true', html:
-    '<svg viewBox="0 0 64 64" width="42" height="42"><rect width="64" height="64" fill="#e10600"/><path fill="#fff" d="M12 10h16c8 0 14 3 17 9 2 4 1 9-2 12l-7 8 12 17h-15l-10-15H19v15H12V10zm7 7v16h8c5 0 8-2 8-7s-3-9-9-9H19z"/></svg>'
-  });
-}
-
 export function createHud({ root, home, away, userSide = 'home', careerRating = false, onSetPieceChange = () => {}, stageBox = null }) {
   const spanishLeague = home?.country === 'Espanha' && away?.country === 'Espanha';
   const homeCrest = teamMark(home);
@@ -98,11 +92,11 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
 
   const addedChip = el('span', { class: 'laliga-board__added', hidden: true, text: '' });
   // Mesmos dados nas duas apresentações: transmissão e faixa escura da pausa.
-  // Clássico espanhol: o placar da foto (LaLiga), sem redesenhar outro layout.
+  // Clássico espanhol: a foto do print, com gols/relógio/siglas ao vivo por cima.
   const scoreboard = spanishLeague
     ? el('div', { class: 'hud__scoreboard hud__scoreboard--laliga' },
         el('div', { class: 'laliga-board hud__sc-main', 'aria-label': 'Placar LaLiga' },
-          laligaMark(),
+          el('img', { class: 'laliga-board__print', src: 'assets/hud/laliga-print.png', alt: '' }),
           el('span', { class: 'laliga-board__name hud__team laliga-board__home', text: abbreviationOf(home) }),
           el('span', { class: 'laliga-board__goals laliga-board__home-goals' }, homeScore),
           addedChip,
