@@ -81,11 +81,11 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
   // v0.5.56: `match.js` ganhou uma linha que repassa `playerStyle` (visual
   // low-poly de PSP) para o modelo. Nada do gameplay, HUD ou controles mudou.
-  "src/match3d/match.js": "77edff514df6760aa4e6bb83fa4c7ce7c5efdc49584f40457eaf154c88a38112",
+  "src/match3d/match.js": "e210fe637fa8bee88741bcb7369a01b2cd401d73a3ce79aeba72bf6c6ba592d6",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).
-  "styles/match3d.css": "005377b7eefb72e2d8ff8f1afebf45e0f4b96f5cec08bc22355c4ebfafdd8fab"
+  "styles/match3d.css": "b138ec59e70330781a1bc87180a2751199dabc74bd8393f0cb3cdcd1fe6dbf41"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });

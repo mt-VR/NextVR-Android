@@ -18,7 +18,14 @@ function nationLetter(name){
   return /[A-Z]/.test(ch)?ch:'#';
 }
 const NATION_LETTERS=[...new Set(NATIONS.map(t=>nationLetter(t.name)))].sort();
-const nationsByLetter=L=>NATIONS.filter(t=>nationLetter(t.name)===L).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+const nationsByLetter=L=>{
+  const list=NATIONS.filter(t=>nationLetter(t.name)===L).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  if(L==='B'){
+    const i=list.findIndex(t=>t.id==='brazil');
+    if(i>0)list.unshift(list.splice(i,1)[0]);
+  }
+  return list;
+};
 /** Resolve clube OU seleção pelo id (os ids das seleções não colidem: país x clube). */
 export function kickoffTeam(id){return getTeam(id)||NATIONS.find(t=>t.id===id)||null;}
 /**

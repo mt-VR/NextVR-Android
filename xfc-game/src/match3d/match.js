@@ -434,7 +434,7 @@ export function createMatch(options = {}) {
         playerStyle: options.playerStyle ?? 'modern',
         // Linha 1,34× (print). Goleiro fica na estatura FIFA: senão tapa a
         // trave de 2,44 m.
-        pitchPresence: isKeeper ? 1 : 1.34,
+        pitchPresence: 1.12,
         skinTone: look.skinTone,
         hairColor: look.hairColor,
         hairStyle: look.hairStyle,
@@ -751,7 +751,7 @@ export function createMatch(options = {}) {
     const bodyPenalty = Math.min(0.075, Math.abs(bodyError) * 0.055);
     const randomSpread = (rng() - 0.5) * (Math.max(0, spread) + (100 - precisionRating) * 0.0007 + bodyPenalty);
     const angle = targetAngle + randomSpread;
-    let launch = lift ?? (kind === 'placed' ? 0.085 : 0.12 + rng() * 0.1);
+    let launch = lift ?? (kind === 'placed' ? 0.28 : 0.12 + rng() * 0.1);
     // Alvo vertical opcional (faltas da IA): converte a altura desejada na
     // elevação de saída, para a bola ir AO GOL e não rasteira para o lado.
     // `Number(null)` também é 0: sem a checagem explícita, TODO chute normal
@@ -2206,7 +2206,7 @@ export function createMatch(options = {}) {
         kind,
         lift: opts.restartType === 'freekick'
           ? freeKickLift
-          : kind === 'placed' ? 0.075 : kind === 'curved' ? 0.18 : kind === 'power' ? 0.11 : 0.13,
+          : kind === 'placed' ? 0.28 : kind === 'curved' ? 0.18 : kind === 'power' ? 0.11 : 0.13,
         curve
       });
       return true;
@@ -2214,7 +2214,14 @@ export function createMatch(options = {}) {
 
     if (shotKind === 'placed' || opts.placed) {
       const target = { x: sign * PITCH.halfLength, z: aimZ || 0 };
-      shootBall(player, { power: 20.5 + strength * 2, spread: 0.008, target, kind: 'placed', lift: 0.085 });
+      shootBall(player, {
+        power: 16.5 + strength * 3,
+        spread: 0.004,
+        target,
+        kind: 'placed',
+        lift: 0.3,
+        curve: Math.sign(aimZ || 1) * 0.62
+      });
     } else if (shotKind === 'curved') {
       const lateral = aimZ !== 0 ? aimZ : 0;
       shootBall(player, {

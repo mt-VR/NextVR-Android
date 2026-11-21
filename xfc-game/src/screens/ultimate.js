@@ -333,23 +333,39 @@ export function ultimateTeamScreen(ctx, params = {}) {
     const name = input("Nome do clube", u.clubName);
     const file = el("input", {
       type: "file",
-      accept: "image/png,image/jpeg,image/webp",
-      "aria-label": "Enviar brasão do clube",
+      accept: "image/*",
+      "aria-label": "Galeria — foto vira o brasão",
     });
     file.addEventListener("change", () => {
       const picked = file.files?.[0];
       if (!picked) return;
-      if (picked.size > 280000) {
-        notice.textContent = "A imagem do brasão precisa ter menos de 280 KB.";
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        UT.setUtIdentity(profile, { name: name.value, logo: reader.result });
+      const url = URL.createObjectURL(picked);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = 256;
+        canvas.width = size;
+        canvas.height = size;
+        const g = canvas.getContext("2d");
+        const scale = Math.max(size / img.width, size / img.height);
+        g.drawImage(
+          img,
+          (size - img.width * scale) / 2,
+          (size - img.height * scale) / 2,
+          img.width * scale,
+          img.height * scale,
+        );
+        URL.revokeObjectURL(url);
+        const logo = canvas.toDataURL("image/jpeg", 0.84);
+        UT.setUtIdentity(profile, { name: name.value, logo });
         persist();
         paint();
       };
-      reader.readAsDataURL(picked);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        notice.textContent = "Não deu para ler essa foto.";
+      };
+      img.src = url;
     });
     const presets = [
       ["assets/brand/xfc-icon.png", "XFC"],
@@ -369,7 +385,8 @@ export function ultimateTeamScreen(ctx, params = {}) {
             persist();
             paint();
           }),
-          el("label", { class: "ut-identity__upload" }, "Trocar brasão", file),
+          el("label", { class: "ut-identity__upload" }, "Galeria", file),
+          button("Abrir galeria", () => file.click()),
           el("div", { class: "ut-identity__presets" },
             ...presets.map(([src, label]) => el("button", {
               type: "button",
