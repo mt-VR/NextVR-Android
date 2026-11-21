@@ -1167,11 +1167,14 @@ export function buildStadium(scene, options = {}) {
   const adTexture = canvasTexture(1024, 128, drawAds);
   const adMaterial = new THREE.MeshLambertMaterial({ map: adTexture, emissive: 0x07140d });
   const adHeight = 1.1;
+  // 5 m de folga entre a linha de fundo (gols) e as placas/LED — o “track”
+  // de maratona não encosta mais na trave.
+  const goalRunoff = 5;
   const ads = [
     { size: [PITCH.length, adHeight], position: [0, adHeight / 2, -(PITCH.halfWidth + 1.9)] },
     { size: [PITCH.length, adHeight], position: [0, adHeight / 2, PITCH.halfWidth + 1.9] },
-    { size: [PITCH.width, adHeight], position: [-(PITCH.halfLength + 2.35), adHeight / 2, 0] },
-    { size: [PITCH.width, adHeight], position: [PITCH.halfLength + 2.35, adHeight / 2, 0] }
+    { size: [PITCH.width, adHeight], position: [-(PITCH.halfLength + goalRunoff), adHeight / 2, 0] },
+    { size: [PITCH.width, adHeight], position: [PITCH.halfLength + goalRunoff, adHeight / 2, 0] }
   ];
   for (const ad of ads) {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ad.size[0], ad.size[1]), adMaterial);
@@ -1204,11 +1207,11 @@ export function buildStadium(scene, options = {}) {
   }
   for (const side of [-1, 1]) {
     const banner = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.width + 20, 2.3), bannerMaterial);
-    banner.position.set(side * (PITCH.halfLength + 3.55), 1.18, 0);
+    banner.position.set(side * (PITCH.halfLength + goalRunoff + 1.2), 1.18, 0);
     banner.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
     group.add(banner);
     const led = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.width + 20, 0.66), ledMaterial);
-    led.position.set(side * (PITCH.halfLength + 3.5), 2.78, 0);
+    led.position.set(side * (PITCH.halfLength + goalRunoff + 1.15), 2.78, 0);
     led.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
     group.add(led);
   }

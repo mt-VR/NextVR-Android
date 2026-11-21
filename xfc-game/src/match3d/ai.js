@@ -150,13 +150,13 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     const distanceToGoal = Math.hypot(goalX - player.x, player.z);
     // Só finaliza de dentro do "cone" de tiro: de muito longe da linha de
     // fundo, o gol não é um alvo válido.
-    const inShootingRange = distanceToGoal < 29 && distanceToGoal > 4
-      && Math.abs(player.z) < 21 && Math.abs(player.z) < distanceToGoal * 0.95;
+    const inShootingRange = distanceToGoal < 32 && distanceToGoal > 3.2
+      && Math.abs(player.z) < 22 && Math.abs(player.z) < distanceToGoal * 1.05;
 
     // Finalização: o rival ataca o gol de verdade. Com espaço, chuta mais
     // frequentemente que antes (o usuário reclamou que eles não chutavam) e
     // procura o rebote/canto quando o goleiro já está batido.
-    if (inShootingRange && chance(distanceToGoal < 15 ? 0.46 : 0.17, dt)) {
+    if (inShootingRange && chance(distanceToGoal < 16 ? 0.58 : 0.28, dt)) {
       // Mira no canto menos guardado: assim a defesa não bloqueia fácil.
       // Chutes de longe e sob pressão costumam sair tortos.
       const miss = Math.min(0.22, 0.04 + distanceToGoal / 190 + (pressure < 3 ? 0.06 : 0));
@@ -168,19 +168,20 @@ export function createTeamAI({ side, world, tempo = 1 }) {
       return;
     }
 
-    // Passe quando alguém chega perto (sem passar a bola o tempo todo).
-    if (pressure < 2.8*tactics.pass && chance(0.025*tactics.pass, dt)) {
-      const target = bestPassTarget(player);
-      if (target) {
+    // Passe só para frente: no ataque o rival não devolve para o zagueiro.
+    if (chance(0.018 * tactics.pass, dt)) {
+      const target = bestPassTarget(player, true) || bestPassTarget(player);
+      const ahead = target ? (target.x - player.x) * attackSign : -1;
+      if (target && ahead > 1.2) {
         world.kickBall(player, target, { power: 16 + world.rng() * 6 });
         return;
       }
     }
 
-    // Lançamento longo quando há espaço na frente.
-    if (pressure > 4 && chance(0.004, dt)) {
+    // Lançamento em profundidade para o atacante, nunca para trás.
+    if (pressure > 3.2 && chance(0.012, dt)) {
       const target = bestPassTarget(player, true);
-      if (target) {
+      if (target && (target.x - player.x) * attackSign > 4) {
         world.kickBall(player, target, { lob: true, power: 24 });
         return;
       }
@@ -268,17 +269,18 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     let best = null;
     let bestScore = -Infinity;
     for (const mate of mates) {
+      if (mate.isKeeper || mate.isGK) continue;
       const forwardness = (mate.x - player.x) * attackSign;
       const open = world.openSpace(mate);
       const d = Math.hypot(mate.x - player.x, mate.z - player.z);
-      // Passe curto por padrão; o lançamento longo é para casos especiais.
+      // Nunca devolve para trás no ataque: o passe tem que ganhar campo.
+      if (forwardness < (forward ? 3.5 : 0.6)) continue;
       if (forward) {
-        if (d < 12 || d > 40) continue;
-      } else if (d < 4 || d > 24) continue;
+        if (d < 10 || d > 42) continue;
+      } else if (d < 4 || d > 26) continue;
       const lane = laneClearance(player.x, player.z, mate.x, mate.z);
-      // O passe prefere quem está à frente: o time precisa avançar.
-      let score = forwardness * 1.7 + open * 0.6 + lane * 2.2 - d * 0.05;
-      if (forward) score = forwardness * 2.2 + open * 0.4 + lane * 1.6 - d * 0.02;
+      let score = forwardness * 3.6 + open * 0.55 + lane * 2.1 - d * 0.04;
+      if (forward) score = forwardness * 4.2 + open * 0.35 + lane * 1.5 - d * 0.02;
       if (score > bestScore) {
         bestScore = score;
         best = mate;
