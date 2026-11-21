@@ -102,18 +102,14 @@ export function createHud({ root, home, away, userSide = 'home', careerRating = 
   const scoreboard = spanishLeague
     ? el('div', { class: 'hud__scoreboard hud__scoreboard--laliga' },
         el('div', { class: 'laliga-board hud__sc-main', 'aria-label': 'Placar LaLiga' },
-          el('div', { class: 'laliga-board__row laliga-board__row--top' },
-            laligaMark(),
-            el('span', { class: 'laliga-board__name hud__team', text: abbreviationOf(home) }),
-            el('span', { class: 'laliga-board__goals' }, homeScore)
-          ),
-          el('div', { class: 'laliga-board__row laliga-board__row--bottom' },
-            addedChip,
-            clock,
-            el('span', { class: 'laliga-board__name hud__team', text: abbreviationOf(away) }),
-            el('span', { class: 'laliga-board__goals' }, awayScore),
-            halfLabel
-          )
+          laligaMark(),
+          el('span', { class: 'laliga-board__name hud__team laliga-board__home', text: abbreviationOf(home) }),
+          el('span', { class: 'laliga-board__goals laliga-board__home-goals' }, homeScore),
+          addedChip,
+          clock,
+          el('span', { class: 'laliga-board__name hud__team laliga-board__away', text: abbreviationOf(away) }),
+          el('span', { class: 'laliga-board__goals laliga-board__away-goals' }, awayScore),
+          halfLabel
         ),
         possessionBar,
         discipline

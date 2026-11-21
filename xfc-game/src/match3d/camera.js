@@ -83,12 +83,12 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
 // grandes no quadro, pouco das laterais. Não cola no jogador.
 const CAMERA_PRESETS = {
   standard: {
-    height: 18, z: 50, zMin: 44, zMax: 58, targetAhead: 28, fov: 46,
-    panFactor: 1, zFollow: 0.42, aimLift: 0.16, aimBase: -1.1, topZoom: 0.14
+    height: 16, z: 50, zMin: 44, zMax: 56, targetAhead: 22, fov: 50,
+    panFactor: 1, zFollow: 0.32, aimLift: 0.1, aimBase: 0.2, topZoom: 0.1
   },
   career: {
-    height: 19, z: 54, zMin: 46, zMax: 62, targetAhead: 30, fov: 48,
-    panFactor: 1, zFollow: 0.38, aimLift: 0.14, aimBase: -1, topZoom: 0.12
+    height: 17, z: 54, zMin: 46, zMax: 60, targetAhead: 24, fov: 50,
+    panFactor: 1, zFollow: 0.3, aimLift: 0.1, aimBase: 0.15, topZoom: 0.08
   }
 };
 

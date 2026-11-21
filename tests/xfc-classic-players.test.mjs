@@ -77,7 +77,7 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 // flutua mais sobre o campo.
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
-  "src/match3d/hud.js": "5467fc8b20121efadaa5311ab6f6897769d9c1b4d46e7198a5a63231f6f9e039",
+  "src/match3d/hud.js": "691dbb2ef4e9548161133746a0dc44f6825196e13ffb32f1ad3b289ee5938617",
   "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
   // v0.5.56: `match.js` ganhou uma linha que repassa `playerStyle` (visual
   // low-poly de PSP) para o modelo. Nada do gameplay, HUD ou controles mudou.
@@ -85,7 +85,7 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).
-  "styles/match3d.css": "a64e8610b885bee2f46e45c9362237b09d41fa5268897205d4478233b57f7527"
+  "styles/match3d.css": "340d7f21d5f4cd933fb14c95748ec784baf1828f468c601963c371dab2d1ed18"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });
@@ -97,16 +97,16 @@ test('câmera de transmissão: fov fecha no lado de cima e não muda do lado de 
  const {broadcastCameraPose}=await import('../xfc-game/src/match3d/camera.js');
  const {PITCH}=await import('../xfc-game/src/match3d/constants.js');
  const mid=broadcastCameraPose({x:0,y:0,z:0},1,null);
- assert.equal(mid.position.x,0);assert.equal(mid.position.z,50);assert.equal(mid.fov,46);
+ assert.equal(mid.position.x,0);assert.equal(mid.position.z,50);assert.equal(mid.fov,50);
  const top=broadcastCameraPose({x:0,y:0,z:-PITCH.halfWidth},1,null);
  const near=broadcastCameraPose({x:0,y:0,z:PITCH.halfWidth},1,null);
  assert.ok(top.fov<mid.fov,'bola no lado de cima: a objetiva fecha');
  assert.ok(top.fov>mid.fov*0.7,'...mas sem telephoto: a arquibancada de fundo continua no quadro');
- assert.equal(near.fov,46,'bola do lado da lente: o enquadramento Tele Broadcast não muda');
+ assert.equal(near.fov,50,'bola do lado da lente: o enquadramento Tele Broadcast não muda');
  for(const z of [-34,-20,0,20,30]){
   const pose=broadcastCameraPose({x:-30,y:0,z},1,null);
   assert.equal(pose.position.x,-30,'a lente acompanha a bola em X');
-  assert.equal(pose.position.y,18,'a altura da lente não muda com a bola');
+  assert.equal(pose.position.y,16,'a altura da lente não muda com a bola');
  }
  assert.ok(broadcastCameraPose({x:0,y:0,z:-34},1,null).fov<=broadcastCameraPose({x:0,y:0,z:-20},1,null).fov,
   'quanto mais para cima, mais fechada a objetiva');

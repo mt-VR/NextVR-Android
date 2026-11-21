@@ -23,12 +23,12 @@ test('mira direita manda o chute à direita do atleta, não à esquerda', () => 
   assert.equal(shotGoalTargetZ(0, 0, 1, 7.32), 0);
 });
 
-test('Tele Broadcast: altura 18, segue a bola, não cola no jogador', () => {
+test('Tele Broadcast: altura 16, segue a bola, linha lateral no rodapé', () => {
   const mid = broadcastCameraPose({ x: 12, y: 0, z: 0 }, 1, null, 'standard');
-  assert.equal(mid.position.y, 18);
+  assert.equal(mid.position.y, 16);
   assert.equal(mid.position.x, 12);
   assert.ok(mid.position.z >= 44, 'lente afastada da lateral');
-  assert.ok(mid.fov <= 48, 'zoom fecha as laterais');
+  assert.ok(mid.fov <= 52, 'zoom fecha as laterais');
 });
 
 test('carreira persiste tatuagem e máscara facial', () => {

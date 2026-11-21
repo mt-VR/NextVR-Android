@@ -987,6 +987,24 @@ export function buildStadium(scene, options = {}) {
   pitch.rotation.x = -Math.PI / 2;
   pitch.receiveShadow = true;
   group.add(pitch);
+  // Linha lateral branca por cima da relva: a textura corta a borda e a
+  // câmera de transmissão precisa ver a trave do gramado no rodapé.
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xf4f6f0 });
+  const touchW = 0.28;
+  for (const z of [-PITCH.halfWidth, PITCH.halfWidth]) {
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.length + 0.28, touchW), lineMat);
+    strip.name = 'xfc-touchline';
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.set(0, 0.018, z);
+    group.add(strip);
+  }
+  for (const x of [-PITCH.halfLength, PITCH.halfLength]) {
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(touchW, PITCH.width + 0.28), lineMat);
+    strip.name = 'xfc-goalline';
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.set(x, 0.018, 0);
+    group.add(strip);
+  }
   // No perfil Android, a relva procedural já está na textura do campo. As
   // lâminas subpixel piscavam como pontos escuros na câmera de transmissão.
   if(graphics.grass) addGrassBlades(group,graphics.grass);

@@ -19,7 +19,7 @@ test('Kick Off permanece 120×82; a carreira tem gramado 140×96 à parte', () =
 test('câmera Tele Broadcast no Kick Off; carreira um pouco mais alta no campo maior', () => {
   const kickoff = broadcastCameraPose({ x: 0, y: 0, z: 0 }, 1, null, 'standard');
   const career = broadcastCameraPose({ x: 0, y: 0, z: 0 }, 1, null, 'career');
-  assert.equal(kickoff.position.y, 18);
+  assert.equal(kickoff.position.y, 16);
   assert.equal(kickoff.position.z, 50);
   assert.ok(career.position.y >= kickoff.position.y, 'carreira: não cola no jogador');
   assert.ok(Math.abs(career.position.z) >= Math.abs(kickoff.position.z), 'carreira: afasta no gramado maior');
