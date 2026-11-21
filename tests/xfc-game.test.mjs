@@ -953,7 +953,13 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.click('.showcase__enter');
     await page.waitForSelector('.hud.is-visible', { timeout: 30000 });
     const boardBox = await page.locator('.hud__scoreboard').boundingBox();
-    assert.ok(boardBox && boardBox.x < 100, 'o placar ao vivo fica no canto superior esquerdo da referência');
+    const laliga = await page.locator('.hud__scoreboard--laliga').count();
+    if (laliga) {
+      assert.ok(boardBox && Math.abs(boardBox.x + boardBox.width / 2 - 800) < 120,
+        'o placar LaLiga fica no centro do topo');
+    } else {
+      assert.ok(boardBox && boardBox.x < 100, 'o placar ao vivo fica no canto superior esquerdo da referência');
+    }
     const stickBox = await page.locator('.controls__stick').boundingBox();
     assert.ok(stickBox && stickBox.x < 320 && stickBox.y > 500,
       'o analógico fica fixo no canto inferior esquerdo');
