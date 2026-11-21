@@ -495,10 +495,10 @@
 /* Placar LaLiga — a foto do print. Números ao vivo por cima, sem caixas CSS.
    Especificidade alta: reference-broadcast.css e frontend.css vêm depois. */
 .hud__scoreboard.hud__scoreboard--laliga {
-  left: 50%;
-  top: 16px;
+  left: 14px;
+  top: 12px;
   right: auto;
-  transform: translateX(-50%);
+  transform: none;
   z-index: 6;
   padding: 0;
   gap: 0;
@@ -507,8 +507,8 @@
 .hud__scoreboard.hud__scoreboard--laliga .hud__sc-main {
   display: block;
   position: relative;
-  width: 332px;
-  height: 155px;
+  width: 196px;
+  height: 91px;
   padding: 0;
   margin: 0;
   border: 0;
@@ -563,14 +563,14 @@
   height: 50%;
   background: transparent;
   color: #fff;
-  font-size: 22px;
+  font-size: 13px;
   line-height: 1;
   font-weight: 900;
 }
 .hud__scoreboard.hud__scoreboard--laliga .hud__sc-main .hud__team {
   color: #fff;
   transform: none;
-  font-size: 22px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.04em;
   margin: 0;
@@ -580,19 +580,19 @@
   -webkit-background-clip: border-box;
   background-clip: border-box;
   color: #111;
-  font-size: 34px;
+  font-size: 20px;
   font-weight: 900;
   min-width: 0;
   line-height: 1;
 }
 .hud__scoreboard.hud__scoreboard--laliga .laliga-board__added {
-  left: -46px;
+  left: -32px;
   top: 50%;
-  width: 44px;
+  width: 30px;
   height: 50%;
   background: #21261f;
   color: #fff;
-  font-size: 20px;
+  font-size: 13px;
 }
 .hud__scoreboard.hud__scoreboard--laliga .laliga-board__added[hidden] { visibility: hidden; display: flex; }
 .hud__scoreboard.hud__scoreboard--laliga .hud__poss,
