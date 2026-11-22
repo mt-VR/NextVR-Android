@@ -621,9 +621,10 @@ export function createMatch(options = {}) {
       : lob
         ? Math.max(10, Math.min(20, distance * 0.7 + 5))
         : Math.max(7, Math.min(19, distance * 0.62 + 4 + power * 0.08));
-    // FC 27: passe rasteiro vai reto. Sem homing no recebedor (isso virava curva).
-    const guide = through && target.active
-      ? { receiver: target, x: aimX, z: aimZ, through: true, follow: false, maxTime: 1.7 }
+    // FC 27: o passe aponta o espaço e vai rasteiro. Sem perseguir o recebedor
+    // (follow) nem Magnus — isso era a curva danada no toque.
+    const guide = target.active
+      ? { receiver: target, x: aimX, z: aimZ, through, follow: false, maxTime: requested ? 12 : 2.4 }
       : null;
     const flightLift = lift ?? (requested ? .02 : lob ? 0.42 : through ? 0.04 : 0.03);
     ball.kick(direction, speed, flightLift, {
