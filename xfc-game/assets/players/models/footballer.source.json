@@ -6,11 +6,12 @@
   "licenseUrl": "https://www.innerscene.com/tools/library/terms",
   "mirror": "https://github.com/niktolis/pitchvolt-ai/blob/7e5e192541c06c2788cf8341ae297d543e433b7b/web/public/assets/hero/neutral-59ee4cbe96e07698.glb",
   "inputSha256": "59ee4cbe96e07698c139d6ef9aa6e3965bac553cb9f826c7238bef953d958662",
-  "outputSha256": "7417664bb6f62971fe96eba39b8c7a1e021ca4ecf15a2cd0cbcef0466815bd6f",
+  "outputSha256": "bcae5466a20855c8ed819246022745bf88d6f2a7e3c724286a42f449064f6433",
   "adaptations": [
     "Removed scene-only ball, fixed number and instanced studs",
     "Bound original body/clothing geometry to 22-joint skeleton",
     "Authored idle/walk/run clips for that bind pose",
+    "Retargeted Mixamo clips onto the 22-joint bind: sprint, dive, catch, miss, throw-in",
     "Neutralized fabric base-colour textures for team tint; preserved skin/hair/eyes",
     "Classic mobile reduction: meshoptimizer ratio 0.10 / error 0.006; diffuse maps <=256px; original 22-joint rig, UVs and clips retained",
     "Removed hidden shin skin under socks to prevent z-fighting; removed unused roots and teeth",

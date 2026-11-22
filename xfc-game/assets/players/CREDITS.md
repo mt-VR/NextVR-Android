@@ -1,5 +1,8 @@
 # Créditos das imagens dos jogadores
 
+Clipes de movimento extra (`sprint`, `dive`, `catch`, `miss`, `throw-in`) são
+animações **Mixamo** (Adobe), retargetadas no esqueleto do Micah.
+
 Os retratos dos jogadores vêm do **Wikimedia Commons** (ficheiros de uso livre).
 Cada linha aponta para a página do ficheiro no Commons, onde estão o autor
 original e a licença exacta ( Creative Commons BY-SA / BY / domínio público).

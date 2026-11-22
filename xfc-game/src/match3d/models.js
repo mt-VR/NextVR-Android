@@ -103,7 +103,10 @@ export function preloadFootballerPack() {
   packPromise = (async () => {
     const gltf = await loadGlb(MODEL_URL);
     const library = new Map();
-    const aliases = { idle: 'idle', walk: 'jog', jog: 'jog', run: 'run' };
+    const aliases = {
+      idle: 'idle', walk: 'jog', jog: 'jog', run: 'run', sprint: 'sprint',
+      dive: 'dive', catch: 'catch', miss: 'miss', 'throw-in': 'throw-in'
+    };
     for (const animation of gltf.animations || []) {
       const name = aliases[animation.name.toLowerCase()] || animation.name;
       library.set(name, animation);
@@ -468,17 +471,24 @@ export function createGltfPlayer(options = {}) {
     'pick-ball': .9,
     stepover: .6,
     rainbow: .55,
-    catch: .8
+    catch: .8,
+    miss: 1.07
   };
 
   function startGesture(name, duration, opts = {}) {
-    if (!GESTURES[name]) return null;
+    if (!GESTURES[name] && !pack.clips.has(name)) return null;
+    if (gesture.clip && gesture.name) fadeAction(gesture.name, 0, { fade: 0.08, mask: 'full' });
     gesture.name = name;
     gesture.maskName = opts.mask || 'full';
     gesture.mask = mixamoMask(gesture.maskName);
     gesture.weight = Math.max(0, Math.min(1, opts.weight ?? 1));
     gesture.time = 0;
-    gesture.duration = Number.isFinite(duration) ? duration : GESTURES[name];
+    const clip = pack.clips.get(name);
+    gesture.clip = Boolean(clip);
+    gesture.duration = Number.isFinite(duration)
+      ? duration
+      : (clip?.duration || GESTURES[name] || 0.8);
+    if (clip) fadeAction(name, opts.weight ?? 1, { ...opts, once: true, fade: 0.08, mask: 'full' });
     return name;
   }
 
@@ -501,10 +511,16 @@ export function createGltfPlayer(options = {}) {
     if (!gesture.name) return;
     gesture.time += step;
     if (gesture.time >= gesture.duration) {
+      if (gesture.clip) fadeAction(gesture.name, 0, { fade: 0.12, mask: 'full' });
       gesture.name = null;
+      gesture.clip = false;
       return;
     }
     applyingGesture = true;
+    if (gesture.clip) {
+      applyingGesture = false;
+      return;
+    }
     const p = gesture.time / gesture.duration;
     const w = gestureEnvelope();
     const dir = gesture.dir >= 0 ? 1 : -1;
@@ -774,7 +790,7 @@ export function createGltfPlayer(options = {}) {
     speed: 1,
     mask: 'full',
     locomotion: 'idle',
-    locomotionWeights: { idle: 1, jog: 0, run: 0 },
+    locomotionWeights: { idle: 1, jog: 0, run: 0, sprint: 0 },
     gestures: new Map(),
     lastDistance: 0,
     shadowEnabled: true
@@ -820,9 +836,15 @@ export function createGltfPlayer(options = {}) {
       jog = 1 - t;
       run = t;
     }
+    let sprint = 0;
+    if (value >= 5.1) {
+      const s = Math.min(1, (value - 5.1) / 1.5);
+      sprint = run * s;
+      run *= (1 - s);
+    }
     const blend=1-Math.exp(-dt*12);
-    const targets={idle,jog,run};
-    const lowPose=['dive','tackle','fall'].includes(gesture.name) && gesture.maskName==='full';
+    const targets={idle,jog,run,sprint};
+    const lowPose=['dive','tackle','fall','miss','catch','throw-in'].includes(gesture.name) && gesture.maskName==='full';
     const locomotionGain=lowPose?1-gestureEnvelope()*gesture.weight:1;
     // Fase compartilhada evita pernas opostas ao misturar trote e corrida.
     const cycle=runningCycle(state.locomotionWeights.run,model.scale.y,number);
@@ -839,7 +861,7 @@ export function createGltfPlayer(options = {}) {
     const acceleration=dt>0?(value-previousSpeed)/dt:0;
     gaitAcceleration+=(Math.max(-4,Math.min(8,acceleration))-gaitAcceleration)*(1-Math.exp(-dt*6));
     previousSpeed=value;
-    for(const name of ['idle','jog','run']) {
+    for(const name of ['idle','jog','run','sprint']) {
       const weight=state.locomotionWeights[name]+(targets[name]-state.locomotionWeights[name])*blend;
       state.locomotionWeights[name]=weight;
       const action=actionFor(name,null,'full');if(!action)continue;

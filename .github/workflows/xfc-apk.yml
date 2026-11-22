@@ -184,17 +184,17 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.77
+          TAG=xfc-gameplay-v0.5.78
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.77 (versionCode 83), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.78 (versionCode 84), commit ${GITHUB_SHA}." \
             "" \
-            "Eden Arena: arquibancada com a textura das cadeiras vermelhas." \
-            "Detalhes: xfc-game/docs/v0.5.77.md.")
+            "Animações Mixamo no atleta: sprint, mergulho, defesa, bloqueio, arremesso." \
+            "Detalhes: xfc-game/docs/v0.5.78.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — arquibancada Eden v0.5.77" \
+            gh release create "$TAG" --title "XFC 27 — animações Mixamo v0.5.78" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — arquibancada Eden v0.5.77" \
+            gh release edit "$TAG" --title "XFC 27 — animações Mixamo v0.5.78" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

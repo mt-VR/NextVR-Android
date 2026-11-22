@@ -13,11 +13,11 @@ test('identidade clássica é estável por nome, com seis formatos e todos os co
 });
 test('pacote clássico mantém rig/animações, tem menos de 10 mil triângulos e hash reproduzível',async()=>{
  const bytes=await readFile('xfc-game/assets/players/models/footballer.glb'),manifest=JSON.parse(await readFile('xfc-game/assets/players/models/footballer.source.json','utf8'));
- assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.outputSha256);assert.ok(bytes.length<600000);
+ assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.outputSha256);assert.ok(bytes.length<800000);
  const json=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
  const triangles=json.meshes.flatMap(m=>m.primitives).reduce((n,p)=>n+json.accessors[p.indices].count/3,0);
  assert.ok(triangles<10000&&triangles>3000,`triângulos: ${triangles}`);assert.equal(json.skins[0].joints.length,22);
- assert.deepEqual(json.animations.map(a=>a.name),['idle','walk','run']);
+ assert.deepEqual(json.animations.map(a=>a.name),['idle','walk','run','sprint','dive','catch','miss','throw-in']);
  for(const m of json.meshes)for(const p of m.primitives){assert.ok(p.attributes.JOINTS_0!==undefined&&p.attributes.WEIGHTS_0!==undefined&&p.attributes.TEXCOORD_0!==undefined);}
 });
 test('cortes sólidos distintos, rostos, UVs, orçamento e animações no renderer real',{timeout:90000},async t=>{
