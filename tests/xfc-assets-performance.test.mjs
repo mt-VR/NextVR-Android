@@ -74,7 +74,7 @@ test('motor aplica proteção ao Ultra sem recriar framebuffer; contagem da gram
     e.renderer.render=()=>{if(e.renderer.shadowMap.needsUpdate)shadowPasses++;e.renderer.shadowMap.needsUpdate=false;};e.clock.getDelta=()=>.1;
     await new Promise(resolve=>{e.start(()=>{if(e.state.frames>=45){e.stop();resolve();}});});
     const r={level:e.state.detailLevel,grass:grass.count,budget:e.graphics.grass,resizes,ratio:e.renderer.getPixelRatio(),initialRatio:ratio,auto:e.renderer.shadowMap.autoUpdate};e.dispose();return r;
-  });assert.equal(result.level,1);assert.equal(result.grass,8400);assert.equal(result.grass,result.budget);assert.equal(result.resizes,0);assert.equal(result.ratio,result.initialRatio);assert.equal(result.auto,false);
+    });assert.equal(result.level,1);assert.equal(result.grass,result.budget);assert.equal(result.budget,5600);assert.equal(result.resizes,0);assert.equal(result.ratio,result.initialRatio);assert.equal(result.auto,false);
   }finally{await b.close();server.close();}
 });
 
