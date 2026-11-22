@@ -65,6 +65,7 @@ jobs:
       # (que roda no workflow da Android CI) está instável.
       - name: Publish the XFC test report
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
