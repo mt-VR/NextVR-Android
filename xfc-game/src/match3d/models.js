@@ -476,22 +476,17 @@ export function createGltfPlayer(options = {}) {
   };
 
   function startGesture(name, duration, opts = {}) {
-    if (!GESTURES[name] && !pack.clips.has(name)) return null;
+    if (!GESTURES[name]) return null;
     if (gesture.clip && gesture.name) fadeAction(gesture.name, 0, { fade: 0.08, mask: 'full' });
     gesture.name = name;
     gesture.maskName = opts.mask || 'full';
     gesture.mask = mixamoMask(gesture.maskName);
     gesture.weight = Math.max(0, Math.min(1, opts.weight ?? 1));
     gesture.time = 0;
-    const clip = pack.clips.get(name);
-    gesture.clip = Boolean(clip);
-    gesture.duration = Number.isFinite(duration)
-      ? duration
-      : (GESTURES[name] || clip?.duration || 0.8);
-    if (clip) {
-      const action = fadeAction(name, opts.weight ?? 1, { ...opts, once: true, fade: 0.08, mask: 'full' });
-      if (action && clip.duration > 0.05) action.setEffectiveTimeScale(clip.duration / Math.max(0.2, gesture.duration));
-    }
+    // Clip Mixamo neste rig torce braço/perna (repouso diferente). Gestos
+    // continuam nos ossos. Os clipes ficam no GLB para retarget futuro.
+    gesture.clip = false;
+    gesture.duration = Number.isFinite(duration) ? duration : GESTURES[name];
     return name;
   }
 

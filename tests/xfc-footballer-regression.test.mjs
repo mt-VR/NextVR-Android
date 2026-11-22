@@ -150,6 +150,7 @@ test('movimentos: transição suave, cadência sincronizada, carrinho baixo e me
     assert.ok(Math.abs(Object.values(result.transition).reduce((a,b)=>a+b,0)-1)<1e-6);
     assert.equal(result.phases.length,2);assert.ok(Math.abs(result.phases[0]-result.phases[1])<1e-6);
     assert.ok(result.slide.peak.hips[1]<.45,`quadril perto da relva: ${result.slide.peak.hips[1]}`);
-    for(const pose of [result.slide,result.left,result.right]){assert.ok(pose.minY>=-.2,`contatos não enterram no gramado: ${pose.minY}`);assert.equal(pose.gesture,null);}
+    assert.ok(result.right.peak.head[0]>.5);assert.ok(result.left.peak.head[0]<-.5);
+    for(const pose of [result.slide,result.left,result.right]){assert.ok(pose.minY>=.04,`contatos não enterram no gramado: ${pose.minY}`);assert.equal(pose.gesture,null);}
   }finally{await browser.close();server.close();}
 });
