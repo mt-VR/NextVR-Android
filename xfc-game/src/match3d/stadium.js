@@ -568,21 +568,24 @@ function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) 
   const count = rows * columns;
   const bodies = new THREE.InstancedMesh(
     new THREE.BoxGeometry(0.22, 0.4, 0.14),
-    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10151c }),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }),
     count
   );
   const heads = new THREE.InstancedMesh(
     new THREE.BoxGeometry(0.16, 0.16, 0.16),
-    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x18140f }),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }),
     count
   );
   bodies.name = 'xfc-crowd-simplified-bodies';
   heads.name = 'xfc-crowd-simplified-heads';
   bodies.castShadow = false;
   heads.castShadow = false;
+  bodies.frustumCulled = true;
+  heads.frustumCulled = true;
   const shirts = [0xe8edf0, 0xd54b40, 0x256bd0, 0x21a982, 0xe3b944, 0x30363e, 0xf2f2e8, 0x842f75];
   const skin = [0xe4b995, 0xc98e64, 0x9e6849, 0xf0ccaa, 0x784c37, 0xd6a17b];
   const pose = new THREE.Object3D();
+  const tint = new THREE.Color();
   const slopeAngle = Math.atan2(height-2.4,depth);
   const wallHeight = 2.4;
   const seatHeight = height - wallHeight;
@@ -590,15 +593,8 @@ function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) 
   const slopeCenterZ = -0.6;
   const bank = {
     bodies, heads, count,
-    x: new Float32Array(count),
-    z: new Float32Array(count),
     bodyY: new Float32Array(count),
     headY: new Float32Array(count),
-    rot: new Float32Array(count),
-    sx: new Float32Array(count),
-    sy: new Float32Array(count),
-    sz: new Float32Array(count),
-    headS: new Float32Array(count),
     phase: new Float32Array(count)
   };
   let instance = 0;
@@ -619,29 +615,22 @@ function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) 
       const rot = (random() - 0.5) * 0.12;
       const sx = 0.86 + random() * 0.1, sy = 0.88 + random() * 0.16, sz = 0.8;
       const headS = 0.9 + random() * 0.12;
-      bank.x[instance] = x;
-      bank.z[instance] = z;
       bank.bodyY[instance] = bodyY;
       bank.headY[instance] = headY;
-      bank.rot[instance] = rot;
-      bank.sx[instance] = sx;
-      bank.sy[instance] = sy;
-      bank.sz[instance] = sz;
-      bank.headS[instance] = headS;
       bank.phase[instance] = random() * Math.PI * 2;
       pose.position.set(x, bodyY, z);
       pose.rotation.set(0, rot, 0);
       pose.scale.set(sx, sy, sz);
       pose.updateMatrix();
       bodies.setMatrixAt(instance, pose.matrix);
-      bodies.setColorAt(instance, new THREE.Color(shirts[Math.floor(random() * shirts.length)]));
+      bodies.setColorAt(instance, tint.setHex(shirts[Math.floor(random() * shirts.length)]));
 
       pose.position.set(x, headY, z - 0.02);
       pose.rotation.set(0, 0, 0);
       pose.scale.setScalar(headS);
       pose.updateMatrix();
       heads.setMatrixAt(instance, pose.matrix);
-      heads.setColorAt(instance, new THREE.Color(skin[Math.floor(random() * skin.length)]));
+      heads.setColorAt(instance, tint.setHex(skin[Math.floor(random() * skin.length)]));
       instance += 1;
     }
   }
@@ -649,6 +638,8 @@ function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) 
   heads.instanceMatrix.needsUpdate = true;
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+  bodies.computeBoundingSphere();
+  heads.computeBoundingSphere();
   group.add(bodies, heads);
   if (Array.isArray(crowdBag)) crowdBag.push(bank);
 }
@@ -958,7 +949,7 @@ export function buildStadium(scene, options = {}) {
   let crowdJump = 0;
   let crowdClock = 0;
   let crowdWasJumping = false;
-  const crowdPose = new THREE.Object3D();
+  let crowdHopSkip = 0;
   scene.add(group);
 
   // Modelo do estádio: cobertura, fachada, altura, ambiente e LED mudam por praça.
@@ -1365,21 +1356,18 @@ export function buildStadium(scene, options = {}) {
     if (crowdJump > 0) crowdJump = Math.max(0, crowdJump - dt);
     const hopping = crowdJump > 0;
     if (!hopping && !crowdWasJumping) return;
+    crowdHopSkip += 1;
+    if (hopping && crowdHopSkip % 2 === 0) return;
     crowdWasJumping = hopping;
     for (const bank of crowdBag) {
       if (!bank?.count) continue;
+      const bodyArr = bank.bodies.instanceMatrix.array;
+      const headArr = bank.heads.instanceMatrix.array;
       for (let i = 0; i < bank.count; i += 1) {
         const hop = hopping ? Math.abs(Math.sin(crowdClock * 12 + bank.phase[i])) * 0.7 : 0;
-        crowdPose.position.set(bank.x[i], bank.bodyY[i] + hop, bank.z[i]);
-        crowdPose.rotation.set(0, bank.rot[i], 0);
-        crowdPose.scale.set(bank.sx[i], bank.sy[i], bank.sz[i]);
-        crowdPose.updateMatrix();
-        bank.bodies.setMatrixAt(i, crowdPose.matrix);
-        crowdPose.position.set(bank.x[i], bank.headY[i] + hop, bank.z[i] - 0.02);
-        crowdPose.rotation.set(0, 0, 0);
-        crowdPose.scale.setScalar(bank.headS[i]);
-        crowdPose.updateMatrix();
-        bank.heads.setMatrixAt(i, crowdPose.matrix);
+        const offset = i * 16;
+        bodyArr[offset + 13] = bank.bodyY[i] + hop;
+        headArr[offset + 13] = bank.headY[i] + hop;
       }
       bank.bodies.instanceMatrix.needsUpdate = true;
       bank.heads.instanceMatrix.needsUpdate = true;
