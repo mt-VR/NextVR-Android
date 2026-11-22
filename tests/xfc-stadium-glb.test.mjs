@@ -9,6 +9,7 @@ test('Eden Arena entra como GLB leve na galeria, com cartão JPEG', async () => 
   assert.equal(eden.glb, 'assets/stadiums/eden_arena.glb');
   assert.ok(eden.glbFit.innerLength > 0 && eden.glbFit.innerWidth > 0);
   assert.ok(Number.isFinite(eden.glbFit.pitchCenter.x));
+  assert.equal(eden.glbFit.rotateY, 0);
   assert.equal(eden.glbFit.sink, undefined);
   assert.equal(FEATURED_STADIUMS[0], STADIUMS.indexOf(eden));
   const glb = await stat(`xfc-game/${eden.glb}`);

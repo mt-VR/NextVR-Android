@@ -90,9 +90,10 @@ STADIUMS.push(
     file: 'assets/stadiums/eden-arena-menu.jpg',
     glb: 'assets/stadiums/eden_arena.glb',
     albedo: 'assets/stadiums/eden_arena.jpg',
-    // Centro do gramado pintado no GLB (não o centro da caixa do complexo).
+    // Centro no gramado do GLB, sem girar 90°: o prédio vizinho ia para o
+    // meio do campo. O palco do XFC (relva/gols) fica; o GLB senta em volta.
     glbFit: {
-      rotateY: Math.PI / 2,
+      rotateY: 0,
       innerLength: 105,
       innerWidth: 68,
       pitchCenter: { x: -46.34, z: -167.26 }

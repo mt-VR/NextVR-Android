@@ -85,6 +85,7 @@ export function mountStadiumGlb(parent, stadium, pitch, onReady) {
     parent.traverse(object => {
       if (object.name === 'xfc-procedural-bowl') object.visible = false;
     });
+    // Relva, linhas e gols do XFC ficam: o GLB é o estádio em volta, centrado.
     onReady?.(holder);
   }).catch(error => {
     console.warn('[xfc] estádio glTF indisponível', stadium.glb, error?.message || error);
