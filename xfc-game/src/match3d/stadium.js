@@ -8,6 +8,7 @@ import {addWarmup} from './warmup.js';
 import { THREE, canvasTexture, disposeObject } from './engine.js';
 import { PITCH, GOAL } from './constants.js';
 import { STADIUMS } from './stadiums.js';
+import { mountStadiumGlb } from './stadium-glb.js';
 import {graphicsPreset} from './quality.js';
 import { addGrassBlades } from './grass.js';
 import { createGoalNet } from './goal-net.js';
@@ -1039,14 +1040,17 @@ export function buildStadium(scene, options = {}) {
     { width: PITCH.width + 76, depth: standDepth, height: standHeight, rotation: Math.PI / 2, position: [-(PITCH.halfLength + standOffset), 0, 0] },
     { width: PITCH.width + 76, depth: standDepth, height: standHeight, rotation: -Math.PI / 2, position: [PITCH.halfLength + standOffset, 0, 0] }
   ];
+  const bowl = new THREE.Group();
+  bowl.name = 'xfc-procedural-bowl';
   for (const option of standOptions) {
-    group.add(buildStand(option.width, option.depth, option.height, crowdTexture, {
+    bowl.add(buildStand(option.width, option.depth, option.height, crowdTexture, {
       ...option,
       model,
       simple: lowPower,
       facadeMaterial
     }));
   }
+  group.add(bowl);
 
   // Estruturas fora do gramado: vestiário ao fundo e bancos técnicos cobertos
   // ao longo das duas laterais, sem alterar colisões nem regras da partida.
@@ -1134,7 +1138,7 @@ export function buildStadium(scene, options = {}) {
     ring.scale.z = 0.80;
     ring.position.set(0, standHeight + 8.5, 0);
     ring.rotation.x = 0.1;
-    group.add(ring);
+    bowl.add(ring);
   }
 
   // Anel de mastros brancos inclinados (Mineirão): postes em volta da
@@ -1151,7 +1155,7 @@ export function buildStadium(scene, options = {}) {
       pole.position.set(x, (standHeight + poleTop) / 2, z);
       pole.rotation.z = -Math.cos(angle) * 0.14;
       pole.rotation.x = Math.sin(angle) * 0.14;
-      group.add(pole);
+      bowl.add(pole);
     }
     const cable = new THREE.Mesh(
       new THREE.TorusGeometry(radius, 0.12, 8, 32),
@@ -1160,7 +1164,7 @@ export function buildStadium(scene, options = {}) {
     cable.rotation.x = Math.PI / 2;
     cable.scale.z = 0.72;
     cable.position.y = poleTop;
-    group.add(cable);
+    bowl.add(cable);
   }
 
   // Placas de publicidade.
@@ -1280,6 +1284,11 @@ export function buildStadium(scene, options = {}) {
   const ambient = new THREE.AmbientLight(0xf5f8ff, lighting.ambientIntensity);
   group.add(ambient);
 
+  const stadiumRecord = STADIUMS[options.stadium];
+  const glbMount = stadiumRecord?.glb
+    ? mountStadiumGlb(group, stadiumRecord, PITCH, () => { bowl.visible = false; })
+    : null;
+
   // Refletores físicos sem shadow map: dois no Android para conter custo de
   // iluminação por pixel, quatro em telas grandes para cobrir o campo inteiro.
   const activeFloodlights = (lowPower || graphics.mobile)
@@ -1310,6 +1319,7 @@ export function buildStadium(scene, options = {}) {
     update(dt){warmup.update(dt);goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);},
     /** O gol que o time da casa defende fica em -X. */
     dispose() {
+      glbMount?.dispose();
       warmup.dispose();
       turfDetail.dispose();
       disposeObject(group);
