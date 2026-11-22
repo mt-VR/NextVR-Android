@@ -17,6 +17,8 @@ import {
   getNationalTeam,
   findGroup
 } from '../data/worldcup.js';
+import { getCareer } from '../data/career-services.js';
+import { nationalCallup, nationCode } from '../data/career-competitions.js';
 
 const GROUP_LABELS = Object.fromEntries(GROUP_NAMES.map(group => [group, `Grupo ${group}`]));
 const STAGE_LABELS = {
@@ -27,6 +29,10 @@ const STAGE_LABELS = {
 };
 
 export function worldCupScreen(ctx, params = {}) {
+  // Vindo da carreira: o atleta já está convocado — a Copa começa direto na
+  // seleção dele, sem passar pela escolha de time do modo avulso.
+  const career=params.fromCareer&&params.kind==='player'?getCareer(ctx.state.profile,'player'):null;
+  if(career)return careerWorldCup(ctx,{career,...params});
   if(!params.classic&&!isCampaignValid(ctx.state.profile.worldCupCampaign))return competitionScreen(ctx,{competitionId:'world-cup',returnTo:params.returnTo||'modes'});
   const mode = params.mode || '2027';
   const returnTo = params.returnTo || 'modes';
@@ -38,26 +44,60 @@ export function worldCupScreen(ctx, params = {}) {
   return campaignScreen(ctx, { campaign, mode, returnTo });
 }
 
+// Copa dentro da carreira: usa o mesmo motor de campanha, mas a seleção é a do
+// atleta, o retorno é a carreira e a convocação precisa estar confirmada.
+function careerWorldCup(ctx, {career, kind}) {
+  const call=nationalCallup(career);
+  const teamId=nationCode(career.player.nationality);
+  const profile=ctx.state.profile;
+  const go=view=>ctx.go('career',{kind:kind||'player',view:view||'competitions'});
+  if(!call.called){
+    return el('section',{class:'screen worldcup worldcup--locked'},
+      el('header',{class:'topbar'},el('button',{class:'topbar__back',type:'button','aria-label':'Voltar à carreira',onClick:()=>go('competitions'),
+        html:'<svg viewBox="0 0 24 24"><path d="M15 4L7 12l8 8" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>'}),
+        el('span',{class:'topbar__mark',html:xfcWordmark()}),el('span',{class:'topbar__title',text:'Copa do Mundo'}),
+        el('span',{class:'topbar__sep',text:'|'}),el('span',{class:'topbar__subtitle',text:`Seleção ${career.player.nationality}`})),
+      el('div',{class:'worldcup__locked'},el('h2',{text:'Você ainda não foi convocado'}),
+        el('p',{text:`Overall ${call.ovr} · score de convocação ${Math.round(call.score)}. Marque gols, melhore notas e suba de nível para entrar na lista do técnico.`}),
+        el('button',{class:'btn btn--primary',type:'button',text:'Voltar à carreira',onClick:()=>go('competitions')})));
+  }
+  let campaign=profile.worldCupCampaign;
+  if(!isCampaignValid(campaign)||campaign.mode!=='career'||campaign.userTeamId!==teamId){
+    campaign=createWorldCupCampaign({mode:'career',teamId,userTeamId:teamId});
+    profile.worldCupCampaign=campaign;
+    saveProfile(ctx.state);
+  }
+  return campaignScreen(ctx,{campaign,mode:'career',returnTo:'career'});
+}
+
 function header(ctx, returnTo, subtitle) {
-  const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : 'Voltar aos modos';
+  const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : returnTo === 'career' ? 'Voltar à carreira' : 'Voltar aos modos';
   return el('header', { class: 'topbar' },
     el('button', {
       class: 'topbar__back',
       type: 'button',
       'aria-label': returnLabel,
-      onClick() { ctx.go(returnTo); },
+      onClick() { ctx.go(returnTo, returnTo === 'career' ? {kind: 'player', view: 'competitions'} : {}); },
       html: '<svg viewBox="0 0 24 24"><path d="M15 4L7 12l8 8" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>'
     }),
     el('span', { class: 'topbar__mark', html: xfcWordmark() }),
     el('span', { class: 'topbar__title', text: 'Copa do Mundo' }),
     el('span', { class: 'topbar__sep', text: '|' }),
-    el('span', { class: 'topbar__subtitle', text: 'Copa clássica · '+subtitle }),
-    el('button',{type:'button',class:'worldcup__expanded',text:'Nova Copa · 211 seleções',onClick:()=>ctx.go('competition',{competitionId:'world-cup',returnTo})})
+    el('span', { class: 'topbar__subtitle', text: (returnTo === 'career' ? 'Copa da carreira · ' : 'Copa clássica · ')+subtitle }),
+    // Na carreira não existe "Nova Copa": a campanha é a do atleta convocado.
+    returnTo !== 'career' && el('button',{type:'button',class:'worldcup__expanded',text:'Nova Copa · 211 seleções',onClick:()=>ctx.go('competition',{competitionId:'world-cup',returnTo})})
   );
 }
 
 function teamFlag(team, className = '') {
-  return el('span', { class: `worldcup__team-flag ${className}`.trim() }, flagSvg(team.flagCode));
+  if (team?.crest) {
+    return el('img', {
+      class: `worldcup__team-crest ${className}`.trim(),
+      src: team.crest,
+      alt: `Brasão ${team.name}`
+    });
+  }
+  return el('span', { class: `worldcup__team-flag ${className}`.trim() }, flagSvg(team?.flagCode || 'br'));
 }
 
 function teamSelectionScreen(ctx, { mode, returnTo, previousCampaign }) {
@@ -112,9 +152,10 @@ function teamSelectionScreen(ctx, { mode, returnTo, previousCampaign }) {
   }
 
   selectTeam(selectedTeamId);
-  const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : 'Voltar aos modos';
+  const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : returnTo === 'career' ? 'Voltar à carreira' : 'Voltar aos modos';
   const node = el('div', { class: 'screen screen--worldcup worldcup--select' },
-    modeHomeButton(ctx),
+    // Da carreira, o atalho é voltar à carreira — não ao menu de modos.
+    returnTo !== 'career' && modeHomeButton(ctx),
     header(ctx, returnTo, 'Escolha da seleção'),
     el('section', { class: 'worldcup__selection-hero' },
       el('span', { class: 'worldcup__eyebrow', text: `XFC WORLD CUP™ ${mode === 'live' ? '2026' : '2027'} · 32 SELEÇÕES` }),
@@ -136,7 +177,7 @@ function teamSelectionScreen(ctx, { mode, returnTo, previousCampaign }) {
     node,
     onKey(event) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go(returnTo);
+        ctx.go(returnTo, returnTo === 'career' ? {kind: 'player', view: 'competitions'} : {});
         return true;
       }
       if (event.key === 'Enter') {
@@ -180,7 +221,7 @@ function campaignScreen(ctx, { campaign, mode, returnTo }) {
       dataset: { teamId: entry.id }
     },
       el('span', { class: 'worldcup__standings-rank', text: String(rank) }),
-      flagSvg(team.flagCode),
+      teamFlag(team),
       el('span', { class: 'worldcup__standings-name', text: team.name }),
       el('span', { class: 'worldcup__standings-played', text: String(entry.played) }),
       el('span', { class: 'worldcup__standings-won', text: String(entry.won) }),
@@ -213,7 +254,8 @@ function campaignScreen(ctx, { campaign, mode, returnTo }) {
       userSide: match.home === campaign.userTeamId ? 'home' : 'away',
       worldCupMatchId: match.id,
       worldCupMode: campaign.mode,
-      worldCupReturnTo: returnTo
+      worldCupReturnTo: returnTo,
+      worldCupCareer: returnTo === 'career'
     });
   }
 
@@ -371,10 +413,40 @@ function campaignScreen(ctx, { campaign, mode, returnTo }) {
       : campaign.stage === 'eliminated'
         ? ['Fim da campanha', phaseCopy.eliminated]
         : null;
+  // Campeão do mundo: além do cartão do troféu, oferece a comemoração 3D.
+  const cupCinematic = campaign.stage === 'champion' && el('button', {
+    class: 'worldcup__new-campaign worldcup__cinematic',
+    type: 'button',
+    onClick() {
+      ctx.go('trophy', {
+        returnTo: 'worldcup',
+        returnParams: { mode, returnTo },
+        event: {
+          title: 'COPA DO MUNDO',
+          competition: 'Copa do Mundo',
+          competitionId: 'copa-do-mundo',
+          kind: 'worldcup',
+          clubId: userTeam.id,
+          clubName: userTeam.name,
+          season: campaign.year,
+          colors: userTeam.colors || null,
+          kit: userTeam.colors ? {
+            primary: userTeam.colors.primary, secondary: userTeam.colors.secondary,
+            shorts: userTeam.colors.secondary, socks: userTeam.colors.secondary
+          } : null,
+          squadSize: 5,
+          player: campaign.userPlayer
+            ? { name: campaign.userPlayer.name, number: campaign.userPlayer.number ?? 10, appearance: campaign.userPlayer.appearance || null }
+            : null
+        }
+      });
+    }
+  }, 'VER A COMEMORAÇÃO  🏆');
   const outcome = finalCopy && el('section', { class: 'worldcup__trophy' },
     el('div', { class: 'worldcup__trophy-icon', html: trophySvg() }),
     el('h2', { class: 'worldcup__trophy-title', text: finalCopy[0] }),
-    el('p', { class: 'worldcup__trophy-sub', text: finalCopy[1] })
+    el('p', { class: 'worldcup__trophy-sub', text: finalCopy[1] }),
+    cupCinematic
   );
   const newCampaign = el('button', {
     class: 'worldcup__new-campaign',
@@ -382,9 +454,10 @@ function campaignScreen(ctx, { campaign, mode, returnTo }) {
     onClick() { ctx.go('worldcup', { mode, returnTo, newCampaign: true }); }
   }, 'NOVA CAMPANHA  ↻');
 
-  const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : 'Voltar aos modos';
+  const returnLabel = returnTo === 'menu' ? 'Voltar ao menu' : returnTo === 'career' ? 'Voltar à carreira' : 'Voltar aos modos';
   const node = el('div', { class: 'screen screen--worldcup' },
-    modeHomeButton(ctx),
+    // Da carreira, o atalho é voltar à carreira — não ao menu de modos.
+    returnTo !== 'career' && modeHomeButton(ctx),
     header(ctx, returnTo, `${campaign.year} · ${phaseName}`),
     lead,
     hero,
@@ -408,7 +481,7 @@ function campaignScreen(ctx, { campaign, mode, returnTo }) {
     node,
     onKey(event) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        ctx.go(returnTo);
+        ctx.go(returnTo, returnTo === 'career' ? {kind: 'player', view: 'competitions'} : {});
         return true;
       }
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {

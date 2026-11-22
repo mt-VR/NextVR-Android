@@ -68,7 +68,7 @@ export function addGrassBlades(parent, count = 7600) {
     // Variação verde estreita; sem intensidades acima de 1 ou tons quase pretos
     // que, à distância, viravam pontos e manchas no gramado.
     const shade = 0.82 + random() * 0.22;
-    color.setHex(0x4c7836).multiplyScalar(shade);
+    color.setHex(0x4aa84c).multiplyScalar(shade);
     grass.setColorAt(index, color);
   }
 

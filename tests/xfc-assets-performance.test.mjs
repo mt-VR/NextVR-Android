@@ -26,10 +26,10 @@ test('escolhas por ID validadas, sem atribuição automática de identidades; pe
 test('Ultra móvel reduz pixels, atlas de camisa, grama e sombras sem alterar materiais/corpos',()=>{
   const q=graphicsPreset('ultra',true),desktop=graphicsPreset('ultra',false);
   assert.equal(q.id,'ultra');assert.ok(q.surface);assert.equal(q.pixelRatio,1);assert.equal(q.antialias,false);
-  assert.equal(q.shadowSize,1024);assert.equal(q.jerseySize,512);assert.equal(q.grass,12000);assert.equal(q.shadowHz,20);
+  assert.equal(q.shadowSize,1024);assert.equal(q.jerseySize,512);assert.equal(q.grass,8000);assert.equal(q.shadowHz,15);
   assert.ok(desktop.pixelRatio>q.pixelRatio);assert.ok(q.pixelRatio**2/1.5**2<.45);
   const players=Array.from({length:22},(_,i)=>({active:true,x:i,z:0}));
-  const set=selectShadowCasters(players,players[21],{x:0,z:0},q);assert.equal(set.size,6);assert.ok(set.has(players[21]));
+  const set=selectShadowCasters(players,players[21],{x:0,z:0},q);assert.equal(set.size,4);assert.ok(set.has(players[21]));
 });
 test('proteção de Ultra tem histerese e recupera, sem redimensionar ou mudar mapa de sombras',()=>{
   const q=graphicsPreset('ultra',true),g=createDetailGovernor(q),base={...q};
@@ -43,10 +43,10 @@ test('biblioteca: paginação limitada, faces/escudos/kit aplicados, reload e us
   const {server,url}=await startXfcServer();const b=await launchOrSkip(t);if(!b){server.close();return;}
   try{const p=await b.newPage({viewport:{width:1280,height:720}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
     await p.evaluate(async()=>{(await import('/src/main.js')).go('customise');});await p.getByRole('button',{name:'Biblioteca de faces, escudos e camisas',exact:true}).click();
-    assert.ok(await p.locator('.asset-library__item').count()<=36);await p.getByLabel('Time de destino').selectOption('fc-barcelona');await p.getByLabel('Jogador de destino').selectOption('barca-ter-stegen');
+    assert.ok(await p.locator('.asset-library__item').count()<=36);await p.getByLabel('Time de destino').selectOption('fc-barcelona');await p.getByLabel('Jogador de destino').selectOption('fc-barcelona-joan-garcia');
     await p.getByLabel('Buscar recorte').fill('626');await p.getByLabel('Buscar recorte').press('Backspace');assert.equal(await p.getByLabel('Buscar recorte').inputValue(),'62');await p.getByLabel('Buscar recorte').fill('626');await p.getByRole('button',{name:'Selecionar recorte 626',exact:true}).click();await p.getByRole('button',{name:'Aplicar retrato no jogador'}).click();
     await p.getByRole('button',{name:'Camisas / atlas',exact:true}).click();await p.getByLabel('Buscar recorte').fill('2');await p.getByRole('button',{name:'Selecionar recorte 2',exact:true}).click();await p.getByRole('button',{name:'Vestir uniforme no time'}).click();
-    await p.reload();const saved=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).assetOverrides);assert.equal(saved.faces['barca-ter-stegen'],626);assert.equal(saved.kits['fc-barcelona'],2);
+    await p.reload();const saved=await p.evaluate(()=>JSON.parse(localStorage.getItem('xfc.profile.v1')).assetOverrides);assert.equal(saved.faces['fc-barcelona-joan-garcia'],626);assert.equal(saved.kits['fc-barcelona'],2);
     await p.evaluate(async()=>{(await import('/src/main.js')).go('ultimate',{section:'squad'});});assert.equal(await p.locator('.ut-ref-slot .avatar img[src="assets/library/0626.jpg"]').count(),1);
     await p.evaluate(async()=>{(await import('/src/main.js')).go('kits',{home:'fc-barcelona',away:'real-madrid'});});assert.ok(await p.locator('img[src="assets/library/kit-2-front.png"]').count()>0);assert.deepEqual(errors,[]);
   }finally{await b.close();server.close();}
@@ -74,12 +74,12 @@ test('motor aplica proteção ao Ultra sem recriar framebuffer; contagem da gram
     e.renderer.render=()=>{if(e.renderer.shadowMap.needsUpdate)shadowPasses++;e.renderer.shadowMap.needsUpdate=false;};e.clock.getDelta=()=>.1;
     await new Promise(resolve=>{e.start(()=>{if(e.state.frames>=45){e.stop();resolve();}});});
     const r={level:e.state.detailLevel,grass:grass.count,budget:e.graphics.grass,resizes,ratio:e.renderer.getPixelRatio(),initialRatio:ratio,auto:e.renderer.shadowMap.autoUpdate};e.dispose();return r;
-  });assert.equal(result.level,1);assert.equal(result.grass,8400);assert.equal(result.grass,result.budget);assert.equal(result.resizes,0);assert.equal(result.ratio,result.initialRatio);assert.equal(result.auto,false);
+    });assert.equal(result.level,1);assert.equal(result.grass,result.budget);assert.equal(result.budget,5600);assert.equal(result.resizes,0);assert.equal(result.ratio,result.initialRatio);assert.equal(result.auto,false);
   }finally{await b.close();server.close();}
 });
 
 test('atualização mantém todos os logos antigos por padrão, inclusive saves v0.5.27 sem escolha',()=>{
-  for(const profile of [{},{assetOverrides:{faces:{'barca-ter-stegen':626},kits:{'fc-barcelona':2}}}]){
+  for(const profile of [{},{assetOverrides:{faces:{'fc-barcelona-joan-garcia':626},kits:{'fc-barcelona':2}}}]){
     bindAssetProfile(profile);
     for(const id of Object.keys(LIBRARY_CRESTS))assert.equal(TEAMS.find(t=>t.id===id).crest,`assets/crests/${id}.png`);
     assert.equal(libraryProfileIcon(),null);

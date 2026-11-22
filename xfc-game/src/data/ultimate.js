@@ -18,51 +18,46 @@ export const RARITIES = {
   icon: "Ídolo XFC",
   hero: "Herói XFC",
 };
-const nations = new Map();
-for (const n of NATIONAL_TEAMS)
-  for (const p of n.players)
-    nations.set(norm(p.name), { name: n.name, flag: n.flagCode });
-const countries = {
-  "fc-barcelona": [
-    "de",
-    "fr",
-    "uy",
-    "es",
-    "es",
-    "es",
-    "nl",
-    "es",
-    "es",
-    "br",
-    "pl",
-    "es",
-    "es",
-    "en",
-    "de",
-    "es",
-    "es",
-    "es",
-  ],
-  "real-madrid": [
-    "be",
-    "es",
-    "de",
-    "br",
-    "fr",
-    "uy",
-    "fr",
-    "en",
-    "br",
-    "fr",
-    "br",
-    "hr",
-    "ma",
-    "tr",
-    "ar",
-    "br",
-    "at",
-    "cr",
-  ],
+const byFull = new Map();
+const byShort = new Map();
+for (const n of NATIONAL_TEAMS) {
+  const entry = { name: n.name, flag: n.flagCode };
+  for (const p of n.players) {
+    if (p.fullName) byFull.set(norm(p.fullName), entry);
+    const key = norm(p.name);
+    if (!byShort.has(key)) byShort.set(key, []);
+    byShort.get(key).push(entry);
+  }
+}
+/** Nacionalidade pela identidade, não pela posição no elenco. */
+const PLAYER_FLAG = {
+  endrick: "br",
+  vinicius: "br",
+  viniciusjr: "br",
+  rodrygo: "br",
+  militao: "br",
+  neymar: "br",
+  neymarjr: "br",
+  mbappe: "fr",
+  courtois: "be",
+  carvajal: "es",
+  rudiger: "de",
+  mendy: "fr",
+  valverde: "uy",
+  tchouameni: "fr",
+  bellingham: "en",
+  modric: "hr",
+  alaba: "at",
+  navas: "cr",
+  terstegen: "de",
+  kounde: "fr",
+  araujo: "uy",
+  cubarsi: "es",
+  yamal: "es",
+  lewandowski: "pl",
+  pedri: "es",
+  gavi: "es",
+  dejong: "nl",
 };
 const countryNames = Object.fromEntries(
   NATIONAL_TEAMS.map((n) => [n.flagCode, n.name]),
@@ -71,35 +66,22 @@ Object.assign(countryNames, {
   en: "Inglaterra",
   at: "Áustria",
   ve: "Venezuela",
+  br: countryNames.br || "Brasil",
 });
+function countryOf(p, team) {
+  const flagged = PLAYER_FLAG[norm(p.fullName)] || PLAYER_FLAG[norm(p.name)];
+  if (flagged) return { flag: flagged, name: countryNames[flagged] || flagged };
+  const full = p.fullName ? byFull.get(norm(p.fullName)) : null;
+  if (full) return full;
+  const hits = byShort.get(norm(p.name));
+  if (hits?.length === 1) return hits[0];
+  if (team.country === "Brasil") return { flag: "br", name: "Brasil" };
+  return null;
+}
 export const UT_CATALOG = [];
 for (const team of TEAMS) {
-  for (const [i, p] of [...team.players, ...team.substitutes].entries()) {
-    const santosFlags = [
-      "br",
-      "br",
-      "br",
-      "br",
-      "ar",
-      "ve",
-      "br",
-      "br",
-      "br",
-      "br",
-      "ar",
-      "br",
-      "br",
-      "br",
-      "br",
-      null,
-      "br",
-      "ve",
-    ];
-    const flag =
-      countries[team.id]?.[i] || (team.id === "santos" ? santosFlags[i] : null);
-    const country = flag
-      ? { flag, name: countryNames[flag] || flag }
-      : nations.get(norm(p.fullName)) || nations.get(norm(p.name)) || null;
+  for (const p of [...team.players, ...team.substitutes]) {
+    const country = countryOf(p, team);
     const rarity = p.ovr < 65 ? "bronze" : p.ovr < 80 ? "silver" : "gold";
     UT_CATALOG.push({
       ...p,
@@ -273,6 +255,7 @@ export function ensureUltimate(profile, now = Date.now()) {
       lifetime: { played: 0, wins: 0, goals: 0 },
       dme: [],
       clubName: "Meu Clube XFC",
+      clubLogo: "assets/brand/xfc-icon.png",
     };
     const u = profile.ut;
     const starter = TEAMS.find((t) => t.id === "fc-barcelona");
@@ -301,9 +284,32 @@ export function ensureUltimate(profile, now = Date.now()) {
     });
   }
   const u = profile.ut;
+  if (!u.clubName) u.clubName = "Meu Clube XFC";
+  if (!u.clubLogo) u.clubLogo = "assets/brand/xfc-icon.png";
   periods(u, now);
   profile.coins = Math.max(0, Math.floor(Number(profile.coins) || 0));
   return u;
+}
+
+const LOGO_MAX = 350000;
+
+/** Nome e brasão do clube UT — o usuário personaliza os dois. */
+export function setUtIdentity(profile, { name, logo } = {}) {
+  const u = ensureUltimate(profile);
+  if (name !== undefined) {
+    const next = String(name || "")
+      .trim()
+      .slice(0, 28);
+    u.clubName = next || "Meu Clube XFC";
+  }
+  if (logo !== undefined) {
+    const value = String(logo || "");
+    if (!value) u.clubLogo = "assets/brand/xfc-icon.png";
+    else if (value.startsWith("assets/")) u.clubLogo = value;
+    else if (value.startsWith("data:image/") && value.length <= LOGO_MAX)
+      u.clubLogo = value;
+  }
+  return { clubName: u.clubName, clubLogo: u.clubLogo };
 }
 function addUnit(u, cardId, tradeable = true) {
   const uid = `ut-${u.nextId++}`;
@@ -731,8 +737,8 @@ export function ultimateMatchTeam(profile, id) {
   return {
     id: "xfc-ut",
     name: u.clubName,
-    shortName: "XFC UT",
-    crest: "assets/brand/xfc-icon.png",
+    shortName: u.clubName,
+    crest: u.clubLogo || "assets/brand/xfc-icon.png",
     colors: { primary: "#5620a8", secondary: "#17132d", trim: "#eacf82" },
     ratings: {
       att: Math.round(players.slice(8).reduce((sum, p) => sum + p.ovr, 0) / 3),

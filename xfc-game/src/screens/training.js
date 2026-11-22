@@ -142,7 +142,7 @@ function trainingSessionScreen(ctx, params, drill) {
   );
   const instructions = el('div', { class: 'training__instructions' },
     el('span', { class: 'training__camera-badge', text: 'CÂMERA PRO' }),
-    el('span', { text: drill.id==='penalty'?'BATEDOR FIXO NA MARCA':'ANALÓGICO: MOVIMENTAR' }),
+    el('span', { text: drill.id==='penalty'?'BATEDOR A 5 m · CHUTE INICIA A CORRIDA':'ANALÓGICO: MOVIMENTAR' }),
     el('span', { text: drill.instruction }),
     drill.id === 'team' ? el('span', { text: 'PEDALADA / CHAPÉU: FINTAS' }) : null
   );
@@ -196,6 +196,7 @@ function trainingSessionScreen(ctx, params, drill) {
     stadium: 0,
     training: true,
     graphicsQuality:ctx.state.profile.graphicsQuality,
+      playerStyle:ctx.state.profile.playerStyle || 'modern',
     trainingDrill: drill.id,
     onEvent: showTrainingEvent
   });

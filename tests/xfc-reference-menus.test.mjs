@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { appearanceFor } from '../xfc-game/src/data/appearance.js';
 import { KITS } from '../xfc-game/src/data/kits.js';
 import { createTournament,simulateRound,nextTournamentFixture,recordTournamentResult,allGroupTables } from '../xfc-game/src/data/tournament.js';
+import { PITCH } from '../xfc-game/src/match3d/constants.js';
 import { startXfcServer } from '../xfc-game/serve.mjs';
 import { launchOrSkip } from './support/chromium.mjs';
 
@@ -71,9 +72,10 @@ test('sete cartões abrem fundamentos distintos; goleiro é controlável, escant
       },drill);
       assert.equal(r.drill,drill);
       if(drill==='free')assert.ok(Math.abs(r.x)<2);
-      if(drill==='shooting')assert.ok(r.x<33);
+      // Treino de finalização: a 28,8 m da linha do gol do campo atual.
+      if(drill==='shooting')assert.ok(r.x>PITCH.halfLength-40&&r.x<PITCH.halfLength-15);
       if(drill==='dribble')assert.equal(r.cones,6);
-      if(drill==='corner'){assert.ok(r.z>30);assert.equal(r.cross,true);assert.ok(r.lift>1);assert.equal(r.receiver,true);}
+      if(drill==='corner'){assert.ok(r.z>33);assert.equal(r.cross,true);assert.ok(r.lift>1);assert.equal(r.receiver,true);}
       if(drill==='keeper'){assert.equal(r.keeper,true);assert.equal(r.dive,true);assert.ok(r.shots>=1);}
       await p.click('.training__exit');await p.waitForSelector('.screen--menu');
     }

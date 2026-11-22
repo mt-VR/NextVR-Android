@@ -19,8 +19,19 @@ const NATIONS = new Set(NATIONAL_TEAMS.map(team => team.id));
 // alegação de classificados oficiais da temporada real.
 const EUROPEAN_COUNTRIES=new Set(['Espanha','Inglaterra','Grécia','Alemanha','País de Gales','Países Baixos','Escócia','Tchéquia','França','Portugal','Noruega','Suíça','Bélgica','Itália']);
 export const BRAZILIAN_CLUBS=TEAMS.filter(t=>t.country==='Brasil').map(t=>t.id);
-export const EUROPEAN_CLUBS=TEAMS.filter(t=>EUROPEAN_COUNTRIES.has(t.country)).map(t=>t.id);
-const MIXED_LIBERTADORES=[...BRAZILIAN_CLUBS,...EUROPEAN_CLUBS];
+// A Champions usa todo o catálogo europeu: com as ligas completas (LaLiga,
+// Premier League, Bundesliga, Serie A, Ligue 1, Liga Portugal, Eredivisie,
+// Scottish Premiership e Super League Greece) são 139 clubes — o pote do
+// sorteio cresce, e a carreira de quem está na Europa disputa com os clubes
+// do próprio continente.
+export const EUROPEAN_CLUBS=TEAMS
+  .filter(t=>EUROPEAN_COUNTRIES.has(t.country))
+  .sort((a,b)=>(b.ratings?.ovr||75)-(a.ratings?.ovr||75))
+  .map(t=>t.id);
+// Edição personalizada (brasileiros + europeus): os 16 brasileiros e os 40
+// melhores europeus. Com as ligas completas o catálogo europeu é grande demais
+// para caber num torneio de grupos, então a Libertadores mantém o tamanho.
+const MIXED_LIBERTADORES=[...BRAZILIAN_CLUBS,...EUROPEAN_CLUBS.slice(0,40)];
 const COPA_AMERICA_NATIONS=NATIONAL_TEAMS.filter(t=>t.confederation==='CONMEBOL').map(t=>t.id);
 
 const THEMES = {
@@ -61,6 +72,7 @@ export const COMPETITIONS = [
     entitySingular: 'clube',
     year: '2026/27',
     pool: EUROPEAN_CLUBS,
+    potSize: 32,
     groupCount: 8,
     bestThirds: 0,
     stageTitle: 'Grupos · edição XFC ampliada',
@@ -224,8 +236,16 @@ export function competitionTeam(teamId) {
   return team;
 }
 
+/**
+ * Os clubes que a tela de escolha oferece. Com as ligas completas o catálogo
+ * europeu passa de 130 clubes; mostrar todos num grid de escolha é inútil e
+ * pesado, então a tela lista os melhores do pote (`potSize`, o mesmo teto do
+ * sorteio). O sorteio da temporada continua usando o catálogo inteiro.
+ */
 export function competitionTeams(competitionId) {
-  return getCompetition(competitionId).pool.map(competitionTeam).filter(Boolean);
+  const competition = getCompetition(competitionId);
+  const limit = competition.potSize || competition.pool.length;
+  return competition.pool.slice(0, limit).map(competitionTeam).filter(Boolean);
 }
 
 /** XI titular do time, ordenado por posição — usado na escalação pré-jogo. */
@@ -274,9 +294,13 @@ export function createTournament(competitionId, { teamId, random = Math.random }
   const competition = getCompetition(competitionId);
   const pool = competition.pool.filter(id => competitionTeam(id));
   const chosen = pool.includes(teamId) ? teamId : pool[0];
-  const others = shuffle(pool.filter(id => id !== chosen), random);
+  // Um pote gigante (o catálogo europeu já passa de 130 clubes) não pode virar
+  // 1.105 jogos de fase de grupos: a Champions sorteia 32 clubes, como a
+  // edição de verdade, e os outros ficam de fora daquela temporada.
+  const POT = competition.potSize || pool.length;
+  const others = shuffle(pool.filter(id => id !== chosen), random).slice(0, Math.max(0, POT - 1));
   const ordered = [chosen, ...others];
-  const groupCount = Math.min(competition.groupCount, Math.max(1, Math.floor(pool.length / 3)));
+  const groupCount = Math.min(competition.groupCount, Math.max(1, Math.floor(ordered.length / 3)));
   const groups = {};
   for (let index = 0; index < groupCount; index += 1) {
     groups[GROUP_LETTERS[index]] = [];

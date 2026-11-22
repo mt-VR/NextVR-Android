@@ -6,6 +6,7 @@ import {crestFor} from './asset-library.js';
 // recente e os seis atributos principais usados na tela de elenco.
 
 import { COLLECTION_CLUBS } from './shirt-collection.js';
+import { REAL_SQUADS, CLUB_STRENGTH } from './real-squads.js';
 
 export const POSITION_LABELS = {
   GK: 'Goleiro',
@@ -681,14 +682,362 @@ for (const club of EXTRA_CLUBS) {
   });
 }
 
+// Estádio genérico por país, para os clubes novos terem praça no save.
+const STADIUM_POOLS = {
+  Brasil: 'Arena do clube', Espanha: 'Estadio del club', Inglaterra: 'Stadium',
+  Alemanha: 'Arena', 'Países Baixos': 'Stadion', Escócia: 'Park',
+  Grécia: 'Stadium', Argentina: 'Estadio', 'País de Gales': 'Park',
+  Japão: 'Stadium', Itália: 'Stadio', França: 'Stade', Portugal: 'Estádio'
+};
+
+// Clubes que entraram na atualização (Cruzeiro, Vasco, Fluminense, Ceará,
+// Avaí, Náutico, Sampaio Corrêa, Internacional, São Paulo). Entram no modo
+// carreira com liga e estádio de verdade no formato do save — antes ficavam
+// com `league: 'Brasil'` e `stadium: 'Elenco fictício'`, o que os deixava sem
+// campeonato na carreira.
+const COLLECTION_LEAGUES = {
+  Brasil: 'Brasileirão Série A',
+  Espanha: 'LaLiga', Inglaterra: 'Premier League', Alemanha: 'Bundesliga',
+  'Países Baixos': 'Eredivisie', Escócia: 'Scottish Premiership',
+  Grécia: 'Super League Greece', Argentina: 'Liga Profesional',
+  'País de Gales': 'EFL League One', Japão: 'J1 League', Itália: 'Serie A',
+  França: 'Ligue 1', Portugal: 'Liga Portugal'
+};
+
 // Não duplica clubes que já existiam; os novos elencos são explicitamente fictícios.
 for (const club of COLLECTION_CLUBS) {
   if (TEAMS.some(team => team.id === club.id)) continue;
   const squad = generatedSquad(club.id, FIRST_NAMES[club.flag] ? club.flag : 'en', 0, 75);
   TEAMS.push({ ...club, shortName: club.name, nickname: club.name,
-    city: '', league: club.country, stadium: 'Elenco fictício', squadSource: 'generated',
+    city: '', league: COLLECTION_LEAGUES[club.country] || club.country,
+    stadium: STADIUM_POOLS[club.country] || 'Estádio do clube', squadSource: 'generated',
     crest: `assets/crests/${club.id}.png`, formation: '4-3-3', stars: 3.5,
     ratings: { att: 75, mid: 75, def: 75, ovr: 75 }, ...squad });
+}
+
+// LaLiga completa: sem estes 17 clubes, a carreira de quem assinava com um time
+// espanhol continuava montando a liga com os clubes brasileiros do catálogo.
+// Os escudos vieram em `assets/crests/` e a lista é a mesma da tabela do save.
+const LALIGA_CLUBS = [
+  {id: 'athletic-bilbao', name: 'Athletic Club', nickname: 'Leones', city: 'Bilbao', stadium: 'San Mamés', flag: 'es',
+   colors: {primary: '#ee2523', secondary: '#ffffff', accent: '#111111'}, ratings: {att: 84, mid: 82, def: 83, ovr: 83}},
+  {id: 'atletico-madrid', name: 'Atlético de Madrid', nickname: 'Colchoneros', city: 'Madri', stadium: 'Riyadh Air Metropolitano', flag: 'es',
+   colors: {primary: '#cb3524', secondary: '#ffffff', accent: '#262e62'}, ratings: {att: 86, mid: 85, def: 86, ovr: 86}},
+  {id: 'osasuna', name: 'CA Osasuna', nickname: 'Rojillos', city: 'Pamplona', stadium: 'El Sadar', flag: 'es',
+   colors: {primary: '#d91a21', secondary: '#0a346f', accent: '#ffffff'}, ratings: {att: 78, mid: 78, def: 79, ovr: 78}},
+  {id: 'celta-vigo', name: 'Celta de Vigo', nickname: 'Celtiñas', city: 'Vigo', stadium: 'Abanca Balaídos', flag: 'es',
+   colors: {primary: '#8ac3ee', secondary: '#ffffff', accent: '#e5254e'}, ratings: {att: 78, mid: 79, def: 76, ovr: 78}},
+  {id: 'deportivo-la-coruna', name: 'RC Deportivo', nickname: 'Dépor', city: 'A Coruña', stadium: 'Abanca-Riazor', flag: 'es',
+   colors: {primary: '#f4f4f4', secondary: '#0b6bb5', accent: '#0b6bb5'}, ratings: {att: 75, mid: 75, def: 75, ovr: 75}},
+  {id: 'alaves', name: 'Deportivo Alavés', nickname: 'Babazorros', city: 'Vitória', stadium: 'Mendizorroza', flag: 'es',
+   colors: {primary: '#0b4ea2', secondary: '#ffffff', accent: '#f5c400'}, ratings: {att: 76, mid: 76, def: 77, ovr: 76}},
+  {id: 'elche', name: 'Elche CF', nickname: 'Franjiverdes', city: 'Elche', stadium: 'Martínez Valero', flag: 'es',
+   colors: {primary: '#ffffff', secondary: '#0a8a45', accent: '#0a8a45'}, ratings: {att: 74, mid: 74, def: 74, ovr: 74}},
+  {id: 'getafe', name: 'Getafe CF', nickname: 'Azulones', city: 'Getafe', stadium: 'Coliseum', flag: 'es',
+   colors: {primary: '#0a4b9c', secondary: '#ffffff', accent: '#0a4b9c'}, ratings: {att: 75, mid: 76, def: 77, ovr: 76}},
+  {id: 'malaga', name: 'Málaga CF', nickname: 'Boquerones', city: 'Málaga', stadium: 'La Rosaleda', flag: 'es',
+   colors: {primary: '#ffffff', secondary: '#0b5bb5', accent: '#0b5bb5'}, ratings: {att: 73, mid: 73, def: 72, ovr: 73}},
+  {id: 'espanyol', name: 'RCD Espanyol', nickname: 'Periquitos', city: 'Barcelona', stadium: 'RCDE Stadium', flag: 'es',
+   colors: {primary: '#0b6bb5', secondary: '#ffffff', accent: '#0b6bb5'}, ratings: {att: 77, mid: 77, def: 77, ovr: 77}},
+  {id: 'racing-santander', name: 'Racing Santander', nickname: 'Racinguistas', city: 'Santander', stadium: 'El Sardinero', flag: 'es',
+   colors: {primary: '#ffffff', secondary: '#0a8a45', accent: '#0a8a45'}, ratings: {att: 73, mid: 72, def: 73, ovr: 73}},
+  {id: 'rayo-vallecano', name: 'Rayo Vallecano', nickname: 'Franjirrojos', city: 'Madri', stadium: 'Estadio de Vallecas', flag: 'es',
+   colors: {primary: '#f4f4f4', secondary: '#d91a21', accent: '#d91a21'}, ratings: {att: 77, mid: 77, def: 76, ovr: 77}},
+  {id: 'real-betis', name: 'Real Betis', nickname: 'Verdiblancos', city: 'Sevilha', stadium: 'Benito Villamarín', flag: 'es',
+   colors: {primary: '#0a9b4b', secondary: '#ffffff', accent: '#0a9b4b'}, ratings: {att: 82, mid: 81, def: 80, ovr: 81}},
+  {id: 'real-sociedad', name: 'Real Sociedad', nickname: 'Txuri-urdin', city: 'San Sebastián', stadium: 'Reale Arena', flag: 'es',
+   colors: {primary: '#0b6bb5', secondary: '#ffffff', accent: '#0b6bb5'}, ratings: {att: 82, mid: 82, def: 81, ovr: 82}},
+  {id: 'sevilla', name: 'Sevilla FC', nickname: 'Nervionenses', city: 'Sevilha', stadium: 'Ramón Sánchez-Pizjuán', flag: 'es',
+   colors: {primary: '#ffffff', secondary: '#d91a21', accent: '#d91a21'}, ratings: {att: 82, mid: 81, def: 82, ovr: 82}},
+  {id: 'valencia', name: 'Valencia CF', nickname: 'Ches', city: 'Valência', stadium: 'Mestalla', flag: 'es',
+   colors: {primary: '#ffffff', secondary: '#f5a300', accent: '#111111'}, ratings: {att: 80, mid: 79, def: 79, ovr: 79}},
+  {id: 'villarreal', name: 'Villarreal CF', nickname: 'Submarino Amarillo', city: 'Vila-real', stadium: 'Estadio de la Cerámica', flag: 'es',
+   colors: {primary: '#f5d000', secondary: '#0b5bb5', accent: '#0b5bb5'}, ratings: {att: 83, mid: 82, def: 80, ovr: 82}}
+];
+
+// Uniformes novos da LaLiga: [principal, reserva, terceiro] em cores e padrão.
+export const LALIGA_KITS = {
+  'athletic-bilbao': [['#ee2523', '#ffffff', '#111111', 'stripes'], ['#0b1b2e', '#ee2523', '#ee2523', 'solid'], ['#f4f4f4', '#ee2523', '#ee2523', 'solid']],
+  'atletico-madrid': [['#cb3524', '#ffffff', '#262e62', 'stripes'], ['#111820', '#cb3524', '#cb3524', 'solid'], ['#7ec4e8', '#262e62', '#262e62', 'solid']],
+  osasuna: [['#d91a21', '#0a346f', '#ffffff', 'solid'], ['#0a346f', '#d91a21', '#ffffff', 'solid'], ['#f4f4f4', '#d91a21', '#0a346f', 'solid']],
+  'celta-vigo': [['#8ac3ee', '#ffffff', '#e5254e', 'solid'], ['#111820', '#8ac3ee', '#8ac3ee', 'solid'], ['#f4f4f4', '#8ac3ee', '#e5254e', 'solid']],
+  'deportivo-la-coruna': [['#f4f4f4', '#0b6bb5', '#0b6bb5', 'stripes'], ['#0b6bb5', '#f4f4f4', '#f4f4f4', 'solid'], ['#111820', '#0b6bb5', '#0b6bb5', 'solid']],
+  alaves: [['#0b4ea2', '#ffffff', '#f5c400', 'solid'], ['#f5c400', '#0b4ea2', '#0b4ea2', 'solid'], ['#111820', '#0b4ea2', '#0b4ea2', 'solid']],
+  elche: [['#ffffff', '#0a8a45', '#0a8a45', 'stripes'], ['#0a8a45', '#ffffff', '#ffffff', 'solid'], ['#111820', '#0a8a45', '#0a8a45', 'solid']],
+  getafe: [['#0a4b9c', '#ffffff', '#0a4b9c', 'solid'], ['#f5d000', '#0a4b9c', '#0a4b9c', 'solid'], ['#111820', '#0a4b9c', '#0a4b9c', 'solid']],
+  malaga: [['#ffffff', '#0b5bb5', '#0b5bb5', 'stripes'], ['#0b5bb5', '#ffffff', '#ffffff', 'solid'], ['#111820', '#0b5bb5', '#0b5bb5', 'solid']],
+  espanyol: [['#0b6bb5', '#ffffff', '#0b6bb5', 'stripes'], ['#f5d000', '#0b6bb5', '#0b6bb5', 'solid'], ['#111820', '#0b6bb5', '#0b6bb5', 'solid']],
+  'racing-santander': [['#ffffff', '#0a8a45', '#0a8a45', 'stripes'], ['#0a8a45', '#ffffff', '#ffffff', 'solid'], ['#111820', '#0a8a45', '#0a8a45', 'solid']],
+  'rayo-vallecano': [['#f4f4f4', '#d91a21', '#d91a21', 'sash'], ['#d91a21', '#f4f4f4', '#f4f4f4', 'solid'], ['#111820', '#d91a21', '#d91a21', 'solid']],
+  'real-betis': [['#0a9b4b', '#ffffff', '#ffffff', 'stripes'], ['#f4f4f4', '#0a9b4b', '#0a9b4b', 'solid'], ['#111820', '#0a9b4b', '#0a9b4b', 'solid']],
+  'real-sociedad': [['#0b6bb5', '#ffffff', '#ffffff', 'stripes'], ['#f4f4f4', '#0b6bb5', '#0b6bb5', 'solid'], ['#111820', '#0b6bb5', '#0b6bb5', 'solid']],
+  sevilla: [['#ffffff', '#d91a21', '#d91a21', 'solid'], ['#d91a21', '#ffffff', '#ffffff', 'solid'], ['#111820', '#d91a21', '#d91a21', 'solid']],
+  valencia: [['#ffffff', '#f5a300', '#111111', 'solid'], ['#f5a300', '#111111', '#111111', 'solid'], ['#111820', '#f5a300', '#f5a300', 'solid']],
+  villarreal: [['#f5d000', '#0b5bb5', '#0b5bb5', 'solid'], ['#0b5bb5', '#f5d000', '#f5d000', 'solid'], ['#111820', '#f5d000', '#f5d000', 'solid']]
+};
+
+// Ligas completas: com uma liga de 20 clubes, a carreira de quem está lá joga
+// contra os clubes do país de verdade, e a Champions ganha um pote maior.
+// Formato: [id, nome, país, bandeira, estádio, cores, overall].
+export const WORLD_CLUBS = [
+  // Premier League — os que faltavam no catálogo.
+  ['arsenal', 'Arsenal', 'Inglaterra', 'en', 'Emirates Stadium', ['#d01028', '#ffffff', '#10356b'], 85],
+  ['liverpool', 'Liverpool', 'Inglaterra', 'en', 'Anfield', ['#c8102e', '#f6eb61', '#00b2a9'], 87],
+  ['manchester-city', 'Manchester City', 'Inglaterra', 'en', 'Etihad Stadium', ['#6cabdd', '#1c2c5b', '#f0f4f8'], 87],
+  ['tottenham', 'Tottenham Hotspur', 'Inglaterra', 'en', 'Tottenham Hotspur Stadium', ['#f4f4f4', '#132257', '#132257'], 83],
+  ['crystal-palace', 'Crystal Palace', 'Inglaterra', 'en', 'Selhurst Park', ['#1b458f', '#c4122e', '#ffffff'], 79],
+  ['everton', 'Everton', 'Inglaterra', 'en', 'Hill Dickinson Stadium', ['#0b3c8c', '#ffffff', '#ffffff'], 78],
+  ['fulham', 'Fulham', 'Inglaterra', 'en', 'Craven Cottage', ['#f4f4f4', '#111111', '#111111'], 79],
+  ['bournemouth', 'AFC Bournemouth', 'Inglaterra', 'en', 'Vitality Stadium', ['#d01028', '#111111', '#111111'], 79],
+  ['leeds-united', 'Leeds United', 'Inglaterra', 'en', 'Elland Road', ['#f4f4f4', '#1d3fa0', '#f5d000'], 77],
+  ['sunderland', 'Sunderland', 'Inglaterra', 'en', 'Stadium of Light', ['#e0102b', '#ffffff', '#111111'], 77],
+  ['coventry-city', 'Coventry City', 'Inglaterra', 'en', 'Coventry Building Society Arena', ['#7fc4e8', '#111820', '#111820'], 74],
+  ['hull-city', 'Hull City', 'Inglaterra', 'en', 'MKM Stadium', ['#f5a300', '#111111', '#111111'], 74],
+  // Bundesliga.
+  ['borussia-dortmund', 'Borussia Dortmund', 'Alemanha', 'de', 'Signal Iduna Park', ['#f5d000', '#111111', '#111111'], 85],
+  ['bayer-leverkusen', 'Bayer Leverkusen', 'Alemanha', 'de', 'BayArena', ['#e01018', '#111111', '#111111'], 85],
+  ['rb-leipzig', 'RB Leipzig', 'Alemanha', 'de', 'Red Bull Arena', ['#f4f4f4', '#d0102a', '#0b1b4b'], 84],
+  ['stuttgart', 'VfB Stuttgart', 'Alemanha', 'de', 'MHPArena', ['#f4f4f4', '#e01018', '#e01018'], 82],
+  ['werder-bremen', 'Werder Bremen', 'Alemanha', 'de', 'Weserstadion', ['#0a9b4b', '#f4f4f4', '#f4f4f4'], 78],
+  ['mainz', 'Mainz 05', 'Alemanha', 'de', 'Mewa Arena', ['#e01018', '#f4f4f4', '#f4f4f4'], 78],
+  ['monchengladbach', 'Borussia Mönchengladbach', 'Alemanha', 'de', 'Borussia-Park', ['#f4f4f4', '#111111', '#0a9b4b'], 79],
+  ['hoffenheim', 'TSG Hoffenheim', 'Alemanha', 'de', 'PreZero Arena', ['#1c63b7', '#f4f4f4', '#f4f4f4'], 78],
+  ['augsburg', 'FC Augsburg', 'Alemanha', 'de', 'WWK Arena', ['#f4f4f4', '#0a8a45', '#d01028'], 76],
+  ['schalke', 'Schalke 04', 'Alemanha', 'de', 'Veltins-Arena', ['#0b3c8c', '#f4f4f4', '#f4f4f4'], 74],
+  ['hamburger-sv', 'Hamburger SV', 'Alemanha', 'de', 'Volksparkstadion', ['#f4f4f4', '#0b3c8c', '#111820'], 74],
+  // Serie A.
+  ['milan', 'AC Milan', 'Itália', 'it', 'San Siro', ['#c8102e', '#111111', '#f4f4f4'], 85],
+  ['inter', 'Inter de Milão', 'Itália', 'it', 'San Siro', ['#0b3c8c', '#111111', '#f4f4f4'], 86],
+  ['napoli', 'SSC Napoli', 'Itália', 'it', 'Diego Armando Maradona', ['#7fc4e8', '#f4f4f4', '#f4f4f4'], 85],
+  ['roma', 'AS Roma', 'Itália', 'it', 'Stadio Olimpico', ['#8e1f2f', '#f0a500', '#f4f4f4'], 83],
+  ['fiorentina', 'Fiorentina', 'Itália', 'it', 'Artemio Franchi', ['#6b2a8c', '#f4f4f4', '#f4f4f4'], 81],
+  ['atalanta', 'Atalanta', 'Itália', 'it', 'Gewiss Stadium', ['#0b3c8c', '#111111', '#111111'], 83],
+  ['bologna', 'Bologna', 'Itália', 'it', "Renato Dall'Ara", ['#8e1f2f', '#0b1b4b', '#f4f4f4'], 79],
+  ['torino', 'Torino', 'Itália', 'it', 'Stadio Olimpico Grande Torino', ['#8e1f2f', '#f4f4f4', '#f4f4f4'], 78],
+  ['udinese', 'Udinese', 'Itália', 'it', 'Bluenergy Stadium', ['#111111', '#f4f4f4', '#111111'], 78],
+  ['genoa', 'Genoa', 'Itália', 'it', 'Luigi Ferraris', ['#8e1f2f', '#0b3c8c', '#f4f4f4'], 76],
+  ['cagliari', 'Cagliari', 'Itália', 'it', 'Unipol Domus', ['#8e1f2f', '#0b3c8c', '#f4f4f4'], 75],
+  ['parma', 'Parma', 'Itália', 'it', 'Ennio Tardini', ['#f5d000', '#0b3c8c', '#f4f4f4'], 75],
+  // Ligue 1.
+  ['psg', 'Paris Saint-Germain', 'França', 'fr', 'Parc des Princes', ['#0b2a6b', '#d0102a', '#f4f4f4'], 87],
+  ['marseille', 'Olympique de Marseille', 'França', 'fr', 'Stade Vélodrome', ['#7fc4e8', '#f4f4f4', '#f4f4f4'], 83],
+  ['lyon', 'Olympique Lyonnais', 'França', 'fr', 'Groupama Stadium', ['#f4f4f4', '#0b2a6b', '#d0102a'], 81],
+  ['monaco', 'AS Monaco', 'França', 'fr', 'Stade Louis II', ['#d0102a', '#f4f4f4', '#f4f4f4'], 82],
+  ['lille', 'Lille', 'França', 'fr', 'Stade Pierre-Mauroy', ['#d0102a', '#0b2a6b', '#f4f4f4'], 81],
+  ['nice', 'OGC Nice', 'França', 'fr', 'Allianz Riviera', ['#111111', '#d0102a', '#f4f4f4'], 78],
+  ['lens', 'RC Lens', 'França', 'fr', 'Stade Bollaert-Delelis', ['#f5d000', '#d0102a', '#f4f4f4'], 79],
+  ['rennes', 'Stade Rennais', 'França', 'fr', 'Roazhon Park', ['#f4f4f4', '#d0102a', '#111111'], 79],
+  ['brest', 'Stade Brestois', 'França', 'fr', 'Stade Francis-Le Blé', ['#d0102a', '#f4f4f4', '#f4f4f4'], 76],
+  ['toulouse', 'Toulouse', 'França', 'fr', 'Stadium de Toulouse', ['#6b2a8c', '#f4f4f4', '#f4f4f4'], 77],
+  ['strasbourg', 'RC Strasbourg', 'França', 'fr', 'Stade de la Meinau', ['#0b62b5', '#f4f4f4', '#f4f4f4'], 77],
+  ['angers', 'Angers SCO', 'França', 'fr', 'Stade Raymond Kopa', ['#111111', '#f4f4f4', '#f4f4f4'], 74],
+  // Liga Portugal.
+  ['porto', 'FC Porto', 'Portugal', 'pt', 'Estádio do Dragão', ['#0b3c8c', '#f4f4f4', '#0a9b4b'], 84],
+  ['benfica', 'Benfica', 'Portugal', 'pt', 'Estádio da Luz', ['#d0102a', '#f4f4f4', '#f4f4f4'], 84],
+  ['sporting-cp', 'Sporting CP', 'Portugal', 'pt', 'Estádio José Alvalade', ['#0a9b4b', '#f4f4f4', '#f4f4f4'], 84],
+  ['braga', 'SC Braga', 'Portugal', 'pt', 'Estádio Municipal de Braga', ['#d0102a', '#f4f4f4', '#f4f4f4'], 80],
+  ['vitoria-guimaraes', 'Vitória de Guimarães', 'Portugal', 'pt', 'Estádio D. Afonso Henriques', ['#f4f4f4', '#111111', '#111111'], 77],
+  ['rio-ave', 'Rio Ave', 'Portugal', 'pt', 'Estádio dos Arcos', ['#0a9b4b', '#f4f4f4', '#f4f4f4'], 73],
+  ['estoril', 'Estoril Praia', 'Portugal', 'pt', 'Estádio António Coimbra da Mota', ['#f5d000', '#0b62b5', '#0b62b5'], 73],
+  ['famalicao', 'FC Famalicão', 'Portugal', 'pt', 'Estádio Municipal de Famalicão', ['#0b3c8c', '#f4f4f4', '#f4f4f4'], 74],
+  ['moreirense', 'Moreirense', 'Portugal', 'pt', 'Estádio Comendador Joaquim de Almeida Freitas', ['#0a9b4b', '#f4f4f4', '#f4f4f4'], 72],
+  ['casa-pia', 'Casa Pia', 'Portugal', 'pt', 'Estádio Municipal Rio Maior', ['#111111', '#f4f4f4', '#f4f4f4'], 72],
+  ['gil-vicente', 'Gil Vicente', 'Portugal', 'pt', 'Estádio Cidade de Barcelos', ['#d0102a', '#f4f4f4', '#f4f4f4'], 73],
+  ['nacional', 'CD Nacional', 'Portugal', 'pt', 'Estádio da Madeira', ['#111111', '#f4f4f4', '#f4f4f4'], 72],
+  // Eredivisie.
+  ['ajax', 'Ajax', 'Países Baixos', 'nl', 'Johan Cruijff ArenA', ['#f4f4f4', '#d0102a', '#111111'], 81],
+  ['psv', 'PSV Eindhoven', 'Países Baixos', 'nl', 'Philips Stadion', ['#d0102a', '#f4f4f4', '#f4f4f4'], 82],
+  ['feyenoord', 'Feyenoord', 'Países Baixos', 'nl', 'De Kuip', ['#d0102a', '#f4f4f4', '#111111'], 81],
+  ['az-alkmaar', 'AZ Alkmaar', 'Países Baixos', 'nl', 'AFAS Stadion', ['#d0102a', '#f4f4f4', '#f4f4f4'], 78],
+  ['twente', 'FC Twente', 'Países Baixos', 'nl', 'De Grolsch Veste', ['#d0102a', '#f4f4f4', '#f4f4f4'], 77],
+  ['utrecht', 'FC Utrecht', 'Países Baixos', 'nl', 'Stadion Galgenwaard', ['#d0102a', '#f4f4f4', '#f4f4f4'], 76],
+  ['heerenveen', 'SC Heerenveen', 'Países Baixos', 'nl', 'Abe Lenstra Stadion', ['#0b62b5', '#f4f4f4', '#d0102a'], 74],
+  ['groningen', 'FC Groningen', 'Países Baixos', 'nl', 'Euroborg', ['#0a9b4b', '#f4f4f4', '#f4f4f4'], 73],
+  // Scottish Premiership e Super League Greece.
+  ['rangers', 'Rangers', 'Escócia', 'gb', 'Ibrox Stadium', ['#0b3c8c', '#f4f4f4', '#d0102a'], 80],
+  ['aberdeen', 'Aberdeen', 'Escócia', 'gb', 'Pittodrie Stadium', ['#d0102a', '#f4f4f4', '#f4f4f4'], 74],
+  ['hearts', 'Heart of Midlothian', 'Escócia', 'gb', 'Tynecastle Park', ['#8e1f2f', '#f4f4f4', '#f5d000'], 74],
+  ['dundee-united', 'Dundee United', 'Escócia', 'gb', 'Tannadice Park', ['#f5a300', '#111111', '#111111'], 71],
+  ['motherwell', 'Motherwell', 'Escócia', 'gb', 'Fir Park', ['#f5a300', '#8e1f2f', '#f4f4f4'], 71],
+  ['kilmarnock', 'Kilmarnock', 'Escócia', 'gb', 'Rugby Park', ['#0b62b5', '#f4f4f4', '#f4f4f4'], 70],
+  ['st-mirren', 'St. Mirren', 'Escócia', 'gb', 'SMiSA Stadium', ['#111111', '#f4f4f4', '#f4f4f4'], 70],
+  ['dundee', 'Dundee', 'Escócia', 'gb', 'Dens Park', ['#0b2a6b', '#f4f4f4', '#d0102a'], 70],
+  ['olympiacos', 'Olympiacos', 'Grécia', 'gr', 'Karaiskakis Stadium', ['#d0102a', '#f4f4f4', '#f4f4f4'], 82],
+  ['aek-athens', 'AEK Atenas', 'Grécia', 'gr', 'OPAP Arena', ['#f5d000', '#111111', '#111111'], 80],
+  ['paok', 'PAOK', 'Grécia', 'gr', 'Toumba Stadium', ['#111111', '#f4f4f4', '#f4f4f4'], 80],
+  ['aris', 'Aris Salônica', 'Grécia', 'gr', 'Kleanthis Vikelidis', ['#f5d000', '#111111', '#111111'], 75],
+  ['ofi-crete', 'OFI Creta', 'Grécia', 'gr', 'Theodoros Vardinogiannis', ['#111111', '#f4f4f4', '#f4f4f4'], 73],
+  ['asteras', 'Asteras Aktor', 'Grécia', 'gr', 'Theodoros Kolokotronis', ['#f5d000', '#0b3c8c', '#0b3c8c'], 72],
+  ['atromitos', 'Atromitos', 'Grécia', 'gr', 'Peristeri Stadium', ['#0b62b5', '#f4f4f4', '#f4f4f4'], 71]
+];
+
+const NATION_CRESTS = {Inglaterra: 'assets/crests/inglaterra.png', Espanha: 'assets/crests/espanha.png'};
+const NATION_FLAGS = {Inglaterra: 'en', Alemanha: 'de', Itália: 'it', França: 'fr', Portugal: 'pt',
+  'Países Baixos': 'nl', Escócia: 'gb', Grécia: 'gr', Espanha: 'es'};
+
+for (const [id, name, country, flag, stadium, colors, ovr] of WORLD_CLUBS) {
+  if (TEAMS.some(team => team.id === id)) continue;
+  const squad = generatedSquad(id, FIRST_NAMES[flag] ? flag : 'en', 0, ovr);
+  TEAMS.push({ id, name, shortName: name, nickname: name, city: '', country, flag,
+    countryCrest: NATION_CRESTS[country] || null, league: COLLECTION_LEAGUES[country] || country,
+    stadium, crest: `assets/crests/${id}.png`, squadSource: 'generated', formation: '4-3-3',
+    stars: ovr >= 85 ? 5 : ovr >= 82 ? 4.5 : ovr >= 78 ? 4 : 3.5,
+    colors: { primary: colors[0], secondary: colors[1], accent: colors[2] },
+    ratings: { att: ovr, mid: ovr, def: ovr, ovr }, ...squad });
+}
+
+// Uniformes dos clubes que entraram para fechar as ligas europeias: só as
+// cores, no mesmo formato dos trios de cima (a tela de blusas monta o resto).
+export const WORLD_KITS = Object.fromEntries(WORLD_CLUBS
+  .filter(club => !LALIGA_KITS[club[0]])
+  .map(club => [club[0], [
+    [club[5][0], club[5][1], club[5][2], 'solid'],
+    [club[5][1], club[5][2], club[5][0], 'solid'],
+    [club[5][2], club[5][0], club[5][1], 'solid']
+  ]]));
+
+// Clubes grandes que já existiam só como "coleção" ficam com força de clube
+// grande de verdade na carreira (o Bayern tinha OVR 75 e estádio genérico).
+const CLUB_FIXES = {
+  'bayern-munich': {ratings: {att: 88, mid: 87, def: 86, ovr: 87}, stars: 5, stadium: 'Allianz Arena', city: 'Munique'},
+  psg: {stars: 5}, arsenal: {stars: 4.5}, liverpool: {stars: 5}, 'manchester-city': {stars: 5},
+  inter: {stars: 4.5}, milan: {stars: 4.5}, juventus: {stars: 4.5}, napoli: {stars: 4.5}
+};
+for (const [id, patch] of Object.entries(CLUB_FIXES)) {
+  const team = TEAMS.find(item => item.id === id);
+  if (!team) continue;
+  Object.assign(team, patch);
+  if (patch.ratings) team.ratings = { ...team.ratings, ...patch.ratings };
+}
+
+for (const club of LALIGA_CLUBS) {
+  if (TEAMS.some(team => team.id === club.id)) continue;
+  const squad = generatedSquad(club.id, 'es', 0, club.ratings.ovr);
+  TEAMS.push({ ...club, shortName: club.name, country: 'Espanha', flag: 'es',
+    countryCrest: 'assets/crests/espanha.png', league: 'LaLiga',
+    clubCrest: club.crest, crest: `assets/crests/${club.id}.png`, squadSource: 'generated',
+    formation: '4-3-3', stars: club.ratings.ovr >= 84 ? 4.5 : club.ratings.ovr >= 80 ? 4 : 3.5, ...squad });
+}
+
+/**
+ * Elencos reais por cima do elenco do jogo.
+ *
+ * O catálogo antigo tinha jogadores que já mudaram de clube (o Hugo Souza
+ * aparecia no Flamengo, mas é goleiro do Corinthians). Para cada clube com
+ * elenco real, os jogadores da lista entram como titulares/reservas — na
+ * posição deles — e quem sobra do elenco antigo fica no banco. Nada é apagado:
+ * o clube continua com 11 titulares e um plantel completo.
+ */
+const POSITION_ORDER = ['GK', 'RB', 'CB', 'CB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'ST', 'LW'];
+const BENCH_POSITIONS = ['GK', 'RB', 'CB', 'CM', 'LW', 'ST', 'CM'];
+
+function slugName(name) {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+function statLine(ovr, position) {
+  const bias = POSITION_BIAS[position] || POSITION_BIAS.CM;
+  return {
+    pace: clamp(ovr - 6 + bias.pace), shooting: clamp(ovr - 6 + bias.shooting),
+    passing: clamp(ovr - 6 + bias.passing), dribbling: clamp(ovr - 6 + bias.dribbling),
+    defending: clamp(ovr - 6 + bias.defending), physical: clamp(ovr - 6 + bias.physical)
+  };
+}
+function realPlayer(clubId, [name, number, pos, ovr], index, looks = null, legacyId = null) {
+  // Nome no cartão: sobrenome só quando o nome tem três partes ou mais; nomes
+  // de duas palavras (Léo Ortiz, Luiz Araújo, Lamine Yamal) ficam inteiros.
+  const parts = name.split(' ');
+  const short = parts.length > 2 ? parts.slice(1).join(' ') : name;
+  return {
+    // ID antigo preservado quando é o mesmo atleta: saves do Ultimate Team e
+    // escalações salvas continuam válidos depois do elenco real.
+    id: legacyId || `${clubId}-${slugName(name)}`, name: short, fullName: name, number, pos, ovr,
+    potential: clamp(ovr + 2), form: index % 4 === 0 ? 'W' : 'W', age: 24, height: 182,
+    foot: index % 5 === 0 ? 'Left' : 'Right', role: POSITION_ROLE[pos] || POSITION_ROLE.CM,
+    focus: POSITION_FOCUS[pos] || 'Support', celebration: 'None', photo: null,
+    // O visual do jogador antigo (cabelo/pele do Neymar, por exemplo) continua
+    // quando é o mesmo atleta de verdade.
+    ...(looks ? { appearance: looks } : {}),
+    stats: statLine(ovr, pos)
+  };
+}
+
+function applyRealSquad(team, squad) {
+  const starters = squad.slice(0, 11);
+  // Um XI válido: um goleiro e dez de linha, na ordem da formação.
+  const goalkeeper = starters.find(item => item[2] === 'GK') || starters[0];
+  const outfield = starters.filter(item => item !== goalkeeper);
+  // O XI sai na ordem da formação 4-3-3 (defesa, meio, ataque), mantendo a
+  // posição de cada jogador: o cartão em campo usa o `pos` real.
+  const LINE_ORDER = ['RB', 'CB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'ST'];
+  const rank = pos => {
+    const index = LINE_ORDER.indexOf(pos);
+    return index < 0 ? LINE_ORDER.length : index;
+  };
+  const lineup = [goalkeeper, ...outfield.slice().sort((a, b) => rank(a[2]) - rank(b[2]))];
+  const used = new Set();
+  // Aparência do elenco antigo por nome completo, para o Neymar não perder o
+  // cabelo low-poly ao entrar no elenco real do Santos.
+  // Aparência e retrato vêm do elenco antigo, casando pelo nome. Sem isso todo
+  // atleta real cairia no avatar de iniciais e o plantel ficaria sem cara.
+  const previous = [...team.players, ...(team.substitutes || [])];
+  // Nome de duas palavras casa pelo sobrenome (o cartão antigo guardava "Pedri"),
+  // o resto pelo nome completo — Pedro, do Flamengo, não vira Pedro Henrique.
+  const family = name => name.split(' ').slice(-1)[0];
+  const surname = item => item[0].split(' ').length > 1 ? family(item[0]) : null;
+  const legacyId = item => previous.find(old =>
+    old.fullName === item[0] || old.name === item[0]
+    || (!old.name.includes(' ') && old.name === surname(item)))?.id || null;
+  const pick = (player, field) => {
+    const exact = previous.find(old => old[field]
+      && (old.fullName === player[0] || old.name === player[0]));
+    if (exact) return exact[field];
+    // O cartão antigo às vezes é monônimo ("Pedri", "Raphinha", "Olmo"): casa só
+    // quando é a última palavra do nome novo e o apelido é único no elenco.
+    const last = surname(player);
+    if (!last) return null;
+    const bySurname = previous.filter(old => old[field] && !old.name.includes(' ') && old.name === last);
+    return bySurname.length === 1 ? bySurname[0][field] : null;
+  };
+  const looks = new Map();
+  for (const item of squad) {
+    const look = pick(item, 'appearance');
+    if (look) looks.set(item[0], look);
+  }
+  const build = (item, index) => {
+    used.add(item[0]);
+    const player = realPlayer(team.id, item, index, looks.get(item[0]) || null, legacyId(item));
+    player.photo = pick(item, 'photo');
+    return player;
+  };
+  team.players = lineup.map(build);
+  const bench = squad.slice(11).filter(item => !used.has(item[0]));
+  const realBench = bench.map((item, index) => build(item, index + 11));
+  // Quem não está na lista real sai do clube — é assim que o Hugo Souza deixa
+  // de aparecer no Flamengo. O banco é completado com jogadores do país só se
+  // faltar gente para os sete lugares.
+  // O banco é SEMPRE de sete: se a lista real trouxer mais, os excedentes
+  // entram no time e o resto vira opção de reserva só até o limite; se trouxer
+  // menos, completa com atletas do país — nenhum nome antigo volta.
+  const pool = generatedSquad(team.id, FIRST_NAMES[team.flag] ? team.flag : 'en',
+    9, Math.max(60, (team.ratings?.ovr || 75) - 10)).substitutes;
+  const extra = squad.slice(11).filter(item => !used.has(item[0]))
+    .map((item, index) => realPlayer(team.id, item, index + 11, looks.get(item[0]) || null));
+  team.substitutes = [...realBench.filter(item => !extra.some(other => other.id === item.id)), ...extra];
+  const filler = pool.filter(player => !team.substitutes.some(item => item.name === player.name));
+  team.substitutes = [...team.substitutes, ...filler].slice(0, 7);
+  // O overall do clube passa a refletir o elenco real.
+  const average = Math.round(team.players.reduce((sum, p) => sum + p.ovr, 0) / team.players.length);
+  // O overall do clube segue o tamanho do clube (CLUB_STRENGTH), não só a média
+  // do XI: é isso que faz o Real Madrid ser mais difícil de alcançar que o Celtic.
+  const ovr = CLUB_STRENGTH[team.id] || average;
+  team.ratings = { att: ovr, mid: ovr, def: ovr, ovr };
+  team.squadSource = 'real';
+}
+
+for (const [clubId, squad] of Object.entries(REAL_SQUADS)) {
+  const team = TEAMS.find(item => item.id === clubId);
+  if (team && Array.isArray(squad) && squad.length >= 11) applyRealSquad(team, squad);
 }
 
 // Getter preserva atualização/reversão das escolhas sem alterar o cadastro salvo.

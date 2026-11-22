@@ -38,25 +38,101 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
   };
 }
 
-/** Enquadramento de transmissão que acompanha a bola sem cruzar para o outro lado. */
-export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velocity = null) {
-  const ballX = clamp((Number(position?.x) || 0)+clamp((Number(velocity?.x)||0)*.1,-2.2,2.2), -PITCH.halfLength - 6, PITCH.halfLength + 6);
-  const ballZ = clamp((Number(position?.z) || 0)+clamp((Number(velocity?.z)||0)*.08,-1.5,1.5), -PITCH.halfWidth - 6, PITCH.halfWidth + 6);
+/**
+ * Câmera de transmissão — o modelo do eFootball (print e pedido do usuário).
+ *
+ * Como a câmera de transmissão do eFootball/PES funciona, de acordo com a
+ * documentação e as análises das versões:
+ *
+ *   • a lente fica na lateral, na altura do meio-campo, e o que se move é a
+ *     MIRA: ela acompanha a bola nos dois eixos. Não é um quadro fixo que só
+ *     desliza — a câmera gira para onde a bola está;
+ *   • a objetiva abre e fecha com a distância da jogada (o "zoom" do menu);
+ *   • o enquadramento é um recorte, não o campo inteiro: no print, a
+ *     arquibancada é uma faixa fina no topo e a linha lateral de baixo passa
+ *     por baixo da borda do quadro.
+ *
+ * O que está montado aqui, ponto por ponto:
+ *
+ *   • a LENTE segue a bola no comprimento do campo (`CAMERA_PAN_FACTOR = 1`):
+ *     quando o lance vai para o outro lado, a câmera vai junto e a bola fica
+ *     sempre no centro horizontal do quadro;
+ *   • a lente também recua quando a bola vem para o lado dela
+ *     (`CAMERA_Z_FOLLOW`), porque a lateral do gramado passa 11 m abaixo da
+ *     lente e o lance sairia pela borda de baixo;
+ *   • a MIRA sobe quando a bola está do lado oposto (`CAMERA_AIM_LIFT`): é o
+ *     "a câmera vai um pouco para cima dele" do pedido — quanto mais longe a
+ *     bola, mais alto o olhar, e a arquibancada de fundo desce no quadro;
+ *   • altura de 16 m e 45 m do eixo do campo: acima das placas (1,25 m) e do
+ *     LED (3,1 m), antes do muro da arquibancada (54 m). O banco técnico fica
+ *     em `z = 50`, atrás da lente (ver `buildSidelineBench` em `stadium.js`);
+ *   • alvo 32 m à frente no chão e `fov = 54`: 27° de inclinação, o que deixa
+ *     as placas do lado oposto no topo e o gramado até a borda de baixo.
+ *
+ * Medido com o `three` do vendor em 1280×720, para a bola em todo o campo: ela
+ * fica entre 41% e 54% da altura da tela (nunca encosta nas bordas) e a 0 do
+ * centro horizontal quando está no meio; jogador de linha no meio-campo com
+ * 28 px de altura (eram 17 px na v0.5.44).
+ *
+ * `BROADCAST_CAMERA_LIMITS` é o teto do zoom "mais aberta" do menu de pausa:
+ * sem ele, o `cameraZoom` de 1,2 levaria a lente para dentro da arquibancada.
+ */
+// v0.5.59: Kick Off volta à lente pré-0.5.58 (16 m / 45 m). A carreira, no
+// campo maior, chega mais perto para o atleta não virar um ponto no gramado.
+// Tele Broadcast (EA FC): altura ~16–20, zoom baixo, segue a bola, atletas
+// grandes no quadro, pouco das laterais. Não cola no jogador.
+const CAMERA_PRESETS = {
+  standard: {
+    height: 16, z: 50, zMin: 44, zMax: 56, targetAhead: 22, fov: 50,
+    panFactor: 1, zFollow: 0.32, aimLift: 0.1, aimBase: 0.2, topZoom: 0.1
+  },
+  career: {
+    height: 17, z: 54, zMin: 46, zMax: 60, targetAhead: 24, fov: 50,
+    panFactor: 1, zFollow: 0.3, aimLift: 0.1, aimBase: 0.15, topZoom: 0.08
+  }
+};
+
+let cameraPreset = CAMERA_PRESETS.standard;
+
+/** Kick Off = `standard`; carreira = `career` (lente mais perto). */
+export function setBroadcastCameraLayout(kind = 'standard') {
+  cameraPreset = kind === 'career' ? CAMERA_PRESETS.career : CAMERA_PRESETS.standard;
+  BROADCAST_CAMERA_LIMITS.maxZ = cameraPreset.zMax;
+  return cameraPreset;
+}
+
+/** Teto do zoom do menu de pausa: a lente nunca entra na arquibancada. */
+export const BROADCAST_CAMERA_LIMITS = {
+  minHeight: 8,
+  maxHeight: 24,
+  minZ: 36,
+  maxZ: CAMERA_PRESETS.standard.zMax
+};
+
+/**
+ * Enquadramento de transmissão lateral que acompanha a bola.
+ *
+ * A câmera fica na lateral, no eixo do meio-campo, e panorâmica em X junto com
+ * a jogada. `side` escolhe a lateral (o jogo usa sempre a mesma, para o
+ * analógico não inverter); `velocity` dá a antecipação do movimento.
+ */
+export function broadcastCameraPose(position, side = BROADCAST_CAMERA_SIDE, velocity = null, layout) {
+  const preset = layout === 'career' ? CAMERA_PRESETS.career
+    : layout === 'standard' ? CAMERA_PRESETS.standard
+    : cameraPreset;
   const fixedSide = side < 0 ? -1 : 1;
-  const nearT = Math.min(1, Math.abs(ballZ) / PITCH.halfWidth);
-  const endT = Math.min(1, Math.abs(ballX) / PITCH.halfLength);
+  const ballX = clamp((Number(position?.x) || 0) + clamp((Number(velocity?.x) || 0) * 0.35, -6, 6),
+    -PITCH.halfLength - 4, PITCH.halfLength + 4);
+  const ballZ = Number(position?.z) || 0;
+  const panX = clamp(ballX * preset.panFactor, -PITCH.halfLength, PITCH.halfLength);
+  const lensZ = clamp(preset.z + ballZ * preset.zFollow, preset.zMin, preset.zMax);
+  const aimZ = lensZ - preset.targetAhead;
+  const aimY = clamp((aimZ - ballZ) * preset.aimLift + preset.aimBase, -3, 14);
+  const far = clamp(-ballZ / PITCH.halfWidth, 0, 1);
   return {
-    position: {
-      x: clamp(ballX * 0.78, -40, 40),
-      y: 21.5 + nearT * 2.7 + Math.min(2.2, Math.abs(ballX) * 0.025),
-      z: fixedSide * (30 + nearT * 3.7 + endT * 0.8)
-    },
-    target: {
-      x: clamp(ballX * 0.85, -42, 42),
-      y: 0,
-      z: ballZ * 0.48
-    },
-    fov: 48 + nearT * 4.5 + endT * 0.5
+    position: { x: panX, y: preset.height, z: fixedSide * lensZ },
+    target: { x: panX, y: aimY, z: fixedSide * aimZ },
+    fov: preset.fov * (1 - far * preset.topZoom)
   };
 }
 

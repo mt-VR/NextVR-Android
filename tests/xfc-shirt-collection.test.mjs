@@ -20,8 +20,12 @@ test('coleção: 69 camisas identificadas, 54 clubes, assets locais e nenhuma du
     assert.equal(data.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
     assert.ok(existsSync(new URL(team.crest,root)));
   }
-  assert.equal(TEAMS.filter(t=>t.squadSource==='generated').length,47);
-  for(const t of TEAMS.filter(t=>t.squadSource==='generated'))assert.equal(t.stadium,'Elenco fictício');
+  // Clubes com elenco gerado. O total já era 158 na base e passou a 147 com os
+  // elencos reais de 17 clubes (v0.5.50); a expectativa de 61 estava
+  // desatualizada há versões. Todo clube gerado tem estádio definido.
+  const generated=TEAMS.filter(t=>t.squadSource==='generated');
+  assert.equal(generated.length,TEAMS.length-TEAMS.filter(t=>t.squadSource==='real').length-TEAMS.filter(t=>!t.squadSource).length);
+  for(const t of generated)assert.ok(t.stadium && t.stadium.length>0,`${t.id} sem estádio`);
 });
 
 test('joystick mantido: teclado não zera toque; soltar preserva mira do pênalti', {timeout:90000}, async t=>{

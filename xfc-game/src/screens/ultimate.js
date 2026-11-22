@@ -331,16 +331,75 @@ export function ultimateTeamScreen(ctx, params = {}) {
       `${u.inventory.length} cartas • ${u.lifetime.played} partidas UT • ${u.lifetime.wins} vitórias • ${u.lifetime.goals} gols`,
     );
     const name = input("Nome do clube", u.clubName);
+    const file = el("input", {
+      type: "file",
+      accept: "image/*",
+      "aria-label": "Galeria — foto vira o brasão",
+    });
+    file.addEventListener("change", () => {
+      const picked = file.files?.[0];
+      if (!picked) return;
+      const url = URL.createObjectURL(picked);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = 256;
+        canvas.width = size;
+        canvas.height = size;
+        const g = canvas.getContext("2d");
+        const scale = Math.max(size / img.width, size / img.height);
+        g.drawImage(
+          img,
+          (size - img.width * scale) / 2,
+          (size - img.height * scale) / 2,
+          img.width * scale,
+          img.height * scale,
+        );
+        URL.revokeObjectURL(url);
+        const logo = canvas.toDataURL("image/jpeg", 0.84);
+        UT.setUtIdentity(profile, { name: name.value, logo });
+        persist();
+        paint();
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        notice.textContent = "Não deu para ler essa foto.";
+      };
+      img.src = url;
+    });
+    const presets = [
+      ["assets/brand/xfc-icon.png", "XFC"],
+      ["assets/crests/fc-barcelona.png", "Barcelona"],
+      ["assets/crests/real-madrid.png", "Real Madrid"],
+      ["assets/crests/nations/br.png", "Brasil"],
+    ];
     main.append(
       el(
         "div",
-        { class: "ut-toolbar" },
-        name,
-        button("Salvar nome", () => {
-          u.clubName = name.value.trim().slice(0, 30) || "Meu Clube XFC";
-          persist();
-          paint();
-        }),
+        { class: "ut-identity" },
+        el("img", { class: "ut-identity__crest", src: u.clubLogo || "assets/brand/xfc-icon.png", alt: `Brasão de ${u.clubName}` }),
+        el("div", { class: "ut-identity__fields" },
+          name,
+          button("Salvar nome", () => {
+            UT.setUtIdentity(profile, { name: name.value });
+            persist();
+            paint();
+          }),
+          el("label", { class: "ut-identity__upload" }, "Galeria", file),
+          button("Abrir galeria", () => file.click()),
+          el("div", { class: "ut-identity__presets" },
+            ...presets.map(([src, label]) => el("button", {
+              type: "button",
+              class: "ut-identity__preset",
+              "aria-label": `Brasão ${label}`,
+              onClick: () => {
+                UT.setUtIdentity(profile, { logo: src });
+                persist();
+                paint();
+              },
+            }, el("img", { src, alt: label })))
+          )
+        ),
         button("Meu elenco", () => go("squad")),
       ),
     );

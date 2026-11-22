@@ -5,12 +5,14 @@
 // atual e próxima) com o nome da blusa. As setas trocam a blusa do time em
 // foco e o Tab alterna entre HOME e AWAY.
 
+import {kickoffKitsScreen} from './kickoff-kits.js';
 import { el, svg, ICONS, padButton } from '../ui/dom.js';
 import { xfcWordmark } from '../ui/brand.js';
 import { getTeam } from '../data/teams.js';
 import { kitsOf, kitSvg, kitFigureSvg, kitRender, kitShirt } from '../data/kits.js';
 
 export function kitsScreen(ctx, params = {}) {
+  if(params.kickoffFlow)return kickoffKitsScreen(ctx,params);
   const state = ctx.state;
   const home = getTeam(params.home) || getTeam(state.selection.home);
   const away = getTeam(params.away) || getTeam(state.selection.away);

@@ -72,7 +72,9 @@ test("UT DME valida média, clubes, bloqueios e consumo atômico", () => {
     ).ok,
     false,
   );
-  const ids = ["barca-pedri", "madrid-vinicius", "madrid-modric"].map(
+  // v0.5.50: o elenco real do Real Madrid não tem mais Modrić — o teste usa
+  // atletas que estão no clube hoje.
+  const ids = ["barca-pedri", "madrid-vinicius", "madrid-mbappe"].map(
       (id) => U.buyUtPlayer(p, id).uid,
     ),
     before = u.inventory.length;
@@ -166,9 +168,15 @@ test("corrida tem voo, recuperação do joelho e braços opostos; caminhada não
     assert.equal(runningFlight(phase, 0), false);
   }
   assert.ok(flying > 40);
-  assert.ok(runningLegPose(0.7).lift > 0.2);
-  assert.ok(runningArmPose(0).shoulder > 0.7);
-  assert.ok(runningArmPose(0.5).shoulder < -0.7);
+  // v0.5.43: o calcanhar sobe mais cedo no voo, então o pico da elevação fica
+  // antes do meio do balanço (0,29 m) — medir um instante fixo não descreve o
+  // gesto. O balanço de ombro caiu para 1,2 rad de amplitude (~70° no total),
+  // que é o que faz o braço parecer de corredor em vez de autômato.
+  let peakLift = 0;
+  for (let i = 0; i < 240; i++) peakLift = Math.max(peakLift, runningLegPose(i / 240).lift);
+  assert.ok(peakLift > 0.25 && peakLift < 0.40, `pico de elevação: ${peakLift}`);
+  assert.ok(runningArmPose(0).shoulder > 0.5);
+  assert.ok(runningArmPose(0.5).shoulder < -0.5);
 });
 
 test(
@@ -434,8 +442,11 @@ test(
         m.dispose();
         return { front, back, opposed };
       });
+      // v0.5.43: com o cotovelo dobrado (~0,45 rad) a mão não vai tão longe
+      // atrás quanto no braço esticado da versão antiga; o que importa é que as
+      // mãos cruzem frente/trás alternadamente.
       assert.ok(r.front > 0.25, JSON.stringify(r));
-      assert.ok(r.back < -0.15, JSON.stringify(r));
+      assert.ok(r.back < -0.08, JSON.stringify(r));
       assert.ok(r.opposed > 40, JSON.stringify(r));
     } finally {
       await b.close();

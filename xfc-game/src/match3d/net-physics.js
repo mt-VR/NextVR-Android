@@ -16,18 +16,20 @@ export function createNetPanel({
     quietTime = 0;
   const fixedStep = 1 / 120;
   function impact(u, v, speed) {
-    if (![u, v, speed].every(Number.isFinite) || speed < 0.25) return false;
+    if (![u, v, speed].every(Number.isFinite) || speed < 0.06) return false;
     u = Math.max(0, Math.min(1, u));
     v = Math.max(0, Math.min(1, v));
-    const strength = Math.min(9, speed * 0.36);
+    // Rede de gol: o chute abre um bolso e a malha ondula até voltar.
+    // Mesmo um toque leve já mexe os fios.
+    const strength = Math.min(24, Math.max(2.4, speed * 1.22));
     for (let y = 1; y < rows; y++)
       for (let x = 1; x < columns; x++) {
         const dx = (x / columns - u) * width,
           dy = (y / rows - v) * height;
         velocity[y * stride + x] = Math.min(
-          12,
+          16,
           velocity[y * stride + x] +
-            strength * Math.exp(-(dx * dx + dy * dy) / 0.32)
+            strength * Math.exp(-(dx * dx + dy * dy) / 0.46)
         );
       }
     active = true;
@@ -47,23 +49,23 @@ export function createNetPanel({
           const i = y * stride + x,
             d = displacement[i];
           force[i] =
-            -52 * d +
-            125 *
+            -24 * d +
+            88 *
               (displacement[i - 1] +
                 displacement[i + 1] +
                 displacement[i - stride] +
                 displacement[i + stride] -
                 4 * d) -
-            6.8 * velocity[i];
+            3.4 * velocity[i];
         }
       for (let y = 1; y < rows; y++)
         for (let x = 1; x < columns; x++) {
           const i = y * stride + x;
           velocity[i] += force[i] * fixedStep;
           displacement[i] += velocity[i] * fixedStep;
-          if (Math.abs(displacement[i]) > 0.7) {
-            displacement[i] = Math.sign(displacement[i]) * 0.7;
-            velocity[i] *= 0.15;
+          if (Math.abs(displacement[i]) > 1.15) {
+            displacement[i] = Math.sign(displacement[i]) * 1.15;
+            velocity[i] *= 0.18;
           }
           peak = Math.max(
             peak,

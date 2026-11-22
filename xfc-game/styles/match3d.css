@@ -492,6 +492,130 @@
   opacity: 0.85;
 }
 
+/* Placar LaLiga — a foto do print. Números ao vivo por cima, sem caixas CSS.
+   Especificidade alta: reference-broadcast.css e frontend.css vêm depois. */
+.hud__scoreboard.hud__scoreboard--laliga {
+  left: 14px;
+  top: 12px;
+  right: auto;
+  transform: none;
+  z-index: 6;
+  padding: 0;
+  gap: 0;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.55));
+}
+.hud__scoreboard.hud__scoreboard--laliga .hud__sc-main {
+  display: block;
+  position: relative;
+  width: 196px;
+  height: 91px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+  color: #fff;
+}
+.laliga-board__print {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  z-index: 0;
+}
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__name,
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__goals,
+.hud__scoreboard.hud__scoreboard--laliga .hud__sc-main .hud__clock,
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__added {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  clip-path: none;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  z-index: 1;
+  transform: none;
+  min-width: 0;
+  box-shadow: none;
+  text-shadow: none;
+}
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__home { left: 45%; top: 0; width: 32%; height: 50%; }
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__away { left: 45%; top: 50%; width: 32%; height: 50%; }
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__home-goals { left: 79%; top: 0; width: 21%; height: 50%; }
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__away-goals { left: 79%; top: 50%; width: 21%; height: 50%; }
+.hud__scoreboard.hud__scoreboard--laliga .hud__sc-main .hud__clock {
+  left: 0;
+  top: 50%;
+  width: 42%;
+  height: 50%;
+  background: #111;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 900;
+}
+.hud__scoreboard.hud__scoreboard--laliga .hud__sc-main .hud__team {
+  color: #fff;
+  transform: none;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+.hud__scoreboard.hud__scoreboard--laliga .hud__sc-main .hud__score {
+  background: #fff;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: #111;
+  font-size: 20px;
+  font-weight: 900;
+  min-width: 0;
+  line-height: 1;
+}
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__added {
+  left: -32px;
+  top: 50%;
+  width: 30px;
+  height: 50%;
+  background: #111;
+  color: #fff;
+  font-size: 13px;
+}
+.hud__scoreboard.hud__scoreboard--laliga .laliga-board__added[hidden] { visibility: hidden; display: flex; }
+.hud__scoreboard.hud__scoreboard--laliga .hud__poss,
+.hud__scoreboard.hud__scoreboard--laliga .hud__cards { display: none; }
+.hud__scoreboard.hud__scoreboard--laliga .hud__sc-main .hud__half {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  display: block;
+}
+
+.play.is-paused .hud__scoreboard,
+.hud.is-paused .hud__scoreboard,
+.play.is-paused .hud__scoreboard--laliga,
+.hud.is-paused .hud__scoreboard--laliga {
+  left: auto !important;
+  right: 18px !important;
+  top: 14px !important;
+  transform: none !important;
+}
+
 /* ------------------------------ cartão do jogador controlado (base esquerda) -- */
 
 .hud__player {
@@ -652,97 +776,6 @@
   border-radius: 2px;
   background: linear-gradient(90deg, #ff5a5a, #ffb0a0);
   transition: width 240ms ease;
-}
-
-/* --------------------------------------- nome sobre a cabeça do atleta -- */
-
-.hud__tag {
-  position: absolute;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  transform: translate(-50%, -100%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 160ms ease, left 120ms linear, top 120ms linear;
-}
-
-.hud__tag.is-visible {
-  opacity: 1;
-}
-
-.hud__tag-bar {
-  width: 30px;
-  height: 3px;
-  border-radius: 2px;
-  background: #facc2e;
-  box-shadow: 0 0 8px rgba(250, 204, 46, 0.85);
-}
-
-.hud__tag-name {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: #ffffff;
-  text-transform: uppercase;
-  white-space: nowrap;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.5);
-}
-
-/* --------------------------------------- nome de TODOS os atletas -- */
-
-.hud__tags-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.hud__nametag {
-  position: absolute;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  transform: translate(-50%, -100%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 120ms ease, left 100ms linear, top 100ms linear;
-}
-
-.hud__nametag.is-visible {
-  opacity: 1;
-}
-
-.hud__nametag-num {
-  font-size: 9px;
-  font-weight: 800;
-  color: #ffd84a;
-  text-shadow: 0 0 6px rgba(255, 216, 74, 0.5), 0 1px 3px rgba(0, 0, 0, 0.8);
-}
-
-.hud__nametag-name {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #ffffff;
-  text-transform: uppercase;
-  white-space: nowrap;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-}
-
-.hud__nametag.is-controlled .hud__nametag-name {
-  font-size: 11px;
-  font-weight: 800;
-  color: #ffd84a;
-  text-shadow: 0 0 8px rgba(255, 216, 74, 0.7), 0 1px 4px rgba(0, 0, 0, 0.9);
-}
-
-.hud__nametag.is-controlled .hud__nametag-num {
-  font-size: 11px;
 }
 
 .hud__radar-wrap {
@@ -927,98 +960,99 @@
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), 0 0 22px rgba(46, 240, 168, 0.35);
 }
 
-/* CHUTE — o botão principal, grande no alto à direita (marrom/laranja) */
+/* ---------------------------------------------------------- botões ---- */
+/* Ação principal x ação secundária forma DOIS grupos separados no canto
+   direito, sem sobreposição: antes PASSE ficava embaixo de ENFIADA e
+   CARRINHO/TROCAR se amontoavam num bloco de 20 px, o que fazia o toque cair
+   no botão errado no celular (o palco é 1280x720 escalado: 54 px aqui viram
+   ~40 px reais num aparelho de 915 px de largura). Cada botão agora tem
+   diâmetro suficiente para o dedo e uma margem clara dos vizinhos. */
+
+/* CHUTE — ação principal, o maior botão, no alto do grupo */
 .ctrl-btn--shoot {
-  right: 14px;
-  bottom: 250px;
-  width: 94px;
-  height: 94px;
-  font-size: 11px;
-  border-color: rgba(255, 159, 67, 0.9);
-  background: rgba(96, 48, 12, 0.82);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 159, 67, 0.3);
+  right: 16px;
+  bottom: 232px;
+  width: 104px;
+  height: 104px;
+  font-size: 12px;
+  border-color: rgba(255, 159, 67, 0.95);
+  background: rgba(96, 48, 12, 0.86);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 159, 67, 0.35);
 }
 
-/* ENFIADA — dourado, grande à esquerda do CHUTE */
+/* ENFIADA — ao lado do CHUTE, no mesmo arco */
 .ctrl-btn--lob {
-  right: 128px;
-  bottom: 214px;
+  right: 142px;
+  bottom: 276px;
+  width: 82px;
+  height: 82px;
+  font-size: 10px;
+  border-color: rgba(245, 197, 24, 0.95);
+  background: rgba(82, 62, 6, 0.8);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 197, 24, 0.32);
+}
+
+/* PASSE — abaixo do CHUTE, no mesmo prumo (nunca debaixo de outro botão) */
+.ctrl-btn--pass {
+  right: 22px;
+  bottom: 122px;
+  width: 96px;
+  height: 96px;
+  font-size: 12px;
+  border-color: rgba(63, 215, 255, 0.92);
+  background: rgba(10, 48, 84, 0.84);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(63, 215, 255, 0.32);
+}
+
+/* CARRINHO — desarme, à esquerda do PASSE */
+.ctrl-btn--tackle {
+  right: 146px;
+  bottom: 138px;
+  width: 76px;
+  height: 76px;
+  font-size: 9px;
+  border-color: rgba(255, 159, 67, 0.82);
+  background: rgba(78, 38, 12, 0.72);
+}
+
+/* TROCAR — utilitário, acima do desarme e longe do analógico */
+.ctrl-btn--switch {
+  right: 150px;
+  bottom: 40px;
+  width: 68px;
+  height: 68px;
+  font-size: 9px;
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(20, 32, 46, 0.78);
+}
+
+/* CORRER — segurar; fica abaixo do desarme, na coluna do meio */
+.ctrl-btn--sprint {
+  right: 250px;
+  bottom: 96px;
   width: 74px;
   height: 74px;
-  border-color: rgba(245, 197, 24, 0.95);
-  background: rgba(82, 62, 6, 0.72);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 197, 24, 0.3);
-}
-
-/* PIQUE & FINTA — dribble verde grande, como no FC Mobile (skill move) */
-.ctrl-btn--dribble {
-  right: 214px;
-  bottom: 250px;
-  width: 78px;
-  height: 78px;
   font-size: 9px;
-  border-color: rgba(46, 240, 168, 0.9);
-  background: rgba(10, 78, 56, 0.82);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(46, 240, 168, 0.3);
+  border-color: rgba(63, 215, 255, 0.88);
+  background: rgba(10, 52, 76, 0.78);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.28);
 }
 
-/* PASSE — azul, grande embaixo à esquerda (como nos prints) */
-.ctrl-btn--pass {
-  right: 18px;
-  bottom: 84px;
-  width: 90px;
-  height: 90px;
-  font-size: 11px;
-  border-color: rgba(63, 215, 255, 0.9);
-  background: rgba(10, 48, 84, 0.78);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(63, 215, 255, 0.3);
-}
-
-/* CORRER — ciano, menor (utilidade, segurar para disparar) */
-.ctrl-btn--sprint {
-  right: 246px;
-  bottom: 120px;
-  width: 64px;
-  height: 64px;
-  font-size: 9px;
-  border-color: rgba(63, 215, 255, 0.85);
-  background: rgba(10, 52, 76, 0.72);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.25);
-}
-
-/* DESARME — pequeno, laranja */
-.ctrl-btn--tackle {
-  right: 134px;
-  bottom: 40px;
-  width: 58px;
-  height: 58px;
-  font-size: 8px;
-  border-color: rgba(255, 159, 67, 0.78);
-  background: rgba(78, 38, 12, 0.62);
-}
-
-/* TROCAR — pequeno, neutro */
-.ctrl-btn--switch {
-  right: 242px;
-  bottom: 44px;
-  width: 54px;
-  height: 54px;
-  font-size: 8px;
-  border-color: rgba(255, 255, 255, 0.4);
-  background: rgba(20, 32, 46, 0.72);
-}
+/* Rotulos secundários ("segure: superchute") não podem roubar a área do dedo. */
+.ctrl-btn__gesture { pointer-events: none; }
+.ctrl-btn > span { pointer-events: none; }
 
 .result__stats {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  width: 460px;
-  padding: 12px 18px;
+  gap: 4px;
+  width: 480px;
+  padding: 10px 18px;
   border-radius: 10px;
-  background: rgba(4, 18, 30, 0.66);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(4, 12, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .result__stat {
@@ -1127,13 +1161,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
+  /* v0.5.57: overlay no estilo EA FC — estádio visível atrás, título +
+     CASA/FORA + placar grande + escudos. A tela existente é a base. */
   background:
-    radial-gradient(120% 85% at 50% -12%, rgba(46, 240, 168, 0.16), transparent 48%),
-    radial-gradient(90% 80% at 50% 118%, rgba(63, 215, 255, 0.14), transparent 55%),
-    radial-gradient(circle at 50% 46%, rgba(20, 46, 66, 0.55), transparent 62%),
-    #02081a;
+    linear-gradient(180deg, rgba(6, 12, 22, 0.42) 0%, rgba(6, 12, 22, 0.62) 38%, rgba(4, 8, 16, 0.86) 100%);
   animation: prematch-in 320ms ease both;
 }
 
@@ -1157,13 +1190,25 @@
 .result__title {
   position: relative;
   z-index: 1;
-  color: #cfe6ef;
-  font-size: 15px;
+  margin: 0;
+  color: #f4f7fb;
+  font-size: 22px;
   font-weight: 800;
-  letter-spacing: 0.46em;
-  text-indent: 0.46em;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
   text-transform: uppercase;
-  text-shadow: none;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.65);
+}
+
+.result__comp {
+  position: relative;
+  z-index: 1;
+  margin-top: -4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 240, 248, 0.72);
 }
 
 .result__teams {
@@ -1171,17 +1216,19 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 64px;
-  margin-top: 4px;
+  justify-content: center;
+  gap: 36px;
+  width: min(920px, 94%);
+  margin-top: 8px;
 }
 
 .result__team {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  width: 230px;
-  opacity: 0.58;
+  gap: 10px;
+  width: 240px;
+  opacity: 0.82;
   transition: opacity 300ms ease;
 }
 
@@ -1190,26 +1237,44 @@
 }
 
 .result__team.is-winner .result__crest {
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 34px rgba(46, 240, 168, 0.6));
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 28px rgba(255, 214, 64, 0.55));
 }
 
 .result__team.is-winner .result__name {
-  color: var(--accent);
+  color: #ffe27a;
 }
 
+.result__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 3px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.result__pill--home { background: #1c6ad6; }
+.result__pill--away { background: #1f9a4a; }
+
 .result__crest {
-  width: 108px;
-  height: 108px;
+  width: 128px;
+  height: 128px;
   object-fit: contain;
   transition: transform 260ms ease, filter 260ms ease;
   filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.6));
 }
 
 .result__name {
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-align: center;
   text-transform: uppercase;
   line-height: 1.25;
@@ -1218,12 +1283,12 @@
 .result__score {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
   padding: 6px 8px;
 }
 
 .result__score b {
-  font-size: 104px;
+  font-size: 96px;
   font-weight: 800;
   line-height: 0.95;
   color: #ffffff;
@@ -1232,9 +1297,9 @@
 }
 
 .result__score span {
-  font-size: 40px;
+  font-size: 42px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .result__winner {
@@ -1613,60 +1678,6 @@
 }
 
 /* Radar tático com moldura de transmissão */
-/* --------------------------------------- nome de TODOS os atletas -- */
-
-.hud__tags-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.hud__nametag {
-  position: absolute;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  transform: translate(-50%, -100%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 120ms ease, left 100ms linear, top 100ms linear;
-}
-
-.hud__nametag.is-visible {
-  opacity: 1;
-}
-
-.hud__nametag-num {
-  font-size: 9px;
-  font-weight: 800;
-  color: #ffd84a;
-  text-shadow: 0 0 6px rgba(255, 216, 74, 0.5), 0 1px 3px rgba(0, 0, 0, 0.8);
-}
-
-.hud__nametag-name {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #ffffff;
-  text-transform: uppercase;
-  white-space: nowrap;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-}
-
-.hud__nametag.is-controlled .hud__nametag-name {
-  font-size: 11px;
-  font-weight: 800;
-  color: #ffd84a;
-  text-shadow: 0 0 8px rgba(255, 216, 74, 0.7), 0 1px 4px rgba(0, 0, 0, 0.9);
-}
-
-.hud__nametag.is-controlled .hud__nametag-num {
-  font-size: 11px;
-}
-
 .hud__radar-wrap {
   border-radius: 12px;
   border: 1px solid rgba(63, 215, 255, 0.35);
@@ -2258,6 +2269,69 @@
   color: var(--accent);
 }
 
+/* Quatro capítulos da cerimônia, sempre nesta ordem. O atual fica aceso. */
+.entrance__steps {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(214, 236, 255, 0.38);
+}
+
+.entrance__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entrance__step + .entrance__step::before {
+  content: '';
+  width: 16px;
+  height: 1px;
+  background: rgba(214, 236, 255, 0.22);
+}
+
+.entrance__step.is-done {
+  color: rgba(214, 236, 255, 0.62);
+}
+
+.entrance__step.is-current {
+  color: var(--accent);
+}
+
+.entrance__caption.is-fresh {
+  animation: entrance-caption 320ms ease;
+}
+
+@keyframes entrance-caption {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.entrance__skip {
+  pointer-events: auto;
+  margin-top: 4px;
+  padding: 7px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 18, 32, 0.88);
+  color: #e8f4ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.entrance__skip:hover,
+.entrance__skip:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ---------------------------------------------------------- pré-jogo: XI -- */
 
 .showcase__lineups {
@@ -2402,6 +2476,120 @@
   .hud__goal-name { font-size: 13px; }
   .hud__goal-score { font-size: 14px; }
 }
-.play-replay{position:absolute;inset:0;z-index:45;display:flex;justify-content:space-between;align-items:flex-start;padding:26px;pointer-events:none;background:linear-gradient(#0005,transparent 20%);color:white;font:600 18px Inter,Arial;}
-.play-replay button{pointer-events:auto;background:#101421e6;color:white;border:1px solid #c2cee0;padding:13px 24px;border-radius:5px;font:inherit;cursor:pointer;}
-.play__stage.is-replay .play__canvas{filter:none;}.play__stage.is-replay .hud{visibility:hidden;}
+
+/* Expulsão no placar: cartão vermelho logo ABAIXO do time que perdeu o jogador. */
+.hud__sc-wing { position: relative; }
+.hud__sc-ejection {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: rgba(42, 8, 12, 0.92);
+  border: 1px solid rgba(255, 91, 102, 0.55);
+  box-shadow: 0 4px 12px rgba(0,0,0,.55), 0 0 12px rgba(255,59,74,.4);
+  z-index: 5;
+  white-space: nowrap;
+  animation: hud-ejection-in .3s ease-out;
+}
+.hud__sc-ejection[hidden] { display: none; }
+.hud__sc-ejection-card {
+  display: inline-block;
+  width: 8px; height: 12px;
+  border-radius: 1px;
+  background: linear-gradient(160deg, #ff6b6b, #cf1c2c);
+  box-shadow: 0 0 7px rgba(255,59,74,.85);
+  transform: rotate(-9deg);
+}
+.hud__sc-ejection-count { font-size: 9px; font-weight: 800; color: #ffd9dc; }
+@keyframes hud-ejection-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* Nota ao vivo do atleta (modo carreira de jogador). */
+.hud__rating {
+  /* À esquerda do botão PAUSAR (topo direito) para nunca sobrepor o controle. */
+  position: absolute;
+  top: 20px; right: 168px;
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 13px;
+  border-radius: 11px;
+  background: linear-gradient(165deg, rgba(16,34,52,.96), rgba(6,16,27,.97));
+  border: 1px solid rgba(255,255,255,.2);
+  box-shadow: 0 10px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.12);
+  color: #fff; font: 800 12px Inter, Arial, sans-serif;
+  letter-spacing: .04em;
+  z-index: 4;
+}
+.hud__rating-label { font-size: 9px; color: #9fdcc8; letter-spacing: .12em; }
+.hud__rating-value { font-size: 22px; min-width: 34px; text-align: center; font-variant-numeric: tabular-nums; }
+.hud__rating-bar { width: 54px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.16); overflow: hidden; }
+.hud__rating-fill { display: block; height: 100%; width: 60%; border-radius: 3px; background: linear-gradient(90deg,#2ef0a8,#3fd7ff); transition: width .3s ease; }
+.hud__rating-scale { font-size: 9px; color: rgba(255,255,255,.5); }
+.hud__rating.is-high .hud__rating-fill { background: linear-gradient(90deg,#ffd84a,#2ef0a8); }
+.hud__rating.is-high .hud__rating-value { color: #ffe27a; text-shadow: 0 0 12px rgba(255,216,74,.5); }
+.hud__rating.is-low .hud__rating-fill { background: linear-gradient(90deg,#ff5a5a,#ff9147); }
+
+/* Expulsão do jogador criado: encerrar ou assistir. */
+.play-dismissal{position:absolute;inset:0;z-index:48;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;color:#fff;background:radial-gradient(ellipse at 50% 40%,#1a0810ee,#04070def 70%);padding:24px}
+.play-dismissal__card{width:26px;height:38px;border-radius:3px;background:linear-gradient(155deg,#ff6b6b,#c81426);box-shadow:0 0 26px #ff3b4a88,0 8px 18px #0009;transform:rotate(-9deg);margin-bottom:6px}
+.play-dismissal__eyebrow{font:800 12px Inter,Arial;letter-spacing:.24em;color:#ff8a92}
+.play-dismissal__title{font:900 italic 44px Inter,Arial;letter-spacing:-1px;margin:0;text-shadow:0 4px 18px #000}
+.play-dismissal__text{max-width:520px;font-size:15px;line-height:1.6;color:#d6dde3;margin:4px 0 12px}
+.play-dismissal__actions{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.play-dismissal__actions button{font:800 14px Inter,Arial;letter-spacing:.06em;padding:14px 26px;border-radius:7px;cursor:pointer}
+/* Na pausa o placar se move para o topo direito: a nota sai de cena. */
+.play__stage.is-paused .hud__rating { display: none; }
+@media (max-width: 900px) { .hud__rating { right: 152px; gap: 6px; padding: 6px 9px; } .hud__rating-scale { display: none; } }
+
+/* ------------------------------------------------- controle tipo console -- */
+/* Com Xbox/PlayStation conectado, o toque sai de cena: nada de analógico
+   virtual nem botões na tela — só o placar e o pause, como num console. */
+.controls.is-gamepad .controls__stick,
+.controls.is-gamepad .controls__buttons,
+.controls.is-gamepad .controls__stick-zone,
+.controls.is-gamepad .controls__pass-feedback {
+  display: none !important;
+}
+
+/* Rodapé pequeno com os botões do controle (o mesmo desenho do padrão
+   Xbox/PlayStation, escolhido pela identificação do gamepad). */
+.play--gamepad::after {
+  content: attr(data-pad-legend);
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 8;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 12, 18, 0.68);
+  color: rgba(255, 255, 255, 0.86);
+  font: 600 13px/1.2 Inter, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+/* O tabuleiro de pausa também aceita o direcional: foco bem visível. */
+.play__overlay button:focus-visible,
+.pause-reference button:focus-visible,
+[data-pad-focus="true"] {
+  outline: 3px solid var(--accent, #2ef0a8);
+  outline-offset: 3px;
+}
+
+/* HUD minimalista no controle: placar e pause continuam; radar e cartão do
+   jogador saem de cena (o controle já mostra tudo no aparelho). Os avisos de
+   gol/falta e o banner continuam, que é o que interessa em campo. */
+.hud.hud--gamepad .hud__radar-wrap,
+.hud.hud--gamepad .hud__player,
+.hud.hud--gamepad .hud__foe,
+.hud.hud--gamepad .hud__poss,
+.hud.hud--gamepad .hud__rating {
+  display: none !important;
+}

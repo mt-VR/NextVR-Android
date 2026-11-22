@@ -79,9 +79,28 @@ STADIUMS.push(
   {id:'camp-nou',name:'Camp Nou',shortName:'Camp Nou',city:'Barcelona · Espanha',capacity:'99.354',tag:'A CASA DO BARCELONA',file:'assets/stadiums/camp-nou-menu.jpg',model:{roof:'open',facade:0x58648a,led:'#a61943',height:24,timeOfDay:'dusk'}},
   {id:'allianz',name:'Allianz Arena',shortName:'Allianz',city:'Munique · Alemanha',capacity:'75.024',tag:'A ARENA DE MUNIQUE',file:'assets/stadiums/allianz-menu.jpg',model:{roof:'ring',facade:0xd62b39,facadeTex:'weave',led:'#ff2533',height:21,weave:true,timeOfDay:'night'}},
   {id:'wembley',name:'Wembley Stadium',shortName:'Wembley',city:'Londres · Inglaterra',capacity:'90.000',tag:'O PALCO DE LONDRES',file:'assets/stadiums/wembley-menu.jpg',model:{roof:'arch',facade:0xb9bec9,led:'#eeeeff',height:22,arch:0xffffff,timeOfDay:'day'}},
-  {id:'monumental',name:'Monumental',shortName:'Monumental',city:'Buenos Aires · Argentina',capacity:'84.567',tag:'A CASA DO RIVER PLATE',file:'assets/stadiums/monumental-menu.jpg',model:{roof:'open',facade:0xa8a4a0,led:'#ee3333',height:23,timeOfDay:'day'}}
+  {id:'monumental',name:'Monumental',shortName:'Monumental',city:'Buenos Aires · Argentina',capacity:'84.567',tag:'A CASA DO RIVER PLATE',file:'assets/stadiums/monumental-menu.jpg',model:{roof:'open',facade:0xa8a4a0,led:'#ee3333',height:23,timeOfDay:'day'}},
+  {
+    id: 'eden-arena',
+    name: 'Eden Arena',
+    shortName: 'Eden Arena',
+    city: 'Praga · Chéquia',
+    capacity: '19.370',
+    tag: 'MODELO 3D COMPLETO · A ARENA DE PRAGA',
+    file: 'assets/stadiums/eden-arena-menu.jpg',
+    glb: 'assets/stadiums/eden_arena.glb',
+    albedo: 'assets/stadiums/eden_arena.jpg',
+    // Centro do gramado pintado no GLB (não o centro da caixa do complexo).
+    glbFit: {
+      rotateY: Math.PI / 2,
+      innerLength: 105,
+      innerWidth: 68,
+      pitchCenter: { x: -46.34, z: -167.26 }
+    },
+    model: { roof: 'open', facade: 0xc45c63, led: '#ff4d5a', height: 18, timeOfDay: 'night' }
+  }
 );
-export const FEATURED_STADIUMS=[0,6,7,8,9,10];
+export const FEATURED_STADIUMS=[11,6,7,8,9,10];
 
 export const STADIUM_COUNT = STADIUMS.length;
 
@@ -128,8 +147,16 @@ export function attachStadiumDome(scene, initialIndex = 0) {
     const count = STADIUMS.length;
     current = ((index % count) + count) % count;
     const stadium = STADIUMS[current];
-    material.map = loadStadiumTexture(stadium.file);
-    material.needsUpdate = true;
+    // Com GLB o horizonte é o modelo 3D, não a foto no domo.
+    if (stadium.glb) {
+      dome.visible = false;
+      if (sky) sky.visible = true;
+    } else {
+      dome.visible = true;
+      if (sky) sky.visible = false;
+      material.map = loadStadiumTexture(stadium.file);
+      material.needsUpdate = true;
+    }
     return stadium;
   }
 

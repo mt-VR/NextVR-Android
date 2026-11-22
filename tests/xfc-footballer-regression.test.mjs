@@ -64,7 +64,8 @@ test('partida real: gol desviado no goleiro celebra o atacante, HUD e jogador co
     await page.click('.stadiums__card:first-child');
     await page.click('.showcase__enter');
     await page.waitForSelector('.hud.is-visible');
-    const result=await page.evaluate(()=>{
+    const result=await page.evaluate(async()=>{
+      const { PITCH } = await import('/src/match3d/constants.js');
       const m=window.__xfcMatch;
       const players=[...m.teams.home.players,...m.teams.away.players];
       const scorer=m.teams.home.players.find(p=>p.role==='ST') || m.teams.home.players.find(p=>!p.isKeeper);
@@ -74,14 +75,15 @@ test('partida real: gol desviado no goleiro celebra o atacante, HUD e jogador co
       m.ball.attachTo(scorer); // Records the intentional possessor, separate from the deflection.
       m.ball.state.owner=null;
       keeper.active=true;
-      keeper.root.position.set(51.7,0,0);
-      m.ball.state.position.set(52.0,1.0,0);
+      keeper.x=PITCH.halfLength-0.8;keeper.z=0;
+      keeper.root.position.set(PITCH.halfLength-0.8,0,0);
+      m.ball.state.position.set(PITCH.halfLength-0.5,1.0,0);
       m.ball.state.velocity.set(20,0,0);
       m.ball.update(.001,[keeper]);
       const actualDeflection=m.ball.state.lastTouch===keeper;
       const intentionalAfterDeflection=m.ball.state.lastIntentionalTouch?.id;
       keeper.active=false;
-      m.ball.state.position.set(52.45,1.2,0);
+      m.ball.state.position.set(PITCH.halfLength-0.05,1.2,0);
       m.ball.state.velocity.set(20,0,0);
       m.ball.state.spin.set(0,0,0);
       m.world.tick(1/60);

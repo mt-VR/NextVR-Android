@@ -1130,6 +1130,14 @@
   border-radius: 2px;
 }
 
+.worldcup__team-crest {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+}
+
 .worldcup__team-name {
   flex: 1;
   font-weight: 700;
@@ -1193,6 +1201,10 @@
   text-align: center;
 }
 
+.worldcup__standings-row .worldcup__team-crest {
+  width: 22px;
+  height: 22px;
+}
 .worldcup__standings-row svg {
   width: 24px;
   height: 16px;
@@ -1298,6 +1310,13 @@
   width: 24px;
   height: 16px;
   border-radius: 2px;
+}
+
+.worldcup__match-flag.worldcup__team-crest,
+img.worldcup__match-flag {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .worldcup__match-name {
@@ -2456,13 +2475,17 @@
 .worldcup__select-team { min-width: 0; display: grid; grid-template-columns: 28px minmax(0,1fr); grid-template-rows: auto auto; align-items: center; column-gap: 9px; row-gap: 4px; padding: 10px 11px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.045); color: #fff; text-align: left; cursor: pointer; transition: border-color 140ms ease,background 140ms ease,transform 140ms ease; }
 .worldcup__select-team:hover { transform: translateY(-2px); border-color: rgba(255,128,180,.62); }
 .worldcup__select-team.is-selected { border-color: #ff88b7; background: linear-gradient(135deg,rgba(255,64,128,.25),rgba(255,64,128,.1)); box-shadow: inset 0 0 18px rgba(255,64,128,.08),0 0 14px rgba(255,64,128,.12); }
-.worldcup__select-team .worldcup__team-flag { grid-row: 1 / span 2; }
+.worldcup__select-team .worldcup__team-flag,
+.worldcup__select-team .worldcup__team-crest { grid-row: 1 / span 2; }
 .worldcup__select-team .worldcup__team-flag svg { width: 28px; height: 19px; }
+.worldcup__select-team .worldcup__team-crest { width: 32px; height: 32px; }
 .worldcup__select-name { overflow: hidden; color: rgba(255,255,255,.92); font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .worldcup__select-stars { color: #ffd849; font-size: 9px; letter-spacing: .05em; white-space: nowrap; }
 .worldcup__selection-aside { position: sticky; top: 18px; display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid rgba(255,128,180,.26); border-radius: 10px; background: linear-gradient(145deg,rgba(96,4,39,.56),rgba(18,7,22,.88)); box-shadow: inset 0 0 28px rgba(255,64,128,.06); }
 .worldcup__selected-team { display: flex; align-items: center; gap: 12px; min-height: 66px; }
 .worldcup__selected-flag svg { width: 56px; height: 38px; border-radius: 5px; box-shadow: 0 5px 14px rgba(0,0,0,.36); }
+.worldcup__selected-flag.worldcup__team-crest,
+img.worldcup__selected-flag { width: 56px; height: 56px; object-fit: contain; }
 .worldcup__selected-copy { display: flex; flex-direction: column; gap: 3px; }
 .worldcup__selected-name { color: #fff; font-size: 20px; font-weight: 900; }
 .worldcup__selected-stars { color: #ffd849; font-size: 11px; }
@@ -2532,7 +2555,7 @@
   .worldcup__selection-aside { grid-template-columns: 1fr; }
   .worldcup__draw-note,.worldcup__start-campaign { grid-column: 1; grid-row: auto; }
 }
-.graphics-settings{padding:12px 0;color:inherit;}.graphics-settings label{display:flex;gap:18px;align-items:center;justify-content:space-between;}.graphics-settings select{font:inherit;padding:10px;color:white;background:#10182b;border:1px solid #969fbb;border-radius:4px;}.graphics-settings p{font-size:13px;line-height:1.45;max-width:640px;color:#bdc8d9;}
+.graphics-settings{padding:12px 0;color:inherit;}.graphics-settings label{display:flex;gap:12px 18px;align-items:center;justify-content:space-between;flex-wrap:wrap;}.graphics-settings label>span{flex:1 1 140px;min-width:0;}.graphics-settings select{font:inherit;padding:10px;color:white;background:#10182b;border:1px solid #969fbb;border-radius:4px;flex:1 1 190px;min-width:0;max-width:100%;}.graphics-settings p{font-size:13px;line-height:1.45;max-width:640px;color:#bdc8d9;}
 /* Biblioteca offline: apenas 36 thumbnails por página, nunca 1976 imagens decodificadas. */
 .screen--asset-library{padding:26px 34px;background:radial-gradient(ellipse at top right,#20362f,#080e18 65%);color:#f4f6fa;overflow:auto;}
 .screen--asset-library>header{display:flex;align-items:center;justify-content:space-between;}.screen--asset-library h1{font-size:32px;margin:5px 0;}.screen--asset-library small{color:#98b5aa;letter-spacing:1px;}
@@ -2548,3 +2571,47 @@
 
 /* Transparência visível também na biblioteca, não mascarada por outro fundo preto. */
 .asset-library__item.has-transparent-crest img,.asset-library__preview img.is-transparent{background:repeating-conic-gradient(#9aaab8 0% 25%,#c8d3dc 0% 50%) 50% / 12px 12px;border-radius:4px;}
+
+.ut-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 8px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(158, 239, 208, 0.28);
+  border-radius: 10px;
+  background: rgba(8, 28, 24, 0.72);
+}
+.ut-identity__crest {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  background: #0b1c18;
+  border-radius: 10px;
+}
+.ut-identity__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+}
+.ut-identity__upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ut-identity__presets { display: flex; gap: 8px; }
+.ut-identity__preset {
+  width: 36px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  background: #10241f;
+  cursor: pointer;
+}
+.ut-identity__preset img { width: 100%; height: 100%; object-fit: contain; }
