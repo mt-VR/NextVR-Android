@@ -986,6 +986,7 @@ export function buildStadium(scene, options = {}) {
   pitch.name='xfc-pitch';
   pitch.userData.turfDetail=turfDetail;
   pitch.rotation.x = -Math.PI / 2;
+  pitch.renderOrder = 2;
   pitch.receiveShadow = true;
   group.add(pitch);
   // Linha lateral branca por cima da relva: a textura corta a borda e a

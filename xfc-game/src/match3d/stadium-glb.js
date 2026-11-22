@@ -23,6 +23,7 @@ function prepareMaterials(root) {
     if (!object.isMesh) return;
     object.castShadow = false;
     object.receiveShadow = true;
+    object.renderOrder = -1;
     const list = Array.isArray(object.material) ? object.material : [object.material];
     for (const material of list) {
       if (!material) continue;
@@ -30,6 +31,9 @@ function prepareMaterials(root) {
       material.transparent = false;
       material.opacity = 1;
       material.depthWrite = true;
+      material.polygonOffset = true;
+      material.polygonOffsetFactor = 2;
+      material.polygonOffsetUnits = 2;
       material.side = THREE.DoubleSide;
       material.needsUpdate = true;
     }
@@ -54,6 +58,10 @@ export function fitStadiumGlb(scene, pitch, fit = {}) {
   const innerLength = fit.innerLength > 0 ? fit.innerLength : 105;
   const innerWidth = fit.innerWidth > 0 ? fit.innerWidth : 68;
   wrap.scale.setScalar(Math.max(pitch.length / innerLength, pitch.width / innerWidth));
+  // O GLB traz o próprio piso (cinza). Afunda o modelo para o gramado do XFC
+  // ficar por cima e as arquibancadas ainda aparecerem em volta.
+  const sink = Number.isFinite(fit.sink) && fit.sink >= 0 ? fit.sink : 1.6;
+  wrap.position.y -= sink;
   return wrap;
 }
 
