@@ -223,17 +223,24 @@ export function nationColors(team) {
   return withShorts(team.id, { primary, secondary, trim, keeperPrimary, keeperSecondary });
 }
 
+/** Camisa de verdade: Argentina é listra vertical albiceleste, não bloco liso. */
+const NATION_PATTERNS = {
+  argentina: 'stripes'
+};
+
 /** Uniformes da seleção para o carrossel do Kick Off (casa e visitante). */
 export function nationKits(team) {
   const colors = nationColors(team) || withShorts(team?.id, { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b' });
   const name = team?.name || 'Seleção';
   const homeShorts = colors.shorts || '#183891';
   const homeSocks = colors.socks || '#ffffff';
+  const homePattern = NATION_PATTERNS[team?.id] || 'solid';
   return [
     {
       name: `${name} Home`,
       colors: { primary: colors.primary, secondary: colors.secondary, trim: colors.trim, shorts: homeShorts, socks: homeSocks, keeperPrimary: colors.keeperPrimary, keeperSecondary: colors.keeperSecondary },
-      pattern: 'solid',
+      pattern: homePattern,
+      stripeCount: team?.id === 'argentina' ? 10 : undefined,
       shorts: homeShorts,
       socks: homeSocks,
       keeper: { primary: colors.keeperPrimary || '#f2c94c', secondary: colors.keeperSecondary || '#20232a' }

@@ -438,8 +438,8 @@ function drawKitTexture(context, width, height, kit) {
 
   if (pattern === 'stripes') {
     context.fillStyle = secondary;
-    const stripes = 9;
-    for (let stripe = 0; stripe < stripes; stripe += 2) {
+    const stripes = kit.stripeCount || 9;
+    for (let stripe = 1; stripe < stripes; stripe += 2) {
       context.fillRect((stripe / stripes) * width, 0, width / stripes, height);
     }
   } else if (pattern === 'sash') {

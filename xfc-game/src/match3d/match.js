@@ -367,6 +367,7 @@ export function createMatch(options = {}) {
       secondary: colors.secondary,
       accent: colors.trim || colors.accent || '#ffffff',
       pattern: kit?.pattern || 'solid',
+      stripeCount: kit?.stripeCount,
       libraryFront:kit?.libraryFront,libraryBack:kit?.libraryBack,
       shorts: kit?.shorts || colors.shorts || colors.primary,
       socks: kit?.socks || colors.socks || colors.primary,
@@ -620,14 +621,14 @@ export function createMatch(options = {}) {
       : lob
         ? Math.max(10, Math.min(20, distance * 0.7 + 5))
         : Math.max(7, Math.min(19, distance * 0.62 + 4 + power * 0.08));
-    const guide = target.active
-      ? { receiver: target, x: aimX, z: aimZ, through, follow:!through&&!targetPoint, maxTime:requested?12:2.4 }
+    // FC 27: passe rasteiro vai reto. Sem homing no recebedor (isso virava curva).
+    const guide = through && target.active
+      ? { receiver: target, x: aimX, z: aimZ, through: true, follow: false, maxTime: 1.7 }
       : null;
-    // Enfiada é rasteira e firme; só os cruzamentos/escanteios usam a bola alta.
-    const flightLift = lift ?? (requested ? .025 : lob ? 0.42 : through ? 0.055 : 0.11);
+    const flightLift = lift ?? (requested ? .02 : lob ? 0.42 : through ? 0.04 : 0.03);
     ball.kick(direction, speed, flightLift, {
       guide,
-      curve: clampSetPiece(curve, -1, 1)
+      curve: 0
     });
     ball.state.offside=offsidePlayers.length?{side:player.side,players:offsidePlayers}:null;
     ball.state.lastShotKind = null;

@@ -226,11 +226,11 @@ function shirtMarkup(kit, clipId) {
   if(kit.pattern==='halves')stripes.push(`<rect x="110" y="0" width="110" height="240" fill="${secondary}"/>`);
   if(kit.pattern==='hoops')for(let y=40;y<240;y+=40)stripes.push(`<rect x="0" y="${y}" width="220" height="20" fill="${secondary}"/>`);
   if (kit.pattern === 'stripes') {
-    // Seis faixas verticais do ombro à barra, alternando as duas cores.
     const bodyLeft = 54;
     const bodyWidth = 112;
-    const band = bodyWidth / 6;
-    for (let i = 0; i < 6; i += 1) {
+    const count = kit.stripeCount || 6;
+    const band = bodyWidth / count;
+    for (let i = 0; i < count; i += 1) {
       stripes.push(`<rect x="${(bodyLeft + i * band).toFixed(1)}" y="0" width="${band.toFixed(1)}" height="240" fill="${i % 2 === 0 ? primary : secondary}"/>`);
     }
   }

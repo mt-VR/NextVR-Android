@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/teams.js';
 import { NATIONAL_TEAMS, GROUP_NAMES, createWorldCupCampaign, campaignStandings, nextCampaignMatch, recordCampaignMatchResult, getNationalTeam } from '../xfc-game/src/data/worldcup.js';
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
+import { nationKits } from '../xfc-game/src/data/nation-kits.js';
 import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, insideGoalAreaFor } from '../xfc-game/src/match3d/sides.js';
 import { PITCH } from '../xfc-game/src/match3d/constants.js';
 import { qualityStepsFor, rendererProfileFor } from '../xfc-game/src/match3d/engine.js';
@@ -495,6 +496,11 @@ test('Copa inclui as 32 seleções de 2022 com XI nacional jogável', () => {
     'Neymar é o 10 do Brasil');
   assert.ok(getNationalTeam('argentina').players.some(player => player.name === 'Lionel Messi'),
     'a Argentina usa nomes da geração de 2022');
+  const argentinaKit = nationKits(getNationalTeam('argentina'))[0];
+  assert.equal(argentinaKit.pattern, 'stripes', 'a camisa da Argentina é listrada');
+  assert.equal(argentinaKit.stripeCount, 10, 'as listras da Albiceleste atravessam o peito');
+  assert.equal(argentinaKit.colors.primary, '#1e4e8c');
+  assert.equal(argentinaKit.colors.secondary, '#ffffff');
 });
 
 test('campanha da Copa sorteia a seleção escolhida em um grupo e avança por toda a chave', () => {

@@ -80,11 +80,11 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/match3d/hud.js": "43939e6083e8772dfaecd7f0f0ef23192c17e2ef80b6054a4f9c0ae3a8ea0285",
   "src/match3d/controls.js": "0a57665884bc6b8fd681fc771905286f19b055dd0f2580170abd960e80c50c47",
   // v0.5.70: falta (barreira/corredor) e recepção do treino coletivo.
-  "src/match3d/match.js": "5eec6de6a279986813acbffeb919f84dbed87472ac25d486ddf27e0e869fbee8",
+  "src/match3d/match.js": "304537b1f25d775aa224375947547ec331da8ff4f5d5d483361cb652b35a9e73",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).
-  "styles/match3d.css": "858f66144bd7c9b04c7dce479d0c1770c6381e9041d38a2bf4981b1c8384b6d5"
+  "styles/match3d.css": "7805e348bc686acbae503c75eda57988a4706b4d5d58e12bc6fd5ba7fc88dfb9"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });

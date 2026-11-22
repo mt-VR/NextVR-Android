@@ -42,7 +42,7 @@ const projection = new THREE.Vector3();
 
 const NATIONAL_COLORS = {
   brazil: { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b', shorts: '#183891', socks: '#ffffff' },
-  argentina: { primary: '#79c6e8', secondary: '#ffffff', trim: '#1a4f91', keeperPrimary: '#293444', keeperSecondary: '#f4c542', shorts: '#1a1a1a', socks: '#ffffff' },
+  argentina: { primary: '#1e4e8c', secondary: '#ffffff', trim: '#0a1f44', keeperPrimary: '#293444', keeperSecondary: '#f4c542', shorts: '#1a1a1a', socks: '#ffffff' },
   france: { primary: '#173c78', secondary: '#e6424a', trim: '#ffffff', keeperPrimary: '#d5b52e', keeperSecondary: '#222222', shorts: '#f4f4f4', socks: '#e6424a' },
   england: { primary: '#f4f4f4', secondary: '#19366f', trim: '#d23b4b', keeperPrimary: '#42a76b', keeperSecondary: '#173523', shorts: '#19366f', socks: '#f4f4f4' },
   spain: { primary: '#d92332', secondary: '#f5ca31', trim: '#f4f4f4', keeperPrimary: '#2963bd', keeperSecondary: '#13264a', shorts: '#1a3d8f', socks: '#d92332' },
