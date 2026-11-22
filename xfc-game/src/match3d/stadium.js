@@ -321,9 +321,9 @@ function drawCrowd(context, width, height) {
   context.fillRect(0, height * tierSplit - 8, width, 2);
   context.fillRect(0, height * tierSplit + 6, width, 2);
 
-  const rows = 24;
+  const rows = 40;
   const rowHeight = height / rows;
-  const seats = 88;
+  const seats = 180;
   const seatWidth = width / seats;
   const homeColors = ['#2872b8', '#4388c7', '#dfe9f2', '#1a426e', '#78add5'];
   const awayColors = ['#b92d43', '#d7434b', '#e4b94d', '#eee7d9', '#713447'];
@@ -338,7 +338,7 @@ function drawCrowd(context, width, height) {
     context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.14)';
     context.fillRect(0, rowY, width, rowHeight * 0.24);
     for (let seat = 0; seat < seats; seat += 1) {
-      if (rand() < 0.045) continue;
+      if (rand() < 0.018) continue;
       const u = (seat + 0.5) / seats;
       const away = isAwaySection(u);
       const palette = away ? awayColors : homeColors;
@@ -558,16 +558,21 @@ function drawSky(context, width, height, timeOfDay = 'night') {
 
 /** Torcida em pixel art (blocos) que pula quando sai gol. */
 function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) {
-  const rows = lowPower ? 4 : 7;
-  const columns = Math.max(14, Math.floor(width / (lowPower ? 4.2 : 3.1)));
+  const seatGap = lowPower ? 1.05 : 0.7;
+  const rowGap = lowPower ? 1.2 : 0.82;
+  let columns = Math.max(28, Math.floor(width / seatGap));
+  let rows = Math.max(12, Math.floor(depth * 0.9 / rowGap));
+  const cap = lowPower ? 3200 : 6800;
+  while (rows * columns > cap && rows > 10) rows -= 1;
+  while (rows * columns > cap && columns > 24) columns -= 1;
   const count = rows * columns;
   const bodies = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(0.26, 0.5, 0.16),
+    new THREE.BoxGeometry(0.22, 0.4, 0.14),
     new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10151c }),
     count
   );
   const heads = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(0.2, 0.2, 0.2),
+    new THREE.BoxGeometry(0.16, 0.16, 0.16),
     new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x18140f }),
     count
   );
@@ -608,12 +613,12 @@ function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) 
       - (z - slopeCenterZ) * Math.tan(slopeAngle);
     for (let column = 0; column < columns; column += 1) {
       const spacing = width / columns;
-      const x = -width / 2 + (column + 0.5 + (row % 2) * 0.18) * spacing;
-      const bodyY = surfaceY + 0.28;
-      const headY = surfaceY + 0.62;
-      const rot = (random() - 0.5) * 0.18;
-      const sx = 0.9, sy = 0.92 + random() * 0.18, sz = 0.82;
-      const headS = 0.95 + random() * 0.14;
+      const x = -width / 2 + (column + 0.5 + (row % 2) * 0.42) * spacing;
+      const bodyY = surfaceY + 0.22;
+      const headY = surfaceY + 0.5;
+      const rot = (random() - 0.5) * 0.12;
+      const sx = 0.86 + random() * 0.1, sy = 0.88 + random() * 0.16, sz = 0.8;
+      const headS = 0.9 + random() * 0.12;
       bank.x[instance] = x;
       bank.z[instance] = z;
       bank.bodyY[instance] = bodyY;
