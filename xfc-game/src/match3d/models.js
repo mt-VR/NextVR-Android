@@ -836,14 +836,8 @@ export function createGltfPlayer(options = {}) {
       jog = 1 - t;
       run = t;
     }
-    let sprint = 0;
-    if (value >= 5.1) {
-      const s = Math.min(1, (value - 5.1) / 1.5);
-      sprint = run * s;
-      run *= (1 - s);
-    }
     const blend=1-Math.exp(-dt*12);
-    const targets={idle,jog,run,sprint};
+    const targets={idle,jog,run};
     const lowPose=['dive','tackle','fall','miss','catch','throw-in'].includes(gesture.name) && gesture.maskName==='full';
     const locomotionGain=lowPose?1-gestureEnvelope()*gesture.weight:1;
     // Fase compartilhada evita pernas opostas ao misturar trote e corrida.
@@ -861,7 +855,7 @@ export function createGltfPlayer(options = {}) {
     const acceleration=dt>0?(value-previousSpeed)/dt:0;
     gaitAcceleration+=(Math.max(-4,Math.min(8,acceleration))-gaitAcceleration)*(1-Math.exp(-dt*6));
     previousSpeed=value;
-    for(const name of ['idle','jog','run','sprint']) {
+    for(const name of ['idle','jog','run']) {
       const weight=state.locomotionWeights[name]+(targets[name]-state.locomotionWeights[name])*blend;
       state.locomotionWeights[name]=weight;
       const action=actionFor(name,null,'full');if(!action)continue;
