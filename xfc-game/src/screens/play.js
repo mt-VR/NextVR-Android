@@ -528,7 +528,7 @@ export function playScreen(ctx, params = {}) {
       case 'goal': {
         const team = event.team === 'home' ? home : away;
         const [homeScore, awayScore] = event.score;
-        cheer({ duration: 2.8, peak: 0.55 });
+        /* torcida no gol: silêncio */
         const scorerName = event.scorer?.name || (event.ownGoalBy ? `${event.ownGoalBy.name} (contra)` : 'GOL');
         // A comemoração fica no rodapé, com a camisa e o nome de quem fez o gol.
         hud.showGoalCard({

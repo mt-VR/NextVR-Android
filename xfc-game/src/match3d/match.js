@@ -32,7 +32,7 @@ import {
   tunnelSlot,
   walkoutPath
 } from './prematch.js';
-import { cheer, kickSound, netRattle, setCrowdHeat, tickCrowd } from '../audio.js';
+import { kickSound, netRattle } from '../audio.js';
 import { createGltfPlayer, gltfPlayersEnabled } from './models.js';
 import { installAnimationApi } from './animation.js';
 import { createTeamAI } from './ai.js';
@@ -1814,10 +1814,8 @@ export function createMatch(options = {}) {
       score: [teams.home.score, teams.away.score],
       minute: clock.minutes
     });
-    cheer({ duration: 2.8, peak: 0.55 });
     netRattle(26);
     stadiumMesh.celebrateGoal?.();
-    setCrowdHeat(side === userSide ? 1 : 0.55);
   }
 
   // Árbitro: uniforme preto com acentos amarelos — distinto dos dois times.
@@ -3764,23 +3762,6 @@ export function createMatch(options = {}) {
     // Com o jogo pausado (intervalo, menu de pausa) nada anda no campo.
     if (paused) return;
     stadiumMesh.update(dt);
-    if (!training.enabled && phase.name !== 'entrance') {
-      const owner = ball.state.owner;
-      const sign = attackSign(userSide);
-      const ballX = ball.state.position.x;
-      if (phase.name === 'goal') {
-        setCrowdHeat(1);
-      } else if (owner?.side === userSide && ballX * sign > -8) {
-        setCrowdHeat(0.82);
-      } else if (owner?.side === userSide) {
-        setCrowdHeat(0.32);
-      } else if (owner) {
-        setCrowdHeat(0.04);
-      } else {
-        setCrowdHeat(0.12);
-      }
-      tickCrowd(dt);
-    }
     if(updatePenaltyRunup(dt))return;
     if (training.enabled) {
       updateTraining(dt);

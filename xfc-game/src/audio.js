@@ -86,55 +86,8 @@ export function whistle(type = 'short') {
   }
 }
 
-/** Festa da torcida: ruído em rajada com corpo grave, como a arquibancada vibrando. */
-export function cheer({ duration = 2.4, peak = 0.5 } = {}) {
-  const audio = ac();
-  if (!audio) return;
-  const now = audio.currentTime;
-  const bufferSize = audio.sampleRate * duration;
-  const buffer = audio.createBuffer(1, bufferSize, audio.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i += 1) {
-    data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize * 0.55);
-  }
-  const noise = audio.createBufferSource();
-  noise.buffer = buffer;
-
-  const band = audio.createBiquadFilter();
-  band.type = 'bandpass';
-  band.frequency.setValueAtTime(500, now);
-  band.frequency.exponentialRampToValueAtTime(950, now + 0.35);
-  band.frequency.exponentialRampToValueAtTime(350, now + duration);
-  band.Q.value = 0.9;
-
-  const gain = audio.createGain();
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(peak, now + 0.22);
-  gain.gain.setValueAtTime(peak, now + duration * 0.55);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-  noise.connect(band);
-  band.connect(gain);
-  gain.connect(audio.destination);
-  noise.start(now);
-  noise.stop(now + duration);
-
-  // Pompas rítmicas de "olé" por cima da massa.
-  for (let thump = 0; thump < 6; thump += 1) {
-    const at = now + 0.3 + thump * (duration / 6.5) + Math.random() * 0.12;
-    const osc = audio.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(90 + Math.random() * 40, at);
-    const thumpGain = audio.createGain();
-    thumpGain.gain.setValueAtTime(0.0001, at);
-    thumpGain.gain.exponentialRampToValueAtTime(0.16, at + 0.02);
-    thumpGain.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
-    osc.connect(thumpGain);
-    thumpGain.connect(audio.destination);
-    osc.start(at);
-    osc.stop(at + 0.25);
-  }
-}
+/** Festa da torcida: desligada. */
+export function cheer() {}
 
 /** Batida seca da bola (chute/passe). strength: 0..1 */
 export function kickSound(strength = 0.6) {
@@ -234,47 +187,5 @@ export function boo() {
   noise.stop(now + 1.6);
 }
 
-let crowdBed = null;
-
-/** Cama da torcida: sobe no ataque do jogador e some devagar na perda. */
-export function setCrowdHeat(level) {
-  const audio = ac();
-  if (!audio) return;
-  if (!crowdBed) {
-    const duration = 2.4;
-    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * duration), audio.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
-    const source = audio.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-    const band = audio.createBiquadFilter();
-    band.type = 'bandpass';
-    band.frequency.value = 430;
-    band.Q.value = 0.75;
-    const low = audio.createBiquadFilter();
-    low.type = 'lowshelf';
-    low.frequency.value = 160;
-    low.gain.value = 4;
-    const gain = audio.createGain();
-    gain.gain.value = 0.0001;
-    source.connect(band);
-    band.connect(low);
-    low.connect(gain);
-    gain.connect(audio.destination);
-    source.start();
-    crowdBed = { gain, target: 0, current: 0 };
-  }
-  crowdBed.target = Math.max(0, Math.min(1, Number(level) || 0));
-}
-
-export function tickCrowd(dt) {
-  if (!crowdBed) return;
-  const audio = ac();
-  if (!audio) return;
-  const rising = crowdBed.target > crowdBed.current + 0.01;
-  const rate = rising ? 2.2 : 0.32;
-  crowdBed.current += (crowdBed.target - crowdBed.current) * Math.min(1, rate * Math.max(0, dt));
-  const peak = 0.0001 + crowdBed.current * 0.2;
-  crowdBed.gain.gain.setTargetAtTime(peak, audio.currentTime, rising ? 0.12 : 0.9);
-}
+export function setCrowdHeat() {}
+export function tickCrowd() {}
