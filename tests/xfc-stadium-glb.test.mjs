@@ -17,4 +17,6 @@ test('Eden Arena entra como GLB leve na galeria, com cartão JPEG', async () => 
   assert.equal(header.subarray(0, 4).toString(), 'glTF');
   const menu = await readFile(`xfc-game/${eden.file}`);
   assert.equal(menu.readUInt16BE(0), 0xffd8);
+  const albedo = await readFile(`xfc-game/${eden.albedo}`);
+  assert.equal(albedo.readUInt16BE(0), 0xffd8);
 });

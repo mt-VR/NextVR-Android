@@ -13,3 +13,4 @@ terceiros e entra com a licença original.
   jogável, as traves e as linhas continuam sendo os do motor.
 - `eden-arena-menu.jpg`: recorte da textura do próprio GLB, só para o cartão
   do menu.
+- `eden_arena.jpg`: a mesma difusa, JPEG 1024, para o WebView pintar o modelo.

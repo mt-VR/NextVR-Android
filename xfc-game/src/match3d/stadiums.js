@@ -89,6 +89,7 @@ STADIUMS.push(
     tag: 'MODELO 3D COMPLETO · A ARENA DE PRAGA',
     file: 'assets/stadiums/eden-arena-menu.jpg',
     glb: 'assets/stadiums/eden_arena.glb',
+    albedo: 'assets/stadiums/eden_arena.jpg',
     // Centro do gramado pintado no GLB (não o centro da caixa do complexo).
     glbFit: {
       rotateY: Math.PI / 2,

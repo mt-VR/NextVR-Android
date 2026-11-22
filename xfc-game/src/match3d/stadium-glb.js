@@ -1,5 +1,5 @@
-// Carrega o estádio .glb inteiro (gramado, arquibancada, teto, arredores).
-// Se o arquivo faltar ou o loader falhar, o estádio procedural continua.
+// Carrega o estádio .glb inteiro. A difusa vai num JPEG à parte: o PNG
+// specular-glossiness do Sketchfab chega cinza no WebView do Android.
 
 import { THREE } from './engine.js';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
@@ -18,36 +18,36 @@ function loadGlb(url) {
   return promise;
 }
 
-/** Lambert + difusa: o specular-glossiness do Sketchfab fica cinza no WebView. */
-function prepareMaterials(root) {
+function loadAlbedo(url) {
+  if (!url) return Promise.resolve(null);
+  return new Promise(resolve => {
+    new THREE.TextureLoader().load(url, texture => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.flipY = false;
+      texture.anisotropy = 2;
+      texture.needsUpdate = true;
+      resolve(texture);
+    }, undefined, () => resolve(null));
+  });
+}
+
+function paintStadium(root, albedo) {
   root.traverse(object => {
     if (!object.isMesh) return;
     object.castShadow = false;
     object.receiveShadow = true;
-    const list = Array.isArray(object.material) ? object.material : [object.material];
-    const next = list.map(material => {
-      if (!material) return material;
-      const map = material.map;
-      if (map) {
-        map.colorSpace = THREE.SRGBColorSpace;
-        map.anisotropy = 2;
-        map.needsUpdate = true;
-      }
-      return new THREE.MeshLambertMaterial({
-        map: map || null,
-        color: 0xffffff,
-        side: THREE.DoubleSide,
-        transparent: false,
-        depthWrite: true
-      });
+    object.material = new THREE.MeshBasicMaterial({
+      map: albedo,
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      fog: true,
+      depthWrite: true
     });
-    object.material = next.length === 1 ? next[0] : next;
   });
 }
 
 /**
- * Encaixa o modelo completo: o centro do gramado do GLB vai para a origem
- * do XFC, o chão senta em y=0 e a escala casa o campo interno com o PITCH.
+ * O centro do gramado do GLB vai para a origem do XFC.
  */
 export function fitStadiumGlb(scene, pitch, fit = {}) {
   const wrap = new THREE.Group();
@@ -72,34 +72,19 @@ export function fitStadiumGlb(scene, pitch, fit = {}) {
   return wrap;
 }
 
-const HIDE_WHEN_GLB = [
-  'xfc-procedural-bowl',
-  'xfc-pitch',
-  'xfc-pitch-surround',
-  'xfc-stadium-foundation',
-  'xfc-procedural-grass',
-  'xfc-touchline',
-  'xfc-goalline'
-];
-
-export function hideProceduralPitch(root) {
-  root.traverse(object => {
-    if (HIDE_WHEN_GLB.includes(object.name)) object.visible = false;
-  });
-}
-
-/** Anexa o GLB completo. `onReady` esconde o palco procedural. */
 export function mountStadiumGlb(parent, stadium, pitch, onReady) {
   const holder = new THREE.Group();
   holder.name = 'xfc-stadium-glb';
   parent.add(holder);
   let cancelled = false;
-  loadGlb(stadium.glb).then(gltf => {
+  Promise.all([loadGlb(stadium.glb), loadAlbedo(stadium.albedo)]).then(([gltf, albedo]) => {
     if (cancelled) return;
     const root = gltf.scene.clone(true);
-    prepareMaterials(root);
+    paintStadium(root, albedo);
     holder.add(fitStadiumGlb(root, pitch, stadium.glbFit || {}));
-    hideProceduralPitch(parent);
+    parent.traverse(object => {
+      if (object.name === 'xfc-procedural-bowl') object.visible = false;
+    });
     onReady?.(holder);
   }).catch(error => {
     console.warn('[xfc] estádio glTF indisponível', stadium.glb, error?.message || error);
