@@ -112,6 +112,55 @@ test('a IA preserva largura, cria opções de passe e recompõe o bloco sem a bo
     'a ponta recua para recompor o bloco defensivo quando o adversário recupera a bola');
 });
 
+test('o rival chuta quando chega na área, em vez de só tocar pra frente', () => {
+  const makePlayer = (side, index, slot) => ({
+    id: `${side}-${index}`,
+    side,
+    index,
+    role: slot.role,
+    isKeeper: slot.role === 'GK',
+    isGK: slot.role === 'GK',
+    active: true,
+    x: slot.x * (side === 'home' ? 1 : -1),
+    z: slot.z,
+    vx: 0,
+    vz: 0,
+    facingAngle: side === 'home' ? Math.PI / 2 : -Math.PI / 2,
+    facing: { x: side === 'home' ? 1 : -1, z: 0 },
+    root: { rotation: { y: 0 } },
+    sprint: false
+  });
+  const home = MATCH_FORMATION_433.map((slot, index) => makePlayer('home', index, slot));
+  const away = MATCH_FORMATION_433.map((slot, index) => makePlayer('away', index, slot));
+  const striker = home.find(player => player.role === 'ST');
+  striker.x = 48;
+  striker.z = 4;
+  const world = {
+    ball: {
+      state: {
+        position: { x: 48, y: 0.11, z: 4 },
+        velocity: { x: 0, y: 0, z: 0 },
+        owner: striker
+      }
+    },
+    members: side => (side === 'home' ? home : away).filter(player => player.active),
+    isUserControlled: () => false,
+    isPlayable: () => true,
+    openSpace: () => 10,
+    rng: () => 0.5,
+    kicks: [],
+    shots: [],
+    kickBall(...args) { this.kicks.push(args); },
+    shootBall(...args) { this.shots.push(args); },
+    tackle() {},
+    diveKeeper() {}
+  };
+  const ai = createTeamAI({ side: 'home', world });
+  for (let frame = 0; frame < 12; frame += 1) ai.update(1 / 60);
+  assert.ok(world.shots.length >= 1, 'na área o atacante finaliza');
+  assert.equal(world.kicks.length, 0, 'não troca o chute por passe na área');
+});
+
 test('qualidade gráfica móvel fica fixa para não piscar ao redimensionar o buffer WebGL', () => {
   assert.deepEqual(qualityStepsFor(1), [1, 0.85, 0.7, 0.6],
     'desktop ainda pode descer a resolução, nunca saltar para 1,25');
@@ -969,17 +1018,17 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.deepEqual(stickStyle, ['76px', '92px'], 'o joystick usa a posição da nova referência de controles');
     const passBox = await page.locator('.ctrl-btn--pass').boundingBox();
     const runBox = await page.locator('.ctrl-btn--sprint').boundingBox();
-    // v0.5.52: o controle virou dois arcos limpos — PASSE (principal) embaixo,
-    // CHUTE em cima, com ENFIADA/CORRER como satélites. O importante é o alvo
-    // do dedo: nenhum botão abaixo de 96 px no palco (>= ~60 px reais).
-    // As caixas vêm em px de tela (o palco escala: 1600×900 → fator 1,25), por
-    // isso a checagem é proporcional ao fator do palco.
+    const shootBox = await page.locator('.ctrl-btn--shoot').boundingBox();
+    const throughBox = await page.locator('.ctrl-btn--lob').boundingBox();
+    // Losango FC Mobile: THROUGH/SHOOT em cima, PASS/SPRINT embaixo.
     const stageScale = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.stage')).getPropertyValue('--stage-scale')) || 1);
     const px = v => v * stageScale;
-    assert.ok(passBox && runBox && passBox.width >= px(100) && passBox.width <= px(125) && runBox.width >= px(86) && runBox.width <= px(105),
-      `PASSE e CORRER mantêm alvos proporcionais sem ocupar o campo (${passBox?.width}/${runBox?.width} px, escala ${stageScale})`);
-    assert.ok(runBox.x < passBox.x && passBox.x - runBox.x < px(170),
-      'CORRER fica ao lado esquerdo do PASSE, no mesmo arco');
+    assert.ok(passBox && runBox && passBox.width >= px(100) && passBox.width <= px(125) && runBox.width >= px(100) && runBox.width <= px(125),
+      `PASS e SPRINT mantêm alvos grandes (${passBox?.width}/${runBox?.width} px, escala ${stageScale})`);
+    assert.ok(passBox.x < runBox.x && runBox.x - passBox.x < px(170),
+      'PASS fica à esquerda de SPRINT, como no FC Mobile');
+    assert.ok(shootBox && throughBox && throughBox.x < shootBox.x,
+      'THROUGH fica à esquerda de SHOOT');
     const allButtons = await page.evaluate(() => [...document.querySelectorAll('.ctrl-btn')].map(b => {
       const r = b.getBoundingClientRect(); return { id: b.dataset.command, w: Math.round(r.width), h: Math.round(r.height) };
     }));

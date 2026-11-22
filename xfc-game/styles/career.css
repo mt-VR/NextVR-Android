@@ -10,18 +10,14 @@
 @media(prefers-reduced-motion:reduce){.season-screen button{transition:none}}
 /* Somente comandos/analógico. Nenhuma regra do placar, relógio ou HUD. */
 .screen--play .controls__buttons{width:392px;height:376px;right:18px;bottom:34px}
-.screen--play .ctrl-btn{background:radial-gradient(circle at 38% 25%,#52634bd6,#0a170df2);border-width:3px;box-shadow:inset 0 2px 5px #ffffff2b,0 3px 8px #0007;font-size:14px;font-weight:600;letter-spacing:0;text-shadow:0 1px 2px #000b}
-/* Arco de ação: CHUTE grande em cima, PASSE grande embaixo (o polegar faz o
-   movimento natural de cima/baixo sem trocar de coluna). ENFIADA e CORRER
-   ficam como satélites à esquerda, cada um com o seu espaço. Nada se sobrepõe:
-   com o layout antigo ENFIADA (bottom:0) encostava no CORRER e CARRINHO
-   flutuava solto 199 px acima, o que trocava o comando no meio da jogada. */
-.screen--play .ctrl-btn--shoot{width:118px;height:118px;right:2px;bottom:216px;border-color:#d8c887}
-.screen--play .ctrl-btn--pass{width:110px;height:110px;right:8px;bottom:86px;border-color:#529dce}
-.screen--play .ctrl-btn--lob{width:96px;height:96px;right:132px;bottom:250px;border-color:#6fc86b}
-.screen--play .ctrl-btn--sprint{width:96px;height:96px;right:138px;bottom:94px;border-color:#d5d9c9}
-.screen--play .ctrl-btn--tackle{width:86px;height:86px;right:244px;bottom:160px;border-color:#c4c7be;font-size:9px}
-.screen--play .ctrl-btn--switch{width:80px;height:80px;right:252px;bottom:48px;border-radius:50%;border-color:#c4c7be;font-size:10px}
+.screen--play .ctrl-btn{background:radial-gradient(circle at 38% 25%,#3a4636d6,#0a120df2);border-width:3px;box-shadow:inset 0 2px 5px #ffffff2b,0 3px 8px #0007;font-size:13px;font-weight:700;letter-spacing:.04em;text-shadow:0 1px 2px #000b}
+/* Losango FC Mobile: THROUGH/SHOOT em cima, PASS/SPRINT embaixo. */
+.screen--play .ctrl-btn--shoot{width:118px;height:118px;right:2px;bottom:216px;border-color:#c45a3a}
+.screen--play .ctrl-btn--lob{width:96px;height:96px;right:132px;bottom:250px;border-color:#b7a24a}
+.screen--play .ctrl-btn--pass{width:110px;height:110px;right:128px;bottom:86px;border-color:#3dba6e}
+.screen--play .ctrl-btn--sprint{width:110px;height:110px;right:6px;bottom:82px;border-color:#3dba6e}
+.screen--play .ctrl-btn--tackle{width:86px;height:86px;right:250px;bottom:160px;border-color:#c4c7be;font-size:9px}
+.screen--play .ctrl-btn--switch{width:80px;height:80px;right:258px;bottom:48px;border-radius:50%;border-color:#c4c7be;font-size:10px}
 .screen--play .ctrl-btn__gesture{font-size:6px;letter-spacing:0;bottom:20px}.screen--play .ctrl-btn--shoot>.ctrl-btn__gesture{bottom:23px}
 .screen--play .controls__stick{left:76px;bottom:92px;width:152px;height:152px}
 .screen--play .controls__stick-base{border:2px solid #b5c19b89;background:#0c230e55;box-shadow:inset 0 1px 8px #fff1}

@@ -148,14 +148,17 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     }
 
     const distanceToGoal = Math.hypot(goalX - player.x, player.z);
-    const inShootingRange = distanceToGoal < 24 && distanceToGoal > 3.2
-      && Math.abs(player.z) < 16 && Math.abs(player.z) < distanceToGoal * 1.15;
+    const absZ = Math.abs(player.z);
+    const remaining = (goalX - player.x) * attackSign;
+    const facingGoal = remaining > 0.4;
+    const inBox = facingGoal && remaining < 18 && absZ < 22;
+    const inShootingRange = facingGoal && remaining < 32 && distanceToGoal > 3.6 && absZ < 26;
 
-    // Chute quando está de frente para o gol; senão toca pro lado.
+    // Na área o rival finaliza. Fora da área ainda arrisca de média.
     const wantShot = inShootingRange && (
-      distanceToGoal < 13
-        ? chance(pressure > 2.2 ? 0.46 : 0.28, dt)
-        : pressure > 3.6 && chance(0.14, dt)
+      inBox
+        ? (distanceToGoal < 16 || chance(0.42, dt))
+        : chance(distanceToGoal < 26 ? 0.07 : 0.028, dt)
     );
     if (wantShot) {
       const miss = Math.min(0.16, 0.03 + distanceToGoal / 260 + (pressure < 2.4 ? 0.05 : 0));
@@ -171,6 +174,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
       return;
     }
 
+    if (!inBox) {
     // Tocar pro lado: passe quadrado para o companheiro aberto.
     if (chance(0.038 * tactics.pass, dt)) {
       const square = bestSquareTarget(player);
@@ -195,6 +199,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         return;
       }
     }
+    }
 
     // Condução: avança em direção ao gol desviando do marcador mais próximo.
     let nearest = null;
@@ -213,7 +218,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     if (nearest && nearestDistance < 3.1) {
       const side = Math.sign(player.z - nearest.z) || (world.rng() < 0.5 ? 1 : -1);
       targetZ = side * (3.1 + (3.1 - nearestDistance) * 1.35);
-      if (nearestDistance < 2.15 && world.isPlayable() && chance(0.18, dt)) {
+      if (!inShootingRange && nearestDistance < 2.15 && world.isPlayable() && chance(0.18, dt)) {
         const cutX = player.x + attackSign * 3.4;
         const cutZ = player.z + side * 2.4;
         world.kickBall(player, {

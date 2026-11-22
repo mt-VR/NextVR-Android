@@ -15,12 +15,12 @@ const STICK_RADIUS = 44;  // alcance do knob, em px do palco
 const DEAD_ZONE = 0.16;
 
 const BUTTONS = [
-  { id: 'pass', label: 'PASSE', className: 'ctrl-btn--pass' },
-  { id: 'shoot', label: 'CHUTE', className: 'ctrl-btn--shoot' },
-  { id: 'lob', label: 'ENFIADA', className: 'ctrl-btn--lob' },
-  { id: 'tackle', label: 'CARRINHO', className: 'ctrl-btn--tackle' },
-  { id: 'switch', label: 'TROCAR', className: 'ctrl-btn--switch' },
-  { id: 'sprint', label: 'CORRER', className: 'ctrl-btn--sprint' }
+  { id: 'pass', label: 'PASS', className: 'ctrl-btn--pass' },
+  { id: 'shoot', label: 'SHOOT', className: 'ctrl-btn--shoot' },
+  { id: 'lob', label: 'THROUGH', className: 'ctrl-btn--lob' },
+  { id: 'tackle', label: 'SLIDE', className: 'ctrl-btn--tackle' },
+  { id: 'switch', label: 'SWITCH', className: 'ctrl-btn--switch' },
+  { id: 'sprint', label: 'SPRINT', className: 'ctrl-btn--sprint' }
 ];
 
 export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, root, playerCareer=false, padGamepad=null }) {
@@ -88,7 +88,7 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   }
 
   const buttons = BUTTONS.map(original => {
-    const item=playerCareer&&original.id==='switch'?{...original,id:'request-pass',label:'PEDIR PASSE'}:original;
+    const item=playerCareer&&original.id==='switch'?{...original,id:'request-pass',label:'CALL'}:original;
     const button = el('button', {
       class: `ctrl-btn ${item.className}`,
       type: 'button',
@@ -100,8 +100,8 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
           : item.id === 'sprint' ? 'Correr: segure; arraste para cima para chapéu ou para baixo para pedalada' : item.label
     },
       el('span', { text: item.label }),
-      item.id === 'shoot' && el('small', { class: 'ctrl-btn__gesture', text: 'SEGURE: SUPERCHUTE' }),
-      item.id === 'sprint' && el('small', { class: 'ctrl-btn__gesture', text: '↑ CHAPÉU · ↓ PEDALADA' })
+      item.id === 'shoot' && el('small', { class: 'ctrl-btn__gesture', text: 'HOLD' }),
+      item.id === 'sprint' && el('small', { class: 'ctrl-btn__gesture', text: '& SKILL' })
     );
 
     if (item.id === 'shoot') {
