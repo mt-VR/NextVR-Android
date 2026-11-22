@@ -728,7 +728,9 @@ function buildStand(width, depth, height, texture, options = {}) {
   const facadeColor = model.facade ?? 0x2c3a48;
   const facadeMaterial = options.facadeMaterial || null;
 
-  const seatMaterial = new THREE.MeshLambertMaterial({ map: texture, emissive: 0x101a26 });
+  const seatMaterial = options.photoSeats
+    ? new THREE.MeshBasicMaterial({ map: texture, fog: true })
+    : new THREE.MeshLambertMaterial({ map: texture, emissive: 0x101a26 });
   const concreteMaterial = new THREE.MeshLambertMaterial({ color: facadeColor });
   const roofMaterial = new THREE.MeshLambertMaterial({
     color: roofMode === 'arch' ? 0xf4f4f2 : 0x16212c
@@ -750,7 +752,7 @@ function buildStand(width, depth, height, texture, options = {}) {
   slope.position.set(0, slopeCenterY, -0.6);
   slope.rotation.x = angle;
   group.add(slope);
-  addStandCrowd(group, width, depth, height, simple);
+  if (!options.photoSeats) addStandCrowd(group, width, depth, height, simple);
   // Fecha o vão entre a borda inferior inclinada e o muro: antes aparecia
   // o céu/void por baixo das cadeiras, especialmente na câmera de pênalti.
   const supportGeometry=new THREE.BufferGeometry();
@@ -924,7 +926,8 @@ export function buildStadium(scene, options = {}) {
   scene.add(group);
 
   // Modelo do estádio: cobertura, fachada, altura, ambiente e LED mudam por praça.
-  const model = STADIUMS[options.stadium]?.model || {};
+  const stadiumRecord = STADIUMS[options.stadium] || {};
+  const model = stadiumRecord.model || {};
   const standHeight = Math.max(25,(model.height || 17)*1.45);
   const standDepth=36,standOffset=38;
   const timeOfDay = options.timeOfDay || model.timeOfDay || 'night';
@@ -1025,10 +1028,18 @@ export function buildStadium(scene, options = {}) {
   group.add(surround);
 
   // Arquibancadas.
-  const crowdTexture = canvasTexture(1024, 512, drawCrowd);
+  const photoSeats = Boolean(stadiumRecord.seats);
+  const crowdTexture = photoSeats
+    ? new THREE.TextureLoader().load(stadiumRecord.seats, loaded => {
+      loaded.colorSpace = THREE.SRGBColorSpace;
+      loaded.anisotropy = 2;
+    })
+    : canvasTexture(1024, 512, drawCrowd);
+  crowdTexture.colorSpace = THREE.SRGBColorSpace;
   crowdTexture.wrapS = THREE.RepeatWrapping;
   crowdTexture.wrapT = THREE.RepeatWrapping;
-  crowdTexture.repeat.set(3.2, 1.15);
+  crowdTexture.repeat.set(photoSeats ? 2.2 : 3.2, photoSeats ? 1.05 : 1.15);
+  crowdTexture.anisotropy = 2;
   const facadeBase = `#${new THREE.Color(model.facade ?? 0x2c3a48).getHexString()}`;
   const facadeMaterial = new THREE.MeshLambertMaterial({
     map: canvasTexture(512, 256, (context, width, height) =>
@@ -1049,7 +1060,8 @@ export function buildStadium(scene, options = {}) {
       ...option,
       model,
       simple: lowPower,
-      facadeMaterial
+      facadeMaterial,
+      photoSeats
     }));
   }
   group.add(bowl);
@@ -1286,7 +1298,6 @@ export function buildStadium(scene, options = {}) {
   const ambient = new THREE.AmbientLight(0xf5f8ff, lighting.ambientIntensity);
   group.add(ambient);
 
-  const stadiumRecord = STADIUMS[options.stadium];
   const glbMount = stadiumRecord?.glb
     ? mountStadiumGlb(group, stadiumRecord, PITCH)
     : null;

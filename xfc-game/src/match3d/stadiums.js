@@ -88,8 +88,9 @@ STADIUMS.push(
     capacity: '19.370',
     tag: 'A ARENA DE PRAGA',
     file: 'assets/stadiums/eden-arena-menu.jpg',
-    // O GLB do Sketchfab é o quarteirão (hotel no campo). No jogo fica só a
-    // arquibancada do XFC em volta do gramado.
+    // Cadeiras vermelhas do modelo da Eden Arena. O GLB inteiro é o
+    // quarteirão (hotel no campo); no jogo entra só a arquibancada texturizada.
+    seats: 'assets/stadiums/eden_seats.jpg',
     model: { roof: 'open', facade: 0xc45c63, led: '#ff4d5a', height: 18, timeOfDay: 'night' }
   }
 );

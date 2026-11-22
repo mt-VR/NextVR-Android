@@ -9,5 +9,6 @@ terceiros e entra com a licença original.
 - Autor: [Karpulya](https://sketchfab.com/Karpulya)
 - Licença: [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/)
 - Origem: https://sketchfab.com/3d-models/eden-arena-8f1caa3250424e8e8769a405f1194468
-- Uso: o GLB é o quarteirão inteiro, então a partida usa a arquibancada do
-  XFC. `eden-arena-menu.jpg` é recorte da textura, só para o cartão do menu.
+- Uso: o GLB é o quarteirão inteiro, então a partida usa só a arquibancada
+  com a textura das cadeiras (`eden_seats.jpg`, recorte da difusa).
+  `eden-arena-menu.jpg` é recorte da mesma textura, só para o cartão do menu.
