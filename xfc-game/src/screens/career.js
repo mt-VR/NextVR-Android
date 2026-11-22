@@ -22,8 +22,8 @@ export function careerScreen(ctx,params={}){
  const back=()=>view==='entry'?ctx.go('menu'):view==='custom-edit'?go('custom',{back:params.customReturnTo||'hub'}):go(params.back||({journey:'entry',hub:'journey','custom-edit':'custom'}[view])||(['create','load','objectives','settings'].includes(view)&&params.fromEntry?'entry':'hub'));
  const presentation=kind==='player'&&c&&!c.pending&&pendingCareerPresentation(c);
  if(presentation&&['journey','hub','office','transfers','presentation'].includes(view))return careerPresentation(ctx,{career:c,event:presentation,persist,go});
- // Cutscene de prêmio (Bola de Ouro/Puskás) aparece uma única vez, antes da
- // Central da carreira, depois da temporada em que o atleta ganhou.
+ // Cutscene de prêmio (Bola de Ouro/Puskás): uma vez, na hora em que a
+ // temporada acaba (depois do último jogo, ao voltar à carreira).
  const award=kind==='player'&&c&&!c.pending&&pendingAwardCinematic(c);
  if(view==='award'&&c&&params.awardId){
   const chosen=careerAwardCase(c).find(item=>item.id===params.awardId)||award;

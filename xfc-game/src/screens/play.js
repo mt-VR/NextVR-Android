@@ -1,6 +1,7 @@
 import {getCareer,careerRoster,settleManager,managerTeam} from '../data/career-services.js';
 import {plannedTeam} from '../data/game-plan.js';
 import {settleCareer} from '../data/career.js';
+import {pendingAwardCinematic} from '../data/career-competitions.js';
 import {createCareerRating} from '../data/career-rating.js';
 import {graphicsSettings} from '../ui/graphics-settings.js';
 // Tela da partida: a apresentação pré-jogo (cinematográfica), o jogo 3D em
@@ -769,6 +770,7 @@ export function playScreen(ctx, params = {}) {
     let winner = event.winner || (homeScore === awayScore ? null : homeScore > awayScore ? 'home' : 'away');
     if (!winner && campaignResult?.winner) winner = campaignResult.winner === home.id ? 'home' : 'away';
     const champion = winner === 'home' ? home : winner === 'away' ? away : null;
+    const seasonAward = careerClub && !careerManager ? pendingAwardCinematic(career) : null;
 
     overlay.replaceChildren(el('div', { class: 'result' },
       el('div', { class: 'result__flare' }),
@@ -844,7 +846,8 @@ export function playScreen(ctx, params = {}) {
               ...(params.worldCupCareer ? {fromCareer: true, kind: 'player'} : {})
             })
           }, 'CONTINUAR COPA')
-          : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career',{view:'hub',kind:careerManager?'manager':'player'})},'VOLTAR À CARREIRA')
+          : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career',{view:'hub',kind:careerManager?'manager':'player'})},
+            seasonAward ? (seasonAward.id==='ballon-dor'?'BOLA DE OURO':'PRÊMIO PUSKÁS') : 'VOLTAR À CARREIRA')
           : params.ultimateMatchId ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('ultimate')},'VOLTAR AO CLUBE')
           : el('button', {
             class: 'btn btn--primary',

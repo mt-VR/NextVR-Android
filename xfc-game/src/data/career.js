@@ -116,16 +116,17 @@ export function settleCareer(c,id,score,performance={}){
  for(const [i,game] of c.league.rounds[c.round].entries())if(!game.score)game.score=[(c.round*7+c.season+i*3)%4,(c.round*3+i+c.season)%3];
  c.player.xp+=xp;const level=Math.min(30,1+Math.floor(c.player.xp/250));c.player.points+=(level-c.player.level)*3;c.player.level=level;
  c.totals.matches++;c.totals.goals+=goals;c.totals.shots+=shots;c.totals.passes+=passes;
- c.lastResult={id,score:[...score],rating,xp,goals,shots,passes};c.round++;c.pending=null;return c.lastResult;
+ c.lastResult={id,score:[...score],rating,xp,goals,shots,passes};c.round++;c.pending=null;
+ // Temporada acabou: Bola de Ouro/Puskás entram agora, não na próxima temporada.
+ if(c.round>=c.league.rounds.length)settleSeasonAwards(c);
+ return c.lastResult;
 }
 export function improveCareer(c,stat){if(c.pending||!Object.hasOwn(c.player.stats,stat)||c.player.points<1||c.player.stats[stat]>=95)return false;c.player.stats[stat]++;c.player.points--;return true;}
 export function nextCareerSeason(c,clubId=c.clubId){
  if(c.round<c.league.rounds.length||c.pending||!getTeam(clubId))return false;
  c.history.push({season:c.season,clubId:c.clubId,place:careerTable(c).findIndex(t=>t.id===c.clubId)+1});
  c.history=c.history.slice(-10);
- // Prêmios individuais da temporada que terminou (Bola de Ouro, Puskás...).
- // Ficam gravados no save e a cutscene da Bola de Ouro/Puskás é disparada na
- // próxima visita às telas de carreira (uma única vez).
+ // Se o último jogo já gravou os prêmios, esta chamada não duplica.
  settleSeasonAwards(c);
  const previousClub=c.clubId;c.clubId=clubId;c.season++;c.round=0;
  c.league=careerLeague(clubId,c.season);c.lastResult=null;

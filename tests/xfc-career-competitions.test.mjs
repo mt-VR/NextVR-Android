@@ -5,7 +5,7 @@ import {
   seasonAwards, recordCareerAward, careerAwardCase, pendingAwardCinematic,
   completeAwardCinematic, awardNeedsCinematic, callupNews
 } from '../xfc-game/src/data/career-competitions.js';
-import { createCareer } from '../xfc-game/src/data/career.js';
+import { createCareer, beginCareerMatch, settleCareer, careerFixture } from '../xfc-game/src/data/career.js';
 import { getNationalTeam } from '../xfc-game/src/data/worldcup.js';
 import { negotiationChance, EUROPEAN_CLUBS } from '../xfc-game/src/data/career-market.js';
 import { getTeam, TEAMS } from '../xfc-game/src/data/teams.js';
@@ -65,6 +65,21 @@ test('premios: Bola de Ouro e Puskas exigem temporada de craque e pedem cutscene
   weak.totals = { matches: 6, goals: 1, shots: 4, passes: 40 };
   const weakBallon = seasonAwards(weak).find(a => a.id === 'ballon-dor');
   assert.equal(weakBallon.won, false, 'sem overall/gols nao ganha a Bola de Ouro');
+});
+
+test('Bola de Ouro entra no save no último jogo da temporada, não na próxima', () => {
+  const career = strongCareer('real-madrid');
+  career.totals = { matches: 0, goals: 0, shots: 0, passes: 0 };
+  for (let i = 0; i < 14; i += 1) {
+    const fixture = careerFixture(career);
+    const pending = beginCareerMatch(career);
+    const score = fixture.home === career.clubId ? [3, 0] : [0, 3];
+    assert.ok(settleCareer(career, pending.id, score, { goals: 2, shots: 5, passes: 22 }));
+  }
+  assert.equal(career.round, 14);
+  const pending = pendingAwardCinematic(career);
+  assert.equal(pending?.id, 'ballon-dor', 'a cerimônia fica pronta assim que a temporada acaba');
+  assert.equal(pending.shown, false);
 });
 
 test('premios ficam gravados uma vez e a cutscene nao repete', () => {
