@@ -487,8 +487,11 @@ export function createGltfPlayer(options = {}) {
     gesture.clip = Boolean(clip);
     gesture.duration = Number.isFinite(duration)
       ? duration
-      : (clip?.duration || GESTURES[name] || 0.8);
-    if (clip) fadeAction(name, opts.weight ?? 1, { ...opts, once: true, fade: 0.08, mask: 'full' });
+      : (GESTURES[name] || clip?.duration || 0.8);
+    if (clip) {
+      const action = fadeAction(name, opts.weight ?? 1, { ...opts, once: true, fade: 0.08, mask: 'full' });
+      if (action && clip.duration > 0.05) action.setEffectiveTimeScale(clip.duration / Math.max(0.2, gesture.duration));
+    }
     return name;
   }
 
