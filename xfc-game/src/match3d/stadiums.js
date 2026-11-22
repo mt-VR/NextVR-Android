@@ -86,18 +86,10 @@ STADIUMS.push(
     shortName: 'Eden Arena',
     city: 'Praga · Chéquia',
     capacity: '19.370',
-    tag: 'MODELO 3D COMPLETO · A ARENA DE PRAGA',
+    tag: 'A ARENA DE PRAGA',
     file: 'assets/stadiums/eden-arena-menu.jpg',
-    glb: 'assets/stadiums/eden_arena.glb',
-    albedo: 'assets/stadiums/eden_arena.jpg',
-    // Centro no gramado do GLB, sem girar 90°: o prédio vizinho ia para o
-    // meio do campo. O palco do XFC (relva/gols) fica; o GLB senta em volta.
-    glbFit: {
-      rotateY: 0,
-      innerLength: 105,
-      innerWidth: 68,
-      pitchCenter: { x: -46.34, z: -167.26 }
-    },
+    // O GLB do Sketchfab é o quarteirão (hotel no campo). No jogo fica só a
+    // arquibancada do XFC em volta do gramado.
     model: { roof: 'open', facade: 0xc45c63, led: '#ff4d5a', height: 18, timeOfDay: 'night' }
   }
 );
