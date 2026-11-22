@@ -184,17 +184,17 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.83
+          TAG=xfc-gameplay-v0.5.84
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.83 (versionCode 89), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.84 (versionCode 90), commit ${GITHUB_SHA}." \
             "" \
-            "Passe e enfiada com barra de força. Lateral do jogador. Enfiada interceptável." \
-            "Detalhes: xfc-game/docs/v0.5.83.md.")
+            "Placar LaLiga, +5 visível, torcida pixel e som no ataque." \
+            "Detalhes: xfc-game/docs/v0.5.84.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — passe carregado v0.5.83" \
+            gh release create "$TAG" --title "XFC 27 — torcida e placar v0.5.84" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — passe carregado v0.5.83" \
+            gh release edit "$TAG" --title "XFC 27 — torcida e placar v0.5.84" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

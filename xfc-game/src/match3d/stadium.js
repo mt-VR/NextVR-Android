@@ -346,20 +346,17 @@ function drawCrowd(context, width, height) {
       const x = (seat + 0.5) * seatWidth + (rand() - 0.5) * 2.4;
       const y = rowY + rowHeight * 0.57;
 
-      // Tronco, mangas e cabeça em camadas formam silhuetas de torcedores,
-      // em vez dos antigos pontos de cor que viravam ruído à distância.
+      const px = Math.round(x - seatWidth * 0.28);
+      const py = Math.round(y - rowHeight * 0.22);
+      const bw = Math.max(2, Math.round(seatWidth * 0.56));
+      const bh = Math.max(2, Math.round(rowHeight * 0.42));
+      const hh = Math.max(2, Math.round(rowHeight * 0.22));
       context.fillStyle = 'rgba(12,19,29,0.62)';
-      context.beginPath();
-      context.ellipse(x, y + rowHeight * 0.2, seatWidth * 0.39, rowHeight * 0.24, 0, 0, Math.PI * 2);
-      context.fill();
+      context.fillRect(px, py + hh, bw, bh);
       context.fillStyle = jersey;
-      context.beginPath();
-      context.ellipse(x, y + rowHeight * 0.15, seatWidth * 0.34, rowHeight * 0.21, 0, 0, Math.PI * 2);
-      context.fill();
+      context.fillRect(px + 1, py + hh, bw - 2, bh - 1);
       context.fillStyle = skinColors[Math.floor(rand() * skinColors.length)];
-      context.beginPath();
-      context.arc(x, y - rowHeight * 0.11, rowHeight * 0.14, 0, Math.PI * 2);
-      context.fill();
+      context.fillRect(px + Math.round(bw * 0.22), py, Math.max(2, bw - Math.round(bw * 0.44)), hh);
 
       // Pequena variação de luz nas camisas sem manchas escuras de alto contraste.
       if (rand() < 0.24) {
@@ -559,23 +556,23 @@ function drawSky(context, width, height, timeOfDay = 'night') {
   }
 }
 
-/** Pequenos espectadores instanciados: silhuetas e roupas em cores variadas. */
-function addStandCrowd(group, width, depth, height, lowPower = false) {
-  const rows = lowPower ? 5 : 8;
-  const columns = Math.max(16, Math.floor(width / (lowPower ? 3.8 : 2.8)));
+/** Torcida em pixel art (blocos) que pula quando sai gol. */
+function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) {
+  const rows = lowPower ? 4 : 7;
+  const columns = Math.max(14, Math.floor(width / (lowPower ? 4.2 : 3.1)));
   const count = rows * columns;
   const bodies = new THREE.InstancedMesh(
-    new THREE.CapsuleGeometry(0.115, 0.23, 1, 5),
+    new THREE.BoxGeometry(0.26, 0.5, 0.16),
     new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10151c }),
     count
   );
   const heads = new THREE.InstancedMesh(
-    new THREE.SphereGeometry(0.105, 5, 4),
-    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10110f }),
+    new THREE.BoxGeometry(0.2, 0.2, 0.2),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x18140f }),
     count
   );
-  bodies.name = 'xfc-crowd-simplified-bodies';
-  heads.name = 'xfc-crowd-simplified-heads';
+  bodies.name = 'xfc-crowd-pixel-bodies';
+  heads.name = 'xfc-crowd-pixel-heads';
   bodies.castShadow = false;
   heads.castShadow = false;
   const shirts = [0xe8edf0, 0xd54b40, 0x256bd0, 0x21a982, 0xe3b944, 0x30363e, 0xf2f2e8, 0x842f75];
@@ -586,6 +583,19 @@ function addStandCrowd(group, width, depth, height, lowPower = false) {
   const seatHeight = height - wallHeight;
   const slopeCenterY = wallHeight + Math.hypot(depth,seatHeight)*Math.sin(slopeAngle)/2 + .55/Math.cos(slopeAngle);
   const slopeCenterZ = -0.6;
+  const bank = {
+    bodies, heads, count,
+    x: new Float32Array(count),
+    z: new Float32Array(count),
+    bodyY: new Float32Array(count),
+    headY: new Float32Array(count),
+    rot: new Float32Array(count),
+    sx: new Float32Array(count),
+    sy: new Float32Array(count),
+    sz: new Float32Array(count),
+    headS: new Float32Array(count),
+    phase: new Float32Array(count)
+  };
   let instance = 0;
   let seed = (Math.round(width * 23) ^ Math.round(depth * 89)) >>> 0;
   const random = () => {
@@ -599,16 +609,31 @@ function addStandCrowd(group, width, depth, height, lowPower = false) {
     for (let column = 0; column < columns; column += 1) {
       const spacing = width / columns;
       const x = -width / 2 + (column + 0.5 + (row % 2) * 0.18) * spacing;
-      pose.position.set(x, surfaceY + 0.24, z);
-      pose.rotation.set(0, (random() - 0.5) * 0.24, 0);
-      pose.scale.set(0.84, 0.9 + random() * 0.16, 0.76);
+      const bodyY = surfaceY + 0.28;
+      const headY = surfaceY + 0.62;
+      const rot = (random() - 0.5) * 0.18;
+      const sx = 0.9, sy = 0.92 + random() * 0.18, sz = 0.82;
+      const headS = 0.95 + random() * 0.14;
+      bank.x[instance] = x;
+      bank.z[instance] = z;
+      bank.bodyY[instance] = bodyY;
+      bank.headY[instance] = headY;
+      bank.rot[instance] = rot;
+      bank.sx[instance] = sx;
+      bank.sy[instance] = sy;
+      bank.sz[instance] = sz;
+      bank.headS[instance] = headS;
+      bank.phase[instance] = random() * Math.PI * 2;
+      pose.position.set(x, bodyY, z);
+      pose.rotation.set(0, rot, 0);
+      pose.scale.set(sx, sy, sz);
       pose.updateMatrix();
       bodies.setMatrixAt(instance, pose.matrix);
       bodies.setColorAt(instance, new THREE.Color(shirts[Math.floor(random() * shirts.length)]));
 
-      pose.position.set(x, surfaceY + 0.61, z - 0.035);
+      pose.position.set(x, headY, z - 0.02);
       pose.rotation.set(0, 0, 0);
-      pose.scale.setScalar(0.92 + random() * 0.16);
+      pose.scale.setScalar(headS);
       pose.updateMatrix();
       heads.setMatrixAt(instance, pose.matrix);
       heads.setColorAt(instance, new THREE.Color(skin[Math.floor(random() * skin.length)]));
@@ -620,6 +645,7 @@ function addStandCrowd(group, width, depth, height, lowPower = false) {
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
   group.add(bodies, heads);
+  if (Array.isArray(crowdBag)) crowdBag.push(bank);
 }
 
 /** Banco técnico coberto, com assentos repetidos e estrutura metálica simples. */
@@ -752,7 +778,7 @@ function buildStand(width, depth, height, texture, options = {}) {
   slope.position.set(0, slopeCenterY, -0.6);
   slope.rotation.x = angle;
   group.add(slope);
-  if (!options.photoSeats) addStandCrowd(group, width, depth, height, simple);
+  addStandCrowd(group, width, depth, height, simple, options.crowdBag);
   // Fecha o vão entre a borda inferior inclinada e o muro: antes aparecia
   // o céu/void por baixo das cadeiras, especialmente na câmera de pênalti.
   const supportGeometry=new THREE.BufferGeometry();
@@ -923,6 +949,11 @@ function buildFloodlight(x, z, lampsOn = true) {
 export function buildStadium(scene, options = {}) {
   const group = new THREE.Group();
   const lowPower = Boolean(options.lowPower);
+  const crowdBag = [];
+  let crowdJump = 0;
+  let crowdClock = 0;
+  let crowdWasJumping = false;
+  const crowdPose = new THREE.Object3D();
   scene.add(group);
 
   // Modelo do estádio: cobertura, fachada, altura, ambiente e LED mudam por praça.
@@ -1061,7 +1092,8 @@ export function buildStadium(scene, options = {}) {
       model,
       simple: lowPower,
       facadeMaterial,
-      photoSeats
+      photoSeats,
+      crowdBag
     }));
   }
   group.add(bowl);
@@ -1323,13 +1355,40 @@ export function buildStadium(scene, options = {}) {
     group.add(floodlight, floodlight.target);
   }
 
+  function updatePixelCrowd(dt) {
+    crowdClock += dt;
+    if (crowdJump > 0) crowdJump = Math.max(0, crowdJump - dt);
+    const hopping = crowdJump > 0;
+    if (!hopping && !crowdWasJumping) return;
+    crowdWasJumping = hopping;
+    for (const bank of crowdBag) {
+      if (!bank?.count) continue;
+      for (let i = 0; i < bank.count; i += 1) {
+        const hop = hopping ? Math.abs(Math.sin(crowdClock * 12 + bank.phase[i])) * 0.7 : 0;
+        crowdPose.position.set(bank.x[i], bank.bodyY[i] + hop, bank.z[i]);
+        crowdPose.rotation.set(0, bank.rot[i], 0);
+        crowdPose.scale.set(bank.sx[i], bank.sy[i], bank.sz[i]);
+        crowdPose.updateMatrix();
+        bank.bodies.setMatrixAt(i, crowdPose.matrix);
+        crowdPose.position.set(bank.x[i], bank.headY[i] + hop, bank.z[i] - 0.02);
+        crowdPose.rotation.set(0, 0, 0);
+        crowdPose.scale.setScalar(bank.headS[i]);
+        crowdPose.updateMatrix();
+        bank.heads.setMatrixAt(i, crowdPose.matrix);
+      }
+      bank.bodies.instanceMatrix.needsUpdate = true;
+      bank.heads.instanceMatrix.needsUpdate = true;
+    }
+  }
+
   return {
     group,
     goals,
     warmup,
     dimensions:{standHeight,standDepth,standOffset,pitch:PITCH,goal:GOAL},
     hitNet(event){goals[event.side>0?'away':'home'].userData.net.impact(event);},
-    update(dt){warmup.update(dt);goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);},
+    celebrateGoal(){ crowdJump = 2.6; crowdWasJumping = true; },
+    update(dt){warmup.update(dt);goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);updatePixelCrowd(dt);},
     /** O gol que o time da casa defende fica em -X. */
     dispose() {
       glbMount?.dispose();

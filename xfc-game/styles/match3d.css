@@ -495,8 +495,8 @@
 /* Placar LaLiga — a foto do print. Números ao vivo por cima, sem caixas CSS.
    Especificidade alta: reference-broadcast.css e frontend.css vêm depois. */
 .hud__scoreboard.hud__scoreboard--laliga {
-  left: 14px;
-  top: 12px;
+  left: 68px;
+  top: 16px;
   right: auto;
   transform: none;
   z-index: 6;
@@ -586,9 +586,9 @@
   line-height: 1;
 }
 .hud__scoreboard.hud__scoreboard--laliga .laliga-board__added {
-  left: -32px;
+  left: -40px;
   top: 50%;
-  width: 30px;
+  width: 38px;
   height: 50%;
   background: #111;
   color: #fff;

@@ -233,3 +233,48 @@ export function boo() {
   noise.start(now);
   noise.stop(now + 1.6);
 }
+
+let crowdBed = null;
+
+/** Cama da torcida: sobe no ataque do jogador e some devagar na perda. */
+export function setCrowdHeat(level) {
+  const audio = ac();
+  if (!audio) return;
+  if (!crowdBed) {
+    const duration = 2.4;
+    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * duration), audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const band = audio.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 430;
+    band.Q.value = 0.75;
+    const low = audio.createBiquadFilter();
+    low.type = 'lowshelf';
+    low.frequency.value = 160;
+    low.gain.value = 4;
+    const gain = audio.createGain();
+    gain.gain.value = 0.0001;
+    source.connect(band);
+    band.connect(low);
+    low.connect(gain);
+    gain.connect(audio.destination);
+    source.start();
+    crowdBed = { gain, target: 0, current: 0 };
+  }
+  crowdBed.target = Math.max(0, Math.min(1, Number(level) || 0));
+}
+
+export function tickCrowd(dt) {
+  if (!crowdBed) return;
+  const audio = ac();
+  if (!audio) return;
+  const rising = crowdBed.target > crowdBed.current + 0.01;
+  const rate = rising ? 2.2 : 0.32;
+  crowdBed.current += (crowdBed.target - crowdBed.current) * Math.min(1, rate * Math.max(0, dt));
+  const peak = 0.0001 + crowdBed.current * 0.2;
+  crowdBed.gain.gain.setTargetAtTime(peak, audio.currentTime, rising ? 0.12 : 0.9);
+}
