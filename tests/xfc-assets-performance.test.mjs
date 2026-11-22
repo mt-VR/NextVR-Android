@@ -26,10 +26,10 @@ test('escolhas por ID validadas, sem atribuição automática de identidades; pe
 test('Ultra móvel reduz pixels, atlas de camisa, grama e sombras sem alterar materiais/corpos',()=>{
   const q=graphicsPreset('ultra',true),desktop=graphicsPreset('ultra',false);
   assert.equal(q.id,'ultra');assert.ok(q.surface);assert.equal(q.pixelRatio,1);assert.equal(q.antialias,false);
-  assert.equal(q.shadowSize,1024);assert.equal(q.jerseySize,512);assert.equal(q.grass,12000);assert.equal(q.shadowHz,20);
+  assert.equal(q.shadowSize,1024);assert.equal(q.jerseySize,512);assert.equal(q.grass,8000);assert.equal(q.shadowHz,15);
   assert.ok(desktop.pixelRatio>q.pixelRatio);assert.ok(q.pixelRatio**2/1.5**2<.45);
   const players=Array.from({length:22},(_,i)=>({active:true,x:i,z:0}));
-  const set=selectShadowCasters(players,players[21],{x:0,z:0},q);assert.equal(set.size,6);assert.ok(set.has(players[21]));
+  const set=selectShadowCasters(players,players[21],{x:0,z:0},q);assert.equal(set.size,4);assert.ok(set.has(players[21]));
 });
 test('proteção de Ultra tem histerese e recupera, sem redimensionar ou mudar mapa de sombras',()=>{
   const q=graphicsPreset('ultra',true),g=createDetailGovernor(q),base={...q};

@@ -76,7 +76,9 @@ export function createEngine(canvas, options = {}) {
   });
   const graphics=graphicsPreset(options.graphicsQuality,options.lowPower??profile.lowPower);
   const explicitQuality=['low','medium','high','ultra'].includes(options.graphicsQuality);
-  const lowPower = explicitQuality?graphics.id==='low':options.lowPower ?? profile.lowPower;
+  // O aparelho continua “móvel” mesmo em Alta/Ultra: senão o estádio de PC
+  // (textura 2k, arquibancada densa, MSAA) entra no celular e trava.
+  const lowPower = options.lowPower ?? profile.lowPower;
   const ratioCap = explicitQuality?graphics.pixelRatio:lowPower ? LOW_POWER_PIXEL_RATIO : 1.5;
   const initialPixelRatio = Math.max(0.5, Math.min(pixelRatio ?? (explicitQuality?graphics.pixelRatio:profile.initialPixelRatio), ratioCap));
   const qualitySteps = explicitQuality?[initialPixelRatio]:qualityStepsFor(initialPixelRatio, lowPower);
@@ -94,7 +96,9 @@ export function createEngine(canvas, options = {}) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = options.shadows ?? (explicitQuality?graphics.shadows:!lowPower);
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = (lowPower || graphics.mobile)
+    ? THREE.PCFShadowMap
+    : THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(background);
@@ -114,7 +118,7 @@ export function createEngine(canvas, options = {}) {
   let recoverySamples = 0;
   const detailGovernor=createDetailGovernor(graphics);
   let shadowElapsed=1;
-  if(graphics.id==='ultra'){renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;}
+  if(graphics.shadows&&graphics.shadowHz){renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;}
 
   function applyQuality(index) {
     const nextRatio = qualitySteps[index];
@@ -171,7 +175,7 @@ export function createEngine(canvas, options = {}) {
     // lentos (4 FPS eram medidos como ~20), impedindo a queda de qualidade.
     sampleQuality(realFrameTime);
     update?.(dt, state);
-    if(graphics.id==='ultra'){
+    if(graphics.shadows&&graphics.shadowHz){
       shadowElapsed+=realFrameTime;
       if(shadowElapsed>=1/Math.max(1,graphics.shadowHz)){
         renderer.shadowMap.needsUpdate=true;shadowElapsed=0;

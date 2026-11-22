@@ -1248,12 +1248,13 @@ export function buildStadium(scene, options = {}) {
   key.castShadow = graphics.shadows;
   key.shadow.mapSize.set(graphics.shadowSize,graphics.shadowSize);
   key.shadow.radius=2;
-  key.shadow.camera.left = -75;
-  key.shadow.camera.right = 75;
-  key.shadow.camera.top = 60;
-  key.shadow.camera.bottom = -60;
+  const shadowSpan = (lowPower || graphics.mobile) ? 48 : 75;
+  key.shadow.camera.left = -shadowSpan;
+  key.shadow.camera.right = shadowSpan;
+  key.shadow.camera.top = shadowSpan * 0.8;
+  key.shadow.camera.bottom = -shadowSpan * 0.8;
   key.shadow.camera.near = 10;
-  key.shadow.camera.far = 220;
+  key.shadow.camera.far = (lowPower || graphics.mobile) ? 160 : 220;
   // Viés moderado: um deslocamento grande destaca a sombra do gramado e
   // cria manchas escuras soltas perto dos atletas.
   key.shadow.bias = -0.00018;
