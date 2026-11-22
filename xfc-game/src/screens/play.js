@@ -847,7 +847,7 @@ export function playScreen(ctx, params = {}) {
             })
           }, 'CONTINUAR COPA')
           : careerClub ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('career',{view:'hub',kind:careerManager?'manager':'player'})},
-            seasonAward ? (seasonAward.id==='ballon-dor'?'BOLA DE OURO':'PRÊMIO PUSKÁS') : 'VOLTAR À CARREIRA')
+            seasonAward ? ({'ballon-dor':'BOLA DE OURO','puskas':'PRÊMIO PUSKÁS','golden-boot':'CHUTEIRA DE OURO'}[seasonAward.id]||'VER PRÊMIO') : 'VOLTAR À CARREIRA')
           : params.ultimateMatchId ? el('button',{class:'btn btn--primary',type:'button',onClick:()=>ctx.go('ultimate')},'VOLTAR AO CLUBE')
           : el('button', {
             class: 'btn btn--primary',

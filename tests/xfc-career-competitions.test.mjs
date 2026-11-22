@@ -60,6 +60,8 @@ test('premios: Bola de Ouro e Puskas exigem temporada de craque e pedem cutscene
   const ballon = awards.find(a => a.id === 'ballon-dor');
   assert.equal(ballon.won, true);
   assert.equal(awardNeedsCinematic(ballon), true, 'Bola de Ouro tem cerimonia');
+  assert.equal(awardNeedsCinematic(awards.find(a => a.id === 'puskas')), true);
+  assert.equal(awardNeedsCinematic(awards.find(a => a.id === 'golden-boot')), true, 'Chuteira de Ouro tem cerimonia');
 
   const weak = createCareer({ clubId: 'santos', name: 'Reserva' });
   weak.totals = { matches: 6, goals: 1, shots: 4, passes: 40 };

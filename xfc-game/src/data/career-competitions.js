@@ -105,7 +105,7 @@ const AWARD_CATALOG = [
   { id: 'puskas', name: 'Prêmio Puskás', trophy: 'puskas', weight: career => (career.lastResult?.goals || 0) * 8 + careerOverall(career) * 0.9,
     cinematic: true, description: 'O gol mais bonito do ano.' },
   { id: 'golden-boot', name: 'Chuteira de Ouro', trophy: 'golden-boot', weight: career => (career.totals?.goals || 0) * 2.4 + careerOverall(career),
-    cinematic: false, description: 'Artilheiro do futebol europeu.' },
+    cinematic: true, description: 'Artilheiro do futebol europeu.' },
   { id: 'best-playmaker', name: 'Melhor Meia do Mundo', trophy: 'playmaker', weight: career => (career.totals?.passes || 0) * 0.08 + careerOverall(career) * 1.6,
     cinematic: false, description: 'O cérebro do time na temporada.' },
   { id: 'golden-boy', name: 'Golden Boy', trophy: 'golden-boy', weight: career => career.player.level <= 12 ? 90 + careerOverall(career) : 0,
@@ -172,7 +172,7 @@ export function recordCareerAward(career, award) {
 /** A cutscene pendente (Bola de Ouro/Puskás) do save, se houver. */
 export function pendingAwardCinematic(career) {
   return careerAwardCase(career).find(item => item.cinematic !== false && !item.shown
-    && ['ballon-dor', 'puskas'].includes(item.id)) || null;
+    && ['ballon-dor', 'puskas', 'golden-boot'].includes(item.id)) || null;
 }
 
 export function completeAwardCinematic(career, id) {
