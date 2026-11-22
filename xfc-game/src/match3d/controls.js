@@ -99,9 +99,12 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
           ? 'Carrinho: toque para tentar desarmar o adversário próximo'
           : item.id === 'sprint' ? 'Correr: segure; arraste para cima para chapéu ou para baixo para pedalada' : item.label
     },
-      el('span', { text: item.label }),
-      item.id === 'shoot' && el('small', { class: 'ctrl-btn__gesture', text: 'HOLD' }),
-      item.id === 'sprint' && el('small', { class: 'ctrl-btn__gesture', text: '& SKILL' })
+      item.id === 'sprint'
+        ? el('span', { class: 'ctrl-btn__stack' },
+            el('b', { text: 'SPRINT' }),
+            el('i', { text: '&' }),
+            el('b', { text: 'SKILL' }))
+        : el('span', { text: item.label })
     );
 
     if (item.id === 'shoot') {

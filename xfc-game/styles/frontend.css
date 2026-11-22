@@ -660,14 +660,14 @@
    CARRINHO 38, TROCAR 48x31 — e CARRINHO/TROCAR colavam no CHUTE. O palco
    1280x720 é escalado por ~0,715 nessa tela, então cada 100 px aqui viram
    ~72 px reais: o mínimo confortável para o dedo pede >= 84 px de palco. */
-.controls__buttons { right: 10px; bottom: 28px; width: 400px; height: 380px; }
-.ctrl-btn { border-width: 5px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.ctrl-btn--shoot { right: 6px; bottom: 200px; width: 128px; height: 128px; font-size: 16px; }
-.ctrl-btn--lob { right: 148px; bottom: 236px; width: 96px; height: 96px; font-size: 11px; }
-.ctrl-btn--pass { right: 144px; bottom: 88px; width: 108px; height: 108px; font-size: 15px; }
-.ctrl-btn--sprint { right: 10px; bottom: 68px; width: 116px; height: 116px; font-size: 13px; }
-.ctrl-btn--tackle { right: 262px; bottom: 168px; width: 76px; height: 76px; font-size: 10px; }
-.ctrl-btn--switch { right: 268px; bottom: 48px; width: 76px; height: 76px; font-size: 10px; }
+.controls__buttons { right: 6px; bottom: 22px; width: 420px; height: 380px; }
+.ctrl-btn { border-width: 3.5px; }
+.ctrl-btn--shoot { right: 22px; bottom: 228px; width: 104px; height: 104px; font-size: 15px; }
+.ctrl-btn--lob { right: 152px; bottom: 208px; width: 98px; height: 98px; font-size: 12px; }
+.ctrl-btn--pass { right: 168px; bottom: 78px; width: 102px; height: 102px; font-size: 14px; }
+.ctrl-btn--sprint { right: 8px; bottom: 52px; width: 124px; height: 124px; font-size: 13px; }
+.ctrl-btn--tackle { right: 300px; bottom: 150px; width: 76px; height: 76px; font-size: 10px; }
+.ctrl-btn--switch { right: 308px; bottom: 42px; width: 76px; height: 76px; font-size: 10px; }
 
 /* Goal callout keeps the scorer's name visible during the close camera shot. */
 .hud__banner--goal { min-width: 390px; padding: 16px 26px; font-size: 25px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }

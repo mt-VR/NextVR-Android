@@ -184,17 +184,17 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.81
+          TAG=xfc-gameplay-v0.5.82
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.81 (versionCode 87), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.82 (versionCode 88), commit ${GITHUB_SHA}." \
             "" \
-            "HUD FC Mobile (anel grosso). Passe rasteiro sem curva. Argentina listrada." \
-            "Detalhes: xfc-game/docs/v0.5.81.md.")
+            "Botões FC Mobile: anel cinza com tracinhos, THROUGH/CLEAR/PASS/SPRINT." \
+            "Detalhes: xfc-game/docs/v0.5.82.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — HUD FC Mobile e Argentina v0.5.81" \
+            gh release create "$TAG" --title "XFC 27 — botões FC Mobile v0.5.82" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — HUD FC Mobile e Argentina v0.5.81" \
+            gh release edit "$TAG" --title "XFC 27 — botões FC Mobile v0.5.82" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

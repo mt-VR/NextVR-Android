@@ -928,38 +928,56 @@
 
 .controls__buttons {
   position: absolute;
-  right: 10px;
-  bottom: 28px;
-  width: 400px;
+  right: 6px;
+  bottom: 22px;
+  width: 420px;
   height: 380px;
   pointer-events: none;
+  overflow: visible;
 }
 
 .ctrl-btn {
+  --ring: #c8c3a8;
   position: absolute;
   pointer-events: auto;
   touch-action: none;
   display: grid;
   place-items: center;
   box-sizing: border-box;
+  overflow: visible;
   border-radius: 50%;
-  border: 5px solid rgba(200, 195, 168, 0.85);
-  background: radial-gradient(circle at 50% 42%, rgba(18, 28, 18, 0.4), rgba(6, 10, 8, 0.82));
-  color: #f3f6f1;
+  border: 3.5px solid var(--ring);
+  background: radial-gradient(circle at 50% 38%, #2a3126 0%, #121612 58%, #0b0d0b 100%);
+  color: #f4f6f2;
   font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  text-shadow: 0 1px 3px #000c;
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
-  transition: transform 90ms ease, box-shadow 140ms ease, background 140ms ease;
+  text-shadow: 0 1px 2px #000a;
+  box-shadow: none;
+  transition: transform 90ms ease;
+}
+
+/* Anel cinza com tracinhos, igual ao FC Mobile. */
+.ctrl-btn::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: repeating-conic-gradient(
+    from -1deg,
+    rgba(236, 242, 230, 0.82) 0deg 2deg,
+    rgba(186, 196, 180, 0.28) 2.3deg 22.5deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8.5px));
 }
 
 .ctrl-btn:active,
 .ctrl-btn.is-active {
-  transform: scale(0.93);
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), 0 0 22px rgba(46, 240, 168, 0.35);
+  transform: scale(0.94);
+  filter: brightness(1.12);
 }
 
 /* ---------------------------------------------------------- botões ---- */
@@ -970,78 +988,76 @@
    ~40 px reais num aparelho de 915 px de largura). Cada botão agora tem
    diâmetro suficiente para o dedo e uma margem clara dos vizinhos. */
 
-/* Losango FC Mobile: anel grosso, miolo escuro, SHOOT maior. */
+/* Print FC Mobile: THROUGH ouro, CLEAR/SHOOT laranja, PASS azul, SPRINT verde maior. */
 .ctrl-btn--shoot {
-  right: 6px;
-  bottom: 200px;
-  width: 128px;
-  height: 128px;
-  font-size: 16px;
-  border-width: 5px;
-  border-color: #c45a32;
-  background: radial-gradient(circle at 50% 42%, rgba(28, 22, 16, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
+  --ring: #e07040;
+  right: 22px;
+  bottom: 228px;
+  width: 104px;
+  height: 104px;
+  font-size: 15px;
+  z-index: 3;
 }
 
 .ctrl-btn--lob {
-  right: 148px;
-  bottom: 236px;
-  width: 96px;
-  height: 96px;
-  font-size: 11px;
-  border-width: 5px;
-  border-color: #8a7a32;
-  background: radial-gradient(circle at 50% 42%, rgba(24, 24, 14, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
+  --ring: #d4b43a;
+  right: 152px;
+  bottom: 208px;
+  width: 98px;
+  height: 98px;
+  font-size: 12px;
+  z-index: 2;
 }
 
 .ctrl-btn--pass {
-  right: 144px;
-  bottom: 88px;
-  width: 108px;
-  height: 108px;
-  font-size: 15px;
-  border-width: 5px;
-  border-color: #2e9a55;
-  background: radial-gradient(circle at 50% 42%, rgba(16, 28, 18, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
+  --ring: #4a9adf;
+  right: 168px;
+  bottom: 78px;
+  width: 102px;
+  height: 102px;
+  font-size: 14px;
+  z-index: 2;
 }
 
 .ctrl-btn--sprint {
-  right: 10px;
-  bottom: 68px;
-  width: 116px;
-  height: 116px;
+  --ring: #3dbe62;
+  right: 8px;
+  bottom: 52px;
+  width: 124px;
+  height: 124px;
   font-size: 13px;
-  border-width: 5px;
-  border-color: #2e9a55;
-  background: radial-gradient(circle at 50% 42%, rgba(16, 28, 18, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
+  z-index: 4;
 }
 
 .ctrl-btn--tackle {
-  right: 262px;
-  bottom: 168px;
+  --ring: #c8c3a8;
+  right: 300px;
+  bottom: 150px;
   width: 76px;
   height: 76px;
   font-size: 10px;
-  border-width: 5px;
-  border-color: #c8c3a8;
-  background: radial-gradient(circle at 50% 42%, rgba(22, 24, 18, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
 }
 
 .ctrl-btn--switch {
-  right: 268px;
-  bottom: 48px;
+  --ring: #c8c3a8;
+  right: 308px;
+  bottom: 42px;
   width: 76px;
   height: 76px;
   font-size: 10px;
-  border-width: 5px;
-  border-color: #c8c3a8;
-  background: radial-gradient(circle at 50% 42%, rgba(22, 24, 18, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
 }
+
+.ctrl-btn__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.05;
+  pointer-events: none;
+  font-weight: 700;
+}
+.ctrl-btn__stack b { font-weight: 700; font-style: normal; font-size: 13px; }
+.ctrl-btn__stack i { font-style: normal; font-size: 12px; font-weight: 700; }
 
 /* Rotulos secundários ("segure: superchute") não podem roubar a área do dedo. */
 .ctrl-btn__gesture { pointer-events: none; }
@@ -1691,37 +1707,8 @@
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 0 26px rgba(63, 215, 255, 0.14);
 }
 
-/* Anel grosso do FC Mobile; o miolo fica escuro e o contorno carrega a cor. */
 .ctrl-btn {
-  background: radial-gradient(circle at 50% 42%, rgba(18, 28, 18, 0.4), rgba(6, 10, 8, 0.82));
-  backdrop-filter: blur(2px);
-  border: 5px solid rgba(200, 195, 168, 0.85);
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
-}
-
-.ctrl-btn:active,
-.ctrl-btn.is-active {
-  transform: scale(0.9);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 26px rgba(46, 240, 168, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.2);
-}
-
-.ctrl-btn--shoot {
-  border-color: #c45a32;
-  background: radial-gradient(circle at 50% 42%, rgba(28, 22, 16, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
-}
-
-.ctrl-btn--pass,
-.ctrl-btn--sprint {
-  border-color: #2e9a55;
-  background: radial-gradient(circle at 50% 42%, rgba(16, 28, 18, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
-}
-
-.ctrl-btn--lob {
-  border-color: #8a7a32;
-  background: radial-gradient(circle at 50% 42%, rgba(24, 24, 14, 0.45), rgba(8, 10, 8, 0.82));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.42);
+  border-color: var(--ring);
 }
 
 /* Gols e avisos centrais com mais impacto */
