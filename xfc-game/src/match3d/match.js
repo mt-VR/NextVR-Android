@@ -637,7 +637,7 @@ export function createMatch(options = {}) {
     // Passe rasteiro ainda aponta o companheiro. Enfiada vai RETA no espaço:
     // rivais podem interceptar, chutar pra longe ou dar carrinho.
     const guide = target.active
-      ? { receiver: target, x: aimX, z: aimZ, through, follow: !through && !targetPoint, maxTime: requested ? 12 : 2.4 }
+      ? { receiver: target, x: aimX, z: aimZ, through, follow: !through && !targetPoint, maxTime: requested ? 12 : training.enabled ? 4 : 2.4 }
       : null;
     const flightLift = lift ?? (requested ? .02 : lob ? 0.42 : through ? 0.04 : 0.03);
     ball.kick(direction, speed, flightLift, {
@@ -3347,16 +3347,16 @@ export function createMatch(options = {}) {
       if (caught?.side === userSide) receiveTrainingBall(caught);
     }
     const position = ball.state.position;
-    if (['team','corner','free','dribble','shooting'].includes(training.drill) && !training.shotActive && !ball.state.owner)
+    if (['team','corner','free','dribble','shooting'].includes(training.drill) && !training.shotActive && !ball.state.owner
       && !ball.state.rainbow && elapsedWorldTime >= (ball.state.skillUntil||0)
       && position.y < 1.8 && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 18) {
       const receiver = teams.home.players
         .filter(item => item.active)
         .map(item => ({ player: item, distance: Math.hypot(item.x - position.x, item.z - position.z) }))
-        .filter(item => item.distance < 1.18
+        .filter(item => item.distance < 1.45
           && !(training.lastPassFrom && item.player.id === training.lastPassFrom && ball.state.flightTime < 0.55)
-          && (Math.hypot(ball.state.velocity.x,ball.state.velocity.z)<12
-          || (ball.state.passTarget===item.player&&ball.state.flightTime<2.4&&position.y<.8&&item.distance<.85)))
+          && (Math.hypot(ball.state.velocity.x,ball.state.velocity.z)<14
+          || (ball.state.passTarget===item.player&&ball.state.flightTime<3.2&&position.y<1.1&&item.distance<1.2)))
         .sort((a, b) => a.distance - b.distance)[0]?.player;
       if (receiver) receiveTrainingBall(receiver);
     }
