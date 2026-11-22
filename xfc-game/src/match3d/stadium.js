@@ -571,8 +571,8 @@ function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) 
     new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x18140f }),
     count
   );
-  bodies.name = 'xfc-crowd-pixel-bodies';
-  heads.name = 'xfc-crowd-pixel-heads';
+  bodies.name = 'xfc-crowd-simplified-bodies';
+  heads.name = 'xfc-crowd-simplified-heads';
   bodies.castShadow = false;
   heads.castShadow = false;
   const shirts = [0xe8edf0, 0xd54b40, 0x256bd0, 0x21a982, 0xe3b944, 0x30363e, 0xf2f2e8, 0x842f75];

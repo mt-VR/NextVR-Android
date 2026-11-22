@@ -633,7 +633,7 @@ export function createMatch(options = {}) {
       ? Math.max(9, Math.min(28, distance * 0.5 + 6 + power * 0.38))
       : lob
         ? Math.max(9, Math.min(24, distance * 0.62 + 4 + power * 0.28))
-        : Math.max(6, Math.min(26, distance * 0.48 + 3 + power * 0.55));
+        : Math.max(5, Math.min(22, 3 + distance * 0.32 + power * 0.28));
     // Passe rasteiro ainda aponta o companheiro. Enfiada vai RETA no espaço:
     // rivais podem interceptar, chutar pra longe ou dar carrinho.
     const guide = target.active
@@ -3341,8 +3341,13 @@ export function createMatch(options = {}) {
     }
     const actors = allPlayers.filter(item => item.active);
     if(!updateRainbow(dt))ball.update(dt, actors);
+    if (ball.state.reception) {
+      const caught = ball.state.reception.player;
+      ball.state.reception = null;
+      if (caught?.side === userSide) receiveTrainingBall(caught);
+    }
     const position = ball.state.position;
-    if (['team','corner','free','dribble','shooting'].includes(training.drill) && !training.shotActive && !ball.state.owner
+    if (['team','corner','free','dribble','shooting'].includes(training.drill) && !training.shotActive && !ball.state.owner)
       && !ball.state.rainbow && elapsedWorldTime >= (ball.state.skillUntil||0)
       && position.y < 1.8 && Math.hypot(ball.state.velocity.x, ball.state.velocity.z) < 18) {
       const receiver = teams.home.players
