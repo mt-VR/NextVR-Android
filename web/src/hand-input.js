@@ -178,8 +178,17 @@ export class LandmarkSmoother {
       this.lastMs = nowMs;
       return this.shown;
     }
-    // Carimbo repetido nunca roda o filtro para trás no tempo: segura o que está na tela.
-    if (!(nowMs > this.lastMs)) return this.shown;
+    // Carimbo REPETIDO não roda o filtro para trás no tempo: segura o que está na tela.
+    if (nowMs === this.lastMs) return this.shown;
+    // Relógio ANDANDO PARA TRÁS não é quadro repetido — é reinício (página recarregada, teste com
+    // relógio falso). Segurar o valor antigo ali congela a mão na pose anterior e a interface fica
+    // presa num gesto que já acabou; começar de novo é o certo.
+    if (nowMs < this.lastMs) {
+      this.value = this.shown = this.raw = sample;
+      this.derivative = 0;
+      this.lastMs = nowMs;
+      return this.shown;
+    }
     const dt = Math.max(0.001, Math.min(0.2, (nowMs - this.lastMs) / 1000));
     this.lastMs = nowMs;
     const rawDerivative = (sample - this.raw) / dt;

@@ -38,6 +38,22 @@ test('em movimento o filtro não atrasa a mão (pinça e toque direto continuam 
   assert.ok(lag / n < 0.01, `atraso médio pequeno (${(lag / n).toFixed(4)} do campo)`);
 });
 
+test('relógio voltando (reinício) reinicia o filtro em vez de congelar a mão na pose antiga', () => {
+  // Regressão encontrada pelo CI: o filtro segurava o valor quando o carimbo era igual OU menor, e um
+  // relógio que anda para trás (página recarregada, teste com relógio falso) deixava a mão presa na
+  // pose anterior — o gesto antigo continuava valendo na tela.
+  const f = new LandmarkSmoother();
+  f.next(0.2, 5000);
+  f.next(0.2, 5033);
+  assert.ok(Math.abs(f.next(0.9, 1000) - 0.9) < 1e-9, 'amostra com carimbo no passado entra inteira');
+  // O primeiro passo depois do reinício passa pelo filtro (um salto de detector não é seguido de
+  // imediato), mas a mão não pode ficar presa: em poucos quadros ela chega onde está.
+  f.next(0.8, 1033);
+  let v = 0.8;
+  for (let t = 1066; t <= 1200; t += 33) v = f.next(0.8, t);
+  assert.ok(Math.abs(v - 0.8) < 0.01, `e a mão alcança a posição de verdade (${v.toFixed(3)})`);
+});
+
 test('os 21 pontos passam juntos, cada mão tem o seu filtro e a primeira amostra passa inteira', () => {
   const f = new HandPointFilter();
   let t = 0, path = 0, rawPath = 0, prev = null, prevRaw = null;

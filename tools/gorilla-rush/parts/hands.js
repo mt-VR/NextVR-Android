@@ -42,7 +42,9 @@ function nvSmoothPoints(i, pts, now) {
     var a = axes[k], x = pts[k];
     if (!isFinite(x)) { out[k] = 0; continue; }
     if (!isFinite(a.v) || !(a.last > 0)) { a.v = a.shown = a.raw = x; a.last = now; out[k] = x; continue; }
-    if (!(now > a.last)) { out[k] = a.shown; continue; }
+    if (now === a.last) { out[k] = a.shown; continue; }
+    // Relógio voltando (reinício) reinicia o filtro em vez de congelar o braço na pose antiga.
+    if (now < a.last) { a.v = a.shown = a.raw = x; a.d = 0; a.last = now; out[k] = x; continue; }
     var dt = Math.max(.001, Math.min(.2, (now - a.last) / 1000));
     a.last = now;
     var rd = (x - a.raw) / dt;
