@@ -10,6 +10,54 @@
 // última mão BOA é segurada por até [HOLD_MS], com a posição extrapolada pela velocidade dela por no
 // máximo [EXTRAP_MS]. Passado o tempo, some — mão que saiu de verdade não fica pendurada no ar.
 var NV_NATIVE_HANDS = (() => { try { return typeof NextVRGame !== 'undefined' && !!NextVRGame; } catch (e) { return false; } })();
+
+// ---------- filtro anti-trem (One Euro + zona morta) ----------
+// Pedido do usuário: "bota um filtro anti treme no Hand tracking". O app já filtra a silhueta dele,
+// mas entre o detector e o braço do gorila ficam a normalização de coordenadas da imagem, a
+// transmissão em JSON e a conversão para o espaço do jogo — cada uma acrescenta um pouco de ruído.
+// Com a mão parada, o braço ficava tremendo ~1 px. Aqui o filtro é o mesmo do lado da interface
+// (web/src/hand-input.js): parado filtra muito (corte de 1,2 Hz), em movimento filtra pouco (o corte
+// sobe com a velocidade, então o braço continua chegando junto com a mão) e há ZONA MORTA: enquanto
+// a diferença é menor que ~1 px de 900, o ponto simplesmente não se mexe.
+var NV_SMOOTH = { minCutoff: 1.2, beta: 6, derivCutoff: 1, deadZone: 0.0007 };
+var NV_SMOOTHERS = [null, null];
+
+function nvAlpha(cutoff, dt) {
+  var tau = 1 / (2 * Math.PI * Math.max(0.01, cutoff));
+  return 1 / (1 + tau / dt);
+}
+
+function nvSmoother(i) {
+  if (NV_SMOOTHERS[i]) return NV_SMOOTHERS[i];
+  var axes = new Array(63);
+  for (var k = 0; k < 63; k++) axes[k] = { v: NaN, shown: NaN, raw: NaN, d: 0, last: 0 };
+  NV_SMOOTHERS[i] = axes;
+  return axes;
+}
+
+/** Filtra os 63 números (21 landmarks × x,y,z) de uma mão; devolve um array novo. */
+function nvSmoothPoints(i, pts, now) {
+  var axes = nvSmoother(i), out = new Array(63);
+  for (var k = 0; k < 63; k++) {
+    var a = axes[k], x = pts[k];
+    if (!isFinite(x)) { out[k] = 0; continue; }
+    if (!isFinite(a.v) || !(a.last > 0)) { a.v = a.shown = a.raw = x; a.last = now; out[k] = x; continue; }
+    if (!(now > a.last)) { out[k] = a.shown; continue; }
+    var dt = Math.max(.001, Math.min(.2, (now - a.last) / 1000));
+    a.last = now;
+    var rd = (x - a.raw) / dt;
+    a.raw = x;
+    a.d += nvAlpha(NV_SMOOTH.derivCutoff, dt) * (rd - a.d);
+    a.v += nvAlpha(NV_SMOOTH.minCutoff + NV_SMOOTH.beta * Math.abs(a.d), dt) * (x - a.v);
+    var gap = a.v - a.shown;
+    if (Math.abs(gap) > NV_SMOOTH.deadZone) a.shown = a.v - NV_SMOOTH.deadZone * (gap > 0 ? 1 : -1);
+    out[k] = a.shown;
+  }
+  return out;
+}
+
+/** Mão que saiu de vez: o filtro esquece o histórico e a próxima aparição começa do zero. */
+function nvForget(i) { NV_SMOOTHERS[i] = null; NV_LAST[i] = { p: null, t: 0, vx: 0, vy: 0 }; }
 var NV_HAND_FRAMES = 0;
 var NV_HAND_HELD = 0;
 var NV_HOLD_MS = 700, NV_EXTRAP_MS = 220;
@@ -57,7 +105,10 @@ function nvIngestNativeHands(frame) {
     if (!p) continue;
     // Lateralidade do rastreio do app: esquerda é o slot 0. Sem o rótulo, cai na regra do x.
     const i = typeof h.left === 'boolean' ? (h.left ? 0 : 1) : (p.x < .5 ? 0 : 1);
-    nvPublish(i, p, now);
+    // Anti-trem ANTES de publicar: é este conjunto de pontos que vai para o braço do gorila.
+    var smoothed = nvSmoothPoints(i, h.points, now);
+    var ps = nvLandmarks(smoothed);
+    nvPublish(i, ps || p, now);
     found++;
   }
   if (!found) nvHoldHands(now);
@@ -73,7 +124,7 @@ function nvHoldHands(now) {
     const last = NV_LAST[i];
     if (!last.p) continue;
     const age = now - last.t;
-    if (age > NV_HOLD_MS) { last.p = null; continue; }
+    if (age > NV_HOLD_MS) { last.p = null; nvForget(i); continue; }
     if (age <= NV_EXTRAP_MS) {
       const dt = Math.min(age, NV_EXTRAP_MS) / 1000;
       const l = last.p.l.map(q => ({ x: q.x + last.vx * dt, y: q.y + last.vy * dt, z: q.z }));
@@ -93,6 +144,8 @@ window.__nvHands = function (frame) {
   NV_HAND_FRAMES++;
   try { nvIngestNativeHands(frame); } catch (e) { /* um quadro ruim não pode parar o jogo */ }
 };
+
+window.__nvHandsReset = function () { nvForget(0); nvForget(1); NV_HAND_FRAMES = 0; NV_HAND_HELD = 0; };
 
 /** Diagnóstico: o app (e o teste) sabem se as mãos estão chegando e onde elas estão. */
 window.__nvHandsInfo = function () {

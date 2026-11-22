@@ -132,6 +132,16 @@ export const SixDof = {
   carrySc: 0,
   /** As três últimas escalas medidas (ver a concordância 2-de-3 em applyFlowScale). */
   recentSc: [],
+  /**
+   * Viés do fluxo ótico (anti-deriva). Câmera barata não devolve zero quando ninguém anda: foco
+   * automático, ganho/exposição e compressão produzem um `sc` pequeno e CONSTANTE, e um viés
+   * constante somado muitas vezes por segundo é exatamente a "casa andando sozinha". Ele é medido
+   * só com a pessoa PARADA (aí a única coisa que pode produzir fluxo é o próprio viés) e subtraído
+   * de cada medida enquanto se anda. Nunca é medido em movimento, para não comer o passo de quem
+   * caminha devagar.
+   */
+  biasSc: 0,
+  biasAt: 0,
   depth: 1.25, // metros assumidos até aos objetos à frente (resposta 6DoF estável sem deriva espontânea)
 
   init() {
@@ -160,6 +170,8 @@ export const SixDof = {
     this.lastLatDx = 0;
     this.carrySc = 0;
     this.recentSc.length = 0;
+    this.biasSc = 0;
+    this.biasAt = 0;
   },
 
   reset() {
@@ -177,6 +189,8 @@ export const SixDof = {
     this.recentSc.length = 0;
     this._lastSentX = 0;
     this._lastSentZ = 0;
+    this.biasSc = 0;
+    this.biasAt = 0;
     const cam = _getCam();
     if (cam) {
       cam.position.x = 0;
@@ -385,24 +399,55 @@ export const SixDof = {
      * o que entra no carry é medida de verdade, e ele é zerado assim que a pessoa para.
      */
     const PLAUSIBLE_MIN = 0.0012, EMIT_MIN = 0.0028, FLOW_MAX = 0.14;
+    /**
+     * ANTI-DERIVA (2.6.7). Três travas, todas em volta do mesmo problema — o mundo andando sozinho:
+     *
+     *   1. VIÉS (`biasSc`): medido SÓ com a pessoa parada, subtraído de toda medida em movimento.
+     *      É o que o foco automático/exposição da câmera faz: um `sc` pequeno e constante que,
+     *      somado 15 vezes por segundo, empurra o mundo para a frente para sempre.
+     *   2. CARRY LIMITADO (`CARRY_MAX`): o resto não confirmado era guardado até 0,14 (o teto do
+     *      fluxo) e saía de uma vez no primeiro passo confirmado — um pulo de até 17 cm no instante
+     *      em que a pessoa começava a andar. Agora o acumulado não passa de 0,02 (~7 amostras
+     *      lentas): caminhar devagar continua somando até dar um passo de verdade, mas um tremor de
+     *      muito tempo não vira um salto.
+     *   3. TRAVA DE REPOUSO (`HOLD_MS`): sem nenhum passo emitido há HOLD_MS, a posição volta
+     *      EXATAMENTE para a âncora do mundo e o histórico de concordância é esquecido. Nada de
+     *      resíduo de suavização empurrando a câmera devagar.
+     */
+    const BIAS_MAX = 0.0035;
+    const CARRY_MAX = 0.02;
+    const HOLD_MS = 380;
     const stopAndLock = () => {
       this.carrySc = 0;
       this.lastSc = 0;
       this.recentSc.length = 0;
       this.lastLatDx = 0;
-      if (this.worldLock) this.worldLocked = true;
+      if (this.worldLock) {
+        this.worldLocked = true;
+        this.pos.copy(this.anchorPos);
+        this.out.copy(this.anchorPos);
+      }
     };
-    const plausible = Number.isFinite(sc) && Math.abs(sc) >= PLAUSIBLE_MIN && Math.abs(sc) <= FLOW_MAX;
-    if (!plausible) { stopAndLock(); return; }
+    let rawSc = sc;
+    const plausibleRaw = Number.isFinite(rawSc) && Math.abs(rawSc) >= PLAUSIBLE_MIN && Math.abs(rawSc) <= FLOW_MAX;
+    if (!plausibleRaw) { stopAndLock(); return; }
 
     // Cabeça a rodar: World Lock mantém a âncora fixa e ignora o fluxo ótico para nunca causar drift
     if (Math.hypot(gx, gy) > 1.8) { stopAndLock(); return; }
 
     if (!isMoving) {
+      // Repouso é o único lugar onde dá para saber o que é viés: mede devagar e não mexe na posição.
+      const k = Math.max(0.02, 1 - Math.exp(-Math.max(0.005, (nowMs - this.biasAt) || 66) / 2200));
+      if (Math.abs(rawSc) <= BIAS_MAX * 1.6) this.biasSc += (rawSc - this.biasSc) * k;
+      this.biasAt = nowMs;
       stopAndLock();
-      if (this.worldLock) this.pos.copy(this.anchorPos);
       return;
     }
+
+    // Em movimento: desconta o viés medido em repouso e exige que ainda sobre um passo plausível.
+    const adjustedSc = rawSc - (Math.abs(this.biasSc) <= BIAS_MAX ? this.biasSc : 0);
+    const plausible = Number.isFinite(adjustedSc) && Math.abs(adjustedSc) >= PLAUSIBLE_MIN && Math.abs(adjustedSc) <= FLOW_MAX;
+    if (!plausible) { stopAndLock(); return; }
 
     /**
      * Concordância em duas de três medições seguidas, em vez de exigir exatamente a anterior.
@@ -411,28 +456,29 @@ export const SixDof = {
      * regra existe para barrar — e o `carrySc` garante que a medida não confirmada não se perde.
      */
     const prevSc = this.lastSc;
-    this.lastSc = sc;
+    this.lastSc = adjustedSc;
     this.lastScAt = nowMs;
-    this.recentSc.push(sc);
+    this.recentSc.push(adjustedSc);
     if (this.recentSc.length > 3) this.recentSc.shift();
     let agree = 0;
     for (let i = 0; i < this.recentSc.length; i++) {
       const v = this.recentSc[i];
-      if (Math.sign(v) === Math.sign(sc) && Math.abs(v - sc) <= Math.max(0.045, Math.abs(sc) * 1.25)) agree++;
+      if (Math.sign(v) === Math.sign(adjustedSc) && Math.abs(v - adjustedSc) <= Math.max(0.045, Math.abs(adjustedSc) * 1.25)) agree++;
     }
-    const confirmed = agree >= 2 || (prevSc !== 0 && Math.sign(prevSc) === Math.sign(sc) &&
-        Math.abs(sc - prevSc) <= Math.max(0.045, Math.abs(sc) * 1.25));
+    const confirmed = agree >= 2 || (prevSc !== 0 && Math.sign(prevSc) === Math.sign(adjustedSc) &&
+        Math.abs(adjustedSc - prevSc) <= Math.max(0.045, Math.abs(adjustedSc) * 1.25));
 
-    // Medida guardada (não confirmada, ou pequena de mais para andar) — nunca é liberada depois de parar.
+    // Medida guardada (não confirmada, ou pequena de mais para andar) — SOMA (é o que faz o passo
+    // lento andar), mas com teto CARRY_MAX. O teto é o que impede o solavanco de 17 cm de antes.
     if (!confirmed) {
-      this.carrySc = Math.max(-FLOW_MAX, Math.min(FLOW_MAX, (this.carrySc || 0) + sc));
+      this.carrySc = Math.max(-CARRY_MAX, Math.min(CARRY_MAX, (this.carrySc || 0) + adjustedSc));
       if (this.worldLock) this.worldLocked = true;
       return;
     }
 
-    const applied = (this.carrySc || 0) + sc;
+    const applied = (this.carrySc || 0) + adjustedSc;
     if (Math.abs(applied) < EMIT_MIN) {
-      this.carrySc = applied;
+      this.carrySc = Math.max(-CARRY_MAX, Math.min(CARRY_MAX, applied));
       if (this.worldLock) this.worldLocked = true;
       return;
     }
@@ -488,9 +534,14 @@ export const SixDof = {
       return;
     }
 
-    if (this.worldLock && this.lastScAt > 0 && now - this.lastScAt > 160) {
+    // TRAVA DE REPOUSO: passou HOLD_MS sem um passo emitido, a câmera volta para a âncora do mundo.
+    // Sem isso, o resíduo da suavização continuava empurrando a cena por alguns quadros a cada
+    // rajada de ruído — era o "vai andando sozinho" com a pessoa parada.
+    if (this.worldLock && this.lastScAt > 0 && now - this.lastScAt > 380) {
       this.anchorPos.set(this.pos.x, 0, this.pos.z);
       this.pos.copy(this.anchorPos);
+      this.carrySc = 0;
+      this.recentSc.length = 0;
     }
 
     const lerpK = Math.max(0.42, 1 - Math.exp(-Math.max(0.005, dt) * 26));

@@ -54,6 +54,15 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'anti-treme-6dof-sem-deriva-soco-sem-janelinha',
+    tag: 'CORREÇÃO · MÃO SEM TREMER · 6DOF SEM DERIVA · O SOCO NÃO ABRE MAIS JANELINHA',
+    time: 'Agora',
+    heading: 'A Mão Parou de Tremer, o 6DoF Parou de Andar Sozinho e o Soco Não Abre Mais Nada',
+    desc: 'A MÃO: agora existe um filtro anti-treme de verdade no rastreio. O detector devolve a mão parada com ~1 px de ruído por quadro, e o braço, a bolinha e o raio ficavam respirando com isso. Entrou um filtro adaptativo (One Euro) com zona morta: PARADO ele filtra muito e o tremor praticamente some; ANDANDO ele filtra pouco, então a ponta do dedo continua chegando junto com a mão — pinça e toque direto não ficaram moles. O mesmo filtro foi para o braço do gorila no jogo. Os gestos (pinça e punho) NÃO passam pelo filtro: atrasar a borda do gesto viraria clique perdido ou clique fantasma. '
+      + 'O 6DOF: o mundo andava sozinho. Eram três coisas somadas. (1) Foco automático e exposição da câmera produzem um fluxo ótico pequeno e CONSTANTE mesmo com a pessoa parada, e ele era somado a cada quadro — agora esse viés é medido com a pessoa parada e descontado quando ela anda. (2) O resto de fluxo não confirmado ficava guardado e saía de uma vez, um pulo de até 17 cm no instante em que você começava a andar — agora tem teto e não vira solavanco. (3) Um impacto isolado no acelerômetro (a mão batendo no aparelho, o celular sendo ajeitado) liberava o andar por meio segundo; agora o acelerômetro precisa confirmar DOIS passos de verdade. E se ficar meio segundo sem passo nenhum, a câmera volta exatamente para a âncora do mundo. Caminhar devagar continua andando, e o limiar para andar não mudou. '
+      + 'O SOCO: você mandou tirar, e saiu inteiro. Fechar a mão por 2 segundos abria um "Menu Rápido" numa janelinha flutuante no meio do campo de visão — e como ela respondia ao mesmo gesto que move as janelas, dava para arrastá-la sem querer no meio da partida. O gesto, a janela e o interruptor saíram; fechar a mão agora só fecha a mão. O menu do próprio jogo continua igual.',
+  },
+  {
     id: 'gorilla-lentes-webxr-menu-do-jogo-gorila-visivel',
     tag: 'CORREÇÃO · LENTES COMO AS DO WEBXR · GORILA NA TELA · MENU DE APARÊNCIA DE VOLTA AO JOGO',
     time: 'Agora',

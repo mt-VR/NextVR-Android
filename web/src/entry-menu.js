@@ -341,7 +341,7 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
           <div class="entry-updates-head">
             <span class="entry-updates-dot" aria-hidden="true"></span>
             <span class="entry-updates-title">ATUALIZAÇÕES · NOTIFICAÇÕES</span>
-            <span class="entry-updates-badge">v2.6.6</span>
+            <span class="entry-updates-badge">v2.6.7</span>
           </div>
           <div class="entry-updates-list">
             ${ENTRY_UPDATES.map(u => `
@@ -558,7 +558,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
                 <button type="button" class="entry-seg-btn ${!S.handDraw ? 'on' : ''}" data-entry-hand-draw="0">${emT('handInvisible')}</button>
                 <button type="button" class="entry-seg-btn ${S.fingerTouch !== 0 ? 'on' : ''}" data-entry-finger-touch="${S.fingerTouch !== 0 ? '1' : '0'}" title="Toque com o indicador indo à frente sem precisar pinçar">${S.fingerTouch !== 0 ? emT('fingerTouchOn') : emT('fingerTouchOff')}</button>
                 <button type="button" class="entry-seg-btn ${S.pinchOnApp !== 0 ? 'on' : ''}" data-entry-pinch-app="${S.pinchOnApp !== 0 ? '1' : '0'}" title="Fazer a pinça encima de um app abre o app na hora, sem precisar do raio">Pinça no App (Sem Raio): ${S.pinchOnApp !== 0 ? 'ON' : 'OFF'}</button>
-                <button type="button" class="entry-seg-btn ${S.gunGesture !== 0 ? 'on' : ''}" data-entry-gun-gesture="${S.gunGesture !== 0 ? '1' : '0'}" title="Gesto na mão direita (bolinha com contorno azul) e fechar a mão por 2s"><span>Bolinha Mão Dir. / Soco: ${S.gunGesture !== 0 ? 'ON' : 'OFF'}</span></button>
               </div>
             </div>
 
@@ -1115,14 +1114,6 @@ export function buildEntryMenu({ onStart, onLaunchGorilla, getStatus, fullscreen
         S.pinchOnApp = S.pinchOnApp === 0 ? 1 : 0;
         save(S);
         emit('pinchOnApp', !!S.pinchOnApp);
-        paint();
-      };
-    });
-    root.querySelectorAll('[data-entry-gun-gesture]').forEach(btn => {
-      btn.onclick = () => {
-        S.gunGesture = S.gunGesture === 0 ? 1 : 0;
-        save(S);
-        emit('gunGesture', !!S.gunGesture);
         paint();
       };
     });

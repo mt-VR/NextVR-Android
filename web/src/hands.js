@@ -5,11 +5,24 @@
 // gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
 import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
 import { bindSixDofContext, updateHandBoxesFromPacket } from './sixdof.js';
-import { HandClickState, ClickDragArbiter } from './hand-input.js';
+import { HandClickState, ClickDragArbiter, HandPointFilter } from './hand-input.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null, mode: 'idle' };
 const clickState = new HandClickState();
 const pressArbiter = new ClickDragArbiter();
+/**
+ * FILTRO ANTI-TREM (2.6.7) — "bota um filtro anti treme no Hand tracking".
+ *
+ * O rastreador nativo filtra a silhueta, mas o raio/bolinha, a profundidade do Toque Direto e os
+ * dois jogos HTML (que recebem `window.__nvHands`) liam o pacote com o ruído do detector em cima.
+ * Com a mão parada o ruído é de ~1 px por quadro e na tela isso é a bolinha e o raio respirando.
+ *
+ * Aplicado AQUI, num lugar só: todo mundo que recebe mão do app (`nextvrHands`) recebe o mesmo
+ * conjunto de pontos já estabilizado. Nunca nos gestos: `pinching`/`fist` continuam vindo do
+ * pacote cru, porque um filtro atrasa a borda do gesto e viraria clique perdido ou clique fantasma.
+ */
+const pointFilter = new HandPointFilter({ minCutoff: 1.2, beta: 6, deadZone: 0.0007 });
+window.__nvHandFilter = pointFilter;   // sonda: dá para zerar/inspecionar no aparelho
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 2*TAN_X, scaleY = 2*TAN_Y, visual = null, validForMs = 500;
 bindSixDofContext({ getHands: () => ({ list: hands, lastAt: lastFrame }) });
@@ -186,7 +199,17 @@ if (native) window.nextvrHands = (frame, sx = 1, sy = 1) => {
   } else if (shMode === 'one' && incomingHands.length > 1) {
     incomingHands = [[...incomingHands].sort((a, b) => (b.palmWidth || 0) - (a.palmWidth || 0))[0]];
   }
-  hands.splice(0,hands.length,...incomingHands);
+  // Estabiliza os 21 pontos de cada mão ANTES de publicar: `updatePerHandVelocities`, o cursor, o
+  // Toque Direto, os gestos de janela e a ponte para os jogos usam todos este mesmo pacote.
+  // Muta o MESMO pacote em vez de criar um objeto novo por quadro: `points` vira um array novo
+  // (calculado do cru) e nada mais muda, então quem segura referência do último pacote (gestos de
+  // janela, jogo, depuração) continua vendo um objeto atualizado e não um clone por quadro.
+  const filteredHands = incomingHands.map(h => {
+    if (!h || !h.points || h.points.length < 63) return h;
+    h.points = pointFilter.apply(h.id, h.points, now);
+    return h;
+  });
+  hands.splice(0,hands.length,...filteredHands);
   updatePerHandVelocities(hands, now, stampNs);
   emit('handframe',{...frame,hands});
   const consumed=new Set();

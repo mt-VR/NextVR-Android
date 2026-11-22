@@ -156,6 +156,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
     private float gravMag=Float.NaN;
     private volatile float walkEnergy=0f;
     private volatile long lastWalkStepMs=0L;
+    // Quantos passos de verdade em ~900 ms. Um único solavanco (mão batendo no aparelho, o celular
+    // sendo ajeitado no VR Box) NÃO é caminhada: o 6DoF liberava andar por 650 ms com um impacto só,
+    // e o fluxo ótico daquele instante (mão, foco, exposição) virava passo — deriva.
+    private final long[] walkStepAt=new long[4];
+    private int walkStepIdx=0;
     private volatile float gyroRate=0f;
     private volatile boolean sixDofEnabled=true;
     private volatile boolean sentZeroSixDof=false;
@@ -181,7 +186,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                     float stepImpact=Math.abs(mag-gravMag);
                     if(stepImpact>0.22f && gyroRate<0.85f) {
                         walkEnergy=Math.min(4f, walkEnergy*0.86f + stepImpact*1.35f);
-                        if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                        if(walkEnergy>0.16f) {
+                            long now=android.os.SystemClock.elapsedRealtime();
+                            lastWalkStepMs=now;
+                            walkStepAt[walkStepIdx=(walkStepIdx+1)%walkStepAt.length]=now;
+                        }
                     } else if(!hasLinearAccel) {
                         walkEnergy*=0.84f;
                     }
@@ -192,7 +201,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 float lmag=(float)Math.sqrt(lx*lx+ly*ly+lz*lz);
                 if(lmag>0.24f && gyroRate<0.85f) {
                     walkEnergy=Math.min(4f, walkEnergy*0.86f + lmag*1.30f);
-                    if(walkEnergy>0.16f) lastWalkStepMs=android.os.SystemClock.elapsedRealtime();
+                    if(walkEnergy>0.16f) {
+                        long now=android.os.SystemClock.elapsedRealtime();
+                        lastWalkStepMs=now;
+                        walkStepAt[walkStepIdx=(walkStepIdx+1)%walkStepAt.length]=now;
+                    }
                 } else {
                     walkEnergy*=0.84f;
                 }
@@ -317,13 +330,20 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
                 } else {
                     sentZeroSixDof=false;
                 }
-                // Exige caminhada física real no acelerômetro (walkEnergy > 0.16f nos últimos 650 ms) e cabeça estável:
-                // impede completamente que o 6DoF ande sozinho para a frente ou para os lados.
-                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.16f && (nowMs-lastWalkStepMs)<650L);
+                // Exige caminhada física real no acelerômetro: energia acima de 0.16 e **dois passos**
+                // nos últimos 900 ms, com a cabeça estável. Um impacto isolado (mão, ajeitar o
+                // celular) passava no teste antigo e liberava o fluxo ótico por 650 ms — era deriva.
+                int recentSteps=0;
+                for(long at:walkStepAt) if(at>0L && nowMs-at<1600L) recentSteps++;
+                boolean accelMoving=!hasWalkAccel || (walkEnergy>0.16f && recentSteps>=2 && (nowMs-lastWalkStepMs)<650L);
                 boolean moving=accelMoving && gyroRate<0.85f && Math.hypot(gx,gy)<=1.8;
                 boolean worldLocked=!moving || zeroFlow;
                 if(!moving && sentZeroSixDof) return;
-                float adjSc=moving?sc:0f;
+                // Antes, TODO fluxo abaixo de 0.0028 era zerado aqui e o JS nunca ficava sabendo dele:
+                // caminhar devagar não movia nada, e o resto morria no acumulador da shell. Agora a
+                // banda lenta (0.0012–0.0028) passa junto quando o acelerômetro confirma caminhada
+                // real — quem acumula é a shell, e o limiar para andar continua 0.0028.
+                float adjSc= moving ? sc : 0f;
                 main.post(()->{
                     if(closed || !resumed || shell==null || !ready || !sixDofEnabled) return;
                     shell.evaluate("window.nextvrSixDof&&window.nextvrSixDof({sc:"+adjSc+",gx:"+gx+",gy:"+gy+",mx:"+gx+",moving:"+moving+",worldLock:true,worldLocked:"+worldLocked+"})");

@@ -157,8 +157,13 @@ test('entry menu source and bundle include all five cards, hand style toggle, co
   assert.ok(
     pokeSrc.includes('pressHoldMs') && pokeSrc.includes('rearm') && pokeSrc.includes("events.push('press')") && pokeSrc.includes('_seenFront'),
     'direct-touch.js exige pressão sustentada, rearme depois do contacto e dedo vindo de frente');
-  assert.ok(windowsSrc.includes('updateFistQuickMenu') && windowsSrc.includes('KEY_SUBS'),
-    'windows.js implements 2s closed-fist quick menu trigger and keyboard superscript symbols');
+  // 2.6.7 — "tira a opção de só fazer o soco em uma janelinha flutuante ... isso piorou muito o
+  // jogo": o gatilho de soco por 2 s e a janela `fist-menu` arrastável não existem mais.
+  assert.ok(!windowsSrc.includes('function updateFistQuickMenu') && !windowsSrc.includes('function isClosedFistHand') &&
+    !windowsSrc.includes('const fistHoldByHand') && !windowsSrc.includes('[data-fist-act]') &&
+    !windowsSrc.includes('nextvrOpenFistQuickMenu'),
+    'windows.js não tem mais o gatilho de soco por 2 s nem a janela flutuante do Menu Rápido');
+  assert.ok(windowsSrc.includes('KEY_SUBS'), 'windows.js keeps the keyboard superscript symbols');
   const handGesturesKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/HandGestures.kt', 'utf8');
   const phoneXrHandsKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt', 'utf8');
   const handRendererKt = readFileSync('nextvr-android/src/main/java/com/nextvr/app/PhoneXrHandRenderer.kt', 'utf8');
@@ -646,8 +651,12 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.ok(await page.evaluate(() => Array.isArray(window.__last) && window.__last.some(p => p.id === 'dock') && !window.__last.some(p => p.id === 'spatial-launcher')),
       'normal dock is published to NativeXR.frame and spatial-launcher is removed');
 
-    // 6c-2b. Holding a closed fist (soco) for 2 seconds opens the Quick Menu (`fist-menu`) with Recenter Dock, Virtual Environments, and Dock Toggle
-    const fistMenuResult = await page.evaluate(async () => {
+    // 6c-2b. O soco NÃO abre mais janelinha nenhuma (2.6.7).
+    // "tira a opção de só fazer o soco em uma janelinha flutuante nós consegue mexer ela de lugar,
+    // isso piorou muito o jogo": o gesto de fechar a mão por 2 s abria o Menu Rápido numa janela
+    // flutuante arrastável. Agora fechar a mão por 2 s não pode abrir NADA, e o dock não pode
+    // mudar de estado por causa disso.
+    const fistNoMenuResult = await page.evaluate(async () => {
       const mkFistHand = () => {
         const pts = new Array(63).fill(0.5);
         pts[0] = 0.5; pts[1] = 0.72; pts[2] = 0;
@@ -656,44 +665,33 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
           pts[tipIdx * 3] = 0.52; pts[tipIdx * 3 + 1] = 0.62; pts[tipIdx * 3 + 2] = 0;
         }
         return {
-          id: 'right',
-          pinching: false,
-          pinch: 0.55,
-          fist: true,
-          palmWidth: 0.2,
-          aim: [0, 0],
-          palm: [0.5, 0.6, 0.3],
-          ring: [0.5, 0.6],
-          points: pts,
+          id: 'right', pinching: false, pinch: 0.55, fist: true, palmWidth: 0.2,
+          aim: [0, 0], palm: [0.5, 0.6, 0.3], ring: [0.5, 0.6], points: pts,
         };
       };
       const origNow = performance.now.bind(performance);
       let fakeOffset = 0;
       performance.now = () => origNow() + fakeOffset;
       try {
-        window.nextvrHands({ hands: [mkFistHand()] });
-        fakeOffset += 2100;
-        window.nextvrHands({ hands: [mkFistHand()] });
+        for (let i = 0; i < 8; i++) { window.nextvrHands({ hands: [mkFistHand()] }); fakeOffset += 400; }
       } finally {
         performance.now = origNow;
       }
       await new Promise(r => setTimeout(r, 30));
-      const fistWin = document.querySelector('.win-shell[data-window-id="fist-menu"]');
-      const openedMenu = !!fistWin && !fistWin.hidden;
-      fistWin?.querySelector('[data-fist-act="toggle-dock"]')?.click();
+      const anyFistWin = !!document.querySelector('.win-shell[data-window-id="fist-menu"]');
+      // Um atalho antigo (ou uma página em cache) ainda pode chamar a abertura: tem que ser inofensivo.
+      let legacySafe = true;
+      try { window.nextvrOpenFistQuickMenu?.(); } catch (e) { legacySafe = false; }
       await new Promise(r => setTimeout(r, 30));
-      const hiddenAfterToggle = getComputedStyle(document.querySelector('.dock')).display === 'none';
-      window.nextvrOpenFistQuickMenu?.();
-      await new Promise(r => setTimeout(r, 30));
-      document.querySelector('.win-shell[data-window-id="fist-menu"] [data-fist-act="recenter"]')?.click();
-      await new Promise(r => setTimeout(r, 30));
-      const visibleAfterRecenter = getComputedStyle(document.querySelector('.dock')).display !== 'none';
+      const afterLegacy = !!document.querySelector('.win-shell[data-window-id="fist-menu"]');
+      const dockVisible = getComputedStyle(document.querySelector('.dock')).display !== 'none';
       window.nextvrHands({ hands: [] });
-      return { openedMenu, hiddenAfterToggle, visibleAfterRecenter };
+      return { anyFistWin, legacySafe, afterLegacy, dockVisible };
     });
-    assert.equal(fistMenuResult.openedMenu, true, 'holding a closed fist (soco) for 2 seconds opens the Quick Menu');
-    assert.equal(fistMenuResult.hiddenAfterToggle, true, 'Quick Menu toggle-dock action hides the Dock');
-    assert.equal(fistMenuResult.visibleAfterRecenter, true, 'Quick Menu recenter action restores and recenters the Dock');
+    assert.equal(fistNoMenuResult.anyFistWin, false, 'segurar o soco por 2 s não abre mais nenhuma janelinha flutuante');
+    assert.equal(fistNoMenuResult.legacySafe, true, 'a função antiga de abrir o menu do soco não estoura');
+    assert.equal(fistNoMenuResult.afterLegacy, false, 'e também não abre nada');
+    assert.equal(fistNoMenuResult.dockVisible, true, 'o dock continua visível: o soco não mexeu nele');
 
     // 6c-3. 6DoF Falso estabilizado (fluxo ótico 96x72 / SixDof):
     // - NÃO anda para a frente sozinho quando parado (moving: false) nem continua a deslizar sozinho após parar
@@ -875,7 +873,7 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       await new Promise(r => setTimeout(r, 60));
       const robloxBlackEnvRestored = !document.documentElement.dataset.robloxBlackEnv;
 
-      // Gun gesture (arminha) + bolinha removed from game; holding a closed fist (soco) for 2s opens the Quick Menu (fist-menu)
+      // Gun gesture (arminha) + bolinha removed from game; e o soco por 2 s NÃO abre janelinha (2.6.7)
       const mkFistHand = () => {
         const pts = new Array(63).fill(0);
         const setPt = (idx, x, y, z = 0) => {
@@ -911,24 +909,14 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
       let fakeOffset = 0;
       performance.now = () => origNow() + fakeOffset;
       try {
-        window.nextvrHands({ hands: [mkFistHand()] });
-        fakeOffset += 2100;
-        window.nextvrHands({ hands: [mkFistHand()] });
+        for (let i = 0; i < 8; i++) { window.nextvrHands({ hands: [mkFistHand()] }); fakeOffset += 400; }
       } finally {
         performance.now = origNow;
       }
       await new Promise(r => setTimeout(r, 40));
       const noGunBubble = !document.getElementById('gun-gesture-indicator');
-      const fistMenuWin = document.querySelector('.win-shell[data-window-id="fist-menu"]');
-      const fistMenuOpened =
-        !!fistMenuWin &&
-        !!fistMenuWin.querySelector('[data-fist-act="recenter"]') &&
-        !!fistMenuWin.querySelector('[data-fist-act="environments"]') &&
-        !!fistMenuWin.querySelector('[data-fist-env="sunset"]');
-      fistMenuWin?.querySelector('[data-fist-env="dark"]')?.click();
-      await new Promise(r => setTimeout(r, 30));
+      const fistMenuOpened = !!document.querySelector('.win-shell[data-window-id="fist-menu"]');
       const envChangedFromFistMenu = JSON.parse(localStorage.getItem('nextvr.v1')).env === 'dark';
-      fistMenuWin?.querySelector('[data-fist-act="recenter"]')?.click();
 
       // Environment options inside Floating Apps (spatial-launcher)
       window.nextvrEnterWorkspace(JSON.stringify({ spatialLauncher: 1, wideCamera: 1, handDraw: 1 }));
@@ -1119,8 +1107,8 @@ test('entry menu interactive flow in browser: hand tracking toggle, colaboradore
     assert.equal(questAndFeatures.robloxBlackEnvActive, true, 'Launching Roblox turns the surrounding environment black with floating Roblox window');
     assert.equal(questAndFeatures.robloxBlackEnvRestored, true, 'Closing Roblox restores the normal environment');
     assert.equal(questAndFeatures.noGunBubble, true, 'Floating gun gesture bolinha is not active during closed-fist gesture');
-    assert.equal(questAndFeatures.fistMenuOpened, true, 'Holding a closed fist (soco) for 2 seconds opens the Quick Menu with Recenter Dock and Virtual Environment options');
-    assert.equal(questAndFeatures.envChangedFromFistMenu, true, 'Quick Menu switches the virtual environment immediately');
+    assert.equal(questAndFeatures.fistMenuOpened, false, 'segurar o soco por 2 s não abre mais a janelinha flutuante do Menu Rápido');
+    assert.equal(questAndFeatures.envChangedFromFistMenu, false, 'e o soco não troca mais o ambiente pelas costas');
     assert.equal(questAndFeatures.hasSpatialEnvOptions, true, 'Floating Apps (spatial-launcher) includes Virtual Environment options');
     assert.equal(questAndFeatures.spatialEnvSwitched, true, 'Selecting an environment inside Floating Apps switches the active environment');
     assert.equal(questAndFeatures.circleLoaderShown, true, 'Circular loading transition appears for environment loading');
@@ -1381,8 +1369,22 @@ test('6DoF não perde o passo lento nem o quadro não confirmado', async () => {
     'parar zera o acumulado (nada anda sozinho depois)');
   // Concordância em duas de três medições em vez da anterior exata: a 15 Hz um quadro perdido
   // descartava também a medida boa, e o andar virava para-e-anda.
-  assert.ok(sixdofSrc.includes('this.recentSc.push(sc);') && sixdofSrc.includes('if (this.recentSc.length > 3) this.recentSc.shift();') && sixdofSrc.includes('const confirmed = agree >= 2 ||'),
+  assert.ok(sixdofSrc.includes('this.recentSc.push(adjustedSc);') && sixdofSrc.includes('if (this.recentSc.length > 3) this.recentSc.shift();') && sixdofSrc.includes('const confirmed = agree >= 2 ||'),
     'confirmação 2-de-3 substitui a exigência do quadro imediatamente anterior');
+  // ANTI-DERIVA (2.6.7): o fluxo pequeno e constante que a câmera devolve com a pessoa parada (foco
+  // automático/exposição) é medido em repouso e subtraído em movimento; o acumulado do passo lento
+  // tem teto e decai (nunca sai de uma vez num solavanco); e sem passo por 380 ms a câmera volta
+  // exatamente para a âncora do mundo.
+  assert.ok(sixdofSrc.includes('this.biasSc += (rawSc - this.biasSc) * k;'),
+    'o viés do fluxo ótico é medido com a pessoa parada');
+  assert.ok(sixdofSrc.includes('const adjustedSc = rawSc - (Math.abs(this.biasSc) <= BIAS_MAX ? this.biasSc : 0);'),
+    'e subtraído de toda medida em movimento');
+  assert.ok(sixdofSrc.includes('const BIAS_MAX = 0.0035;') && sixdofSrc.includes('const CARRY_MAX = 0.02;') && sixdofSrc.includes('const HOLD_MS = 380;'),
+    'viés limitado, acumulado com teto e trava de repouso em 380 ms');
+  assert.ok(sixdofSrc.includes('this.carrySc = Math.max(-CARRY_MAX, Math.min(CARRY_MAX, (this.carrySc || 0) + adjustedSc));'),
+    'o acumulado soma (para o passo lento andar) mas com teto CARRY_MAX (sem solavanco)');
+  assert.ok(sixdofSrc.includes('const stepSc = applied * 0.5 + prevSc * 0.5;'),
+    'o passo emitido continua sendo a média com o quadro anterior (sem solavanco)');
   assert.ok(!sixdofSrc.includes('this.vel.'), 'sem inércia: nada de velocidade artificial');
   // O lado nativo entrega a banda lenta em vez de zerá-la; quem acumula é a shell (uma camada só).
   assert.ok(fakeSixDofJava.includes('boolean slowFlow = !significantFlow && Math.abs(finalSc) >= 0.0012f'),

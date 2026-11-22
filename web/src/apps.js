@@ -1141,13 +1141,6 @@ function controlCenterApp() {
     button.querySelector('small').textContent = S.pinchOnApp !== 0 ? 'Ativado' : 'Desativado';
     return S.pinchOnApp !== 0;
   }, S.pinchOnApp !== 0);
-  control('crosshair', 'Gesto de Soco 2s (Menu Rápido)', S.gunGesture !== 0 ? 'Ativado' : 'Desativado', button => {
-    S.gunGesture = S.gunGesture === 0 ? 1 : 0;
-    save(S);
-    emit('gunGesture', S.gunGesture !== 0);
-    button.querySelector('small').textContent = S.gunGesture !== 0 ? 'Ativado' : 'Desativado';
-    return S.gunGesture !== 0;
-  }, S.gunGesture !== 0);
   control('appGrid', 'Anel de 13 Apps (bolinha da Dock)', S.orbRing !== 0 ? 'Ativado' : 'Desativado · biblioteca de volta', button => {
     const enabled = S.orbRing === 0;      // tocou: inverte
     S.orbRing = enabled ? 1 : 0;
@@ -1285,12 +1278,6 @@ function settingsApp() {
     'Pinça no App (Sem Raio)',
     'Fazer a pinça encima de um app abre o app na hora, sem precisar do raio',
     ytToggle('pinchOnApp', v => emit('pinchOnApp', !!v))
-  ));
-  scroll.append(ytRow(
-    icon('crosshair'),
-    'Gesto de Soco 2s (Menu Rápido)',
-    'Fechar a mão toda por 2 segundos abre o menuzinho de recentrar dock e ambientes',
-    ytToggle('gunGesture', v => emit('gunGesture', !!v))
   ));
   scroll.append(ytRow(icon('zap'), 'Sensibilidade', 'Pinça com histerese estável'));
 
@@ -3146,7 +3133,7 @@ function syncSpatialLauncherVisibility() {
   if (!S.spatialLauncher || !spatialWin) return;
   _syncingSpatialWins = true;
   try {
-    const appWins = wins.filter(w => w.id !== 'spatial-launcher' && w.id !== 'fist-menu' && w.id !== 'left-quick-menu' && !w.onboarding && !w.hidden);
+    const appWins = wins.filter(w => w.id !== 'spatial-launcher' && w.id !== 'left-quick-menu' && !w.onboarding && !w.hidden);
     if (appWins.length > 3) {
       const newest = appWins[appWins.length - 1];
       for (const oldWin of appWins) {
@@ -3174,11 +3161,9 @@ function syncSpatialLauncherVisibility() {
 on('wins', syncSpatialLauncherVisibility);
 on('env', () => {
   if (winBody('spatial-launcher')) paintSpatialLauncher();
-  if (winBody('fist-menu')) paintFistQuickMenu();
 });
 on('mr-dim', () => {
   if (winBody('spatial-launcher')) paintSpatialLauncher();
-  if (winBody('fist-menu')) paintFistQuickMenu();
 });
 
 let gestureHiddenWins = [];
@@ -3272,238 +3257,18 @@ function spatialLauncherApp() {
   return win;
 }
 
-/* ============ Menuzinho Rápido (Fechar a mão tipo Soco por 2s) ============ */
-function buildFistQuickMenuDom() {
-  const curEnv = S.env || 'passthrough';
-  const root = el('div', 'fist-quick-menu');
-  root.innerHTML = `
-    <div class="fist-menu-head">
-      <div class="fist-menu-badge">${icon('crosshair')}</div>
-      <div>
-        <h3 class="fist-menu-title">Menu Rápido</h3>
-        <p class="fist-menu-sub">Atalho de soco (2s) · Escolha uma ação</p>
-      </div>
-    </div>
-
-    <div class="fist-menu-actions">
-      <button type="button" class="fist-menu-btn fist-menu-btn--primary" data-fist-act="recenter">
-        ${icon('move')}
-        <div>
-          <strong>Recentrar Dock e Visão</strong>
-          <small>Traga a dock e janelas para a direção do olhar</small>
-        </div>
-      </button>
-
-      <button type="button" class="fist-menu-btn" data-fist-act="environments">
-        ${icon('vision')}
-        <div>
-          <strong>Entrar em Ambiente Virtual</strong>
-          <small>Abrir painel completo de ambientes 360°</small>
-        </div>
-      </button>
-
-      <button type="button" class="fist-menu-btn ${S.mrDim ? 'fist-menu-btn--primary' : ''}" data-fist-act="mr-dim">
-        ${icon('camera')}
-        <div>
-          <strong>Ambiente MR: ${S.mrDim ? 'Escuro (Ativo)' : 'Normal'}</strong>
-          <small>Escurecer o ambiente real em volta dos apps flutuantes</small>
-        </div>
-      </button>
-    </div>
-
-    <div class="fist-menu-env-section">
-      <span class="fist-menu-section-lbl">Trocar Ambiente Agora</span>
-      <div class="fist-menu-env-grid">
-        <button type="button" class="fist-env-chip ${curEnv === 'passthrough' ? 'on' : ''}" data-fist-env="passthrough">
-          ${icon('camera')}<span>Câmera Real</span>
-        </button>
-        <button type="button" class="fist-env-chip ${curEnv === 'sunset' ? 'on' : ''}" data-fist-env="sunset">
-          ${icon('vision')}<span>Sunset 360°</span>
-        </button>
-        <button type="button" class="fist-env-chip ${curEnv === 'street' ? 'on' : ''}" data-fist-env="street">
-          ${icon('vision')}<span>Rua à noite 360°</span>
-        </button>
-        <button type="button" class="fist-env-chip ${curEnv === 'studio' ? 'on' : ''}" data-fist-env="studio">
-          ${icon('vision')}<span>Estúdio VR 360°</span>
-        </button>
-        <button type="button" class="fist-env-chip ${curEnv === 'dark' ? 'on' : ''}" data-fist-env="dark">
-          ${icon('vision')}<span>Escuro 360°</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="fist-menu-footer-row">
-      <button type="button" class="fist-menu-sec-btn ${internalRecState.active ? 'on' : ''}" data-fist-act="internal-record" data-internal-rec-btn="1">
-        ${icon('camera')}<span data-internal-rec-sub>${internalRecState.active ? 'Parar Gravação' : 'Gravar 1 Lente'}</span>
-      </button>
-      <button type="button" class="fist-menu-sec-btn" data-fist-act="single-hand">
-        ${icon('hand')}<span>${(S.singleHandMode || 'both') === 'both' ? 'Hand: 2 Mãos' : 'Hand: 1 Mão'}</span>
-      </button>
-      <button type="button" class="fist-menu-sec-btn" data-fist-act="camera-solo">
-        ${icon('camera')}<span>Câmera Sozinha</span>
-      </button>
-      <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-dock">
-        ${icon('appGrid')}<span>Mostrar / Ocultar Dock</span>
-      </button>
-      <button type="button" class="fist-menu-sec-btn" data-fist-act="toggle-spatial">
-        ${icon('maximize')}<span>${S.spatialLauncher ? 'Modo Dock' : 'Apps Flutuantes'}</span>
-      </button>
-      <button type="button" class="fist-menu-sec-btn" data-fist-act="settings">
-        ${icon('settings')}<span>Ajustes</span>
-      </button>
-    </div>
-  `;
-
-  root.addEventListener('click', e => {
-    const envBtn = e.target.closest('[data-fist-env]');
-    if (envBtn) {
-      const envId = envBtn.dataset.fistEnv || 'passthrough';
-      setEnvironment(envId);
-      paintFistQuickMenu();
-      toast('Ambiente: ' + envId);
-      return;
-    }
-    const actBtn = e.target.closest('[data-fist-act]');
-    if (!actBtn) return;
-    const act = actBtn.dataset.fistAct;
-    if (act === 'recenter') {
-      if (!S.spatialLauncher) {
-        setDockHidden(false);
-        setDockVisible(true);
-      }
-      recenter();
-      close('fist-menu');
-    } else if (act === 'environments') {
-      close('fist-menu');
-      environments();
-    } else if (act === 'mr-dim') {
-      setMrDim(!S.mrDim);
-      paintFistQuickMenu();
-      toast(S.mrDim ? 'Ambiente MR: Escuro' : 'Ambiente MR: Normal');
-    } else if (act === 'internal-record') {
-      toggleInternalEyeRecording();
-      paintFistQuickMenu();
-    } else if (act === 'single-hand') {
-      const idx = Math.max(0, SINGLE_HAND_OPTIONS.findIndex(([id]) => id === (S.singleHandMode || 'both')));
-      const next = SINGLE_HAND_OPTIONS[(idx + 1) % SINGLE_HAND_OPTIONS.length];
-      setSingleHandModeChoice(next[0]);
-      paintFistQuickMenu();
-      toast('Hand Tracking: ' + next[1]);
-    } else if (act === 'camera-solo') {
-      close('fist-menu');
-      toggleCameraSoloMode(true);
-    } else if (act === 'toggle-dock') {
-      toggleSpatialAndDockFromGesture();
-      close('fist-menu');
-    } else if (act === 'toggle-spatial') {
-      close('fist-menu');
-      setSpatialLauncherMode(!S.spatialLauncher);
-    } else if (act === 'settings') {
-      close('fist-menu');
-      controlCenterApp();
-    } else if (act === 'close') {
-      close('fist-menu');
-    }
-  });
-  return root;
-}
-
-function paintFistQuickMenu() {
-  const host = winBody('fist-menu');
-  if (!host) return;
-  host.innerHTML = '';
-  host.appendChild(buildFistQuickMenuDom());
-  css3d.invalidate?.();
-}
-
-let cameraSoloActive = false;
-let cameraSoloAutoTriggered = false;
-let cameraSoloSavedWins = [];
-let cameraSoloPillEl = null;
-
-export function toggleCameraSoloMode(forceState = undefined, autoFromDefocus = false) {
-  const next = typeof forceState === 'boolean' ? forceState : !cameraSoloActive;
-  cameraSoloActive = next;
-  if (next) {
-    cameraSoloAutoTriggered = Boolean(autoFromDefocus);
-    setPassthrough(true);
-    window.NativeXR?.refocusCamera?.();
-    if (cameraSoloSavedWins.length === 0) {
-      cameraSoloSavedWins = wins.filter(w => !w.hidden).map(w => w.id);
-    }
-    for (const w of wins) w.setHidden(true);
-    setDockHidden(true);
-    setDockVisible(false);
-    document.documentElement.dataset.cameraSolo = '1';
-    const hud = document.getElementById('hud') || document.body;
-    if (!cameraSoloPillEl || !document.body.contains(cameraSoloPillEl)) {
-      cameraSoloPillEl = document.createElement('button');
-      cameraSoloPillEl.id = 'camera-solo-pill';
-      cameraSoloPillEl.type = 'button';
-      cameraSoloPillEl.className = 'camera-solo-pill';
-      cameraSoloPillEl.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:205;padding:9px 18px;border-radius:999px;border:1.5px solid rgba(56,189,248,.65);background:rgba(15,23,42,.86);color:#f8fafc;font:700 13px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.55);cursor:pointer;pointer-events:auto';
-      cameraSoloPillEl.textContent = '📷 Câmera Sozinha (Foco Automático) · Toque para voltar';
-      cameraSoloPillEl.addEventListener('click', e => {
-        e.stopPropagation();
-        toggleCameraSoloMode(false);
-      });
-      hud.appendChild(cameraSoloPillEl);
-    }
-    cameraSoloPillEl.hidden = false;
-    toast('Modo Câmera Sozinha ativado · Focando câmera...');
-  } else {
-    cameraSoloAutoTriggered = false;
-    delete document.documentElement.dataset.cameraSolo;
-    if (cameraSoloPillEl) cameraSoloPillEl.hidden = true;
-    for (const id of cameraSoloSavedWins) {
-      const w = wins.find(x => x.id === id);
-      if (w) w.setHidden(false);
-    }
-    cameraSoloSavedWins = [];
-    if (!S.spatialLauncher) {
-      setDockHidden(false);
-      setDockVisible(true);
-    }
-  }
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return cameraSoloActive;
-}
-window.nextvrToggleCameraSolo = toggleCameraSoloMode;
-window.nextvrOnCameraDefocus = () => {
-  // Foco automático sozinho desativado por pedido do utilizador
-};
-
-export function openFistQuickMenu() {
-  const existing = wins.find(w => w.id === 'fist-menu');
-  if (existing) {
-    existing.setHidden(false);
-    existing.resizeScale = 1.28;
-    existing.apply();
-    paintFistQuickMenu();
-    focus(existing);
-    css3d.invalidate?.();
-    css3d.render?.(scene, camera);
-    return existing;
-  }
-  const body = el('div', 'fist-quick-menu-host');
-  const win = open({
-    id: 'fist-menu',
-    title: 'Menu Rápido',
-    node: body,
-    w: 640,
-    h: 480,
-  });
-  if (win) {
-    win.resizeScale = 1.28;
-    win.apply();
-  }
-  paintFistQuickMenu();
-  css3d.invalidate?.();
-  css3d.render?.(scene, camera);
-  return win;
-}
-window.nextvrOpenFistQuickMenu = openFistQuickMenu;
+/* ============ Menuzinho Rápido (soco por 2 s): REMOVIDO em 2.6.7 ============
+ *
+ * "tira a opção de só fazer o soco em uma janelinha flutuante nós consegue mexer ela de lugar, isso
+ * piorou muito o jogo". A janela flutuante abria no meio do campo de visão ao fechar a mão por 2 s
+ * e podia ser arrastada — ou seja, o mesmo gesto de pega que move as janelas abria e movia o menu no
+ * meio de uma partida. Saiu inteira: `openFistQuickMenu`, `buildFistQuickMenuDom`,
+ * `paintFistQuickMenu` e as ações `data-fist-act`/`data-fist-env`.
+ *
+ * A compatibilidade fica por uma função vazia: versões antigas da página (ou um atalho salvo) ainda
+ * chamam `window.nextvrOpenFistQuickMenu` e não podem estourar; elas simplesmente não abrem nada.
+ */
+window.nextvrOpenFistQuickMenu = () => null;
 
 /* ============ Janelinha Flutuante Transparente de Brilho e Som da Mão Esquerda (IMG_20261021_144416.jpg) ============ */
 let leftHandQuickMenuEl = null;

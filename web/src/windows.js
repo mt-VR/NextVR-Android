@@ -1282,7 +1282,7 @@ function clearWinBrowserHold() {
 /** Até onde o feixe da pinça vai quando não acerta nada (em metros). */
 const RAY_FAR = 3;
 
-const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-fist-act],[data-fist-env],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
+const DIRECT_PINCH_SEL = 'button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-nav],[data-spatial-act],[data-spatial-env],[data-store-launch],[data-install-gorilla],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-orb-app],[data-entry-act],[data-entry-tab],[data-entry-env],[data-cinema-act],[data-win-brightness],[data-predefined-slot],[data-lh-app],[data-lh-act],[data-lh-slider],[data-q-range],[data-win-new-tab]';
 
 /**
  * Ponto de toque da pinça. `onlyFloating` restringe a busca ao que NÃO tem hit-test 3D (dock, menu
@@ -1434,7 +1434,7 @@ on('pinchdown', () => {
     dockGrab ||
     dk ||
     (kb && kb.button) ||
-    (h && pickInElement(h.win.el, h.u, h.v)?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-fist-act],[data-fist-env],[data-native-app],[data-native-browser],[data-native-xr]'))
+    (h && pickInElement(h.win.el, h.u, h.v)?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-store-launch],[data-launch-gorilla],.lib-tile,[data-qb-url],[data-native-app],[data-native-browser],[data-native-xr]'))
   );
   const alt = (S.fingerTouch !== 0 || !hasDirectHit) ? resolveDirectPinchPoint() : null;
   if (alt) {
@@ -2732,11 +2732,11 @@ function resolvePointTarget(x, y) {
   }
   if (h && !h.handle && !h.resize) {
     const targetEl = pickInElement(h.win.el, h.u, h.v);
-    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-scroll],[data-spatial-env],[data-fist-act],[data-fist-env],[data-qb-url],[data-browser-opt],[data-id],[data-act],[data-lang]') || null;
+    const clickable = targetEl?.closest?.('button,a,[role="button"],input,select,textarea,[data-spatial-builtin],[data-spatial-android],[data-spatial-xr],[data-spatial-scroll],[data-spatial-env],[data-qb-url],[data-browser-opt],[data-id],[data-act],[data-lang]') || null;
     const nativeSurf = targetEl?.closest?.('[data-native-browser],[data-native-app],[data-native-xr]') || null;
     if (clickable) {
       setNextvrChoosingElement(clickable);
-      const idAttr = clickable.dataset?.browserOpt || clickable.dataset?.spatialBuiltin || clickable.dataset?.spatialAndroid || clickable.dataset?.spatialXr || clickable.dataset?.spatialScroll || clickable.dataset?.spatialEnv || clickable.dataset?.fistAct || clickable.dataset?.fistEnv || clickable.dataset?.qbUrl || clickable.dataset?.id || clickable.dataset?.act || clickable.dataset?.lang || clickable.getAttribute('aria-label') || clickable.title || clickable.textContent?.trim()?.slice(0, 24) || 'btn';
+      const idAttr = clickable.dataset?.browserOpt || clickable.dataset?.spatialBuiltin || clickable.dataset?.spatialAndroid || clickable.dataset?.spatialXr || clickable.dataset?.spatialScroll || clickable.dataset?.spatialEnv || clickable.dataset?.qbUrl || clickable.dataset?.id || clickable.dataset?.act || clickable.dataset?.lang || clickable.getAttribute('aria-label') || clickable.title || clickable.textContent?.trim()?.slice(0, 24) || 'btn';
       return { kind: 'win', x, y, el: clickable, hit: h, win: h.win, plane: h.distance, key: `win:${h.win.id}:${idAttr}` };
     }
     if (nativeSurf) {
@@ -3555,7 +3555,6 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
       rightHandBolinhaState.flashUntil = nowMs + 420;
       document.documentElement.dataset.handBlueOutline = 'right';
       window.NativeXR?.handVisuals?.(!!S.handDraw);
-      fistHoldByHand.delete(hKey);
       pinchSuppressed.add(hKey);
       packet.consumed.add(hKey);
       cancelHandInput();
@@ -3611,7 +3610,6 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
       leftHandBolinhaState.flashUntil = nowMs + 420;
       document.documentElement.dataset.handBlueOutline = 'left';
       window.NativeXR?.handVisuals?.(!!S.handDraw);
-      fistHoldByHand.delete(hKey);
       pinchSuppressed.add(hKey);
       packet.consumed.add(hKey);
       cancelHandInput();
@@ -3631,92 +3629,22 @@ function updateRightHandBolinhaGesture(packet, nowMs) {
   return anyActive;
 }
 
-/* =================== Gesto de Soco por 2 Segundos (Fechar a mão toda por 2s abre o Menuzinho Rápido) =================== */
-const fistHoldByHand = new Map();
-
-function isClosedFistHand(h) {
-  if (!h || h.predicted || h.pinching) return false;
-  if (h.fist === true) return true;
-  const p = h.points;
-  if (!p || p.length < 63) return false;
-  const dist = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1]);
-  if (dist(5, 6) < 0.008 || dist(14, 16) < 0.008 || dist(18, 20) < 0.008) return false;
-  const indexCurled = dist(0, 8) < dist(0, 6) * 1.08;
-  const midCurled = dist(0, 12) < dist(0, 10) * 1.08;
-  const ringCurled = dist(0, 16) < dist(0, 14) * 1.08;
-  const pinkyCurled = dist(0, 20) < dist(0, 18) * 1.08;
-  return indexCurled && midCurled && ringCurled && pinkyCurled;
-}
-
-function updateFistQuickMenu(packet, nowMs) {
-  if (S.gunGesture === 0) {
-    fistHoldByHand.clear();
-    return false;
-  }
-  const gOv = document.getElementById('gorilla-overlay');
-  if (gOv && gOv.style.display && gOv.style.display !== 'none') {
-    fistHoldByHand.clear();
-    return false;
-  }
-  if (wins.some(w => (w.id === 'entry-menu' || w.id === 'language') && !w.hidden) || document.querySelector('.entry-menu-root')) {
-    fistHoldByHand.clear();
-    return false;
-  }
-  if (resizing.win || dockDrag.start) {
-    fistHoldByHand.clear();
-    return false;
-  }
-  const handsList = packet?.hands || [];
-  const seenKeys = new Set();
-  for (const h of handsList) {
-    if (!h) continue;
-    const key = h.id || (h.left ? 'left' : 'right');
-    seenKeys.add(key);
-    const closed = isClosedFistHand(h);
-    const p = palmScreen(h, packet, true);
-    let st = fistHoldByHand.get(key);
-    if (closed) {
-      if (!st || !st.active) {
-        st = {
-          active: true,
-          startAt: nowMs,
-          lastSeenAt: nowMs,
-          startX: p.x,
-          startY: p.y,
-          latched: false,
-        };
-        fistHoldByHand.set(key, st);
-      } else {
-        st.lastSeenAt = nowMs;
-        if (Math.hypot(p.x - st.startX, p.y - st.startY) > 0.12) {
-          st.startAt = nowMs;
-          st.startX = p.x;
-          st.startY = p.y;
-        }
-        if (!st.latched && (nowMs - st.startAt >= 2000)) {
-          st.latched = true;
-          hideBolinhaBubble(0);
-          hideLeftBolinhaBubble(0);
-          if (drag.win && drag.source === 'fist') endDrag();
-          cancelHandInput();
-          window.nextvrOpenFistQuickMenu?.();
-          window.NativeXR?.click?.();
-          css3d.invalidate?.();
-          css3d.render?.(scene, camera);
-          return true;
-        }
-      }
-    } else if (st && (st.latched || nowMs < st.lastSeenAt || (nowMs - st.lastSeenAt > 260))) {
-      fistHoldByHand.delete(key);
-    }
-  }
-  for (const [k, st] of fistHoldByHand.entries()) {
-    if (!seenKeys.has(k) && (st.latched || nowMs < st.lastSeenAt || (nowMs - st.lastSeenAt > 260))) {
-      fistHoldByHand.delete(k);
-    }
-  }
-  return false;
-}
+/* =================== Gesto de soco: REMOVIDO (2.6.7) ===================
+ *
+ * "tira a opção de só fazer o soco em uma janelinha flutuante nós consegue mexer ela de lugar, isso
+ * piorou muito o jogo".
+ *
+ * O gesto era: fechar a mão por 2 s abria o Menu Rápido numa janela flutuante, que ficava no meio do
+ * campo de visão e podia ser arrastada. O problema é que a janela nasce exatamente onde a mão está e
+ * responde ao mesmo gesto de pega que move as outras — fechar a mão para abrir, mover a mão para
+ * ajustar, e a janela ia junto (ou o arraste pegava a janela errada). Numa partida, o soco é gesto
+ * de jogo, não de interface.
+ *
+ * O que saiu: o detector (`isClosedFistHand`), o temporizador (`fistHoldByHand`), a janela
+ * `fist-menu` e o interruptor "Gesto de Soco 2s (Menu Rápido)". Nada disso existe mais — fechar a
+ * mão agora só fecha a mão. O resto da interface por gesto (pinça, toque direto, pega das janelas
+ * pela palma) continua igual.
+ */
 
 let circleLoaderEl = null;
 let circleLoaderTimer = null;
@@ -3791,7 +3719,6 @@ on('phonehands', packet => {
   // The grab outline is sticky for a moment: palm noise must not flash the window border.
   const nowMs=performance.now();
   updateRightHandBolinhaGesture(packet, nowMs);
-  updateFistQuickMenu(packet, nowMs);
   // Pinça por 2 segundos com AS DUAS MÃOS: recentra dock / apps flutuantes e janelas abertas para onde estiver olhando, sem bolinha carregando.
   if (!document.documentElement.classList.contains('xr-on') && !wins.some(w => w.id === 'entry-menu' && !w.hidden)) {
     if (drag.win || resizing.win || dockDrag.start || dockEl.classList.contains('grab-armed') || nearContact) {
