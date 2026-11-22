@@ -277,7 +277,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
           const futureZ = anchorZ + (receiver.vz || 0) * flightTime * 0.45;
           const dx = futureX - position.x;
           const dz = futureZ - position.z;
-          if(!guideBallVelocity(velocity,dx,dz,dt,guide.through?2.1:2.9))state.guidance=null;
+          if(!guideBallVelocity(velocity,dx,dz,dt,guide.through?1.5:guide.follow?0.95:1.8))state.guidance=null;
         }
       }
 

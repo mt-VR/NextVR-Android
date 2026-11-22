@@ -624,7 +624,7 @@ export function createMatch(options = {}) {
     // FC 27: o passe aponta o espaço e vai rasteiro. Sem perseguir o recebedor
     // (follow) nem Magnus — isso era a curva danada no toque.
     const guide = target.active
-      ? { receiver: target, x: aimX, z: aimZ, through, follow: false, maxTime: requested ? 12 : 2.4 }
+      ? { receiver: target, x: aimX, z: aimZ, through, follow: !through && !targetPoint, maxTime: requested ? 12 : 2.4 }
       : null;
     const flightLift = lift ?? (requested ? .02 : lob ? 0.42 : through ? 0.04 : 0.03);
     ball.kick(direction, speed, flightLift, {
