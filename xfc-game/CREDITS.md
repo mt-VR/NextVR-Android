@@ -270,8 +270,8 @@ foram alterados. Acabamento estilizado ainda em evolução.
 `assets/stadiums/eden_arena.glb` — **Eden Arena**, por **Karpulya**, licença
 [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 [Página no Sketchfab](https://sketchfab.com/3d-models/eden-arena-8f1caa3250424e8e8769a405f1194468).
-Enviado pelo usuário (~2,5 MB). O gramado, as traves e as regras continuam
-sendo os do XFC; o GLB substitui só a arquibancada procedural desta praça.
+Enviado pelo usuário (~2,5 MB). O GLB entra completo (campo, teto e
+arredores); as traves e as regras continuam as do XFC.
 
 ## Jogabilidade, replay e carreira — v0.5.41
 

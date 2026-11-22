@@ -1019,6 +1019,7 @@ export function buildStadium(scene, options = {}) {
     new THREE.PlaneGeometry(PITCH.length + 44, PITCH.width + 44),
     new THREE.MeshLambertMaterial({ color: 0x2f7a38 })
   );
+  surround.name = 'xfc-pitch-surround';
   surround.rotation.x = -Math.PI / 2;
   surround.position.y = -0.02;
   group.add(surround);
@@ -1287,7 +1288,7 @@ export function buildStadium(scene, options = {}) {
 
   const stadiumRecord = STADIUMS[options.stadium];
   const glbMount = stadiumRecord?.glb
-    ? mountStadiumGlb(group, stadiumRecord, PITCH, () => { bowl.visible = false; })
+    ? mountStadiumGlb(group, stadiumRecord, PITCH)
     : null;
 
   // Refletores físicos sem shadow map: dois no Android para conter custo de
