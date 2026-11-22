@@ -532,17 +532,18 @@ export function createMatch(options = {}) {
    * das mãos (altura do peito/cabeça) e não pode ser dominada pelo próprio
    * cobrador no mesmo lance.
    */
-  function throwInTo(player, target) {
+  function throwInTo(player, target, { power = 14, lob = false } = {}) {
     if (!target) return false;
     const receiver = target.active && target.side === player.side ? target : null;
     const aimX = Math.max(-PITCH.halfLength + 1.4, Math.min(PITCH.halfLength - 1.4, target.x + (target.vx || 0) * 0.35));
     const aimZ = Math.max(-PITCH.halfWidth + 2, Math.min(PITCH.halfWidth - 2, target.z + (target.vz || 0) * 0.35));
     const dx = aimX - player.x, dz = aimZ - player.z;
     const distance = Math.hypot(dx, dz) || 1;
-    // Arremesso chega quicando no peito: força limitada, arco alto.
-    const speed = Math.max(8, Math.min(17, 7 + distance * 0.55));
+    const force = Math.max(0, Number(power) || 14);
+    const speed = Math.max(6, Math.min(22, 5 + distance * 0.42 + force * 0.32));
+    ball.state.throwInHands = false;
     ball.state.position.set(player.x, 1.85, player.z);
-    ball.kick({ x: dx / distance, z: dz / distance }, speed, 0.34, {
+    ball.kick({ x: dx / distance, z: dz / distance }, speed, lob ? 0.46 : 0.34, {
       guide: receiver ? { receiver, x: aimX, z: aimZ, follow: true, maxTime: 2.6 } : { x: aimX, z: aimZ, follow: false, maxTime: 2.6 },
       curve: 0
     });
@@ -597,6 +598,18 @@ export function createMatch(options = {}) {
     return true;
   }
 
+  function passKickOptions(opts = {}, fallbackPower = 19) {
+    const strength = Number.isFinite(Number(opts.strength)) ? Math.max(0, Math.min(1, Number(opts.strength))) : null;
+    const lob = Boolean(opts.lob || opts.kind === 'lob');
+    const power = strength == null ? fallbackPower : 7 + strength * 22;
+    return { power, lob, lift: lob ? 0.26 + (strength ?? 0.5) * 0.2 : undefined };
+  }
+
+  function throughKickOptions(opts = {}, fallbackPower = 23) {
+    const strength = Number.isFinite(Number(opts.strength)) ? Math.max(0, Math.min(1, Number(opts.strength))) : null;
+    return { through: true, power: strength == null ? fallbackPower : 11 + strength * 18 };
+  }
+
   function kickBall(player, target, { power = 18, lob = false, through = false, targetPoint = null, curve = 0, lift = null, requested = false } = {}) {
     if (!target) return;
     const sign = attackSign(player.side);
@@ -617,12 +630,12 @@ export function createMatch(options = {}) {
     const exempt=offsideExempt(phase.name==='kickoff'?'kickoff':phase.restart?.type);
     const offsidePlayers=exempt?[]:members(player.side).filter(p=>p!==player&&isOffside(player,p)).map(p=>p.id);
     const speed = requested ? Math.max(7,Math.min(38,8+Math.sqrt(distance*5.5))) : through
-      ? Math.max(11, Math.min(22, distance * 0.62 + 7))
+      ? Math.max(9, Math.min(28, distance * 0.5 + 6 + power * 0.38))
       : lob
-        ? Math.max(10, Math.min(20, distance * 0.7 + 5))
-        : Math.max(7, Math.min(19, distance * 0.62 + 4 + power * 0.08));
-    // FC 27: o passe aponta o espaço e vai rasteiro. Sem perseguir o recebedor
-    // (follow) nem Magnus — isso era a curva danada no toque.
+        ? Math.max(9, Math.min(24, distance * 0.62 + 4 + power * 0.28))
+        : Math.max(6, Math.min(26, distance * 0.48 + 3 + power * 0.55));
+    // Passe rasteiro ainda aponta o companheiro. Enfiada vai RETA no espaço:
+    // rivais podem interceptar, chutar pra longe ou dar carrinho.
     const guide = target.active
       ? { receiver: target, x: aimX, z: aimZ, through, follow: !through && !targetPoint, maxTime: requested ? 12 : 2.4 }
       : null;
@@ -631,6 +644,7 @@ export function createMatch(options = {}) {
       guide,
       curve: 0
     });
+    ball.state.throughPass = Boolean(through);
     ball.state.offside=offsidePlayers.length?{side:player.side,players:offsidePlayers}:null;
     ball.state.lastShotKind = null;
     ball.state.lastTouch = player;
@@ -663,6 +677,10 @@ export function createMatch(options = {}) {
     }else ball.state.assistProvider=null;
     player.model.receive?.();
     if(player.side===userSide)selectControlled(player);
+    if (from && from.side !== player.side && !isUserControlled(player) && ball.state.throughPass) {
+      player.interceptClear = true;
+    }
+    ball.state.throughPass = false;
   }
 
   /**
@@ -1336,6 +1354,7 @@ export function createMatch(options = {}) {
     ball.attachTo(taker);
     ball.state.lastTouch = taker;
     ball.state.lastIntentionalTouch = taker;
+    ball.state.throwInHands = restart.type === 'throwin';
     if (restart.type === 'corner') {
       const target = cornerTarget({ attackSign: sign, aim: setPieceOptions.aim });
       faceTowards(taker, target.x, target.z, 1, 12);
@@ -1528,16 +1547,12 @@ export function createMatch(options = {}) {
     phase.timer += dt;
     const taker = restart.taker;
     const humanTakes = taker.side === userSide && controlled[userSide] === taker;
-    // O lateral NUNCA espera o humano: o cobrador ficava parado com a bola nas
-    // mãos para sempre (o botão de passe não solta a bola na mão) e a partida
-    // travava na reposição. Ele é batido pela IA para os dois lados.
-    if (restart.type === 'throwin' && phase.timer >= 0.9) {
+    // Lateral do usuário: espera PASSE (toque/segura/arrasta). Só a IA cobra sozinha.
+    if (restart.type === 'throwin') {
+      if (humanTakes) return;
+      if (phase.timer < 0.9) return;
       const mate = nearbyTeammateFor(taker, { min: 4, max: 14 }) || bestTeammateFor(taker);
-      // Sem companheiro livre, o arremesso vai para um ponto vazio à frente:
-      // a bola entra em jogo do mesmo jeito.
       if (!mate || !throwInTo(taker, mate)) throwInTo(taker, forwardThrowTarget(taker));
-      // A bola só é simulada em `play`: sem esta troca o arremesso ficava
-      // congelado no ar e a partida nunca saía da reposição.
       phase.name = 'play';
       phase.restart = null;
       phase.timer = 0;
@@ -2328,12 +2343,17 @@ export function createMatch(options = {}) {
       };
       acted = shootUser(taker, shotOptions, true);
       if (acted) startSetPieceShotCamera(restart.type, taker.side, taker);
-    } else if (name === 'pass') {
+    } else if (name === 'pass' || (name === 'lob' && restart.type === 'throwin')) {
       const mate = humanPassTarget(taker,
-        () => nearbyTeammateFor(taker, { min: 1.2, max: 13 }) || bestTeammateFor(taker));
-      if (mate) {
-        if (restart.type === 'throwin') acted = throwInTo(taker, mate);
-        else kickBall(taker, mate, { power: restart.type === 'goalkick' ? 15 : 12 });
+        () => nearbyTeammateFor(taker, { min: 1.2, max: 18 }) || bestTeammateFor(taker));
+      if (restart.type === 'throwin') {
+        const strength = Number.isFinite(Number(opts.strength)) ? Number(opts.strength) : 0.45;
+        acted = throwInTo(taker, mate || forwardThrowTarget(taker), {
+          power: 8 + strength * 16,
+          lob: name === 'lob' || Boolean(opts.lob || opts.kind === 'lob')
+        });
+      } else if (mate) {
+        kickBall(taker, mate, passKickOptions(opts, restart.type === 'goalkick' ? 15 : 12));
         acted = true;
       }
     } else if (name === 'lob') {
@@ -2390,13 +2410,13 @@ export function createMatch(options = {}) {
           || members(player.side).find(mate => mate !== player && mate.active)
           || null);
       if (mate) {
-        kickBall(player, mate, { power: 14 });
+        kickBall(player, mate, passKickOptions(opts, 14));
         acted = true;
       }
     } else if (name === 'lob') {
       const mate = bestThroughTarget(player) || bestTeammateFor(player, true);
       if (mate) {
-        kickBall(player, mate, { through: true, power: 20 });
+        kickBall(player, mate, throughKickOptions(opts, 20));
         acted = true;
       }
     }
@@ -2503,7 +2523,7 @@ export function createMatch(options = {}) {
         if (owner !== player) return false;
         const mate = humanPassTarget(player, () => bestTeammateFor(player));
         if (!mate) return false;
-        kickBall(player, mate, { power: 19 });
+        kickBall(player, mate, passKickOptions(opts, 19));
         return true;
       }
       if (name === 'shoot') {
@@ -2514,7 +2534,7 @@ export function createMatch(options = {}) {
         if (owner !== player) return false;
         const mate = bestThroughTarget(player);
         if (!mate) return false;
-        kickBall(player, mate, { through: true, power: 23 });
+        kickBall(player, mate, throughKickOptions(opts, 23));
         return true;
       }
       if (name === 'tackle') return startSlideTackle(player);
@@ -4109,7 +4129,9 @@ export function createMatch(options = {}) {
       // Chutes/interceptações continuam com o limite anterior de domínio.
       const receiving=ball.state.passTarget===player&&ball.state.flightTime<2.4
         &&position.y<.8&&distance<.85;
-      if(speed>14&&!receiving&&distance>0.78)continue;
+      const intercepting=player.side!==ball.state.lastIntentionalTouch?.side;
+      if(speed>18&&!receiving&&!intercepting&&distance>0.78)continue;
+      if(speed>26&&intercepting&&distance>1.08)continue;
       const recovery=ball.state.recovery;
       const keeperClaim=player.isKeeper && position.y<1.85 && speed<12
         && Math.abs(Math.abs(player.x)-PITCH.halfLength)<18 && Math.abs(player.z)<22;

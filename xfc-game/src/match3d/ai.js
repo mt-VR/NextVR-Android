@@ -140,6 +140,18 @@ export function createTeamAI({ side, world, tempo = 1 }) {
       world.keeperDistribute(player, dt);
       return;
     }
+    if (player.interceptClear) {
+      player.interceptClear = 0;
+      const clearX = player.x + attackSign * 22;
+      const clearZ = player.z + Math.sign(player.z || 1) * 10;
+      world.kickBall(player, { x: clearX, z: clearZ, active: false, vx: 0, vz: 0 }, {
+        power: 22,
+        lob: true,
+        lift: 0.26,
+        targetPoint: { x: clearX, z: clearZ }
+      });
+      return;
+    }
     const ball = world.ball.state;
     const rivals = opponents().filter(rival => rival.active);
     let pressure = Infinity;
@@ -417,6 +429,24 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         targetX = ball.position.x + ball.velocity.x * 0.38;
         targetZ = ball.position.z + ball.velocity.z * 0.38;
         speed = Math.min(CHASE_SPEED,CHASE_SPEED*(.95+.12*tactics.press))*pace;
+        const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);
+        if (world.isPlayable() && (world.ball.state.throughPass || world.ball.state.guidance?.through)
+          && gap < 2.6 && chance(0.09, dt)) world.slideTackle?.(player);
+      } else if (!owner && !player.isKeeper && (world.ball.state.throughPass || world.ball.state.guidance?.through)
+        && world.ball.state.lastIntentionalTouch?.side !== side) {
+        const vx = ball.velocity.x, vz = ball.velocity.z;
+        const speed2 = vx * vx + vz * vz || 1;
+        const t = Math.max(0, Math.min(1.2, ((player.x - ball.position.x) * vx + (player.z - ball.position.z) * vz) / speed2));
+        const ix = ball.position.x + vx * t;
+        const iz = ball.position.z + vz * t;
+        const lane = Math.hypot(player.x - ix, player.z - iz);
+        if (lane < 7.2) {
+          targetX = ix;
+          targetZ = iz;
+          speed = Math.min(CHASE_SPEED * 1.08, CHASE_SPEED * (1 + 0.14 * tactics.press)) * pace;
+          const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);
+          if (world.isPlayable() && gap < 2.4 && chance(0.07, dt)) world.slideTackle?.(player);
+        }
       } else if (pressers.includes(player)) {
         // Ajuda na pressão: fecha o lado do gol sem encostar no perseguidor.
         const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);

@@ -1724,7 +1724,9 @@
   --charge: 0;
 }
 
-.ctrl-btn--shoot.is-charging::after {
+.ctrl-btn--shoot.is-charging::after,
+.ctrl-btn--pass.is-charging::after,
+.ctrl-btn--lob.is-charging::after {
   content: '';
   position: absolute;
   inset: -7px;
@@ -1737,6 +1739,7 @@
   mask-composite: exclude;
   pointer-events: none;
   animation: ctrl-charge-pulse 0.9s ease-in-out infinite;
+  z-index: 2;
 }
 
 .ctrl-btn--shoot.is-placed::after {
@@ -1746,6 +1749,22 @@
 .ctrl-btn--shoot.is-charging {
   border-color: #ffd54a;
   box-shadow: 0 0 34px rgba(255, 213, 74, 0.45), inset 0 0 18px rgba(255, 213, 74, 0.3);
+}
+
+.ctrl-btn--pass.is-charging::after {
+  background: conic-gradient(#7ec8ff calc(var(--charge) * 1turn), rgba(255, 255, 255, 0.1) 0);
+}
+.ctrl-btn--pass.is-charging {
+  border-color: #7ec8ff;
+}
+.ctrl-btn--pass.is-lob {
+  border-color: #d4b43a;
+}
+.ctrl-btn--lob.is-charging::after {
+  background: conic-gradient(#e6c75a calc(var(--charge) * 1turn), rgba(255, 255, 255, 0.1) 0);
+}
+.ctrl-btn--lob.is-charging {
+  border-color: #e6c75a;
 }
 
 .ctrl-btn--shoot.is-placed {

@@ -195,8 +195,34 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
 
     // Jogo: A passe, Y chute (carregado), X enfiada, B carrinho, LB/Tab troca
     // de jogador, RT/R2 corrida.
-    if (edge('A')) commands.push('pass');
-    if (edge('X')) commands.push('lob');
+    const aDown = isDown(pad, STANDARD.A);
+    if (aDown && !state.passStarted) {
+      state.passStarted = performance.now();
+      state.passFired = false;
+    }
+    if (state.passStarted && !state.passFired) {
+      const elapsed = performance.now() - state.passStarted;
+      const charge = Math.max(0.12, Math.min(1, (elapsed - 120) / 760));
+      if (!aDown) {
+        state.passFired = true;
+        state.passStarted = null;
+        commands.push({ name: 'pass', payload: { strength: charge, lob: z > 0.45, kind: z > 0.45 ? 'lob' : 'normal' } });
+      }
+    }
+    const xDown = isDown(pad, STANDARD.X);
+    if (xDown && !state.throughStarted) {
+      state.throughStarted = performance.now();
+      state.throughFired = false;
+    }
+    if (state.throughStarted && !state.throughFired) {
+      const elapsed = performance.now() - state.throughStarted;
+      const charge = Math.max(0.22, Math.min(1, (elapsed - 120) / 760));
+      if (!xDown) {
+        state.throughFired = true;
+        state.throughStarted = null;
+        commands.push({ name: 'lob', payload: { strength: charge } });
+      }
+    }
     if (edge('B')) commands.push('tackle');
     if (edge('LB')) commands.push('switch');
     if (edge('BACK')) commands.push('switch');
@@ -238,6 +264,10 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
         state.nav?.clear();
         state.shootStarted = null;
         state.shootFired = false;
+        state.passStarted = null;
+        state.passFired = false;
+        state.throughStarted = null;
+        state.throughFired = false;
       }
     }
   };

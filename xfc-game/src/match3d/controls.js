@@ -39,6 +39,7 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   let shootPointerId = null;
   let cancelActiveShot = () => {};
   const cancelActiveActions = [];
+  const holdActions = new Map();
   let movementVector = { x: 0, z: 0 };
   let enabled = true;
   // ------------------------------------------------------------ gamepad --
@@ -49,15 +50,20 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   let padFamily = 'generic';
   let currentCharging = false;
 
-  function shootUi(button, strength, kind, charging) {
-    onCharge(charging?Math.max(.15,strength):0);
+  function chargeRing(button, strength, charging, kind = 'normal') {
     button.style.setProperty('--charge', String(charging ? 0.25 + strength * 0.75 : 0));
     button.classList.toggle('is-charging', Boolean(charging));
+    button.classList.toggle('is-lob', Boolean(charging && kind === 'lob'));
     for (const shotKind of ['placed', 'curved', 'power']) {
       button.classList.toggle(`is-${shotKind}`, Boolean(charging && kind === shotKind));
     }
     if (charging) button.dataset.shotType = kind || 'normal';
     else delete button.dataset.shotType;
+  }
+
+  function shootUi(button, strength, kind, charging) {
+    onCharge(charging?Math.max(.15,strength):0);
+    chargeRing(button, strength, charging, kind);
   }
 
   function shotGesture(shot, event) {
@@ -161,6 +167,60 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       button.addEventListener('pointerup', shootRelease);
       button.addEventListener('pointercancel', shootCancel);
       button.addEventListener('lostpointercapture',shootCancel);
+      return button;
+    }
+
+    if (item.id === 'pass' || item.id === 'lob') {
+      const minStrength = item.id === 'pass' ? 0.12 : 0.22;
+      const ui = (strength, kind, charging) => chargeRing(button, strength, charging, kind);
+      const kindFrom = (event, charge) => {
+        if (item.id !== 'pass' || !charge || event?.clientY === undefined) return 'normal';
+        return event.clientY - charge.startY < -30 ? 'lob' : 'normal';
+      };
+      button.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!enabled || holdActions.has(item.id)) return;
+        button.setPointerCapture?.(event.pointerId);
+        const charge = { startX: event.clientX, startY: event.clientY, startedAt: performance.now(), strength: 0, kind: 'normal', pointerId: event.pointerId, button };
+        holdActions.set(item.id, charge);
+        ui(0, 'normal', true);
+      });
+      button.addEventListener('pointermove', event => {
+        const charge = holdActions.get(item.id);
+        if (!charge || event.pointerId !== charge.pointerId) return;
+        charge.strength = Math.max(0, Math.min(1, (performance.now() - charge.startedAt - 130) / (SHOOT_FULL_MS - 130)));
+        charge.kind = kindFrom(event, charge);
+        ui(charge.strength, charge.kind, true);
+      });
+      const release = event => {
+        const charge = holdActions.get(item.id);
+        if (!charge || (event?.pointerId !== undefined && event.pointerId !== charge.pointerId)) return;
+        charge.strength = Math.max(0, Math.min(1, (performance.now() - charge.startedAt - 130) / (SHOOT_FULL_MS - 130)));
+        charge.kind = kindFrom(event, charge);
+        const payload = {
+          strength: Math.max(minStrength, charge.strength),
+          lob: item.id === 'pass' && charge.kind === 'lob',
+          kind: charge.kind
+        };
+        holdActions.delete(item.id);
+        ui(0, 'normal', false);
+        if (enabled) onCommand(item.id, payload);
+      };
+      const cancel = event => {
+        const charge = holdActions.get(item.id);
+        if (!charge) return;
+        if (event && event.pointerId !== charge.pointerId) return;
+        holdActions.delete(item.id);
+        if (!event && button.hasPointerCapture?.(charge.pointerId)) {
+          button.releasePointerCapture?.(charge.pointerId);
+        }
+        ui(0, 'normal', false);
+      };
+      cancelActiveActions.push(cancel);
+      button.addEventListener('pointerup', release);
+      button.addEventListener('pointercancel', cancel);
+      button.addEventListener('lostpointercapture', cancel);
       return button;
     }
 
@@ -299,14 +359,13 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
 
   const keys = new Set();
   const KEY_COMMANDS = {
-    KeyJ: 'pass',
-    Space: 'pass',
-    KeyE: 'lob',
     KeyF: 'tackle',
     Tab: 'switch',
     KeyQ: 'switch'
   };
   let shootKeyStartedAt = null;
+  const keyHolds = { pass: null, lob: null };
+  const KEY_HOLDS = { KeyJ: 'pass', Space: 'pass', KeyE: 'lob' };
 
   function onKeyDown(event) {
     if (!enabled || event.repeat) return;
@@ -314,6 +373,12 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') onSprint(true);
     if (event.code === 'KeyK' || event.code === 'KeyL') {
       if (shootKeyStartedAt === null) shootKeyStartedAt = performance.now();
+      event.preventDefault();
+      return;
+    }
+    const hold = KEY_HOLDS[event.code];
+    if (hold) {
+      if (!keyHolds[hold]) keyHolds[hold] = performance.now();
       event.preventDefault();
       return;
     }
@@ -335,6 +400,18 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
         shootKeyStartedAt = null;
         if (enabled) onCommand('shoot', { strength, placed: false, kind:strength>=1?'power':'normal' });
       }
+    }
+    const hold = KEY_HOLDS[event.code];
+    if (hold && keyHolds[hold] !== null) {
+      const other = hold === 'pass'
+        ? (event.code === 'KeyJ' ? keys.has('Space') : keys.has('KeyJ'))
+        : false;
+      if (other) return;
+      const elapsed = performance.now() - keyHolds[hold];
+      const minStrength = hold === 'pass' ? 0.12 : 0.22;
+      const strength = Math.max(minStrength, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
+      keyHolds[hold] = null;
+      if (enabled) onCommand(hold, { strength, lob: false, kind: 'normal' });
     }
   }
 
@@ -396,6 +473,10 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       shootCharge.strength=Math.max(0,Math.min(1,(performance.now()-shootCharge.startedAt-130)/(SHOOT_FULL_MS-130)));
       shootUi(buttons.find(b=>b.dataset.command==='shoot'),shootCharge.strength,shootCharge.strength>=1?'power':shootCharge.kind,true);
     }
+    for (const [id, charge] of holdActions) {
+      charge.strength = Math.max(0, Math.min(1, (performance.now() - charge.startedAt - 130) / (SHOOT_FULL_MS - 130)));
+      chargeRing(charge.button, charge.strength, true, charge.kind);
+    }
   },40);
 
   /** Liga/desliga o modo console: esconde os controles virtuais da tela. */
@@ -414,6 +495,8 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       for (const cancelAction of cancelActiveActions) cancelAction();
       keys.clear();
       shootKeyStartedAt = null;
+      keyHolds.pass = keyHolds.lob = null;
+      holdActions.clear();
       movementVector = { x: 0, z: 0 };
       onMove(0, 0);
       onSprint(false);

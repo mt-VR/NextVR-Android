@@ -78,13 +78,13 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "43939e6083e8772dfaecd7f0f0ef23192c17e2ef80b6054a4f9c0ae3a8ea0285",
-  "src/match3d/controls.js": "01cf95a916fa448edb0dc9fcc1acd07e4deeb5f86ee072652893978aee8350fd",
+  "src/match3d/controls.js": "384abeaba5807ae8dcc65ebe8ce421ebd1189e1d052d5f4fbb8621e20ead0ea8",
   // v0.5.70: falta (barreira/corredor) e recepção do treino coletivo.
-  "src/match3d/match.js": "b3425c8d9673859a35511e1f5ccd096e3205e347c20175b14c48fd233950102d",
+  "src/match3d/match.js": "4806341b475e21ec5cf0e8b1dc6510716632b636fad5d505264406018cfd0b5e",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).
-  "styles/match3d.css": "87285358fe9a42a674919e2d936fa49b3f8aa60f3679d3a160c313bdb4ab6819"
+  "styles/match3d.css": "3aba1d4292d2b6ddc2ed08f2ca08783db0840fd6cda29ad09c815bb56cd311d8"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });
