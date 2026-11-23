@@ -1348,6 +1348,31 @@ export function createMatch(options = {}) {
         keeper.vz = 0;
         faceTowards(keeper, placeX, placeZ, 1, 12);
       }
+    } else if (restart.type === 'goalkick') {
+      // Lei do jogo: rivais fora da área. No FC Mobile o elenco ainda recua
+      // bem além da 16,5 m enquanto o goleiro ajeita a bola.
+      const goalX = -sign * PITCH.halfLength;
+      const park = (player, dist, z) => {
+        player.x = Math.max(-PITCH.halfLength + 1.2, Math.min(PITCH.halfLength - 1.2, goalX + sign * dist));
+        player.z = Math.max(-PITCH.halfWidth + 2, Math.min(PITCH.halfWidth - 2, z));
+        player.vx = 0;
+        player.vz = 0;
+        player.root.position.set(player.x, 0, player.z);
+      };
+      const mates = members(side).filter(player => player.active && player !== taker && !player.isKeeper);
+      mates.forEach((player, index) => {
+        const role = player.role || '';
+        const dist = /^(ST|CF|LW|RW)$/.test(role) ? 64 : /^(CAM|CM|CDM)$/.test(role) ? 46 : 30;
+        const lane = [-22, -11, 0, 11, 22, -16, 16, -6, 6][index] ?? ((index % 5) - 2) * 9;
+        park(player, dist + (index % 3) * 2, lane);
+      });
+      const rivals = members(opponentOf(side)).filter(player => player.active && !player.isKeeper);
+      rivals.forEach((player, index) => {
+        const lane = [-20, -10, 0, 10, 20, -15, 15, -5, 5][index] ?? ((index % 5) - 2) * 8;
+        park(player, 40 + (index % 4) * 5, lane);
+      });
+      const otherKeeper = members(opponentOf(side)).find(player => player.active && player.isKeeper);
+      if (otherKeeper) park(otherKeeper, PITCH.length - 1.1, 0);
     }
     ball.state.position.set(placeX, BALL.radius, placeZ);
     ball.state.velocity.set(0, 0, 0);

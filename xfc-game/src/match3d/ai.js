@@ -357,7 +357,9 @@ export function createTeamAI({ side, world, tempo = 1 }) {
       if (player === ball.lastIntentionalTouch && (ball.flightTime || 0) < 0.7) continue;
       const d = distance(player.x, player.z, ball.position.x, ball.position.z);
       // O goleiro só busca a bola quando ela está perto do seu gol.
-      const weight = player.isKeeper ? d * 2.2 : d;
+      const weight = player.isKeeper
+        ? (Math.abs(ball.position.x - ownGoalX) < 6.5 ? d : d * 8)
+        : d;
       if (weight < chaserDistance) {
         chaserDistance = weight;
         chaser = player;
@@ -392,8 +394,8 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         const inBox = Math.abs(ball.position.x - myGoal) < 17 && Math.abs(ball.position.z) < 22;
         const prediction = owner ? null : predictGoalkeeperIntercept(ball, myGoal);
         const baseTarget = goalkeeperPositionTarget(ball.position, myGoal, attackSign);
-        targetX = player.tacticalCustom?shape.x:baseTarget.x;
-        targetZ = player.tacticalCustom?shape.z:baseTarget.z;
+        targetX = baseTarget.x;
+        targetZ = baseTarget.z;
         speed = KEEPER_POSITION_SPEED;
 
         if (prediction?.onTarget) {
@@ -409,8 +411,10 @@ export function createTeamAI({ side, world, tempo = 1 }) {
             world.diveKeeper(player, diveDirection, flightId);
           }
         } else if (!owner && inBox && player === chaser
-          && ball.position.y < 1.7
-          && Math.hypot(ball.position.x - player.x, ball.position.z - player.z) < 7.5) {
+          && ball.position.y < 1.35
+          && Math.abs(ball.position.x - myGoal) < 6.2
+          && Math.hypot(ball.velocity.x, ball.velocity.z) < 4.5
+          && Math.hypot(ball.position.x - player.x, ball.position.z - player.z) < 4.2) {
           // Recolhe a bola solta: chega nela e PARA, em vez de orbitar em volta.
           const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);
           if (gap < 1.4) {
