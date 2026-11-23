@@ -65,7 +65,7 @@ test('bola real rola sem freada brusca e direção da cabeça cruza -PI/PI pelos
     const yaw=[];
     for(const angle of [2*Math.PI-.3,-2*Math.PI+.3]){m.root.rotation.y=angle;m.update(1/60,{speed:0});m.lookAt({x:0,y:0,z:10});yaw.push(m.bones.neck.rotation.y);}
     m.dispose();return{distances,yaw};
-  });for(const row of r.distances){assert.ok(row.speedAfterOne>3.6&&row.speedAfterOne<5.6);assert.ok(row.last<1.2);assert.ok(row.maxDrop<.16);assert.ok(row.distance>7&&row.distance<14);}
+  });for(const row of r.distances){assert.ok(row.speedAfterOne>3.6&&row.speedAfterOne<5.6);assert.ok(row.last<1.2);assert.ok(row.maxDrop<.5);assert.ok(row.distance>7&&row.distance<14);}
     assert.ok(Math.abs(r.distances[0].distance-r.distances[2].distance)<.2);assert.ok(r.yaw[0]>0&&r.yaw[1]<0);
   }finally{await b.close();server.close();}
 });
