@@ -478,22 +478,22 @@ test('carreira Pro: câmera acompanha a bola quando ela fica atrás do atleta', 
       hero.x = 0; hero.z = 0; hero.vx = 0; hero.vz = 0;
       // Bola 15 m ATRÁS do eixo de ataque (+x) do time da casa.
       mate.x = -15; mate.z = 0; mate.vx = 0; mate.vz = 0;
-      m.ball.reset(0, 0);
+      m.ball.reset(-15, 0);
       m.ball.attachTo(mate);
       m.ball.state.owner = mate;
-      // O dono da bola conduz no lugar (a IA não pode afastar a bola do ponto
-      // que o teste quer medir).
-      for (let i = 0; i < 4; i++) { mate.vx = 0; mate.vz = 0; m.world.tick(1 / 60); }
+      const pinBall = () => {
+        mate.x = -15; mate.z = 0; mate.vx = 0; mate.vz = 0;
+        m.ball.attachTo(mate);
+        m.ball.state.owner = mate;
+        m.ball.state.position.set(-15, m.ball.state.position.y, 0);
+        m.ball.mesh.position.copy(m.ball.state.position);
+      };
+      for (let i = 0; i < 4; i++) { pinBall(); m.world.tick(1 / 60); pinBall(); }
       const initial = m.engine.camera.position.x;
-      // Congela a BOLA no ponto atrás do atleta: quem se move é a câmera, não o
-      // lance — assim o teste mede a rotação do eixo Pro, não a condução da IA.
-      const ballPos = m.ball.state.position;
-      const frozen = { x: ballPos.x, z: ballPos.z };
       for (let i = 0; i < 90; i++) {
-        mate.vx = 0; mate.vz = 0;
+        pinBall();
         m.world.tick(1 / 60);
-        ballPos.x = frozen.x; ballPos.z = frozen.z;
-        m.ball.mesh.position.copy(ballPos);
+        pinBall();
       }
       return { mode: m.world.cameraMode, initial, final: m.engine.camera.position.x,
         ballX: m.ball.state.position.x, heroX: hero.x, mateX: mate.x };
