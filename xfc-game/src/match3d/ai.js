@@ -426,9 +426,10 @@ export function createTeamAI({ side, world, tempo = 1 }) {
       } else if (player === chaser && !owner) {
         // Persegue a bola com uma pequena antecipação; o segundo mais próximo
         // fecha o lado oposto para a bola não escapar pelo corredor livre.
-        targetX = ball.position.x + ball.velocity.x * 0.38;
-        targetZ = ball.position.z + ball.velocity.z * 0.38;
-        speed = Math.min(CHASE_SPEED,CHASE_SPEED*(.95+.12*tactics.press))*pace;
+        // FC Mobile: disputa da bola solta em ~1 s, não espera ela parar.
+        targetX = ball.position.x + ball.velocity.x * 0.28;
+        targetZ = ball.position.z + ball.velocity.z * 0.28;
+        speed = Math.min(CHASE_SPEED * 1.16, CHASE_SPEED * (1.08 + 0.12 * tactics.press)) * pace;
         const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);
         if (world.isPlayable() && (world.ball.state.throughPass || world.ball.state.guidance?.through)
           && gap < 2.6 && chance(0.09, dt)) world.slideTackle?.(player);

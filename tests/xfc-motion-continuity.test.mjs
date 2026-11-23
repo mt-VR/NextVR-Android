@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {faceVelocity,steerPlayer} from '../xfc-game/src/match3d/movement.js';
-import {guideBallVelocity,applyRollingResistance} from '../xfc-game/src/match3d/physics.js';
+import {guideBallVelocity,applyRollingResistance,BALL_ROLLING_DECELERATION} from '../xfc-game/src/match3d/physics.js';
 import {startXfcServer} from '../xfc-game/serve.mjs';
 import {launchOrSkip} from './support/chromium.mjs';
 
@@ -30,8 +30,8 @@ test('assistência só vira o passe: não freia, acelera bola parada ou dá meia
   }
   const stopped={x:0,y:0,z:0};assert.equal(guideBallVelocity(stopped,10,0,.1),false);assert.deepEqual(stopped,{x:0,y:0,z:0});
   const roll={x:8,z:0};for(let i=0;i<60;i++)applyRollingResistance(roll,1/60);
-  assert.ok(Math.abs(roll.x-6.65)<1e-8);
-  for(let i=0;i<600;i++)applyRollingResistance(roll,1/60);
+  assert.ok(Math.abs(roll.x-(8-BALL_ROLLING_DECELERATION))<1e-8);
+  for(let i=0;i<180;i++)applyRollingResistance(roll,1/60);
   assert.equal(roll.x,0);
 });
 test('CORRER permanece pressionado ao desviar/retornar o dedo e solta no cancelamento',{timeout:60000},async t=>{
@@ -65,7 +65,7 @@ test('bola real rola sem freada brusca e direção da cabeça cruza -PI/PI pelos
     const yaw=[];
     for(const angle of [2*Math.PI-.3,-2*Math.PI+.3]){m.root.rotation.y=angle;m.update(1/60,{speed:0});m.lookAt({x:0,y:0,z:10});yaw.push(m.bones.neck.rotation.y);}
     m.dispose();return{distances,yaw};
-  });for(const row of r.distances){assert.ok(row.speedAfterOne>6);assert.ok(row.last>2);assert.ok(row.maxDrop<.07);assert.ok(row.distance>16&&row.distance<20);}
+  });for(const row of r.distances){assert.ok(row.speedAfterOne>3.6&&row.speedAfterOne<5.6);assert.ok(row.last<1.2);assert.ok(row.maxDrop<.16);assert.ok(row.distance>7&&row.distance<14);}
     assert.ok(Math.abs(r.distances[0].distance-r.distances[2].distance)<.2);assert.ok(r.yaw[0]>0&&r.yaw[1]<0);
   }finally{await b.close();server.close();}
 });

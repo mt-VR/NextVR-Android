@@ -54,12 +54,13 @@ export function applyBallAirForces(velocity, spin, dt) {
   return velocity;
 }
 
-/** Atrito de rolamento separado do arrasto: decaimento contínuo, sem freio forte. */
-export const BALL_ROLLING_DECELERATION = 1.35;
+/** Atrito de rolamento no chão (FC Mobile): passe a ~10 m/s morre em ~3 s. */
+export const BALL_ROLLING_DECELERATION = 3.2;
 export function applyRollingResistance(velocity,dt){
   const speed=Math.hypot(velocity.x,velocity.z);
   if(speed<=0)return;
   const next=Math.max(0,speed-BALL_ROLLING_DECELERATION*Math.max(0,dt));
+  if(next<0.28){velocity.x=0;velocity.z=0;return;}
   velocity.x*=next/speed;velocity.z*=next/speed;
 }
 
