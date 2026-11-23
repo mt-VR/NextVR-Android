@@ -41,7 +41,7 @@ test('texturas de pele são isoladas entre jogadores e cabelo alto não altera a
       const make=name=>createGltfPlayer({...appearanceFor({name}),name,number:name==='Valverde'?15:7,kit:{primary:'#fff',secondary:'#dcae47',shorts:'#fff',socks:'#fff',print:'#123'}});
       const material=(m,n)=>{let out;m.body.traverse(o=>{if(o.isMesh)for(const a of [].concat(o.material))if(a.name===n)out=a;});return out;};
       const skin=m=>material(m,'Micah | anatomical body.body').map;
-      const a=make('Vinícius Jr'),before=skin(a).image.toDataURL();const b=make('Valverde');
+      const a=make('Vinícius Jr'),before=skin(a).image.toDataURL();const b=make('Rüdiger');
       const c=make('Vinícius Jr');
       const hairHeight=m=>{const g=m.body.getObjectByName('short01').geometry;g.computeBoundingBox();return g.boundingBox.max.y;};
       const result={separate:skin(a).source!==skin(b).source,unchanged:before===skin(a).image.toDataURL(),same:skin(a)===skin(c),difference:before!==skin(b).image.toDataURL(),hairDelta:hairHeight(a)-hairHeight(b),jerseyDifferent:material(a,'Micah | top').map.image.toDataURL()!==material(b,'Micah | top').map.image.toDataURL()};

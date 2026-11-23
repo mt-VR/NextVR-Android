@@ -3150,15 +3150,20 @@ export function createMatch(options = {}) {
       if (!careerCameraForward) careerCameraForward = { ...baseForward };
       const swing = PRO_CAMERA.swing / 20;
       const faceLen = Math.hypot(player.facing.x, player.facing.z) || 1;
-      let aimX = baseForward.x * (1 - swing) + (player.facing.x / faceLen) * swing;
-      let aimZ = baseForward.z * (1 - swing) + (player.facing.z / faceLen) * swing;
+      let targetForward = baseForward;
       if (ballDistance > 4.5) {
         const ballMix = 0.32 + swing * 0.38;
-        aimX = aimX * (1 - ballMix) + (ballDx / ballDistance) * ballMix;
-        aimZ = aimZ * (1 - ballMix) + (ballDz / ballDistance) * ballMix;
+        const aimX = baseForward.x * (1 - ballMix) + (ballDx / ballDistance) * ballMix;
+        const aimZ = baseForward.z * (1 - ballMix) + (ballDz / ballDistance) * ballMix;
+        const aimLen = Math.hypot(aimX, aimZ) || 1;
+        targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
+      } else if (speed > 3.2) {
+        const turnMix = swing * 0.55;
+        const aimX = baseForward.x * (1 - turnMix) + (player.facing.x / faceLen) * turnMix;
+        const aimZ = baseForward.z * (1 - turnMix) + (player.facing.z / faceLen) * turnMix;
+        const aimLen = Math.hypot(aimX, aimZ) || 1;
+        targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
       }
-      const aimLen = Math.hypot(aimX, aimZ) || 1;
-      const targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
       const turn = 1 - Math.exp(-dt * (1.8 + PRO_CAMERA.speed * 0.12));
       careerCameraForward.x += (targetForward.x - careerCameraForward.x) * turn;
       careerCameraForward.z += (targetForward.z - careerCameraForward.z) * turn;
