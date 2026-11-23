@@ -13,12 +13,11 @@ import {
   predictGoalkeeperIntercept
 } from './goalkeeper.js';
 
-// Velocidade de jogo em ritmo de futebol televisionado, não de arcade.
-// Antes: 6.3 / 8.1 / 7.4. Reduzido ~18% para o campo "render" maior e dar
-// tempo de leitura da jogada (pedido: "diminui a velocidade").
-const RUN_SPEED = 6.55;
-const SPRINT_SPEED = 8.15;
-const CHASE_SPEED = 7.95;
+// v0.5.89: ritmo mais intenso (FC 27). Rivais sprintam na perseguição e
+// no apoio; a corrida base sobe para o jogo não trotar.
+const RUN_SPEED = 6.9;
+const SPRINT_SPEED = 8.5;
+const CHASE_SPEED = 8.5;
 const KEEPER_POSITION_SPEED = 5.15;
 const KEEPER_REACTION_SPEED = 6.4;
 
@@ -230,6 +229,12 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     if (nearest && nearestDistance < 3.1) {
       const side = Math.sign(player.z - nearest.z) || (world.rng() < 0.5 ? 1 : -1);
       targetZ = side * (3.1 + (3.1 - nearestDistance) * 1.35);
+      if (world.isPlayable() && world.skillMove && chance(0.16, dt)) {
+        const bag = nearestDistance < 1.85
+          ? ['rainbow', 'elastico', 'roulette', 'stepover']
+          : ['stepover', 'elastico', 'roulette', 'dribble'];
+        if (world.skillMove(player, bag[Math.floor(world.rng() * bag.length)])) return;
+      }
       if (!inShootingRange && nearestDistance < 2.15 && world.isPlayable() && chance(0.18, dt)) {
         const cutX = player.x + attackSign * 3.4;
         const cutZ = player.z + side * 2.4;
@@ -241,7 +246,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
     }
     // Sem marcador por perto, o rival arranca: é isso que faz a jogada dele
     // "ir pra cima" em vez de trotar com a bola.
-    const wantsSprint = !nearest || nearestDistance > 3.2 || player.sprint;
+    const wantsSprint = !nearest || nearestDistance > 2.0 || player.sprint;
     steerPlayer(player, targetX, targetZ, dt, (wantsSprint ? SPRINT_SPEED : RUN_SPEED) * Math.min(1.02, pace + .02), { arrive: 1.2 });
   }
 
@@ -433,7 +438,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         // FC Mobile: disputa da bola solta em ~1 s, não espera ela parar.
         targetX = ball.position.x + ball.velocity.x * 0.28;
         targetZ = ball.position.z + ball.velocity.z * 0.28;
-        speed = Math.min(CHASE_SPEED * 1.16, CHASE_SPEED * (1.08 + 0.12 * tactics.press)) * pace;
+        speed = SPRINT_SPEED * (1.04 + 0.1 * tactics.press) * pace;
         const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);
         if (world.isPlayable() && (world.ball.state.throughPass || world.ball.state.guidance?.through)
           && gap < 2.6 && chance(0.09, dt)) world.slideTackle?.(player);
@@ -448,7 +453,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         if (lane < 7.2) {
           targetX = ix;
           targetZ = iz;
-          speed = Math.min(CHASE_SPEED * 1.08, CHASE_SPEED * (1 + 0.14 * tactics.press)) * pace;
+          speed = SPRINT_SPEED * (1 + 0.1 * tactics.press) * pace;
           const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);
           if (world.isPlayable() && gap < 2.4 && chance(0.07, dt)) world.slideTackle?.(player);
         }
@@ -458,7 +463,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         const lane = pressers[0] === player ? 1 : -1;
         targetX = ball.position.x - attackSign * (owner ? 1.6 : 0.4);
         targetZ = ball.position.z + lane * 1.7;
-        speed = Math.min(CHASE_SPEED, CHASE_SPEED * (.9 + .16 * tactics.press)) * pace;
+        speed = SPRINT_SPEED * (.92 + .12 * tactics.press) * pace;
         if (world.isPlayable() && owner && owner.side !== side
           && gap < 2.6 && chance(0.022, dt)) world.tackle(player);
       } else if (player === chaser && owner && owner.side !== side) {
@@ -466,8 +471,8 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         const sideCover = player.z >= owner.z ? 0.85 : -0.85;
         targetX = owner.x - attackSign * 2.6;
         targetZ = owner.z + sideCover;
-        speed = Math.min(RUN_SPEED * 1.12, CHASE_SPEED * 0.78) * pace;
         const gap = Math.hypot(owner.x - player.x, owner.z - player.z);
+        speed = (gap > 2.2 ? SPRINT_SPEED : RUN_SPEED * 1.12) * pace;
         if (world.isPlayable() && gap < 1.7 && chance(0.01, dt)) world.tackle(player);
       } else {
         const supports = owner?.side === side;
@@ -490,18 +495,21 @@ export function createTeamAI({ side, world, tempo = 1 }) {
           } else if (shape.role === 'CM') {
             targetX += attackSign * 4.6;
             targetZ += Math.sign(shape.baseZ || 1) * 1.4;
+            speed = SPRINT_SPEED * 0.9 * pace;
           } else if (shape.role === 'CDM') {
             targetX += attackSign * 2.2;
+            speed = SPRINT_SPEED * 0.86 * pace;
           } else if (shape.role === 'LB' || shape.role === 'RB') {
             targetX += attackSign * 4.4;
             targetZ = Math.sign(shape.baseZ || 1) * Math.max(15, Math.abs(targetZ));
+            speed = SPRINT_SPEED * 0.94 * pace;
           }
         } else if (recovering && !player.tacticalCustom) {
           // Compactam e cobrem o passe. Só o perseguidor vai na bola.
           if (['ST', 'CF', 'LW', 'RW', 'CAM'].includes(shape.role)) {
             targetX = shape.x * 0.55 + (ball.position.x - attackSign * 9) * 0.45;
             targetZ = (shape.baseZ || targetZ) * 0.68 + ball.position.z * 0.18;
-            speed = RUN_SPEED * pace;
+            speed = SPRINT_SPEED * pace;
           }
         }
 
@@ -515,6 +523,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
           if (shape.role === 'LB' || shape.role === 'RB') {
             targetZ = Math.sign(shape.baseZ || 1) * Math.max(10, Math.abs(targetZ));
           }
+          speed = Math.max(speed, SPRINT_SPEED * 0.9 * pace);
         }
       }
 
@@ -535,7 +544,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         // Quem está muito longe do alvo dá um pique curto para reentrar na
         // linha, senão a oscilação vira só um balanço no lugar.
         const drift=Math.hypot(targetX-player.x,targetZ-player.z);
-        if(drift>6.5)speed=Math.max(speed,player.sprint?SPRINT_SPEED:RUN_SPEED);
+        if(drift>4.5)speed=Math.max(speed,SPRINT_SPEED);
       }
       // Um único perseguidor pressiona a bola; os demais mantêm distância dos
       // companheiros e ocupam os canais laterais/centrais da formação.

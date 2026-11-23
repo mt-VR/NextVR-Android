@@ -151,17 +151,17 @@ function drawPitchBase(context, width, height, lowPower = false) {
     return seed / 4294967296;
   };
 
-  // v0.5.57: o verde estava lavado (quase menta) na câmera de transmissão.
-  // Base mais escura e saturada; as faixas de corte ganham contraste entre si
-  // para o campo continuar "destacado" em vez de virar um tapete chapado.
-  context.fillStyle = '#3d8f3c';
+  // v0.5.89: gramado no contraste Competitive do EA FC 27 (saturação alta,
+  // faixa clara amarelo-verde × faixa escura). Sem hex oficial da EA; a
+  // leitura é da transmissão/Ultimate Team, não do verde menta anterior.
+  context.fillStyle = '#2e8a34';
   context.fillRect(0, 0, width, height);
 
-  // Faixas de corte no verde-amarelado da transmissão (print).
+  // Faixas de corte no verde-amarelado da transmissão FC 27.
   const bands = 14;
   const bandWidth = width / bands;
   for (let band = 0; band < bands; band += 1) {
-    const shade = band % 2 === 0 ? '#4eaa52' : '#3f9344';
+    const shade = band % 2 === 0 ? '#4cbf52' : '#247a2c';
     context.fillStyle = shade;
     context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
     const edge = context.createLinearGradient(band * bandWidth, 0, (band + 1) * bandWidth, 0);
@@ -181,8 +181,8 @@ function drawPitchBase(context, width, height, lowPower = false) {
     const radius = 12 + rand() * 28;
     const alpha = 0.006 + rand() * 0.008;
     context.fillStyle = rand() < 0.62
-      ? `rgba(40,110,48,${alpha})`
-      : `rgba(150,190,90,${alpha * 0.7})`;
+      ? `rgba(36,100,40,${alpha})`
+      : `rgba(168,188,72,${alpha * 0.7})`;
     context.beginPath();
     context.ellipse(x, y, radius * (1.2 + rand()), radius * (0.24 + rand() * 0.12), rand() * Math.PI, 0, Math.PI * 2);
     context.fill();
@@ -199,8 +199,8 @@ function drawPitchBase(context, width, height, lowPower = false) {
     const tint = Math.floor(rand() * 36);
     const alpha = 0.022 + rand() * 0.038;
     context.strokeStyle = rand() < 0.5
-      ? `rgba(${58 + Math.floor(tint * 0.5)},${140 + tint},${52 + Math.floor(tint * 0.25)},${alpha})`
-      : `rgba(${78 + Math.floor(tint * 0.3)},${168 + Math.floor(tint * 0.35)},${62 + Math.floor(tint * 0.2)},${alpha})`;
+      ? `rgba(${48 + Math.floor(tint * 0.45)},${148 + tint},${46 + Math.floor(tint * 0.2)},${alpha})`
+      : `rgba(${72 + Math.floor(tint * 0.35)},${176 + Math.floor(tint * 0.3)},${52 + Math.floor(tint * 0.15)},${alpha})`;
     context.lineWidth = 0.7 + rand() * 0.45;
     context.beginPath();
     context.moveTo(x, y);

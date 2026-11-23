@@ -64,8 +64,11 @@ import {
   strikeFromImpact
 } from './set-pieces.js';
 
-const HUMAN_SPEED = 7.15;
-const HUMAN_SPRINT = 9.05;
+const HUMAN_SPEED = 7.45;
+const HUMAN_SPRINT = 9.35;
+// Câmera Pro FC 27: Zoom / Speed / Swing (0–20). Height e Zoom da
+// transmissão NÃO aplicam à Pro (fifauteam). 10/12/14 = competitivo médio.
+const PRO_CAMERA = { zoom: 10, speed: 12, swing: 14 };
 const GOAL_CELEBRATIONS = ['classic', 'airplane', 'point', 'knee-slide', 'fist-pump'];
 
 /** Gerador pseudoaleatório com semente (mulberry32). */
@@ -2531,6 +2534,7 @@ export function createMatch(options = {}) {
     get penaltyApproach(){return penaltyRunup?{elapsed:penaltyRunup.elapsed,duration:penaltyRunup.duration,playerId:penaltyRunup.player.id}:null;},
     tackle,
     slideTackle: startSlideTackle,
+    skillMove: performSkill,
     isUserControlled,
 
     /** Nenhum passe/chute é gerado sem um comando explícito do usuário. */
@@ -2563,24 +2567,8 @@ export function createMatch(options = {}) {
         return true;
       }
       if (name === 'tackle') return startSlideTackle(player);
-      if (['dribble','stepover','rainbow'].includes(name)) {
-        if(training.enabled&&training.drill==='penalty')return false;
-        if(owner!==player||elapsedWorldTime<(player.skillUntil||0))return false;
-        player.skillUntil=elapsedWorldTime+.75;
-        if(name==='rainbow'){
-          const profile=rainbowProfile(player.dribbling);
-          ball.kick(player.facing,2,4);ball.state.lastTouch=player;ball.state.lastIntentionalTouch=player;
-          ball.state.rainbow={player,profile,time:0,x:player.x,z:player.z,fx:player.facing.x,fz:player.facing.z};
-          ball.state.position.set(player.x-player.facing.x*.55,BALL.radius,player.z-player.facing.z*.55);
-          ball.state.skillUntil=elapsedWorldTime+profile.duration;
-          player.skillUntil=elapsedWorldTime+profile.duration+.4;
-          player.model.skill?.('rainbow');
-        }else{
-          player.model.skill?.('stepover');player.burst=Math.max(player.burst||0,.65);
-        }
-        // Drible/finta concluído com a bola: conta décimo na nota da carreira.
-        emit({type:'dribble',team:player.side,player,name});
-        return true;
+      if (['dribble','stepover','rainbow','elastico','roulette'].includes(name)) {
+        return performSkill(player, name);
       }
       if (name === 'request-pass') return world.requestPass();
       if (name === 'switch') return world.switchPlayer();
@@ -3153,20 +3141,25 @@ export function createMatch(options = {}) {
       // Treino: eixo fixo, sem girar o analógico (comportamento preservado).
       cameraForward = training.cameraForward || { x: 1, z: 0 };
     } else {
-      // Câmera Pro da CARREIRA segue a bola: se ela estiver atrás, a câmera
-      // vira para trás; se estiver dos lados, vira para o lado correspondente.
-      // O eixo é suavizado e também orienta o analógico (updateHuman) para
-      // o controle continuar coerente com a imagem. Perto do atleta (drible)
-      // volta ao eixo de ataque, evitando tremor quando a bola está no pé.
+      // Câmera Pro FC 27: Swing mistura o olhar do atleta; Speed suaviza a
+      // virada; a bola só puxa o eixo quando está longe (não no drible).
       const ballDx = ball.state.position.x - player.x;
       const ballDz = ball.state.position.z - player.z;
       const ballDistance = Math.hypot(ballDx, ballDz);
       const baseForward = { x: attackSign(userSide), z: 0 };
       if (!careerCameraForward) careerCameraForward = { ...baseForward };
-      const targetForward = ballDistance > 4.5
-        ? { x: ballDx / ballDistance, z: ballDz / ballDistance }
-        : baseForward;
-      const turn = 1 - Math.exp(-dt * 2.4);
+      const swing = PRO_CAMERA.swing / 20;
+      const faceLen = Math.hypot(player.facing.x, player.facing.z) || 1;
+      let aimX = baseForward.x * (1 - swing) + (player.facing.x / faceLen) * swing;
+      let aimZ = baseForward.z * (1 - swing) + (player.facing.z / faceLen) * swing;
+      if (ballDistance > 4.5) {
+        const ballMix = 0.32 + swing * 0.38;
+        aimX = aimX * (1 - ballMix) + (ballDx / ballDistance) * ballMix;
+        aimZ = aimZ * (1 - ballMix) + (ballDz / ballDistance) * ballMix;
+      }
+      const aimLen = Math.hypot(aimX, aimZ) || 1;
+      const targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
+      const turn = 1 - Math.exp(-dt * (1.8 + PRO_CAMERA.speed * 0.12));
       careerCameraForward.x += (targetForward.x - careerCameraForward.x) * turn;
       careerCameraForward.z += (targetForward.z - careerCameraForward.z) * turn;
       const len = Math.hypot(careerCameraForward.x, careerCameraForward.z) || 1;
@@ -3209,8 +3202,8 @@ export function createMatch(options = {}) {
       camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
       return;
     }
-    // Carreira: lente mais perto (pedido v0.5.59). Treino permanece em 9,2 m.
-    const followDistance = training.enabled ? 9.2 : 7;
+    // Pro Zoom 0–20 → 9,6…4,4 m. Zoom 10 = 7 m (repouso da carreira).
+    const followDistance = training.enabled ? 9.2 : (9.6 - PRO_CAMERA.zoom * 0.26);
     const cameraDistance = followDistance + Math.min(1.2, speed * 0.1);
     const desiredX = player.x - forwardX * cameraDistance;
     const followHeight = training.enabled ? 4.7 : 4.15;
@@ -3238,8 +3231,8 @@ export function createMatch(options = {}) {
       camera.updateProjectionMatrix();
       trainingCameraReady = true;
     } else {
-      const positionBlend = 1 - Math.exp(-dt * 5.2);
-      const focusBlend = 1 - Math.exp(-dt * 5.8);
+      const positionBlend = 1 - Math.exp(-dt * (3.4 + PRO_CAMERA.speed * 0.18));
+      const focusBlend = 1 - Math.exp(-dt * (4.0 + PRO_CAMERA.speed * 0.16));
       camera.position.x += (desiredX - camera.position.x) * positionBlend;
       camera.position.y += (desiredY - camera.position.y) * positionBlend;
       camera.position.z += (desiredZ - camera.position.z) * positionBlend;
@@ -4064,6 +4057,40 @@ export function createMatch(options = {}) {
       steerPlayer(player, player.x, dismissal.exitZ, dt, 4.2, { arrive: 0.2, turn: 8 });
       if (!faceVelocity(player, dt, 8)) faceTowards(player, player.x, dismissal.exitZ, dt, 8);
     }
+  }
+
+  /** Pedalada, chapéu, elástico e roleta: humano e IA usam o mesmo caminho. */
+  function performSkill(player, name) {
+    if (!player?.active) return false;
+    if (training.enabled && training.drill === 'penalty') return false;
+    if (ball.state.owner !== player || elapsedWorldTime < (player.skillUntil || 0)) return false;
+    player.skillUntil = elapsedWorldTime + 0.75;
+    if (name === 'rainbow') {
+      const profile = rainbowProfile(player.dribbling);
+      ball.kick(player.facing, 2, 4); ball.state.lastTouch = player; ball.state.lastIntentionalTouch = player;
+      ball.state.rainbow = { player, profile, time: 0, x: player.x, z: player.z, fx: player.facing.x, fz: player.facing.z };
+      ball.state.position.set(player.x - player.facing.x * .55, BALL.radius, player.z - player.facing.z * .55);
+      ball.state.skillUntil = elapsedWorldTime + profile.duration;
+      player.skillUntil = elapsedWorldTime + profile.duration + .4;
+      player.model.skill?.('rainbow');
+    } else if (name === 'elastico') {
+      const rightX = -player.facing.z, rightZ = player.facing.x;
+      const side = Math.sign(player.z) || 1;
+      player.vx += rightX * side * 3.6;
+      player.vz += rightZ * side * 3.6;
+      player.burst = Math.max(player.burst || 0, .72);
+      player.model.skill?.('elastico');
+    } else if (name === 'roulette') {
+      player.facing.x = -player.facing.x;
+      player.facing.z = -player.facing.z;
+      player.burst = Math.max(player.burst || 0, .88);
+      player.model.skill?.('roulette');
+    } else {
+      player.model.skill?.('stepover');
+      player.burst = Math.max(player.burst || 0, .65);
+    }
+    emit({ type: 'dribble', team: player.side, player, name });
+    return true;
   }
 
   /** O jogador controlado responde ao analógico sem acelerações bruscas. */

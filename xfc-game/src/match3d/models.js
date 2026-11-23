@@ -469,8 +469,10 @@ export function createGltfPlayer(options = {}) {
     'carry-ball': .8,
     'place-ball': .9,
     'pick-ball': .9,
-    stepover: .6,
-    rainbow: .55,
+    stepover: .62,
+    rainbow: .58,
+    elastico: .55,
+    roulette: .7,
     catch: .8,
     miss: 1.07
   };
@@ -556,16 +558,38 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'stepover': {
-        const circle=p*Math.PI*4;
-        addBoneRotation(bones.rightUpLeg,-.48*Math.sin(Math.PI*p),.36*Math.sin(circle),.32*Math.cos(circle)*wave,w);
-        addBoneRotation(bones.rightLeg,.48*wave,0,0,w);
-        addBoneRotation(bones.spine2,0,.12*Math.sin(circle),-.12*Math.sin(circle),w);
+        const circle=p*Math.PI*5;
+        addBoneRotation(bones.rightUpLeg,-.62*Math.sin(Math.PI*p),.48*Math.sin(circle),.42*Math.cos(circle)*wave,w);
+        addBoneRotation(bones.rightLeg,.62*wave,0,0,w);
+        addBoneRotation(bones.leftUpLeg,-.12*wave,0,0,w);
+        addBoneRotation(bones.spine2,.06*wave,.18*Math.sin(circle),-.16*Math.sin(circle),w);
+        addBoneRotation(bones.leftArm,-.2*wave,0,.25*wave,w);
+        addBoneRotation(bones.rightArm,-.15*wave,0,-.2*wave,w);
+        break;
+      }
+      case 'elastico': {
+        const whip=Math.sin(p*Math.PI*2);
+        addBoneRotation(bones.rightUpLeg,-.5*wave,.62*whip,.3*wave,w);
+        addBoneRotation(bones.rightLeg,.58*wave,0,0,w);
+        addBoneRotation(bones.spine2,0,.28*whip,-.2*whip,w);
+        addBoneRotation(bones.leftArm,-.18*wave,0,.22*wave,w);
+        break;
+      }
+      case 'roulette': {
+        addBoneRotation(bones.hips,0,p*Math.PI*2,0,w);
+        addBoneRotation(bones.rightUpLeg,-.38*wave,.42*wave,0,w);
+        addBoneRotation(bones.leftUpLeg,-.22*wave,-.28*wave,0,w);
+        addBoneRotation(bones.spine2,.1*wave,0,0,w);
+        addBoneRotation(bones.leftArm,-.28*wave,0,.35*wave,w);
+        addBoneRotation(bones.rightArm,-.22*wave,0,-.3*wave,w);
         break;
       }
       case 'rainbow': {
-        addBoneRotation(bones.rightUpLeg,-.8*wave,0,.12*wave,w);
-        addBoneRotation(bones.rightLeg,.7*wave,0,0,w);
-        addBoneRotation(bones.leftUpLeg,.15*wave,0,0,w);
+        addBoneRotation(bones.rightUpLeg,-1.05*wave,0,.18*wave,w);
+        addBoneRotation(bones.rightLeg,.95*wave,0,0,w);
+        addBoneRotation(bones.leftUpLeg,.22*wave,0,0,w);
+        addBoneRotation(bones.spine2,-.12*wave,0,0,w);
+        bones.hips.position.y+=.04*wave*w;
         break;
       }
       case 'receive': {
@@ -933,7 +957,10 @@ export function createGltfPlayer(options = {}) {
     carryBall(duration=.8){return startGesture('carry-ball',duration,{mask:'upper'});},
     pickBall(duration=.9){return startGesture('pick-ball',duration);},
     placeBall(duration=.9){return startGesture('place-ball',duration);},
-    skill(name='stepover'){return startGesture(name==='rainbow'?'rainbow':'stepover');},
+    skill(name='stepover'){
+      const known=name==='rainbow'||name==='elastico'||name==='roulette'||name==='stepover';
+      return startGesture(known?name:'stepover');
+    },
     kick(type = 'shot') {
       gesture.kind=type;
       const result=startGesture(type==='volley'?'volley':'kick');
@@ -1102,9 +1129,12 @@ export function createGltfPlayer(options = {}) {
       if(!gesture.name){
         // Condução clássica: ombros contrabalançam toques curtos sem mudar o pé/bola.
         const dribble=dribbleWeight;
-        addBoneRotation(bones.spine2,.025,Math.sin(gaitPhase*Math.PI*2)*.055,0,dribble);
-        addBoneRotation(bones.leftForeArm,-.12,0,0,dribble);
-        addBoneRotation(bones.rightForeArm,-.12,0,0,dribble);
+        addBoneRotation(bones.spine2,.04,Math.sin(gaitPhase*Math.PI*2)*.09,0,dribble);
+        addBoneRotation(bones.hips,0,Math.sin(gaitPhase*Math.PI*2)*.03,0,dribble);
+        addBoneRotation(bones.leftForeArm,-.18,0,.08,dribble);
+        addBoneRotation(bones.rightForeArm,-.18,0,-.08,dribble);
+        addBoneRotation(bones.leftArm,-.08,0,.12,dribble);
+        addBoneRotation(bones.rightArm,-.06,0,-.12,dribble);
         addBoneRotation(bones.spine2,.035*effort*Math.sin(breathing*Math.PI*2),shieldWeight*.1,0,1);
         addBoneRotation(bones.leftArm,-.16,0,.32,shieldWeight);
         addBoneRotation(bones.rightArm,-.12,0,-.32,shieldWeight);

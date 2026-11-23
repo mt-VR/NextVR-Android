@@ -78,9 +78,9 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "43939e6083e8772dfaecd7f0f0ef23192c17e2ef80b6054a4f9c0ae3a8ea0285",
-  "src/match3d/controls.js": "384abeaba5807ae8dcc65ebe8ce421ebd1189e1d052d5f4fbb8621e20ead0ea8",
-  // v0.5.70: falta (barreira/corredor) e recepção do treino coletivo.
-  "src/match3d/match.js": "f24f8c9128c1cc89d516960ebcca79c0a1e7c1c7ac4c9440de7132ecdb6ddb58",
+  "src/match3d/controls.js": "9519199c6a3b879b588fc110396e1500f8d86bde76a93b979635d66e2e4b5376",
+  // v0.5.89: câmera Pro Zoom/Speed/Swing, elástico/roleta e sprint da IA.
+  "src/match3d/match.js": "d270f7b049b8e3b0503aa07eade34a931f48274c8523e100145e0c4ac7c471b3",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).

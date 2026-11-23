@@ -9,7 +9,8 @@ import { launchOrSkip } from './support/chromium.mjs';
 
 test('aparência acompanha a identidade, não o índice no elenco; uniformes têm peças independentes',()=>{
   const vini=appearanceFor({name:'Vinícius Jr'}),nation=appearanceFor({fullName:'Vinícius Júnior'}),fede=appearanceFor({name:'Valverde'});
-  assert.equal(vini.skinTone,nation.skinTone);assert.equal(vini.hairStyle,'afro');assert.equal(fede.hairStyle,'short');assert.notEqual(vini.skinTone,fede.skinTone);
+  assert.equal(vini.skinTone,nation.skinTone);assert.equal(vini.hairStyle,'lab-afro');assert.equal(fede.hairStyle,'lab-low-fade');assert.notEqual(vini.skinTone,fede.skinTone);
+  assert.equal(vini.careerHair,true);assert.notEqual(vini.hairStyle,fede.hairStyle);
   assert.equal(appearanceFor({name:'Jogador sem referência'}).source,'default-unverified');
   assert.equal(KITS['real-madrid'][0].shorts,'#f7f7f7');assert.equal(KITS['real-madrid'][0].socks,'#f7f7f7');
   assert.equal(KITS['fc-barcelona'][0].pattern,'stripes');assert.equal(KITS.flamengo[0].pattern,'hoops');
