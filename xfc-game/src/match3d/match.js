@@ -3136,6 +3136,7 @@ export function createMatch(options = {}) {
     const player = controlled[userSide] || training.player;
     if (!player) return;
     const camera = engine.camera;
+    const speed = playerSpeed(player);
     let cameraForward;
     if (training.enabled) {
       // Treino: eixo fixo, sem girar o analógico (comportamento preservado).
@@ -3175,7 +3176,6 @@ export function createMatch(options = {}) {
     const forwardZ = cameraForward.z / facingLength;
     const rightX = -forwardZ;
     const rightZ = forwardX;
-    const speed = playerSpeed(player);
     const isPenalty=training.enabled&&training.drill==='penalty';
     // Pênalti: atrás do cobrador (eixo da marca), olhando o gol no centro.
     if (isPenalty) {
