@@ -3257,6 +3257,71 @@ function spatialLauncherApp() {
   return win;
 }
 
+/* ============ Camera Solo (modo câmera sozinha) ============
+ *
+ * Sobrou do bloco do Menu Rápido porque NÃO tem nada a ver com ele: é o modo em que o app esconde
+ * todas as janelas para a câmera focar sozinha (usado pela ponte nativa em `nextvrOnCameraDefocus`
+ * e pelo botão "Câmera Sozinha"). Saiu junto do menu por estar no mesmo trecho do arquivo — e o
+ * `NextVrActivity` continua chamando as duas funções.
+ */
+let cameraSoloActive = false;
+let cameraSoloAutoTriggered = false;
+let cameraSoloSavedWins = [];
+let cameraSoloPillEl = null;
+
+export function toggleCameraSoloMode(forceState = undefined, autoFromDefocus = false) {
+  const next = typeof forceState === 'boolean' ? forceState : !cameraSoloActive;
+  cameraSoloActive = next;
+  if (next) {
+    cameraSoloAutoTriggered = Boolean(autoFromDefocus);
+    setPassthrough(true);
+    window.NativeXR?.refocusCamera?.();
+    if (cameraSoloSavedWins.length === 0) {
+      cameraSoloSavedWins = wins.filter(w => !w.hidden).map(w => w.id);
+    }
+    for (const w of wins) w.setHidden(true);
+    setDockHidden(true);
+    setDockVisible(false);
+    document.documentElement.dataset.cameraSolo = '1';
+    const hud = document.getElementById('hud') || document.body;
+    if (!cameraSoloPillEl || !document.body.contains(cameraSoloPillEl)) {
+      cameraSoloPillEl = document.createElement('button');
+      cameraSoloPillEl.id = 'camera-solo-pill';
+      cameraSoloPillEl.type = 'button';
+      cameraSoloPillEl.className = 'camera-solo-pill';
+      cameraSoloPillEl.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:205;padding:9px 18px;border-radius:999px;border:1.5px solid rgba(56,189,248,.65);background:rgba(15,23,42,.86);color:#f8fafc;font:700 13px Inter,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.55);cursor:pointer;pointer-events:auto';
+      cameraSoloPillEl.textContent = '📷 Câmera Sozinha (Foco Automático) · Toque para voltar';
+      cameraSoloPillEl.addEventListener('click', e => {
+        e.stopPropagation();
+        toggleCameraSoloMode(false);
+      });
+      hud.appendChild(cameraSoloPillEl);
+    }
+    cameraSoloPillEl.hidden = false;
+    toast('Modo Câmera Sozinha ativado · Focando câmera...');
+  } else {
+    cameraSoloAutoTriggered = false;
+    delete document.documentElement.dataset.cameraSolo;
+    if (cameraSoloPillEl) cameraSoloPillEl.hidden = true;
+    for (const id of cameraSoloSavedWins) {
+      const w = wins.find(x => x.id === id);
+      if (w) w.setHidden(false);
+    }
+    cameraSoloSavedWins = [];
+    if (!S.spatialLauncher) {
+      setDockHidden(false);
+      setDockVisible(true);
+    }
+  }
+  css3d.invalidate?.();
+  css3d.render?.(scene, camera);
+  return cameraSoloActive;
+}
+window.nextvrToggleCameraSolo = toggleCameraSoloMode;
+window.nextvrOnCameraDefocus = () => {
+  // Foco automático sozinho desativado por pedido do utilizador
+};
+
 /* ============ Menuzinho Rápido (soco por 2 s): REMOVIDO em 2.6.7 ============
  *
  * "tira a opção de só fazer o soco em uma janelinha flutuante nós consegue mexer ela de lugar, isso
