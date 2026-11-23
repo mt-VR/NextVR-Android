@@ -373,8 +373,21 @@ export function createTeamAI({ side, world, tempo = 1 }) {
 
     const myGoal = ownGoalX;
     const assignedMarkers = new Set();
-    // FC 27: um só contém o portador. O resto cobre espaço / linha de passe.
+    // Zagueiros/volantes do TEU time também fecham para roubar — não só o
+    // rival. Um contém o portador; até dois fecham o corredor da bola.
     const pressers = [];
+    if (owner && owner.side !== side) {
+      const ranked = members()
+        .filter(p => p.active && p !== chaser && !p.isGK && !p.isKeeper && !world.isUserControlled(p))
+        .sort((a, b) => distance(a.x, a.z, owner.x, owner.z) - distance(b.x, b.z, owner.x, owner.z));
+      for (const candidate of ranked) {
+        const role = (candidate.tacticalBase || FORMATION_433[candidate.index] || {}).role;
+        if (!['CB', 'LB', 'RB', 'CDM'].includes(role)) continue;
+        if (Math.hypot(candidate.x - owner.x, candidate.z - owner.z) > 22) continue;
+        pressers.push(candidate);
+        if (pressers.length >= 2) break;
+      }
+    }
 
     for (const player of members()) {
       if (!player.active) continue;
@@ -458,22 +471,24 @@ export function createTeamAI({ side, world, tempo = 1 }) {
           if (world.isPlayable() && gap < 2.4 && chance(0.07, dt)) world.slideTackle?.(player);
         }
       } else if (pressers.includes(player)) {
-        // Ajuda na pressão: fecha o lado do gol sem encostar no perseguidor.
+        // Fecha o corredor da bola, corpo entre o portador e o gol, para roubar.
         const gap = Math.hypot(ball.position.x - player.x, ball.position.z - player.z);
         const lane = pressers[0] === player ? 1 : -1;
-        targetX = ball.position.x - attackSign * (owner ? 1.6 : 0.4);
-        targetZ = ball.position.z + lane * 1.7;
-        speed = SPRINT_SPEED * (.92 + .12 * tactics.press) * pace;
+        targetX = ball.position.x - attackSign * (owner ? 1.05 : 0.35);
+        targetZ = ball.position.z + lane * 1.15;
+        speed = SPRINT_SPEED * (.94 + .12 * tactics.press) * pace;
         if (world.isPlayable() && owner && owner.side !== side
-          && gap < 2.6 && chance(0.022, dt)) world.tackle(player);
+          && gap < 2.2 && chance(0.04, dt)) world.tackle(player);
       } else if (player === chaser && owner && owner.side !== side) {
-        // Contém de longe (jockey): atrasa, não entra em 6 contra 1.
-        const sideCover = player.z >= owner.z ? 0.85 : -0.85;
-        targetX = owner.x - attackSign * 2.6;
-        targetZ = owner.z + sideCover;
+        // Entre a bola e o gol, perto o bastante para interceptar/roubar.
+        const toGoalX = myGoal - owner.x;
+        const toGoalZ = -owner.z;
+        const glen = Math.hypot(toGoalX, toGoalZ) || 1;
+        targetX = owner.x + (toGoalX / glen) * 1.35;
+        targetZ = owner.z + (toGoalZ / glen) * 1.35;
         const gap = Math.hypot(owner.x - player.x, owner.z - player.z);
-        speed = (gap > 2.2 ? SPRINT_SPEED : RUN_SPEED * 1.12) * pace;
-        if (world.isPlayable() && gap < 1.7 && chance(0.01, dt)) world.tackle(player);
+        speed = (gap > 1.8 ? SPRINT_SPEED : RUN_SPEED * 1.18) * pace;
+        if (world.isPlayable() && gap < 1.55 && chance(0.045, dt)) world.tackle(player);
       } else {
         const supports = owner?.side === side;
         const recovering = owner && owner.side !== side;
@@ -516,14 +531,23 @@ export function createTeamAI({ side, world, tempo = 1 }) {
         const isBackLine = ['CB', 'LB', 'RB'].includes(shape.role);
         if (recovering && isBackLine && !player.tacticalCustom) {
           const marked = markTarget(player, { x: targetX, z: targetZ }, assignedMarkers);
-          targetX = marked.x;
-          targetZ = marked.z;
-          // Os laterais mantêm largura para defender cruzamentos; os centrais
-          // não são arrastados para as mesmas coordenadas.
-          if (shape.role === 'LB' || shape.role === 'RB') {
-            targetZ = Math.sign(shape.baseZ || 1) * Math.max(10, Math.abs(targetZ));
+          const toGoalX = myGoal - ball.position.x;
+          const toGoalZ = -ball.position.z;
+          const glen = Math.hypot(toGoalX, toGoalZ) || 1;
+          const stealX = ball.position.x + (toGoalX / glen) * 2.2;
+          const stealZ = ball.position.z + (toGoalZ / glen) * 2.2;
+          const inLane = Math.abs(player.z - ball.position.z) < 14;
+          if (inLane) {
+            targetX = stealX * 0.62 + marked.x * 0.38;
+            targetZ = stealZ * 0.62 + marked.z * 0.38;
+          } else {
+            targetX = marked.x;
+            targetZ = marked.z;
           }
-          speed = Math.max(speed, SPRINT_SPEED * 0.9 * pace);
+          if (shape.role === 'LB' || shape.role === 'RB') {
+            targetZ = Math.sign(shape.baseZ || 1) * Math.max(8, Math.abs(targetZ));
+          }
+          speed = Math.max(speed, SPRINT_SPEED * 0.95 * pace);
         }
       }
 

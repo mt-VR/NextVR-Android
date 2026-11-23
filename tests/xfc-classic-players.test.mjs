@@ -80,7 +80,7 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/match3d/hud.js": "43939e6083e8772dfaecd7f0f0ef23192c17e2ef80b6054a4f9c0ae3a8ea0285",
   "src/match3d/controls.js": "9519199c6a3b879b588fc110396e1500f8d86bde76a93b979635d66e2e4b5376",
   // v0.5.89: câmera Pro Zoom/Speed/Swing, elástico/roleta e sprint da IA.
-  "src/match3d/match.js": "5eb56109e7bf65f2ae4e55abecbd23fe01254179297253b0e23be3109f095025",
+  "src/match3d/match.js": "cef39e7c27f59740279a435bfe8a5c35aef23a48572f1fd721e5cd15234e1900",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).

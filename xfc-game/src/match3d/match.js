@@ -3165,6 +3165,25 @@ export function createMatch(options = {}) {
         const aimLen = Math.hypot(aimX, aimZ) || 1;
         targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
       }
+      // Pro FC: na ponta a lente NÃO segue o escanteio. Vira para a área
+      // (mesmo nos dois lados) para o corte/cruzamento aparecer no quadro.
+      if (ballDistance <= 4.5) {
+        const absZ = Math.abs(player.z);
+        const wing = Math.max(0, Math.min(1, (absZ - 10) / 16));
+        const goingWide = Math.abs(player.vz) > 1.8 || Math.abs(player.facing.z) * absZ > 6;
+        const boxBias = Math.max(wing, goingWide && absZ > 7 ? 0.62 : 0);
+        if (boxBias > 0.04) {
+          const boxX = attackSign(userSide) * PITCH.halfLength;
+          const boxZ = player.z * 0.16;
+          const bx = boxX - player.x, bz = boxZ - player.z;
+          const bl = Math.hypot(bx, bz) || 1;
+          const mix = 0.55 + boxBias * 0.45;
+          const aimX = targetForward.x * (1 - mix) + (bx / bl) * mix;
+          const aimZ = targetForward.z * (1 - mix) + (bz / bl) * mix;
+          const aimLen = Math.hypot(aimX, aimZ) || 1;
+          targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
+        }
+      }
       const turn = 1 - Math.exp(-dt * (1.8 + PRO_CAMERA.speed * 0.12));
       careerCameraForward.x += (targetForward.x - careerCameraForward.x) * turn;
       careerCameraForward.z += (targetForward.z - careerCameraForward.z) * turn;
