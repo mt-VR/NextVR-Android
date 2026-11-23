@@ -5,7 +5,7 @@
 // gestures (pinch click, fist grab, direct touch, ray) remain unchanged.
 import { settings as S, on, emit, toast, onFrame, native, viewport, reportHandFrame } from './core.js';
 import { bindSixDofContext, updateHandBoxesFromPacket } from './sixdof.js';
-import { HandClickState, ClickDragArbiter, HandPointFilter } from './hand-input.js';
+import { HandClickState, ClickDragArbiter, HandPointFilter, HAND_FILTER_PROFILES } from './hand-input.js';
 export const hands = [];
 export const cursor = { x: .5, y: .5, active: false, down: false, phase: 'hovering', hand: null, mode: 'idle' };
 const clickState = new HandClickState();
@@ -21,7 +21,10 @@ const pressArbiter = new ClickDragArbiter();
  * conjunto de pontos já estabilizado. Nunca nos gestos: `pinching`/`fist` continuam vindo do
  * pacote cru, porque um filtro atrasa a borda do gesto e viraria clique perdido ou clique fantasma.
  */
-const pointFilter = new HandPointFilter({ minCutoff: 1.2, beta: 6, deadZone: 0.0007 });
+// Perfil "interface": o mais estável parado, mas já sem o atraso que a rodada anterior tinha
+// (ver HAND_FILTER_PROFILES em hand-input.js). Quando o Gorilla Rush está na tela, o rastreio do
+// jogo tem o SEU filtro (tools/gorilla-rush/parts/hands.js, perfil "game").
+const pointFilter = new HandPointFilter({ ...HAND_FILTER_PROFILES.interface });
 window.__nvHandFilter = pointFilter;   // sonda: dá para zerar/inspecionar no aparelho
 const TAN_Y = Math.tan(36 * Math.PI / 180), TAN_X = TAN_Y * 1.5;
 let enabled = false, lastFrame = -Infinity, scaleX = 2*TAN_X, scaleY = 2*TAN_Y, visual = null, validForMs = 500;

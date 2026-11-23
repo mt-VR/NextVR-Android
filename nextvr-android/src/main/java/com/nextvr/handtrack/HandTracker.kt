@@ -43,6 +43,20 @@ class HandTracker @JvmOverloads constructor(
     /** When true (Single-Hand Mode), always runs the 1-slot fast graph (2.47x faster, zero 2-hand probe cost). */
     @JvmField @Volatile var singleHandOnly = false
 
+    /**
+     * Perfil de jogo (Gorilla Rush): as DUAS mãos são o normal, então a sondagem de segundo slot
+     * roda com o dobro do intervalo. Numa partida o segundo slot quase sempre acha a outra mão, e a
+     * cada sondagem dessas o grafo de dois slots assume por alguns quadros — é trabalho pago em
+     * latência. Com o dobro do intervalo, o caso de uma mão só fica no grafo rápido por mais tempo.
+     *
+     * Não afeta a descoberta da segunda mão: ela continua sendo encontrada no primeiro quadro em que
+     * aparecer depois da sondagem (a mão que importa — a que está batendo no chão — já está no grafo
+     * rápido).
+     */
+    @JvmField @Volatile var gameProfile = false
+    private val gameSlots = HandSlotPolicy(WIDE_HANDS, PROBE_MS * 2, PROBE_FRAMES * 2)
+    private fun policy(): HandSlotPolicy = if (gameProfile) gameSlots else slots
+
     /** Detect without taking ownership; the caller keeps and reuses [bitmap]. */
     fun detect(bitmap: Bitmap, timestampMs: Long, rotationDegrees: Int = 0): HandLandmarkerResult =
         infer(bitmap, timestampMs, rotationDegrees, takeOwnership = false)
@@ -74,7 +88,8 @@ class HandTracker @JvmOverloads constructor(
             // as by camera time: on a slow device the camera clock runs far ahead of the tracker,
             // and a camera-time probe alone would fire on every frame and never reach the one-slot
             // graph (the split's whole reason to exist).
-            val searching = if (singleHandOnly) false else slots.useWide(stamp)
+            val policy = policy()
+            val searching = if (singleHandOnly) false else policy.useWide(stamp)
             val active = if (searching) wide else narrowGraph()
             // The upright pipeline feeds rotation 0 every frame: the plain overload is the same graph
             // with an identity transform, without building ImageProcessingOptions per inference.
@@ -92,7 +107,7 @@ class HandTracker @JvmOverloads constructor(
             // two slots on half of them, which is worse than searching properly until the hand is
             // back (the hand being tracked keeps its silhouette through the miss either way, see
             // PhoneXrHands' prediction bridge).
-            slots.onResult(searching, hands)
+            policy.onResult(searching, hands)
             lastFrameNarrow = !searching
             return result
         } catch (error: RuntimeException) {

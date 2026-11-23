@@ -54,6 +54,25 @@ class PhoneXrHands {
         /** Per-sample weight of the velocity estimate from consecutive detections. */
         private const val VELOCITY_EMA = .65f
         /**
+         * Perfil GAME (Gorilla Rush) — "deixa o hand tracking mais rápido ... um que não sai da mão".
+         *
+         * No jogo a mão não é ponteiro de interface: é o braço do gorila, e o que importa é ela
+         * acompanhar o movimento sem sumir. Três diferenças em relação ao perfil da interface:
+         *
+         *  - **menos filtro para andar**: a posição continua estável parada (minCutoff baixo), mas o
+         *    `beta` alto devolve o valor cru no primeiro quadro de movimento. O braço deixa de
+         *    "chegar atrasado" ao bater no chão.
+         *  - **menos zona morta**: 0,00035 em vez de 0,0006 — o jogo desenha o osso, e 1 px de zona
+         *    morta já é um degrau visível no pulso.
+         *  - **mão NÃO sai**: o buraco de detecção que a interface tolera por 63 ms (horizonte de
+         *    predição) e o estado que ela descarta em 1,5 s são muito mais generosos aqui. No jogo a
+         *    mesma mão pode ficar meio segundo escondida (batendo no chão, saindo do enquadramento)
+         *    e o braço tem que continuar lá — previsto, com confiança caindo, mas presente.
+         */
+        const val GAME_PREDICT_HORIZON_NS = 900_000_000L
+        const val GAME_MAX_PREDICT_MISSES = 6
+        const val GAME_STATE_RETAIN_NS = 2_500_000_000L
+        /**
          * Duas mãos de verdade nunca estão com a palma praticamente no mesmo ponto da imagem.
          * Quando a predita cai dentro deste raio de uma mão detectada no MESMO resultado, elas
          * são a mesma mão física: o MediaPipe troca o rótulo esquerda/direita quando as mãos se
@@ -238,7 +257,9 @@ class PhoneXrHands {
             if (value.isFinite()) sb.append(value) else sb.append("null")
         }
     }
-    private class State {
+    private class State(gameProfile: Boolean = false) {
+        /** Perfil de jogo (ver [GAME_PREDICT_HORIZON_NS]). */
+        val game = gameProfile
         /**
          * Os 63 landmarks da silhueta.
          *
@@ -253,6 +274,7 @@ class PhoneXrHands {
         val landmarks = Array(63) { i ->
             when {
                 i % 3 == 2 -> HandGestures.OneEuro(minCutoff=1.6f, beta=6.0f, deadZone=0.0012f)
+                game -> HandGestures.OneEuro(minCutoff=1.6f, beta=26.0f, deadZone=0.00035f)
                 else -> HandGestures.OneEuro(minCutoff=1.6f, beta=14.0f, deadZone=0.0006f)
             }
         }
@@ -262,8 +284,8 @@ class PhoneXrHands {
         val y = HandGestures.OneEuro(minCutoff=3.0f, beta=900.0f, deadZone=0f)
         val pinch = HandGestures.PinchLatch()
         var fist = false
-        val grabX = HandGestures.OneEuro(minCutoff=4.0f,beta=200.0f, deadZone=0f)
-        val grabY = HandGestures.OneEuro(minCutoff=4.0f,beta=200.0f, deadZone=0f)
+        val grabX = HandGestures.OneEuro(minCutoff=if (gameProfile) 6.0f else 4.0f,beta=if (gameProfile) 400.0f else 200.0f, deadZone=0f)
+        val grabY = HandGestures.OneEuro(minCutoff=if (gameProfile) 6.0f else 4.0f,beta=if (gameProfile) 400.0f else 200.0f, deadZone=0f)
 
         /* ---- lightweight constant-velocity motion model, on the capture timeline ---- */
         var sawDetection = false
@@ -338,9 +360,13 @@ class PhoneXrHands {
             val hand = lastHand ?: return null
             if (!sawDetection) return null
             consecutiveMisses++
-            if (consecutiveMisses >= MAX_PREDICT_MISSES) return null
+            // Perfil de jogo: a mão pode faltar por mais tempo e o braço continua na tela (ver
+            // GAME_PREDICT_HORIZON_NS). Fora do jogo vale o horizonte curto da interface, porque ali
+            // uma mão "segurada" por muito tempo vira cursor fantasma.
+            if (consecutiveMisses >= if (game) GAME_MAX_PREDICT_MISSES else MAX_PREDICT_MISSES) return null
             val since = stampNs - lastStampNs
-            if (since <= 0L || since > PREDICT_HORIZON_NS) return null
+            val horizon = if (game) GAME_PREDICT_HORIZON_NS else PREDICT_HORIZON_NS
+            if (since <= 0L || since > horizon) return null
             val t = since / 1e9f
             fun step(velocity: Float) = (velocity * t).coerceIn(-MAX_PREDICT_STEP, MAX_PREDICT_STEP)
             val points = FloatArray(63) { i -> hand.points[i] + step(vPoints[i]) }
@@ -352,10 +378,22 @@ class PhoneXrHands {
                 hand.aimX + step(vAim[0]), hand.aimY + step(vAim[1]),
                 hand.pinching, hand.grabX + step(vGrab[0]), hand.grabY + step(vGrab[1]),
                 predicted = true,
-                confidence = 1f - since.toFloat() / PREDICT_HORIZON_NS)
+                confidence = 1f - since.toFloat() / horizon)
         }
     }
     private val states = HashMap<Boolean, State>()
+    /**
+     * Perfil GAME (Gorilla Rush). Ligado pelo app quando o jogo está na tela e desligado quando ele
+     * fecha; ao trocar, todo estado é descartado (os filtros mudam de constante, e um filtro
+     * misturando duas configurações não é nem uma coisa nem outra).
+     */
+    @JvmField @Volatile var gameProfile: Boolean = false
+    fun setGameProfile(enabled: Boolean) {
+        if (gameProfile == enabled) return
+        gameProfile = enabled
+        states.clear()
+        previous = null
+    }
     private var previous: Frame? = null
     /** "both" (2 mãos), "right" (só mão direita), "left" (só mão esquerda), ou "one" (1 mão automática). */
     @JvmField @Volatile var singleHandMode: String = "both"
@@ -368,7 +406,8 @@ class PhoneXrHands {
         // Prune BEFORE this result may reuse any state: a hand that reappears after a long
         // silence must not resume a stale filter from where it vanished (see STATE_RETAIN_NS).
         // A briefer absence keeps its filters and is bridged by the motion model below.
-        states.entries.removeAll { it.value.lastStampNs < stamp - STATE_RETAIN_NS }
+        val retainNs = if (gameProfile) GAME_STATE_RETAIN_NS else STATE_RETAIN_NS
+        states.entries.removeAll { it.value.lastStampNs < stamp - retainNs }
         val seen = ArrayList<Hand>()
         val detected = HashSet<Boolean>()
         result.landmarks().forEachIndexed { index, raw ->
@@ -402,7 +441,7 @@ class PhoneXrHands {
             // which owns presses and drags per `id` - could not tell the two apart. The duplicate
             // claim is moved to the free side, so each hand keeps its own state and its own id.
             if (!detected.add(left)) { left = !left; detected.add(left) }
-            val state = states.getOrPut(left) { State() }
+            val state = states.getOrPut(left) { State(gameProfile) }
             // O pulso publicado é o MESMO centro usado pelo limite de alcance. Antes o landmark 0
             // saía suavizado (misturado com o quadro anterior) e os outros eram limitados contra o
             // pulso CRU: numa falha de detecção o pulso ficava para trás e os dedos iam para a

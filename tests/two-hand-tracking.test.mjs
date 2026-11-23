@@ -10,8 +10,14 @@ test('MediaPipe can track both hands and returns to the one-hand fast graph when
   assert.match(tracker, /const val NARROW_HANDS = 1/);
   assert.match(tracker, /const val PROBE_FRAMES = 4/);
   assert.match(tracker, /const val PROBE_MS = 250L/);
-  assert.match(tracker, /slots\.useWide\(stamp\)/);
-  assert.match(tracker, /slots\.onResult\(searching, hands\)/);
+  // 2.6.8: a política virou duas (interface e jogo — sondagem de segundo slot com o dobro do
+  // intervalo dentro de uma partida). O quadro escolhe a política e usa ela para decidir e para
+  // registrar o resultado.
+  assert.match(tracker, /private fun policy\(\): HandSlotPolicy = if \(gameProfile\) gameSlots else slots/);
+  assert.match(tracker, /policy\.useWide\(stamp\)/);
+  assert.match(tracker, /policy\.onResult\(searching, hands\)/);
+  assert.match(tracker, /HandSlotPolicy\(WIDE_HANDS, PROBE_MS \* 2, PROBE_FRAMES \* 2\)/,
+    'o perfil de jogo paga menos sondagem de segundo slot por quadro');
   assert.match(policy, /detectedHands in 1 until searchSlots/);
   assert.match(policy, /framesSinceSearch >= minProbeFrames/);
   assert.match(camera, /MAX_GPU_ATTEMPTS=0/,
@@ -76,7 +82,8 @@ test('uma mão que falha por alguns quadros continua desenhada (duas mãos não 
   // Era `consecutiveMisses >= 2`: UMA falha e a mão desaparecia até o detector voltar a vê-la. Com
   // duas mãos isso acontece o tempo todo, e a segunda mão ficava piscando.
   assert.match(hands, /const val MAX_PREDICT_MISSES = 4/);
-  assert.match(hands, /if \(consecutiveMisses >= MAX_PREDICT_MISSES\) return null/);
+  // 2.6.8: no jogo o horizonte é outro (a mão NÃO pode sair), fora do jogo continua o mesmo.
+  assert.match(hands, /if \(consecutiveMisses >= if \(game\) GAME_MAX_PREDICT_MISSES else MAX_PREDICT_MISSES\) return null/);
   assert.doesNotMatch(hands, /consecutiveMisses >= 2\)/);
   // O fantasma (predita em cima de uma mão detectada) é descartado só nesta rodada, sem matar o lado.
   const ghost = hands.slice(hands.indexOf('val duplicate = seen.any'));

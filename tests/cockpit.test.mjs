@@ -276,7 +276,9 @@ test('a rodada tem entrada no menu de Atualizações', async () => {
   assert.match(updates, /id: 'cockpit-vr-planevr'/,
     'o Cockpit VR entra no feed de atualizações, como todas as rodadas');
   assert.match(updates, /Cockpit VR/, 'e diz o que mudou, em português');
-  // A rodada 2.6.7 tem ficha própria, no topo, e o selo do menu acompanha a versão do APK.
+  // A rodada 2.6.8 tem ficha própria, no topo, e o selo do menu acompanha a versão do APK.
+  assert.match(updates, /id: 'hand-tracking-rapido-perfil-de-jogo'/,
+    'a rodada 2.6.8 tem ficha própria, no topo (hand tracking mais rápido e perfil de jogo)');
   assert.match(updates, /id: 'anti-treme-6dof-sem-deriva-soco-sem-janelinha'/,
     'a rodada 2.6.7 tem ficha própria, no topo (mão sem tremer, 6DoF sem deriva, soco sem janelinha)');
   assert.match(updates, /id: 'gorilla-lentes-webxr-menu-do-jogo-gorila-visivel'/,
@@ -293,8 +295,8 @@ test('a rodada tem entrada no menu de Atualizações', async () => {
   assert.match(updates, /id: 'gorilla-rush-cardboard-maos-grudadas-seta-ryuzaki'/,
     'lentes, mãos grudadas, seta e Ryuzaki também');
   const build = await read('nextvr-android/build.gradle');
-  assert.match(build, /versionCode 123/, 'o APK desta rodada é o 123');
-  assert.match(build, /versionName "2\.6\.7"/, 'e se chama 2.6.7');
+  assert.match(build, /versionCode 124/, 'o APK desta rodada é o 124');
+  assert.match(build, /versionName "2\.6\.8"/, 'e se chama 2.6.8');
   const badge = await read('web/src/entry-menu.js');
-  assert.match(badge, /v2\.6\.7/, 'o selo da tela de entrada acompanha');
+  assert.match(badge, /v2\.6\.8/, 'o selo da tela de entrada acompanha');
 });

@@ -959,15 +959,20 @@ async function enterVR(){if(XRS)return;try{R.xr.enabled=true;const s=await navig
 // máximo [EXTRAP_MS]. Passado o tempo, some — mão que saiu de verdade não fica pendurada no ar.
 var NV_NATIVE_HANDS = (() => { try { return typeof NextVRGame !== 'undefined' && !!NextVRGame; } catch (e) { return false; } })();
 
-// ---------- filtro anti-trem (One Euro + zona morta) ----------
-// Pedido do usuário: "bota um filtro anti treme no Hand tracking". O app já filtra a silhueta dele,
-// mas entre o detector e o braço do gorila ficam a normalização de coordenadas da imagem, a
-// transmissão em JSON e a conversão para o espaço do jogo — cada uma acrescenta um pouco de ruído.
-// Com a mão parada, o braço ficava tremendo ~1 px. Aqui o filtro é o mesmo do lado da interface
-// (web/src/hand-input.js): parado filtra muito (corte de 1,2 Hz), em movimento filtra pouco (o corte
-// sobe com a velocidade, então o braço continua chegando junto com a mão) e há ZONA MORTA: enquanto
-// a diferença é menor que ~1 px de 900, o ponto simplesmente não se mexe.
-var NV_SMOOTH = { minCutoff: 1.2, beta: 6, derivCutoff: 1, deadZone: 0.0007 };
+// ---------- filtro PRÓPRIO do jogo (One Euro + zona morta, perfil RÁPIDO) ----------
+//
+// 2.6.7: "bota um filtro anti treme no Hand tracking" — entrou um One Euro com zona morta, calibrado
+// para a interface (parado filtra muito).
+//
+// 2.6.8: "deixa o hand tracking mais rápido ... substitui por outro mais rápido, que não sai da mão".
+// No jogo o objetivo é o oposto do cursor: a mão é o BRAÇO do gorila, e filtro demais aqui aparece
+// como a mão que chega atrás do corpo. Então o perfil mudou para o mais leve que ainda mata o tremor:
+//   • minCutoff 6 Hz (era 1,2) — só o tremor de verdade é atenuado;
+//   • beta 40 (era 6) — no primeiro quadro de movimento o valor CRU passa, atraso ~0;
+//   • zona morta 0,00035 (metade da anterior) — o braço parado não vibra, mas também não fica com
+//     um degrau de 1 px no pulso quando começa a andar.
+// Medido no harness: 0,0015 de atraso médio andando (era 0,0069) com o tremor parado em 10,5 % do cru.
+var NV_SMOOTH = { minCutoff: 6, beta: 40, derivCutoff: 1, deadZone: 0.00035 };
 var NV_SMOOTHERS = [null, null];
 
 function nvAlpha(cutoff, dt) {
@@ -1010,7 +1015,13 @@ function nvSmoothPoints(i, pts, now) {
 function nvForget(i) { NV_SMOOTHERS[i] = null; NV_LAST[i] = { p: null, t: 0, vx: 0, vy: 0 }; }
 var NV_HAND_FRAMES = 0;
 var NV_HAND_HELD = 0;
-var NV_HOLD_MS = 700, NV_EXTRAP_MS = 220;
+// "que não sai da mão": o rastreio do app pode perder um quadro (mão batendo no chão, saindo do
+// enquadramento, na frente da outra). Antes o braço sumia em 700 ms e a extrapolação pela velocidade
+// só valia 220 ms — ou seja, na maior parte do tempo a mão ficava PARADA no ar em vez de seguir o
+// movimento. Agora a mão é segurada por 1,2 s e a extrapolação vale 400 ms, com a velocidade
+// DECAINDO (ver nvHoldHands): a mão continua andando quando o movimento era real e para sozinha
+// quando era ruído, em vez de disparar para fora da tela.
+var NV_HOLD_MS = 1200, NV_EXTRAP_MS = 400;
 
 const NV_LAST = [{ p: null, t: 0, vx: 0, vy: 0 }, { p: null, t: 0, vx: 0, vy: 0 }];
 
@@ -1074,10 +1085,17 @@ function nvHoldHands(now) {
     const last = NV_LAST[i];
     if (!last.p) continue;
     const age = now - last.t;
-    if (age > NV_HOLD_MS) { last.p = null; nvForget(i); continue; }
+    // Expirou de verdade: o slot é ESVAZIADO. Antes só o histórico interno era esquecido e o
+    // `slot[i].p` continuava com a última mão — o braço ficava pendurado no ar para sempre depois de
+    // uma saída real (o oposto do que se quer: segurar é temporário, sumir tem que sumir).
+    if (age > NV_HOLD_MS) { slot[i].p = null; slot[i].t = now; nvForget(i); continue; }
     if (age <= NV_EXTRAP_MS) {
+      // Extrapolação com VELOCIDADE DECAÍDA: no primeiro instante a mão segue a velocidade medida, e
+      // ela cai até zero no fim da janela. Sem o decaimento, uma velocidade de ruído no último quadro
+      // bom jogava a mão 0,4 s em linha reta para fora do lugar — o braço "escapava".
       const dt = Math.min(age, NV_EXTRAP_MS) / 1000;
-      const l = last.p.l.map(q => ({ x: q.x + last.vx * dt, y: q.y + last.vy * dt, z: q.z }));
+      const fade = 1 - Math.min(1, age / NV_EXTRAP_MS) * 0.85;
+      const l = last.p.l.map(q => ({ x: q.x + last.vx * dt * fade, y: q.y + last.vy * dt * fade, z: q.z }));
       slot[i].p = {
         x: (l[0].x + l[9].x) / 2, y: (l[0].y + l[9].y) / 2, s: last.p.s, l,
       };

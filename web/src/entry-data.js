@@ -54,6 +54,17 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'hand-tracking-rapido-perfil-de-jogo',
+    tag: 'RASTREIO · MÃO MAIS RÁPIDA · NO GORILLA O RASTREIO É OUTRO (E A MÃO NÃO SAI)',
+    time: 'Agora',
+    heading: 'O Hand Tracking Ficou Mais Rápido e, no Gorilla Rush, Ele É Outro: Rápido e Sem Largar a Mão',
+    desc: 'A INTERFACE: o filtro anti-trem ficou mais rápido sem voltar a tremer. O corte de repouso subiu (2,2 Hz em vez de 1,2) e a reação ao movimento mais que dobrou (beta 20 em vez de 6): com a mão parada o tremor residual continua cortado, mas a bolinha e o raio deixam de "chegar atrás" da mão. O atraso ao mover caiu de ~0,007 para ~0,003 do campo, e a pinça continua sem passar pelo filtro. '
+      + 'NO GORILLA RUSH você pediu outro rastreio — e agora é outro. Não existe um segundo detector no aparelho, então o que muda é o PERFIL com que o rastreio do app roda dentro da partida. O rastreio da interface é DESLIGADO ali (nada de cursor, nada de filtro de ponteiro) e entra o perfil de jogo: '
+      + 'filtro muito mais leve (o braço responde no primeiro quadro de movimento — antes a mão do gorila chegava atrás do corpo), zona morta menor (sem degrau no pulso) e sondagem de segunda mão com metade da frequência, o que devolve latência a cada quadro. '
+      + 'E A MÃO NÃO SAI: quando o detector perde a mão (batendo no chão, saindo do enquadramento, uma na frente da outra), o braço continua na tela por até 1,2 s (era 0,7 s), andando pela velocidade medida com força decrescente — antes ele ficava parado no ar depois de 0,2 s e, passado o tempo, ficava PENDURADO para sempre (bug corrigido nesta rodada). Passado o 1,2 s, a mão sai de verdade. '
+      + 'E o detector de mãos não é mais reconstruído a cada abertura do jogo (isso custava centenas de ms e apagava o histórico de rastreio — mão lenta nos primeiros segundos): ele é reaproveitado.',
+  },
+  {
     id: 'anti-treme-6dof-sem-deriva-soco-sem-janelinha',
     tag: 'CORREÇÃO · MÃO SEM TREMER · 6DOF SEM DERIVA · O SOCO NÃO ABRE MAIS JANELINHA',
     time: 'Agora',

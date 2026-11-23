@@ -610,6 +610,25 @@ final class PassthroughCamera {
      * afterwards.
      */
     private void buildDetector() {
+        // Reaproveita o detector já construído quando ele existe e está saudável.
+        //
+        // Antes, este método SEMPRE fechava e reconstruía os dois grafos do MediaPipe. Ele é chamado
+        // por `resetHandsState()` — e o Gorilla Rush o chama em toda abertura dupla (abertura e uma
+        // segunda tentativa 700 ms depois), além de ao voltar do jogo. Cada reconstrução custava
+        // centenas de milissegundos de compilação de shader (delegate GPU) e apagava o histórico de
+        // ROI, ou seja: mão lenta e "sumindo" justamente nos primeiros segundos de jogo. Agora o
+        // detector só é reconstruído quando precisa ser (não existe, ou os grafos não batem com o
+        // modo de uma mão). `hands.reset()` já limpa o estado dos filtros, que é o que a reabertura
+        // precisa.
+        if (detector != null && handsEnabled && !destroyed &&
+                detector.singleHandOnly == !"both".equals(singleHandMode)) {
+            hands.singleHandMode = singleHandMode;
+            detector.gameProfile = gameHandsProfile;
+            seenGraphs = detector.graphGenerations();
+            delegateWatch.rebuilt();
+            PerfLog.delegate(gpuDetector ? "GPU" : "CPU");
+            return;
+        }
         if(detector!=null) { detector.close(); detector=null; }
         if(preferGpu && gpuAttempts<MAX_GPU_ATTEMPTS) {
             gpuAttempts++;
@@ -626,6 +645,7 @@ final class PassthroughCamera {
         // The brand-new graphs are about to face the delegate's warm-up, and the previous verdict
         // about a previous graph does not apply to them (see DelegateWatch.rebuilt).
         detector.singleHandOnly = !"both".equals(singleHandMode);
+        detector.gameProfile = gameHandsProfile;
         hands.singleHandMode = singleHandMode;
         seenGraphs=detector.graphGenerations();
         delegateWatch.rebuilt();
@@ -658,6 +678,28 @@ final class PassthroughCamera {
         latestHandsFrame=null;
         listener.hands(new PhoneXrHands.Frame(Collections.emptyList(),SystemClock.elapsedRealtimeNanos()));
     }
+    /**
+     * Liga/desliga o perfil de jogo do rastreio (Gorilla Rush).
+     *
+     * O filtro da interface é feito para um cursor: estável parado e sem tolerar sumiço. O do jogo é
+     * outro — responde no primeiro quadro de movimento e segura a mão por até 0,9 s quando o detector
+     * a perde (batendo no chão, saindo do enquadramento). Ver [PhoneXrHands.GAME_PREDICT_HORIZON_NS].
+     *
+     * Roda no thread do rastreio: o perfil troca o filtro de TODOS os estados, e trocar no meio de um
+     * quadro deixaria a metade das mãos com um filtro e a outra metade com outro.
+     */
+    void setGameHandsProfile(boolean enabled) {
+        gameHandsProfile=enabled;
+        tracking.execute(()->{
+            if(destroyed) return;
+            hands.setGameProfile(enabled);
+            // O grafo do detector respeita o mesmo perfil: no jogo a sondagem de segundo slot roda
+            // com o dobro do intervalo (ver HandTracker.gameProfile).
+            HandTracker d=detector;
+            if(d!=null) d.gameProfile=enabled;
+        });
+    }
+    private volatile boolean gameHandsProfile=false;
     void resetHandsState() {
         discardWaitingFrame();
         latestHandsFrame=null;

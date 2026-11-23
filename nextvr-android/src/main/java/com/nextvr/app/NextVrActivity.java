@@ -879,6 +879,18 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             // abria a câmera dele, esbarrava na câmera do app e ficava SEM mãos — era o
             // "bota Hand tracking nele, pq ele tá sem".
             camera.enableHands(true);
+            // RASTREIO DO JOGO (2.6.8): o Gorilla Rush deixa de usar o filtro da INTERFACE.
+            //
+            // "quando entrar no gorilla tag, desativa o hand tracking do next e substitui por outro
+            // mais rápido, que não sai da mão". O rastreio de mão continua sendo o do app — não existe
+            // outro detector no aparelho —, mas a partir daqui ele roda com o perfil de jogo:
+            //   • `gameProfile` no PhoneXrHands: beta alto (o braço responde no primeiro quadro de
+            //     movimento, em vez de chegar atrasado), zona morta menor (sem degrau no pulso) e
+            //     tolerância de oclusão de 0,9 s em vez de 0,4 s (a mão NÃO sai quando bate no chão
+            //     ou sai do enquadramento — ela continua prevista);
+            //   • sondagem de segundo slot com o dobro do intervalo (menos trabalhado pago em
+            //     latência por quadro).
+            camera.setGameHandsProfile(true);
             camera.resetHandsState();
             if(r!=null) { r.hands=null; r.handRenderer.resetPresentation(); }
             startCamera();
@@ -999,6 +1011,9 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         gameHandMode=false;
         camera.gameHandMode=false;
         camera.mrGameMode=false;
+        // Voltou para o NextVR: o rastreio volta ao perfil da interface (cursor estável, sem mão
+        // "segurada" por quase um segundo).
+        camera.setGameHandsProfile(false);
         camera.enableHands(true);
         camera.resetHandsState();
         startCamera();

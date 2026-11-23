@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { LandmarkSmoother, HandPointFilter } from '../web/src/hand-input.js';
+import { LandmarkSmoother, HandPointFilter, HAND_FILTER_PROFILES } from '../web/src/hand-input.js';
 
 /*
  * "bota um filtro anti treme no Hand tracking" (2.6.7).
@@ -84,7 +84,9 @@ test('os 21 pontos passam juntos, cada mão tem o seu filtro e a primeira amostr
 
 test('o filtro está ligado no caminho real das mãos (interface e jogo)', () => {
   const hands = readFileSync('web/src/hands.js', 'utf8');
-  assert.ok(hands.includes("import { HandClickState, ClickDragArbiter, HandPointFilter } from './hand-input.js'"));
+  assert.ok(hands.includes("HandPointFilter, HAND_FILTER_PROFILES } from './hand-input.js'"));
+  assert.ok(hands.includes('new HandPointFilter({ ...HAND_FILTER_PROFILES.interface })'),
+    'a interface usa o perfil "interface" (o mais estável, mas já sem atraso)');
   assert.ok(hands.includes('const pointFilter = new HandPointFilter('), 'hands.js cria o filtro');
   assert.ok(hands.includes('hands.splice(0,hands.length,...filteredHands)'),
     'publica os pontos FILTRADOS para cursor, toque direto, janelas e jogos');
@@ -101,4 +103,90 @@ test('o filtro está ligado no caminho real das mãos (interface e jogo)', () =>
   const built = readFileSync('nextvr-android/src/main/assets/ui/gorilla-rush/game.html', 'utf8');
   assert.ok(built.includes('function nvSmoothPoints(') && built.includes('var NV_SMOOTH'),
     'o game.html publicado no APK leva o filtro (regerar com tools/gorilla-rush/adapt.mjs)');
+});
+
+test('perfil do jogo é MAIS RÁPIDO que o da interface (e ainda mata o tremor parado)', () => {
+  const lagOf = (profile) => {
+    const f = new LandmarkSmoother({ ...profile });
+    let t = 0, x = 0.2, lag = 0, n = 0;
+    f.next(x, t);
+    for (let i = 0; i < 80; i++) {
+      t += 33; x += 0.002;
+      const v = f.next(x, t);
+      if (i > 40) { lag += Math.abs(v - x); n++; }
+    }
+    return lag / n;
+  };
+  const stillOf = (profile) => {
+    const f = new LandmarkSmoother({ ...profile });
+    let t = 0, path = 0, raw = 0, prev = null, prevRaw = null;
+    for (let i = 0; i < 120; i++) {
+      t += 33;
+      const rawValue = 0.5 + (i % 2 ? 0.0012 : -0.0012);
+      const v = f.next(rawValue, t);
+      if (prev !== null) { path += Math.abs(v - prev); raw += Math.abs(rawValue - prevRaw); }
+      prev = v; prevRaw = rawValue;
+    }
+    return path / raw;
+  };
+  const iface = HAND_FILTER_PROFILES.interface, game = HAND_FILTER_PROFILES.game;
+  // "deixa o hand tracking mais rapido": o perfil da interface já tem que ser mais rápido que o de
+  // 2.6.7 (minCutoff 1,2 / beta 6), e o do jogo mais rápido ainda.
+  assert.ok(iface.minCutoff > 1.2 && iface.beta > 6, 'o perfil da interface ficou mais rápido');
+  assert.ok(lagOf(game) < lagOf(iface), `jogo (${lagOf(game).toFixed(4)}) responde antes da interface (${lagOf(iface).toFixed(4)})`);
+  assert.ok(lagOf(iface) < 0.004, 'e a interface continua sem atraso perceptível');
+  assert.ok(stillOf(game) < 0.2, 'o jogo ainda segura a mão parada');
+  assert.ok(stillOf(iface) < stillOf(game), 'a interface filtra mais parada que o jogo');
+});
+
+test('no jogo a mão NÃO sai: 0,8 s de oclusão mantém o braço, 1,2 s deixa expirar de verdade', async () => {
+  const { readFileSync } = await import('node:fs');
+  const vm = await import('node:vm');
+  let t = 0;
+  const sb = { console, isFinite, performance: { now: () => t } };
+  sb.window = sb; sb.self = sb; sb.NextVRGame = {}; sb.slot = [{}, {}];
+  vm.createContext(sb);
+  vm.runInContext(readFileSync('tools/gorilla-rush/parts/hands.js', 'utf8'), sb);
+  const pts = new Array(63).fill(0);
+  for (let k = 0; k < 21; k++) { pts[k * 3] = 0.5; pts[k * 3 + 1] = 0.6; }
+  pts[3] = 0.75; pts[27] = 0.6;
+  const send = () => sb.__nvHands({ hands: [{ id: 'right', left: false, points: pts, palm: [0.5, 0.6], palmWidth: 0.2, pinching: false, fist: false }] });
+  t = 0; send(); t = 100; send();
+  // 800 ms sem NENHUM quadro de mão (mão batendo no chão / fora do quadro).
+  t = 900; sb.__nvHands({ hands: [] });
+  assert.ok(sb.slot[1].p, 'o braço continua lá durante a oclusão');
+  assert.equal(sb.__nvHandsInfo().direita, true);
+  // E depois de 1,2 s a mão sai DE VERDADE (o slot esvazia — regressão: antes ela ficava para sempre).
+  t = 1500; sb.__nvHands({ hands: [] });
+  assert.equal(sb.slot[1].p, null, 'passado o tempo, o slot é esvaziado');
+  assert.equal(sb.__nvHandsInfo().direita, false);
+  const src = readFileSync('tools/gorilla-rush/parts/hands.js', 'utf8');
+  assert.ok(/NV_HOLD_MS = 1200, NV_EXTRAP_MS = 400/.test(src), 'a tolerância é 1,2 s com 0,4 s de extrapolação');
+  assert.ok(src.includes('const fade = 1 - Math.min(1, age / NV_EXTRAP_MS) * 0.85;'),
+    'a extrapolação perde força com o tempo (a mão não escapa em linha reta)');
+});
+
+test('o app troca o perfil de rastreio ao entrar e ao sair do Gorilla Rush', () => {
+  const activity = readFileSync('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java', 'utf8');
+  const camera = readFileSync('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java', 'utf8');
+  const hands = readFileSync('nextvr-android/src/main/java/com/nextvr/app/hands/PhoneXrHands.kt', 'utf8');
+  const tracker = readFileSync('nextvr-android/src/main/java/com/nextvr/handtrack/HandTracker.kt', 'utf8');
+  const gorillaOpen = activity.slice(activity.indexOf('private void openHtmlGame'), activity.indexOf('private void showCockpitGame'));
+  assert.ok(gorillaOpen.includes('camera.setGameHandsProfile(true)'), 'entrar no Gorilla liga o perfil de jogo');
+  const restart = activity.slice(activity.indexOf('private void restartTracking'));
+  assert.ok(restart.includes('camera.setGameHandsProfile(false)'), 'sair do jogo devolve o perfil da interface');
+  // Um perfil de jogo mais rápido e tolerante, no lugar do filtro de cursor.
+  assert.ok(hands.includes('GAME_PREDICT_HORIZON_NS') && hands.includes('GAME_STATE_RETAIN_NS'),
+    'PhoneXrHands tem o perfil de jogo (horizonte de predição e retenção maiores)');
+  assert.ok(/game -> HandGestures\.OneEuro\(minCutoff=1\.6f, beta=26\.0f, deadZone=0\.00035f\)/.test(hands),
+    'e um filtro de landmarks mais rápido com menos zona morta');
+  assert.ok(/consecutiveMisses >= if \(game\) GAME_MAX_PREDICT_MISSES else MAX_PREDICT_MISSES/.test(hands),
+    'a mão é segurada por mais tempo no jogo');
+  assert.ok(camera.includes('void setGameHandsProfile(boolean enabled)') && camera.includes('hands.setGameProfile(enabled)'),
+    'a câmera repassa o perfil para o rastreio');
+  assert.ok(tracker.includes('gameSlots') && tracker.includes('PROBE_FRAMES * 2'),
+    'no jogo a sondagem de segundo slot custa metade (menos latência por quadro)');
+  // E o detector NÃO é mais recriado a cada reabertura (era mão lenta/sumindo nos primeiros segundos).
+  assert.ok(camera.includes('Reaproveita o detector já construído'),
+    'PassthroughCamera reaproveita o detector em vez de reconstruir os grafos a cada reabertura');
 });

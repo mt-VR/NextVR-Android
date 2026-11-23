@@ -129,6 +129,23 @@ export class ClickDragArbiter {
 }
 
 /**
+ * Dois perfis de filtro, e o motivo de existirem dois.
+ *
+ *  - `interface` — o cursor/raio do NextVR. A mão aponta e pina; erro de 4 px aqui é um clique no
+ *    botão errado, então a estabilidade parada vale mais que alguns milissegundos de atraso. Mesmo
+ *    assim ele é o perfil RÁPIDO desta rodada (2.6.8): o beta subiu de 6 para 20 e o corte mínimo de
+ *    1,2 para 2,2 Hz, o que corta o tremor residual do detector (o nativo já filtra a silhueta) e
+ *    devolve o valor cru no primeiro quadro de movimento. Antes o cursor "chegava atrás" da mão.
+ *  - `game` — o Gorilla Rush. A mão é o braço do gorila, e ali o atraso aparece como a mão que não
+ *    acompanha o corpo. Aqui o filtro é o mais leve que ainda mata o tremor: corte mínimo alto e
+ *    beta alto, e a zona morta é a única coisa que segura o braço parado.
+ */
+export const HAND_FILTER_PROFILES = Object.freeze({
+  interface: Object.freeze({ minCutoff: 2.2, beta: 20, deadZone: 0.0005 }),
+  game: Object.freeze({ minCutoff: 6, beta: 40, deadZone: 0.00035 }),
+});
+
+/**
  * Filtro anti-trem dos landmarks (One Euro, Casiez et al.), para o lado WEB.
  *
  * O rastreador nativo já filtra os 21 pontos da silhueta, mas o caminho até a interface tem outros
