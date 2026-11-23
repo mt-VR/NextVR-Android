@@ -96,4 +96,9 @@ test('o filtro está ligado no caminho real das mãos (interface e jogo)', () =>
   assert.ok(gameHands.includes('var smoothed = nvSmoothPoints(i, h.points, now);'),
     'o jogo filtra ANTES de publicar os pontos');
   assert.ok(gameHands.includes('window.__nvHandsReset'), 'e esquece o histórico quando a mão some');
+  // O game.html é GERADO: o filtro só chega ao APK se o arquivo publicado for regerado
+  // (node tools/gorilla-rush/adapt.mjs "<HTML original>"). Já pegamos esse erro no APK.
+  const built = readFileSync('nextvr-android/src/main/assets/ui/gorilla-rush/game.html', 'utf8');
+  assert.ok(built.includes('function nvSmoothPoints(') && built.includes('var NV_SMOOTH'),
+    'o game.html publicado no APK leva o filtro (regerar com tools/gorilla-rush/adapt.mjs)');
 });
