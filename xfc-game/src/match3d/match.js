@@ -3142,53 +3142,33 @@ export function createMatch(options = {}) {
       // Treino: eixo fixo, sem girar o analógico (comportamento preservado).
       cameraForward = training.cameraForward || { x: 1, z: 0 };
     } else {
-      // Câmera Pro FC 27: Swing mistura o olhar do atleta; Speed suaviza a
-      // virada; a bola só puxa o eixo quando está longe (não no drible).
+      // Pro 360°: sempre atrás do atleta, orbitando o yaw completo. Sem trava
+      // no eixo de ataque. Bola longe só puxa o olhar; a órbita é por ângulo
+      // (lerp de vetor colapsa em 180°).
       const ballDx = ball.state.position.x - player.x;
       const ballDz = ball.state.position.z - player.z;
       const ballDistance = Math.hypot(ballDx, ballDz);
-      const baseForward = { x: attackSign(userSide), z: 0 };
-      if (!careerCameraForward) careerCameraForward = { ...baseForward };
-      const swing = PRO_CAMERA.swing / 20;
       const faceLen = Math.hypot(player.facing.x, player.facing.z) || 1;
-      let targetForward = baseForward;
+      let aimX = player.facing.x / faceLen;
+      let aimZ = player.facing.z / faceLen;
       if (ballDistance > 4.5) {
-        const ballMix = 0.32 + swing * 0.38;
-        const aimX = baseForward.x * (1 - ballMix) + (ballDx / ballDistance) * ballMix;
-        const aimZ = baseForward.z * (1 - ballMix) + (ballDz / ballDistance) * ballMix;
+        const swing = PRO_CAMERA.swing / 20;
+        const ballMix = 0.48 + swing * 0.32;
+        aimX = aimX * (1 - ballMix) + (ballDx / ballDistance) * ballMix;
+        aimZ = aimZ * (1 - ballMix) + (ballDz / ballDistance) * ballMix;
         const aimLen = Math.hypot(aimX, aimZ) || 1;
-        targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
-      } else if (speed > 3.2) {
-        const turnMix = swing * 0.55;
-        const aimX = baseForward.x * (1 - turnMix) + (player.facing.x / faceLen) * turnMix;
-        const aimZ = baseForward.z * (1 - turnMix) + (player.facing.z / faceLen) * turnMix;
-        const aimLen = Math.hypot(aimX, aimZ) || 1;
-        targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
+        aimX /= aimLen; aimZ /= aimLen;
       }
-      // Pro FC: na ponta a lente NÃO segue o escanteio. Vira para a área
-      // (mesmo nos dois lados) para o corte/cruzamento aparecer no quadro.
-      if (ballDistance <= 4.5) {
-        const absZ = Math.abs(player.z);
-        const wing = Math.max(0, Math.min(1, (absZ - 10) / 16));
-        const goingWide = Math.abs(player.vz) > 1.8 || Math.abs(player.facing.z) * absZ > 6;
-        const boxBias = Math.max(wing, goingWide && absZ > 7 ? 0.62 : 0);
-        if (boxBias > 0.04) {
-          const boxX = attackSign(userSide) * PITCH.halfLength;
-          const boxZ = player.z * 0.16;
-          const bx = boxX - player.x, bz = boxZ - player.z;
-          const bl = Math.hypot(bx, bz) || 1;
-          const mix = 0.55 + boxBias * 0.45;
-          const aimX = targetForward.x * (1 - mix) + (bx / bl) * mix;
-          const aimZ = targetForward.z * (1 - mix) + (bz / bl) * mix;
-          const aimLen = Math.hypot(aimX, aimZ) || 1;
-          targetForward = { x: aimX / aimLen, z: aimZ / aimLen };
-        }
-      }
-      const turn = 1 - Math.exp(-dt * (1.8 + PRO_CAMERA.speed * 0.12));
-      careerCameraForward.x += (targetForward.x - careerCameraForward.x) * turn;
-      careerCameraForward.z += (targetForward.z - careerCameraForward.z) * turn;
-      const len = Math.hypot(careerCameraForward.x, careerCameraForward.z) || 1;
-      cameraForward = { x: careerCameraForward.x / len, z: careerCameraForward.z / len };
+      if (!careerCameraForward) careerCameraForward = { x: aimX, z: aimZ };
+      const currentAng = Math.atan2(careerCameraForward.z, careerCameraForward.x);
+      const targetAng = Math.atan2(aimZ, aimX);
+      let delta = targetAng - currentAng;
+      if (delta > Math.PI) delta -= Math.PI * 2;
+      if (delta < -Math.PI) delta += Math.PI * 2;
+      const turn = 1 - Math.exp(-dt * (2.2 + PRO_CAMERA.speed * 0.16));
+      const ang = currentAng + delta * turn;
+      careerCameraForward = { x: Math.cos(ang), z: Math.sin(ang) };
+      cameraForward = careerCameraForward;
     }
     const facingLength = Math.hypot(cameraForward.x, cameraForward.z) || 1;
     const forwardX = cameraForward.x / facingLength;
