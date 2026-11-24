@@ -3149,9 +3149,16 @@ export function createMatch(options = {}) {
       const ballDz = ball.state.position.z - player.z;
       const ballDistance = Math.hypot(ballDx, ballDz);
       const faceLen = Math.hypot(player.facing.x, player.facing.z) || 1;
-      let aimX = player.facing.x / faceLen;
-      let aimZ = player.facing.z / faceLen;
-      if (ballDistance > 4.5) {
+      const stickMag = Math.hypot(input.moveX, input.moveZ);
+      if (!careerCameraForward) careerCameraForward = { x: attackSign(userSide), z: 0 };
+      let aimX = careerCameraForward.x;
+      let aimZ = careerCameraForward.z;
+      if (stickMag >= 0.12 || speed >= 0.55) {
+        // Analógico: órbita 360° atrás do facing. A bola não gira a
+        // câmera no meio da corrida (o stick é relativo à câmera).
+        aimX = player.facing.x / faceLen;
+        aimZ = player.facing.z / faceLen;
+      } else if (ballDistance > 4.5) {
         const swing = PRO_CAMERA.swing / 20;
         const ballMix = 0.48 + swing * 0.32;
         aimX = aimX * (1 - ballMix) + (ballDx / ballDistance) * ballMix;
@@ -3159,7 +3166,6 @@ export function createMatch(options = {}) {
         const aimLen = Math.hypot(aimX, aimZ) || 1;
         aimX /= aimLen; aimZ /= aimLen;
       }
-      if (!careerCameraForward) careerCameraForward = { x: aimX, z: aimZ };
       const currentAng = Math.atan2(careerCameraForward.z, careerCameraForward.x);
       const targetAng = Math.atan2(aimZ, aimX);
       let delta = targetAng - currentAng;
