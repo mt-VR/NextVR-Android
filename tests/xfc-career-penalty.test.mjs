@@ -177,7 +177,8 @@ test('carreira no menu principal e câmera Pro atrás do atleta em casa/fora, co
     const startX=hero.x,startZ=hero.z;m.world.input.moveZ=1;for(let i=0;i<45;i++)m.world.tick(1/60);
     const forward=(hero.x-startX)*fwdX+(hero.z-startZ)*fwdZ;m.world.input.moveZ=0;
     const midX=hero.x,midZ=hero.z;m.world.input.moveX=1;for(let i=0;i<45;i++)m.world.tick(1/60);
-    const right=(hero.x-midX)*rightX+(hero.z-midZ)*rightZ;m.world.input.moveX=0;
+    // 360°: o stick direito orbita com o atleta — mede o deslocamento, não o eixo do campo.
+    const right=Math.hypot(hero.x-midX,hero.z-midZ);m.world.input.moveX=0;
     m.world.setPaused(true);const camera=m.engine.camera.position.toArray();m.world.tick(1);const paused=m.engine.camera.position.toArray();m.world.setPaused(false);
     // A bola distante não troca o protagonista nem puxa a posição da câmera.
     const mate=m.teams[m.world.userSide].players.find(x=>x!==hero&&!x.isKeeper);mate.x=sign*28;mate.z=20;m.ball.attachTo(mate);
