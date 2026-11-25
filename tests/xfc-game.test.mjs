@@ -672,6 +672,31 @@ test('as estrelas do cartão de time vão de zero a cinco', () => {
   assert.equal(getTeam('nao-existe'), null);
 });
 
+test('a abertura do XFC inclui o GIF original, o vídeo otimizado e o pôster', async () => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  try {
+    const videoResponse = await fetch(`${url}/assets/brand/xfc-intro.mp4`);
+    assert.equal(videoResponse.status, 200);
+    assert.match(videoResponse.headers.get('content-type') || '', /^video\/mp4/);
+    const video = Buffer.from(await videoResponse.arrayBuffer());
+    assert.equal(video.toString('ascii', 4, 8), 'ftyp', 'o clipe é um MP4 válido');
+    assert.ok(video.length < 1_000_000, 'o clipe permanece leve para o app');
+
+    const posterResponse = await fetch(`${url}/assets/brand/xfc-intro-poster.jpg`);
+    assert.equal(posterResponse.status, 200);
+    assert.match(posterResponse.headers.get('content-type') || '', /^image\/jpeg/);
+    assert.ok((await posterResponse.arrayBuffer()).byteLength > 1000);
+
+    const gifResponse = await fetch(`${url}/assets/brand/xfc-intro-source.gif`);
+    assert.equal(gifResponse.status, 200);
+    assert.match(gifResponse.headers.get('content-type') || '', /^image\/gif/);
+    const gif = Buffer.from(await gifResponse.arrayBuffer());
+    assert.equal(gif.toString('ascii', 0, 6), 'GIF89a', 'o GIF enviado fica incluído sem alteração');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 test('todo import estático do jogo resolve para um arquivo do pacote', async () => {
   // Regressão do bug da "tela azul": o zip e o APK eram empacotados sem o
   // vendor/three.module.min.js; sem ele o grafo de módulos não carrega e nada
@@ -715,6 +740,12 @@ test('todo import estático do jogo resolve para um arquivo do pacote', async ()
     'o zip do jogo precisa incluir o app.bundle.js (suporte ao file://)');
   assert.ok(workflow.includes('assets/game/vendor/three'),
     'a checagem do APK precisa exigir o three.js dentro do pacote');
+  assert.ok(workflow.includes('assets/brand/xfc-intro.mp4'),
+    'o APK e o zip precisam levar o vídeo de abertura');
+  assert.ok(workflow.includes('assets/brand/xfc-intro-poster.jpg'),
+    'o APK e o zip precisam levar o pôster de abertura');
+  assert.ok(workflow.includes('assets/brand/xfc-intro-source.gif'),
+    'o APK e o zip precisam levar o GIF original enviado pelo usuário');
 });
 
 // Teto de tempo com folga: em paralelo (--test-concurrency) esta navegação
@@ -751,20 +782,23 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // perfis e shaders completos são exercitados em xfc-visual-upgrade.
     await page.evaluate(async()=>{(await import('/src/main.js')).state.profile.graphicsQuality='low';});
 
-    // Intro: selo da XF Esports e o logotipo XFC. A intro avança sozinha depois de
-    // alguns segundos, então o teste aceita os dois desfechos: pular a intro com o
-    // Enter ou esperar ela passar e seguir direto do menu.
+    // Intro: reproduz a animação enviada pelo usuário sem áudio; a tecla Enter
+    // permite avançar sem esperar o fim do clipe.
     const intro = await page
       .waitForSelector('.screen--intro', { timeout: 15000 })
       .then(() => true)
       .catch(() => false);
     if (intro) {
-      assert.ok(await page.locator('.intro-reference__art').isVisible(), 'a própria arte XF Esportes/XFC aparece na intro');
-      assert.match(await page.locator('.intro-reference__art').getAttribute('src'), /loading.png$/);
+      const openingVideo = page.locator('.intro-reference__video');
+      assert.ok(await openingVideo.isVisible(), 'o vídeo original aparece em tela cheia');
+      assert.equal(await openingVideo.getAttribute('src'), 'assets/brand/xfc-intro.mp4');
+      assert.equal(await openingVideo.getAttribute('poster'), 'assets/brand/xfc-intro-poster.jpg');
+      assert.equal(await openingVideo.getAttribute('autoplay'), '');
+      assert.equal(await openingVideo.getAttribute('muted'), '');
       await page.keyboard.press('Enter');
     }
 
-    // Tela de abertura (Neymar): "Entrar" leva ao menu principal.
+    // Tela de abertura do XFC 27: "Entrar" leva ao menu principal.
     await page.waitForSelector('.screen--launch', { timeout: 15000 });
     assert.ok(await page.locator('.launch__art').isVisible(), 'a arte da tela de abertura aparece');
     assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');

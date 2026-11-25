@@ -54,8 +54,8 @@ const press = key => {
 const { go } = await import('../src/main.js');
 
 check('a intro é a primeira tela', document.querySelector('.screen--intro'));
-check('a intro mostra a marca XF Esportes e o XFC',
-  document.querySelector('.intro__badge svg') && document.querySelector('.intro__wordmark svg'));
+check('a intro toca a animação de abertura fornecida pelo usuário',
+  document.querySelector('.intro-reference__video')?.getAttribute('src') === 'assets/brand/xfc-intro.mp4');
 
 press('Enter');
 check('Enter leva à tela de abertura', document.querySelector('.screen--launch'));
