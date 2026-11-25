@@ -54,8 +54,8 @@ const press = key => {
 const { go } = await import('../src/main.js');
 
 check('a intro é a primeira tela', document.querySelector('.screen--intro'));
-check('a intro usa diretamente o GIF de abertura fornecido pelo usuário',
-  document.querySelector('.intro-reference__art')?.getAttribute('src') === 'assets/brand/xfc-intro-source.gif');
+check('a intro usa o GIF suavizado de reprodução única',
+  document.querySelector('.intro-reference__art')?.getAttribute('src') === 'assets/brand/xfc-intro-smooth-once.gif');
 
 press('Enter');
 check('Enter leva à tela de abertura', document.querySelector('.screen--launch'));

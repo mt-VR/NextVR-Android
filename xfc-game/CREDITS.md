@@ -295,5 +295,6 @@ inalterados; sem nova aprovação artística.
 ## Abertura animada do XFC
 
 - Origem: animação GIF enviada pelo usuário nesta conversa (`file_000000007144820e9c3210f85c31de20 (1).gif`), preservada sem alteração em `assets/brand/xfc-intro-source.gif`.
-- A tela inicial exibe diretamente esse GIF original, sem conversão para vídeo, redesenho, sobreposição ou geração de conteúdo novo.
+- A tela usa `assets/brand/xfc-intro-smooth-once.gif`: os mesmos visuais com quadros intermediários a 30 fps e sem extensão de loop, para tocar uma vez com menos travamentos. Não há redesenho, sobreposição ou conteúdo novo.
+- `assets/brand/xfc-intro-poster.jpg` é apenas o quadro estático durante a inicialização; evita iniciar o GIF antes de a intro começar.
 - O envio não transfere direitos nem implica licença pública/CC0; a integração é somente para uso no XFC.

@@ -6,13 +6,35 @@ import {startXfcServer} from '../xfc-game/serve.mjs';
 import {launchOrSkip} from './support/chromium.mjs';
 import {runningArmPose,runningLegPose,runningFlight} from '../xfc-game/src/match3d/football-actions.js';
 
-test('abertura usa diretamente o GIF original enviado, sem marca redesenhada',async()=>{
-  const data=await readFile(new URL('../xfc-game/assets/brand/xfc-intro-source.gif',import.meta.url));
-  assert.equal(createHash('sha256').update(data).digest('hex'),'3c1f8876a753075df6f442690a2a2d9bffc0e36fc2f255808327db0e0a96042c');
+function gifFrameCount(data){
+  if(data.toString('ascii',0,6)!=='GIF89a'||data.length<13)return 0;
+  let offset=13;const screen=data[10];
+  if(screen&0x80)offset+=3*(1<<((screen&7)+1));
+  let frames=0;
+  const skipBlocks=()=>{while(offset<data.length){const size=data[offset++];if(!size)return;offset+=size;}};
+  while(offset<data.length){
+    const marker=data[offset++];if(marker===0x3b)break;
+    if(marker===0x21){offset++;skipBlocks();continue;}
+    if(marker!==0x2c||offset+9>data.length)return 0;
+    const packed=data[offset+8];offset+=9;
+    if(packed&0x80)offset+=3*(1<<((packed&7)+1));
+    if(offset>=data.length)return 0;
+    offset++;skipBlocks();frames++;
+  }
+  return frames;
+}
+
+test('abertura toca uma vez o GIF suavizado e preserva o original',async()=>{
+  const original=await readFile(new URL('../xfc-game/assets/brand/xfc-intro-source.gif',import.meta.url));
+  assert.equal(createHash('sha256').update(original).digest('hex'),'3c1f8876a753075df6f442690a2a2d9bffc0e36fc2f255808327db0e0a96042c');
+  const smooth=await readFile(new URL('../xfc-game/assets/brand/xfc-intro-smooth-once.gif',import.meta.url));
+  assert.equal(smooth.toString('ascii',0,6),'GIF89a');
+  assert.equal(smooth.indexOf(Buffer.from('NETSCAPE2.0')),-1,'sem extensão de loop: a animação toca uma vez');
+  assert.equal(gifFrameCount(smooth),95,'95 quadros intermediários a 30 fps deixam a animação mais fluida');
   const source=await readFile(new URL('../xfc-game/src/screens/intro.js',import.meta.url),'utf8');
   assert.ok(!source.includes('xfcWordmark'));
   assert.ok(source.includes("el('img'"));
-  assert.ok(source.includes('assets/brand/xfc-intro-source.gif'));
+  assert.ok(source.includes('assets/brand/xfc-intro-smooth-once.gif'));
   assert.ok(!source.includes('.mp4'));
 });
 test('andar mantém braços quietos; correr alterna braços, recupera joelho e tem voo',()=>{

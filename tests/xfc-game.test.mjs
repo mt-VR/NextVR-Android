@@ -672,19 +672,32 @@ test('as estrelas do cartão de time vão de zero a cinco', () => {
   assert.equal(getTeam('nao-existe'), null);
 });
 
-test('a abertura serve o GIF original diretamente com o tipo MIME correto', async () => {
+test('a abertura serve o GIF suavizado sem loop e preserva o GIF de origem', async () => {
   const { server, url } = await startXfcServer({ port: 0 });
   try {
-    const gifResponse = await fetch(`${url}/assets/brand/xfc-intro-source.gif`);
-    assert.equal(gifResponse.status, 200);
-    assert.match(gifResponse.headers.get('content-type') || '', /^image\/gif/);
-    const gif = Buffer.from(await gifResponse.arrayBuffer());
-    assert.equal(gif.toString('ascii', 0, 6), 'GIF89a', 'a resposta é o GIF original');
-    assert.ok(gif.length > 100_000 && gif.length < 1_000_000, 'o GIF permanece leve para o app');
+    for (const asset of ['xfc-intro-source.gif', 'xfc-intro-smooth-once.gif']) {
+      const response = await fetch(`${url}/assets/brand/${asset}`);
+      assert.equal(response.status, 200, `${asset} está disponível no pacote`);
+      assert.match(response.headers.get('content-type') || '', /^image\/gif/);
+      const gif = Buffer.from(await response.arrayBuffer());
+      assert.equal(gif.toString('ascii', 0, 6), 'GIF89a');
+      if (asset === 'xfc-intro-smooth-once.gif') {
+        assert.equal(gif.indexOf(Buffer.from('NETSCAPE2.0')), -1, 'o GIF suavizado não repete');
+        assert.ok(gif.length > 1_000_000 && gif.length < 8_000_000, 'o GIF suavizado fica num tamanho razoável');
+      } else {
+        assert.ok(gif.length > 100_000 && gif.length < 1_000_000, 'o original permanece inalterado e leve');
+      }
+    }
+    const poster = await fetch(`${url}/assets/brand/xfc-intro-poster.jpg`);
+    assert.equal(poster.status, 200, 'a tela estática de bootstrap está incluída');
+    assert.match(poster.headers.get('content-type') || '', /^image\/jpeg/);
 
+    const index = await readFile(new URL('../xfc-game/index.html', import.meta.url), 'utf8');
+    assert.ok(index.includes('src="assets/brand/xfc-intro-poster.jpg"'),
+      'o HTML inicial usa um pôster estático para não reiniciar a animação');
     const source = await readFile(new URL('../xfc-game/src/screens/intro.js', import.meta.url), 'utf8');
-    assert.match(source, /el\('img'/, 'a tela usa um elemento de imagem, não vídeo');
-    assert.ok(source.includes("assets/brand/xfc-intro-source.gif"), 'a tela aponta para o GIF enviado');
+    assert.match(source, /el\('img'/, 'a tela usa uma imagem GIF, não vídeo');
+    assert.ok(source.includes('assets/brand/xfc-intro-smooth-once.gif'), 'a tela usa o GIF de 30 fps');
     assert.ok(!source.includes('.mp4'), 'a abertura não substitui o GIF por vídeo');
   } finally {
     await new Promise(resolve => server.close(resolve));
@@ -729,8 +742,8 @@ test('todo import estático do jogo resolve para um arquivo do pacote', async ()
   // O empacotamento do CI não pode mais pular o vendor/ nem o bundle offline.
   const workflow = await readFile(join(root, '.github/workflows/xfc-apk.yml'), 'utf8');
   const offlineBundle = await readFile(join(gameRoot, 'app.bundle.js'), 'utf8');
-  assert.ok(offlineBundle.includes('assets/brand/xfc-intro-source.gif'),
-    'o bundle file:// precisa usar diretamente o GIF original');
+  assert.ok(offlineBundle.includes('assets/brand/xfc-intro-smooth-once.gif'),
+    'o bundle file:// precisa usar o GIF suavizado de reprodução única');
   assert.ok(/zip\s+-r\s+\.\.\/xfc-game\.zip[^\n]*vendor/.test(workflow),
     'o zip do jogo precisa incluir a pasta vendor/');
   assert.ok(workflow.includes('app.bundle.js'),
@@ -738,9 +751,17 @@ test('todo import estático do jogo resolve para um arquivo do pacote', async ()
   assert.ok(workflow.includes('assets/game/vendor/three'),
     'a checagem do APK precisa exigir o three.js dentro do pacote');
   assert.ok(workflow.includes('assets/brand/xfc-intro-source.gif'),
-    'o APK e o zip precisam levar o GIF original que a abertura usa diretamente');
+    'o APK e o zip precisam preservar o GIF original');
+  assert.ok(workflow.includes('assets/brand/xfc-intro-smooth-once.gif'),
+    'o APK e o zip precisam levar o GIF fluido que a tela usa');
+  assert.ok(workflow.includes('assets/brand/xfc-intro-poster.jpg'),
+    'o APK e o zip precisam levar o pôster estático de bootstrap');
   assert.ok(workflow.includes("grep -Fxq 'assets/game/assets/brand/xfc-intro-source.gif'"),
     'o workflow precisa falhar se o APK não contiver o GIF original');
+  assert.ok(workflow.includes("grep -Fxq 'assets/game/assets/brand/xfc-intro-smooth-once.gif'"),
+    'o workflow precisa falhar se o APK não contiver o GIF de reprodução única');
+  assert.ok(workflow.includes("grep -Fxq 'assets/game/assets/brand/xfc-intro-poster.jpg'"),
+    'o workflow precisa falhar se o APK não contiver o pôster estático');
   assert.ok(!workflow.includes('assets/brand/xfc-intro.mp4'),
     'a publicação não deve exigir um vídeo em vez do GIF original');
 });
@@ -789,7 +810,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
       const openingGif = page.locator('.intro-reference__art');
       assert.ok(await openingGif.isVisible(), 'o GIF original aparece em tela cheia');
       assert.equal(await openingGif.evaluate(image => image.tagName), 'IMG');
-      assert.equal(await openingGif.getAttribute('src'), 'assets/brand/xfc-intro-source.gif');
+      assert.equal(await openingGif.getAttribute('src'), 'assets/brand/xfc-intro-smooth-once.gif');
       await page.waitForFunction(
         () => {
           const image = document.querySelector('.intro-reference__art');

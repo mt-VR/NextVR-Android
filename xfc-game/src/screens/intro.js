@@ -1,8 +1,8 @@
-// Usa diretamente o GIF enviado pelo usuário, sem redesenhar nem converter a arte.
+// Toca uma única vez o GIF suavizado, preservando o GIF original enviado.
 import { el } from '../ui/dom.js';
 
-const GIF_SRC = 'assets/brand/xfc-intro-source.gif';
-const GIF_LOOP_MS = 3500;
+const GIF_SRC = 'assets/brand/xfc-intro-smooth-once.gif';
+const GIF_PLAYBACK_MS = 3500;
 const LOAD_FAILSAFE_MS = 8000;
 
 export function introScreen(ctx) {
@@ -21,8 +21,8 @@ export function introScreen(ctx) {
   const scheduleAdvance = () => {
     if (advanced || advanceTimer) return;
     clearTimeout(failsafeTimer);
-    // O GIF tem nove quadros de 350 ms; deixa uma volta terminar antes de seguir.
-    advanceTimer = setTimeout(advance, GIF_LOOP_MS);
+    // O GIF não tem extensão de loop; os 95 quadros interpolados fazem uma volta (~3,16 s).
+    advanceTimer = setTimeout(advance, GIF_PLAYBACK_MS);
   };
 
   const onImageError = () => {
