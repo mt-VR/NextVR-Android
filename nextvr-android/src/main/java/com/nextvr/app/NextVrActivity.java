@@ -929,6 +929,11 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
         }
         cockpitView=view;
         cockpitStage="";
+        // O jogo cobre a tela: o app para de desenhar o passthrough e de medir 6DoF atrás dele.
+        // (As mãos continuam: é o único rastreio que o jogo usa.)
+        SpatialRenderer ownedRenderer=renderer;
+        if(ownedRenderer!=null) ownedRenderer.screenOwned=true;
+        camera.screenOwned=true;
         // A shell fica sabendo que a janela do jogo existe: se ela não receber isto, mostra na tela o
         // motivo em vez de o toque não fazer nada.
         cockpitState("aberto","");
@@ -977,6 +982,10 @@ public class NextVrActivity extends AppCompatActivity implements PopupMenu.OnMen
             cockpitPending=false;
             if(view==null) return;
             cockpitView=null;
+            // O app volta a ser dono da tela: passthrough e 6DoF religados antes de qualquer desenho.
+            SpatialRenderer owned=renderer;
+            if(owned!=null) owned.screenOwned=false;
+            camera.screenOwned=false;
             android.view.ViewParent parent=view.getParent();
             if(parent instanceof android.view.ViewGroup) ((android.view.ViewGroup)parent).removeView(view);
             try { view.stopLoading(); } catch(Throwable ignored) {}

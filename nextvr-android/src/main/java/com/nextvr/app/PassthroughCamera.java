@@ -131,6 +131,14 @@ final class PassthroughCamera {
     volatile boolean handsEnabled=true;
     volatile boolean gameHandMode=false;
     volatile boolean mrGameMode=false;
+    /**
+     * O jogo é dono da tela. Enquanto isto está ligado o app NÃO desenha o passthrough (o jogo cobre
+     * a tela inteira) nem roda o 6DoF falso nesse quadro — o CCD do jogo mede o próprio movimento.
+     * Medido antes desta rodada: com o Gorilla Rush aberto o app ainda convertia a câmera e desenhava
+     * o mundo inteiro atrás do WebView do jogo, a 30 Hz, para nada. É trabalho que saía direto do
+     * orçamento do jogo (mesma GPU, mesmo calor).
+     */
+    volatile boolean screenOwned=false;
     volatile boolean wideCamera=false;
     volatile String singleHandMode="both";
     volatile float scaleX=1.1f,scaleY=.73f;
@@ -456,11 +464,11 @@ final class PassthroughCamera {
             }
             long workMs=SystemClock.elapsedRealtime()-workStartMs;
             PerfLog.cameraWork(workMs);
-            if(!gameHandMode || mrGameMode) {
+            if((!gameHandMode || mrGameMode) && !screenOwned) {
                 float[] flow=fakeSixDof.onCameraFrame(cameraPixels,outW,outH,latestHandsFrame,stamp);
                 if(flow!=null)listener.sixDof(flow[0],flow[1],flow[2],flow.length>3?flow[3]:flow[1]);
             }
-            if(!gameHandMode || mrGameMode || sessionFrames<=2) {
+            if(!screenOwned && (!gameHandMode || mrGameMode || sessionFrames<=2)) {
                 upright=Bitmap.createBitmap(cameraPixels,outW,outH,Bitmap.Config.ARGB_8888);
                 long handoffStart=SystemClock.elapsedRealtime();
                 listener.frame(upright);upright=null;

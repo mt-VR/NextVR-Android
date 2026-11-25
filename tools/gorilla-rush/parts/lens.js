@@ -31,6 +31,12 @@ const NVLENS = (() => {
 
   return {
     k1: K1, k2: K2, fov: FOV, ipd: IPD, fill: 1, corner: 0, tanTex: TAN_HALF,
+    /**
+     * Se os dois olhos são realmente DIFERENTES. Com 67 mm de IPD são sempre — mas o campo existe
+     * porque `renderPlay` (ver parts/perf.js) consulta isto antes de desenhar o segundo olho, e um
+     * visor/preset que um dia peça monocular (IPD 0) não deve pagar dois `render` iguais.
+     */
+    stereo: IPD > 1e-4,
     /** Ligado quando o jogo está na tela de dois olhos (o modo VR Box do NextVR). */
     on() { return !!vrView && !R.xr.isPresenting; },
     render() {

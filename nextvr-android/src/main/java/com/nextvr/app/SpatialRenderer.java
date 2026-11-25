@@ -157,6 +157,12 @@ final class SpatialRenderer implements com.nextvr.app.pclink.PcLinkHeadSource {
     volatile com.nextvr.app.hands.PhoneXrHands.Frame hands;
     volatile String handTargets = "[]";
     volatile boolean showHands = true;
+    /**
+     * O jogo é dono da tela: não desenhar o passthrough/ambiente atrás dele. O Cardboard não tem como
+     * SALTAR um olho (o framebuffer é ele que manda), mas o passe caro é o passthrough — e esse sai.
+     * Os painéis continuam desenhados (são baratos e são a razão de o renderer existir aqui).
+     */
+    volatile boolean screenOwned = false;
     final Map<String, Texture> browsers = new java.util.concurrent.ConcurrentHashMap<>();
     volatile List<Panel> panels = new ArrayList<>();
     // Shared optical mapping for camera, landmark overlay and interaction rays.
@@ -403,7 +409,7 @@ final class SpatialRenderer implements com.nextvr.app.pclink.PcLinkHeadSource {
         Texture pcLinkTexture = pcLinkEyes ? browsers.get(PC_LINK_TEXTURE) : null;
         if(pcLinkTexture != null && pcLinkTexture.ready) {
             drawPcLinkEyes(pcLinkTexture);
-        } else if(!blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {
+        } else if(!screenOwned && !blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {
             if(sphere && envReveal >= 0.999f) {
                 drawEnvironment(projection, 1f);
             } else {
@@ -461,7 +467,7 @@ final class SpatialRenderer implements com.nextvr.app.pclink.PcLinkHeadSource {
         eyeUniform = 0f;
         Matrix.multiplyMM(viewProj, 0, recProj, 0, view, 0);
         GLES20.glDisable(GLES20.GL_CULL_FACE); GLES20.glDisable(GLES20.GL_DEPTH_TEST); GLES20.glDisable(GLES20.GL_BLEND);
-        if(!blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {
+        if(!screenOwned && !blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {
             if(sphere && envReveal >= 0.999f) {
                 drawEnvironment(recProj, 1f);
             } else {

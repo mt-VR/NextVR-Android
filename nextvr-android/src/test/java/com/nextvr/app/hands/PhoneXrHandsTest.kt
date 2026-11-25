@@ -102,8 +102,8 @@ class PhoneXrHandsTest {
     @Test fun metricThreeDimensionalPinchWorksWhenCameraProjectionLooksOpen() {
         val engine=PhoneXrHands()
         // The image landmarks show a 0.4-palm-width gap (too wide for the 2D close threshold),
-        // but depth separation makes the true 3D gap sqrt(.28^2 + .21^2) = .35; the normalized
-        // metric gap is .28, so the rotated-hand pinch must register.
+        // but depth separation makes the true 3D gap sqrt(.28^2 + .21^2) = .35; pinchGap3d scales it
+        // to .28 (the same scale as the 2D ratio), so the rotated-hand pinch must register.
         val pressed=engine.process(result(points(.4f),1000,worldPoints(.28f,.21f)),1f,1f).hands.single()
         assertEquals(.28f,pressed.shape.pinchGap,1e-5f)
         assertTrue(pressed.pinching)
@@ -124,23 +124,25 @@ class PhoneXrHandsTest {
         assertFalse(latch.update(HandGestures.shape(points(.8f),false)))
         assertFalse(latch.pinching)
     }
+    /**
+     * O cursor é a PONTA DA PÁ e o raio sai de onde a mão aponta.
+     *
+     * Antes de 2.6.9 o cursor era a palma esticada ao longo de pulso → médio ([HandGestures.AIM_REACH])
+     * sobre a malha do detector. Com a forma rígida, a ponta da pá fica um pouco à frente da base do
+     * dedo médio — a mesma direção, e agora sempre o mesmo número, sem depender de como o detector
+     * viu os dedos naquele quadro.
+     */
     @Test fun nativeRearHandednessAndTheRayAimExactlyWhereTheHandPoints() {
         val hand=PhoneXrHands().process(result(points(.2f),1000),1f,1f).hands.single()
         assertTrue(hand.left) // raw MediaPipe Right is physical Left for an unmirrored rear image
         val p=points(.2f)
-        // O cursor é a palma ESTICADA para fora ao longo do eixo pulso (0) -> base do dedo médio (9),
-        // por [HandGestures.AIM_REACH] comprimentos de palma. Com o meio da palma o feixe saía das
-        // pontas dos dedos e voltava para dentro dela ("a bolinha do raio pra dentro").
-        val palmX=(p[0].x()+p[5].x()+p[9].x()+p[17].x())/4
-        val palmY=(p[0].y()+p[5].y()+p[9].y()+p[17].y())/4
-        val expectedX=palmX+(p[9].x()-p[0].x())*HandGestures.AIM_REACH
-        val expectedY=palmY+(p[9].y()-p[0].y())*HandGestures.AIM_REACH
-        assertEquals(expectedX,hand.shape.aimX,1e-5f)
-        assertEquals(expectedY,hand.shape.aimY,1e-5f)
-        // À FRENTE das pontas dos dedos: o fixture aponta para cima (pulso em .85, ponta do médio em
-        // .22), então o cursor fica ACIMA da ponta, nunca no meio da mão.
-        // (JUnit tem assertTrue(mensagem, condição): a mensagem vem primeiro.)
-        assertTrue("o cursor fica acima das pontas dos dedos",hand.shape.aimY<p[12].y())
+        // O cursor publicado é EXATAMENTE o landmark 12 da forma publicada (a ponta do médio da pá).
+        assertEquals(hand.points[12*3],hand.shape.aimX,1e-5f)
+        assertEquals(hand.points[12*3+1],hand.shape.aimY,1e-5f)
+        // E ele está À FRENTE do centro da palma, no sentido pulso → dedo médio do DETECTOR.
+        val sense = (p[9].y()-p[0].y())
+        assertTrue("a ponta aponta no sentido do dedo médio", (hand.shape.aimY-hand.shape.palmY)*sense > 0f)
+        // A pinça continua sendo medida nos dedos de VERDADE, não na ponta da pá.
         assertNotEquals(hand.shape.pinchX,hand.shape.aimX)
         // `base` sai do MESMO ponto e, na primeira amostra, o filtro devolve o valor cru: nada de
         // viés fixo no eixo Y (o antigo +25% mirando alto) e nada de amplificação por ombro.
@@ -149,6 +151,54 @@ class PhoneXrHandsTest {
         // NDC do `base`: y inverte (0,5 = centro da tela), igual ao que o renderer desenha.
         assertEquals((.5f-hand.shape.aimY)*2f,hand.baseY,1e-5f)
     }
+    /**
+     * 2.6.9, o contrato do palito: a forma publicada é RÍGIDA e reconstruída da BASE. O detector pode
+     * mandar uma mão torta, com um dedo fora de lugar ou com um landmark pulando — a pá desenhada
+     * continua com as mesmas proporções, só transladada/g irada. É por isso que ela não tem como
+     * tremer nem deformar.
+     */
+    @Test fun thePublishedShapeIsTheSameRigidStickForAnyDetection() {
+        fun signature(h: PhoneXrHands.Hand): List<Float> {
+            val palm = span(h, 0, 9)
+            return listOf(0 to 5, 0 to 12, 0 to 17, 0 to 4, 9 to 20, 5 to 17)
+                .map { (a, b) -> span(h, a, b) / palm }
+        }
+        val reference = signature(PhoneXrHands().process(result(points(.2f), 1000), 1f, 1f).hands.single())
+        // Uma detecção "deformada": dedos espalhados e um nó fora de lugar.
+        val twisted = points(.9f).toMutableList()
+        twisted[12] = NormalizedLandmark.create(.9f, .1f, 0f)
+        twisted[5] = NormalizedLandmark.create(.2f, .55f, 0f)
+        val deformed = PhoneXrHands().process(result(twisted, 1000), 1f, 1f).hands.single()
+        // Girar a mão também não muda a assinatura (rotação não é deformação).
+        val rotated = points(.2f).map {
+            NormalizedLandmark.create(.5f + (it.y() - .8f), .8f - (it.x() - .5f), it.z())
+        }
+        val turned = PhoneXrHands().process(result(rotated, 1000), 1f, 1f).hands.single()
+        for (other in listOf(deformed, turned)) {
+            val sig = signature(other)
+            for (k in reference.indices) {
+                assertEquals("proporção rígida #${'$'}k", reference[k], sig[k], .02f)
+            }
+        }
+        // E o polegar da pá fica do MESMO lado do polegar medido (nada de mão espelhada).
+        val measured = twisted[2].x() - ((twisted[0].x() + twisted[5].x() + twisted[9].x() + twisted[17].x()) / 4f)
+        val drawn = deformed.points[2 * 3] - deformed.points[9 * 3]
+        assertEquals("o polegar desenhado segue o medido", kotlin.math.sign(measured), kotlin.math.sign(drawn), 0f)
+    }
+
+    /** O punho continua sendo do DETECTOR (a pega das janelas depende dele), não da pá. */
+    @Test fun theFistStillComesFromTheRealFingers() {
+        val fist = PhoneXrHands().process(result(points(.2f, true), 1000), 1f, 1f).hands.single()
+        val open = PhoneXrHands().process(result(points(.2f), 1000), 1f, 1f).hands.single()
+        assertTrue("o punho medido é publicado", fist.shape.fist)
+        assertFalse("a mão aberta não é punho", open.shape.fist)
+        // A pá desenhada é a mesma nos dois: o punho muda o gesto, não a silhueta.
+        assertEquals(span(open, 0, 9), span(fist, 0, 9), .002f)
+        // E a largura publicada (`palmWidth`) continua sendo a MEDIDA, não a da pá: é dela que sai a
+        // profundidade, e o punho muda a palma na imagem.
+        assertNotEquals("a largura real não é a da pá", open.shape.palmWidth, fist.shape.palmWidth)
+    }
+
     @Test fun briefMissIsBridgedByAPredictionThatHoldsButNeverStartsAGesture() {
         val engine=PhoneXrHands()
         val pinching=engine.process(result(points(.2f),1000),1f,1f).hands.single()
@@ -218,9 +268,13 @@ class PhoneXrHandsTest {
         assertTrue(first.shape.fist)
         assertEquals(first.shape.palmX,first.grabX,0f)
         val moved=points(.2f,true).map { NormalizedLandmark.create(it.x()+.15f,it.y(),it.z()) }
+        // 2.6.9: a mão anda junto e o grab (filtro lento) segue ATRÁS dela, sem nunca passar do
+        // ponto medido — é essa diferença que o `fistUsesTheForkGrabFilter` protege.
         val next=engine.process(result(moved,1016),1f,1f).hands.single()
-        assertTrue(next.grabX>first.grabX)
-        assertTrue(next.grabX<next.shape.palmX)
+        val delta=next.shape.palmX-first.shape.palmX
+        assertTrue("a palma andou para a direita",delta>.05f)
+        assertTrue("o grab acompanhou",next.grabX>first.grabX)
+        assertTrue("sem adiantar a palma",next.grabX-first.grabX<delta)
     }
     @Test fun slowInferenceIsFreshOnCompletionNotOnCapture() {
         val frame=PhoneXrHands().process(result(points(.2f),1000),1f,1f,2_000_000_000L)
@@ -476,7 +530,7 @@ class PhoneXrHandsTest {
 
     /** Ruído pequeno de verdade (abaixo da zona morta) não move NADA do que é publicado. */
     @Test fun jitterBelowTheDeadZoneIsNotPublishedAtAll() {
-        val filter = HandGestures.OneEuro(minCutoff = 1.6f, beta = 14f, deadZone = .0006f)
+        val filter = HandGestures.OneEuro(minCutoff = 1.2f, beta = 12f, deadZone = .0007f)
         var t = 1_000_000_000L
         val settled = filter.filter(.5f, t)
         var moved = 0f
@@ -490,7 +544,8 @@ class PhoneXrHandsTest {
 
     /** Movimento rápido não pode ficar atrás: o filtro entrega quase tudo no segundo quadro. */
     @Test fun aFastMoveIsNotHeldBack() {
-        val filter = HandGestures.OneEuro(minCutoff = 1.6f, beta = 14f, deadZone = .0006f)
+        // 2.6.9: o filtro que manda na tela é o da BASE (o perfil da interface), não o da malha.
+        val filter = HandGestures.OneEuro(minCutoff = 1.2f, beta = 12f, deadZone = .0007f)
         var t = 1_000_000_000L
         filter.filter(.2f, t)
         t += 33_000_000L
@@ -529,21 +584,22 @@ class PhoneXrHandsTest {
             val palm = span(h, 0, 9)
             if (i == 0) reference = palm
             assertEquals("palma intacta a ${'$'}deg graus", reference, palm, reference * .03f)
-            assertTrue("dedo indicador continua existindo a ${'$'}deg graus", span(h, 0, 8) > .05f)
+            // Os dedos são tocos na linha dos nós: o que se garante é que a pá inteira girou e que
+            // a ponta do médio continua longe do pulso (a forma não colapsou numa rotação).
+            assertTrue("a pá continua inteira a ${'$'}deg graus", span(h, 0, 12) > .05f)
             // E a mão inteira girou de verdade: o nó do dedo médio saiu do lugar.
             if (i == 0) assertTrue("a rotação não é identidade", span(h, 0, 12) > .1f)
         }
     }
     /**
-     * Fechar e abrir os dedos (o punho de verdade, não a mão crescendo): os quatro dedos dobram
-     * para dentro do nó e a ponta tem de acompanhar. Um corretor de comprimento ingênuo — que
-     * "endireita" todo osso mais curto que a referência — reprovaria exatamente aqui: a mão não
-     * conseguiria fechar, porque o dedo dobrado era esticado de volta.
+     * 2.6.9 — o teste antigo (`closingAndOpeningTheFingersIsNotUndoneByTheBonePass`) media o
+     * corretor de comprimento de osso. Esse corretor não existe mais: a forma publicada é a pá
+     * rígida reconstruída da base, e fechar/abrir os dedos NÃO pode mais mexer nela. É esse o
+     * contrato novo, e ele é testado aqui.
      */
-    @Test fun closingAndOpeningTheFingersIsNotUndoneByTheBonePass() {
-        val engine = PhoneXrHands()
+    @Test fun closingAndOpeningTheFingersNeverDeformsTheStick() {
         fun folded(amount: Float): List<NormalizedLandmark> {
-            val base = points(.9f)               // mão aberta: dedos esticados
+            val base = points(.9f)
             val out = base.toMutableList()
             val chains = listOf(intArrayOf(5, 6, 7, 8), intArrayOf(9, 10, 11, 12),
                 intArrayOf(13, 14, 15, 16), intArrayOf(17, 18, 19, 20))
@@ -558,41 +614,39 @@ class PhoneXrHandsTest {
             }
             return out
         }
-        val extended = engine.process(result(folded(0f), 1000), 1f, 1f).hands.single()
+        val extended = PhoneXrHands().process(result(folded(0f), 1000), 1f, 1f).hands.single()
         val reference = span(extended, 0, 8)
-        var previous = reference
+        val engine = PhoneXrHands()
+        engine.process(result(folded(0f), 1000), 1f, 1f)
         var stamp = 1000L
-        for (step in 1..8) {                     // fecha em passos de 9 % ao quadro
+        for (step in 1..8) {
             stamp += 33
             val h = engine.process(result(folded(step * .09f), stamp), 1f, 1f).hands.single()
-            val tip = span(h, 0, 8)
-            assertTrue("o dedo acompanha o punho no passo $step ($tip de $reference)", tip < previous + .004f)
-            previous = tip
+            // A pá não muda de forma: o indicador desenhado continua do mesmo tamanho.
+            assertEquals("o dedo não pode esticar ao fechar (passo ${'$'}step)", reference, span(h, 0, 8), .006f)
         }
-        assertTrue("a mão fechou de verdade ($previous de $reference)", previous < reference * .78f)
-        for (step in 7 downTo 0) {               // e volta a abrir
-            stamp += 33
-            val h = engine.process(result(folded(step * .09f), stamp), 1f, 1f).hands.single()
-            val tip = span(h, 0, 8)
-            assertTrue("o dedo abre de novo no passo $step", tip > previous - .004f)
-            previous = tip
-        }
-        assertTrue("voltou ao tamanho natural ($previous de $reference)", previous > reference * .85f)
     }
 
-    /** Um dedo que colapsa num ÚNICO quadro é falha de detecção e não pode virar dedo torto. */
-    @Test fun aFingerThatCollapsesInOneFrameIsRestored() {
+    /**
+     * Um dedo que colapsa num ÚNICO quadro é falha de detecção: com a base rígida ele não tem como
+     * virar dedo torto — o que se verifica é que a pá publicada não se moveu.
+     */
+    @Test fun aFingerThatCollapsesInOneFrameDoesNotMoveTheBase() {
         val engine = PhoneXrHands()
         repeat(6) { i -> engine.process(result(points(.2f), 1000 + i * 33L), 1f, 1f) }
         val base = points(.2f)
-        val reference = span(engine.process(result(base, 1300), 1f, 1f).hands.single(), 7, 8)
+        val before = engine.process(result(base, 1300), 1f, 1f).hands.single()
+        val reference = span(before, 7, 8)
+        val palmBefore = span(before, 0, 9)
         // O detector perde a ponta do indicador por UM quadro: o osso 7→8 cai a 40 % do tamanho.
         val p7 = base[7]; val p8 = base[8]
         val squashed = base.toMutableList()
         squashed[8] = NormalizedLandmark.create(
             p7.x() + (p8.x() - p7.x()) * .4f, p7.y() + (p8.y() - p7.y()) * .4f, 0f)
-        val bone = span(engine.process(result(squashed, 1333), 1f, 1f).hands.single(), 7, 8)
-        assertTrue("o dedo não encolheu junto ($bone de $reference)", bone > reference * .62f)
+        val after = engine.process(result(squashed, 1333), 1f, 1f).hands.single()
+        val bone = span(after, 7, 8)
+        assertEquals("a forma não encolheu junto ($bone de $reference)", reference, bone, .004f)
+        assertEquals("e a palma também não", palmBefore, span(after, 0, 9), .004f)
     }
 
     /** Perto e longe da câmera: a mão cresce e encolhe junto, e continua com a mesma forma. */
@@ -611,6 +665,8 @@ class PhoneXrHandsTest {
             val palm = span(h, 0, 9)
             // O comprimento dos dedos em fração da palma não muda com a distância.
             ratios.add(span(h, 0, 12) / palm)
+            // 2.6.9: `palmWidth` continua sendo a medida REAL (é dela que sai a profundidade).
+            assertTrue("a largura real da palma acompanha a distância", h.shape.palmWidth > 0f)
             // E a palma acompanhou o movimento (não ficou presa).
             if (ratios.size == 3) assertTrue("a mão chegou perto ($palm)", palm > .32f)
         }

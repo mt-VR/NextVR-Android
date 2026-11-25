@@ -10,7 +10,7 @@
 // sair. O online é o NOSSO servidor (`server/gorilla-rush`), nunca o serviço de terceiros do jogo
 // original; a sala, a skin e o resto vão na query string montada pelo lado nativo.
 import { toast } from './core.js';
-import { open } from './windows.js';
+import { open, close } from './windows.js';
 
 const STORE_KEY = 'nextvrGorillaPrefs';
 
@@ -80,10 +80,97 @@ export function updateGorillaPrefs(patch) {
 
 let state = { at: 0, what: 'inicial', detail: '' };
 
+/* ================= A JANELINHA ESPACIAL DE CARREGAMENTO (2.6.9) =================
+ *
+ * "o menu de carregando o jogo quero uma janelinha espacial".
+ *
+ * Entre o toque em JOGAR e o jogo aparecer, o NextVR some por 1-3 s (a câmera é
+ * rearmada, a janela do jogo é criada e o mapa de 4 MB é descomprimido). Antes disso
+ * o usuário via a última cena parada, sem saber se o toque funcionou.
+ *
+ * Esta janela é uma janela de verdade do NextVR — flutuante no mundo, arrastável como
+ * as outras — com o estado REAL do arranque: ela nasce no toque, muda para "abrindo a
+ * tela" quando o app confirma a janela (`aberto`) e sai sozinha quando o jogo responde
+ * (a página do jogo tem a janelinha dela para o carregamento do mapa; esta cobre o
+ * pedaço anterior, quando nem o WebView do jogo existe ainda).
+ */
+const LOADING_ID = 'nextvr-gorilla-loading';
+let loadingTimer = null;
+
+function openGorillaLoading(text) {
+  try {
+    const node = document.createElement('div');
+    node.style.cssText = 'display:flex;flex-direction:column;gap:12px;padding:16px;color:#eafff2;'
+      + 'font:500 15px/1.45 system-ui,sans-serif';
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:10px;font:700 17px system-ui,sans-serif;color:#3ddc84';
+    const dot = document.createElement('span');
+    dot.style.cssText = 'width:12px;height:12px;border-radius:50%;background:#3ddc84;'
+      + 'box-shadow:0 0 0 0 rgba(61,220,132,.6);animation:nv-load-pulse 1.2s infinite';
+    const title = document.createElement('span');
+    title.textContent = 'GORILLA RUSH';
+    head.append(dot, title);
+    const line = document.createElement('span');
+    line.dataset.nvLoadingText = '1';
+    line.textContent = text || 'Abrindo o jogo…';
+    const track = document.createElement('div');
+    track.style.cssText = 'height:10px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden';
+    const fill = document.createElement('div');
+    fill.dataset.nvLoadingBar = '1';
+    fill.style.cssText = 'height:100%;width:22%;border-radius:6px;background:#3ddc84;transition:width .45s ease';
+    track.append(fill);
+    const hint = document.createElement('span');
+    hint.style.cssText = 'font-size:13px;color:rgba(234,255,242,.6)';
+    hint.textContent = 'a janela do jogo abre em seguida';
+    node.append(head, line, track, hint);
+    // A animação da bolinha é CSS de verdade: nada de pedir animação pelo nome da janela.
+    if (!document.getElementById('nv-load-style')) {
+      const style = document.createElement('style');
+      style.id = 'nv-load-style';
+      style.textContent = '@keyframes nv-load-pulse{0%{box-shadow:0 0 0 0 rgba(61,220,132,.55)}'
+        + '70%{box-shadow:0 0 0 10px rgba(61,220,132,0)}100%{box-shadow:0 0 0 0 rgba(61,220,132,0)}}';
+      document.head.append(style);
+    }
+    open({ id: LOADING_ID, title: 'Gorilla Rush', node, w: 520, h: 300 });
+    if (loadingTimer) clearInterval(loadingTimer);
+    // A barra anda com o TEMPO (é o que se sabe deste lado: o app não informa percentual). Ela para
+    // em 92 % de propósito — uma barra que chega a 100 % e não abre é mentira.
+    let p = 22;
+    loadingTimer = setInterval(() => {
+      p = Math.min(92, p + Math.max(2, (92 - p) * .12));
+      const bar = document.querySelector('[data-nv-loading-bar]');
+      if (bar) bar.style.width = p.toFixed(0) + '%';
+    }, 400);
+  } catch { /* sem janela: o toast do launch ainda avisa */ }
+}
+
+function setGorillaLoadingText(text) {
+  try {
+    const line = document.querySelector('[data-nv-loading-text]');
+    if (line) line.textContent = text;
+    const bar = document.querySelector('[data-nv-loading-bar]');
+    if (bar) bar.style.width = '78%';
+  } catch { /* janela já fechou */ }
+}
+
+function closeGorillaLoading() {
+  if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
+  try { close(LOADING_ID); } catch { /* já fechou */ }
+}
+if (typeof window !== 'undefined') { window.nextvrGorillaLoading = { open: openGorillaLoading, close: closeGorillaLoading }; }
+
 /** O que o lado nativo conta do jogo (aberto, falhou, saiu). Chamado por `nextvrGorillaState`. */
 if (typeof window !== 'undefined') {
   window.nextvrGorillaState = (what, detail) => {
     state = { at: Date.now(), what: String(what || ''), detail: detail ? String(detail) : '' };
+    // A janelinha espacial segue o estado de verdade: some quando o jogo abriu (a partir daí quem
+    // mostra carregamento é a página do jogo) ou quando ele falhou/saiu.
+    // Não fecha no mesmo instante em que o app confirma a janela: o WebView do jogo ainda está
+    // montando a cena, e a janelinha só deixa a tela quando a página do jogo já está desenhando
+    // (a ponte `NextVRGame.stage('lobby')` marca `stage`, que é o mesmo sinal do vigia de 12 s).
+    if (what === 'aberto') { setGorillaLoadingText('abrindo o jogo…'); setTimeout(closeGorillaLoading, 1500); }
+    else if (what === 'falhou' || what === 'saiu') closeGorillaLoading();
+    else if (what) setGorillaLoadingText(String(detail || what));
   };
 }
 
@@ -109,6 +196,7 @@ export function launchGorillaRush(options = {}) {
     return false;
   }
   state = { at: Date.now(), what: 'enviado', detail: '' };
+  openGorillaLoading('Preparando a tela do jogo…');
   // A APARÊNCIA NÃO VAI MAIS DAQUI. "o menu de escolher a aparência vai sair das configurações ...
   // o menu inicial do gorilla vai continuar": cor, óculos, chapéu e roupa são escolhidos no menu do
   // próprio jogo (STYLE), no arranque dele. O app manda só o que é da partida: nome, sala, modo,

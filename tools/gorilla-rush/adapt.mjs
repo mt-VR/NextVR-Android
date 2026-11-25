@@ -15,6 +15,7 @@
 //
 // Uso:  node tools/gorilla-rush/adapt.mjs "caminho/LARP GORILA RUSH.html"
 import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { applyOptimisations } from './parts/perf.js';
 import { dirname, resolve } from 'node:path';
 
 const here = dirname(new URL(import.meta.url).pathname);
@@ -227,9 +228,16 @@ html = html.replace('<div id="hud"></div>', '<div id="hud"></div>\n' + frag);
 const ingame = await part('ingame.js');
 const hands = await part('hands.js');
 const lens = await part('lens.js');
+const loadwin = await part('loadwin.js');
 const BOOT_MARK = 'requestAnimationFrame(frame);loadMap();';
 MUST(html, BOOT_MARK, 'arranque do jogo');
-html = html.replace(BOOT_MARK, [hands, lens, ingame].map(t => t.trim()).join('\n') + '\n' + BOOT_MARK);
+html = html.replace(BOOT_MARK, [hands, lens, loadwin, ingame].map(t => t.trim()).join('\n') + '\n' + BOOT_MARK);
+
+/* 6b. OTIMIZAÇÃO (2.6.9) — "bota otimização nesse gorilla tag" ----------------------------- */
+// Os patches vivem em parts/perf.js, cada um com âncora verificada: se o HTML do jogo mudar, este
+// script FALHA aqui em vez de publicar um APK com a otimização ausente e o teste dizendo que ela
+// está lá. O que muda está documentado no topo daquele arquivo (lentes, física e sombra).
+html = applyOptimisations(html, MUST);
 
 /* 7. Fora a telemetria do Netlify -------------------------------------------------------- */
 html = html.replace(/<script async src="\/\.netlify\/scripts\/[^"]*"[^>]*><\/script>\s*/g, '');

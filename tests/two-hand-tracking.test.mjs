@@ -83,6 +83,7 @@ test('uma mão que falha por alguns quadros continua desenhada (duas mãos não 
   // duas mãos isso acontece o tempo todo, e a segunda mão ficava piscando.
   assert.match(hands, /const val MAX_PREDICT_MISSES = 4/);
   // 2.6.8: no jogo o horizonte é outro (a mão NÃO pode sair), fora do jogo continua o mesmo.
+  // 2.6.9: o perfil agora se chama `gameProfile` (o estado por mão sabe de que perfil é).
   assert.match(hands, /if \(consecutiveMisses >= if \(game\) GAME_MAX_PREDICT_MISSES else MAX_PREDICT_MISSES\) return null/);
   assert.doesNotMatch(hands, /consecutiveMisses >= 2\)/);
   // O fantasma (predita em cima de uma mão detectada) é descartado só nesta rodada, sem matar o lado.

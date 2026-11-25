@@ -178,8 +178,12 @@ test('o app troca o perfil de rastreio ao entrar e ao sair do Gorilla Rush', () 
   // Um perfil de jogo mais rápido e tolerante, no lugar do filtro de cursor.
   assert.ok(hands.includes('GAME_PREDICT_HORIZON_NS') && hands.includes('GAME_STATE_RETAIN_NS'),
     'PhoneXrHands tem o perfil de jogo (horizonte de predição e retenção maiores)');
-  assert.ok(/game -> HandGestures\.OneEuro\(minCutoff=1\.6f, beta=26\.0f, deadZone=0\.00035f\)/.test(hands),
-    'e um filtro de landmarks mais rápido com menos zona morta');
+  // 2.6.9 — o rastreio virou PALITO: só a BASE é filtrada (centro, eixo e comprimento da palma),
+  // e o perfil do jogo é mais rápido e com menos zona morta do que o da interface.
+  assert.ok(/val cx = HandGestures\.OneEuro\(minCutoff = if \(gameProfile\) 1\.6f else 1\.2f,\n\s+beta = if \(gameProfile\) 22\.0f else 12\.0f, deadZone = if \(gameProfile\) \.00035f else \.0007f\)/.test(hands),
+    'e uma base filtrada mais rápida no jogo, com menos zona morta');
+  assert.ok(hands.includes('stickPoints(') && hands.includes('STICK'),
+    'a forma publicada é reconstruída da base (o palito), não copiada do detector');
   assert.ok(/consecutiveMisses >= if \(game\) GAME_MAX_PREDICT_MISSES else MAX_PREDICT_MISSES/.test(hands),
     'a mão é segurada por mais tempo no jogo');
   assert.ok(camera.includes('void setGameHandsProfile(boolean enabled)') && camera.includes('hands.setGameProfile(enabled)'),

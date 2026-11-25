@@ -54,6 +54,16 @@ export const ENTRY_ABOUT_TEXT = [ENTRY_ABOUT_TITLE, ...ENTRY_ABOUT_PARAGRAPHS].j
 
 export const ENTRY_UPDATES = Object.freeze([
   {
+    id: 'mao-de-palito-gorilla-mais-leve-janelinha-de-carregando',
+    tag: 'MÃO DE PALITO · GORILLA MAIS LEVE · JANELINHA DE CARREGANDO',
+    time: 'Agora',
+    heading: 'A Mão Virou um Palito Rígido que Não Sai do Lugar, o Gorilla Rush Ficou Mais Leve e o Carregamento Ganhou uma Janelinha',
+    desc: 'A MÃO: você mandou apagar o rastreio antigo e fazer um leve, "que quase não sai da mão, pode ser de palito mesmo". Saiu a MALHA. Os 21 pontos não são mais a mão do detector (com o conserto de osso, o limite de alcance por dedo e o filtro por junta, que era de onde vinha a mão que deforma e treme): agora o app MEDE SÓ A BASE — o centro da palma, a direção do pulso para a base do dedo médio e o tamanho da palma — e reconstrói a pá a partir dela. A forma é rígida por construção, então dedo não estica, mão não entorta e, parada, não vibra. O desenho é o de palito: os dedos são tocos na linha dos nós e o polegar fica recolhido na lateral. '
+      + 'O que NÃO mudou: a pinça e o punho continuam sendo medidos nos dedos de verdade (é o que clica e o que pega as janelinhas), e a mão continua sendo segurada quando o detector a perde. '
+      + 'O GORILLA: com o jogo na tela, o app parou de converter a câmera e de desenhar o mundo atrás dele — trabalho que ia direto do orçamento do jogo. Na página, a física passou de até 8 subpassos para no máximo 4 (compasso de 25 cm, mesma trajetória), a sombra do mapa deixou de ser refeita a cada 3 quadros com o sol parado (só quando o jogador sai do lugar) e a página não filtra de novo a mão que o app já filtrou. '
+      + 'A JANELINHA: abrir o Gorilla Rush deixou de ser uma tela parada sem explicação. Agora entra uma janela flutuante de verdade, no mundo, na frente do olho: ela começa no toque em JOGAR, muda para "abrindo o jogo" quando o app confirma a tela e a página do jogo tem a dela, com a barra andando pelo que já foi montado de verdade (mapa, depois modelo do gorila) — não por relógio.',
+  },
+  {
     id: 'hand-tracking-rapido-perfil-de-jogo',
     tag: 'RASTREIO · MÃO MAIS RÁPIDA · NO GORILLA O RASTREIO É OUTRO (E A MÃO NÃO SAI)',
     time: 'Agora',

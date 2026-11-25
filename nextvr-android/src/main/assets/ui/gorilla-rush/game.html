@@ -618,7 +618,7 @@ const H=HANDSOBJ=new Hands({locateFile:f=>/hands_solution_wasm_bin\.(js|wasm)$/.
  H.onResults(r=>{if(ov.width!=v.videoWidth||ov.height!=v.videoHeight){ov.width=v.videoWidth;ov.height=v.videoHeight}else if(!vrOn)ox.clearRect(0,0,ov.width,ov.height);const hs=(r.multiHandLandmarks||[]).map(l=>({x:(l[0].x+l[9].x)/2,y:(l[0].y+l[9].y)/2,s:Math.hypot(l[0].x-l[9].x,l[0].y-l[9].y),l}));
   if(!vrOn)hs.forEach(h=>{ox.fillStyle='#3ddc84';h.l.forEach(p=>{ox.beginPath();ox.arc(p.x*ov.width,p.y*ov.height,4,0,7);ox.fill()})});
   hs.sort((a,b)=>a.x-b.x);const now=performance.now(),pv=i=>slot[i].p&&now-slot[i].t<500?slot[i].p:null;
-  if(hs.length==2){[0,1].forEach(i=>Object.assign(slot[i],{p:sm(hs[i],pv(i)),t:now}))}
+  if(NV_NATIVE_HANDS){if(hs.length==2){[0,1].forEach(i=>Object.assign(slot[i],{p:hs[i],t:now}))}else if(hs.length==1){const h=hs[0];let i=h.x<.5?0:1;const d=j=>slot[j].p&&now-slot[j].t<700?Math.hypot(slot[j].p.x-h.x,slot[j].p.y-h.y):9;if(Math.min(d(0),d(1))<.3)i=d(0)<d(1)?0:1;Object.assign(slot[i],{p:h,t:now})}}else if(hs.length==2){[0,1].forEach(i=>Object.assign(slot[i],{p:sm(hs[i],pv(i)),t:now}))}
   else if(hs.length==1){const h=hs[0];let i=h.x<.5?0:1;const d=j=>slot[j].p&&now-slot[j].t<700?Math.hypot(slot[j].p.x-h.x,slot[j].p.y-h.y):9;if(Math.min(d(0),d(1))<.3)i=d(0)<d(1)?0:1;Object.assign(slot[i],{p:sm(h,pv(i)),t:now})}});
  const pump=async()=>{const t0=performance.now();if(v.readyState>=2&&!v.paused)try{await H.send({image:v})}catch(e){}const el=performance.now()-t0;setTimeout(pump,Math.max(30,el*1.3))};pump()}
 // ---------- olhar ----------
@@ -894,8 +894,8 @@ function renderPlay(){if(NVLENS.on()){NVLENS.render();return}if(!vrView||R.xr.is
  const W=innerWidth,H=innerHeight,hw=W>>1,o=cam.position.clone();_er.set(1,0,0).applyQuaternion(cam.quaternion).multiplyScalar(.032);R.setScissorTest(true);
  for(let e=0;e<2;e++){const x=e?hw:0,w=e?W-hw:hw;R.setViewport(x,0,w,H);R.setScissor(x,0,w,H);cam.position.copy(o).addScaledVector(_er,e?1:-1);cam.updateMatrixWorld();R.render(S,cam)}
  cam.position.copy(o);cam.updateMatrixWorld();R.setScissorTest(false);R.setViewport(0,0,W,H)}
-let last=0,lmark=null,fr=0,fa=.02,lastAdj=0;
-function frame(t){if(!R.xr.isPresenting)requestAnimationFrame(frame);const dt=Math.min((t-last)/1000||.016,.05);last=t;
+let last=0,lmark=null,fr=0,fa=.02,lastAdj=0,NV_SHADOW={at:0,a1:0,a2:0};
+function frame(t){if(!R.xr.isPresenting)requestAnimationFrame(frame);const dt=Math.min((t-last)/1000||.016,.05);last=t;if(window.__nvLoadTick)try{window.__nvLoadTick(t||performance.now())}catch(e){}
  if(state=='lobby'&&pl){pg.scale.setScalar(1.6);pg.position.set(-.2,1.2,0);pg.rotation.y+=dt*.8;if(LM){const nv=$('nick').value.trim()||'Gorilla';if(LM.nk!==nv){setLabel(LM.lab,nv);LM.nk=nv}const f0=V3(0,0,-1).applyQuaternion(pg.quaternion);faceCam(LM);LM.blob.visible=false;pg.updateMatrixWorld(true);{const rt0=V3(1,0,0).applyQuaternion(pg.quaternion);['L','R'].forEach((k,ii)=>{const u=LM['u'+k];if(!u)return;const S0=u.getWorldPosition(V3()),T=S0.clone().addScaledVector(rt0,(ii?.03:-.03)*1.6).addScaledVector(V3(0,-1,0),.93*1.6).addScaledVector(f0,.04*1.6);arm2(LM,k,T,f0,rt0,1.6)})}if(LM.head.scale.x<.5)LM.head.scale.copy(LM.hs)}mapG&&(mapG.visible=false);dome.visible=false;S.background=null;S.fog=null;R.setClearColor(0,0);cam.position.set(0,.8,2.8);cam.lookAt(0,.65,0);{const a0=cam.aspect,f0=cam.fov;cam.aspect=innerWidth/Math.max(1,innerHeight);cam.fov=70;cam.updateProjectionMatrix();R.render(S,cam);cam.aspect=a0;cam.fov=f0;cam.updateProjectionMatrix()}return}
  if(state!='play')return;mapG&&(mapG.visible=true);dome.visible=true;S.fog=FOG;look();NVIG.tick(dt);
  if((fr&7)==0){const lim=gfx==0?55:gfx==1?80:130;for(const m of mapMeshes)if(m.material.alphaTest){const b=m.geometry.boundingSphere;m.visible=Math.hypot(b.center.x-P.x,b.center.z-P.z)-b.radius<lim}}
@@ -919,7 +919,7 @@ function frame(t){if(!R.xr.isPresenting)requestAnimationFrame(frame);const dt=Ma
   if(on&&tc&&tp){const dn=Math.max(0,-hv[i].y-.25),bk=Math.max(0,-hv[i].z-.25),sp2=dn+bk;if(sp2>0){dsum.addScaledVector(fw,sp2*dt*1.15).addScaledVector(rt,-hv[i].x*dt*.3);dsum.y+=dn*dt;n++}}}
  jumpCool-=dt;if(dnS>.9&&gPrev&&jumpCool<=0){jumpReq=true;jumpCool=.4}
  if(n){const hx=dsum.x,hz=dsum.z,hsp=Math.hypot(hx,hz)/dt;if(hsp>.05){vel.x+=hx*22;vel.z+=hz*22}if(dsum.y/dt>.6)vel.y=Math.min(5.6,Math.max(vel.y,0)+dsum.y*3.6)}
- vel.y-=9.8*dt;{const ns=Math.min(8,Math.max(1,Math.ceil(vel.length()*dt/.1)));for(let s=0;s<ns;s++){P.addScaledVector(vel,dt/ns);wallFix()}}
+ vel.y-=9.8*dt;{const ns=Math.min(4,Math.max(1,Math.ceil(vel.length()*dt/.25)));for(let s=0;s<ns;s++){P.addScaledVector(vel,dt/ns);wallFix()}}
  const g=hit(V3(P.x,P.y+.3,P.z),DOWN,3);let grounded=false;if(g&&P.y-1.1<g.point.y+.05){grounded=true;if(P.y-1.1<g.point.y)P.y=g.point.y+1.1;if(vel.y<0)vel.y=0}gPrev=grounded;gCls=g?(g.cls|0):0;
   {let fx=0,fz=0;if(keys.KeyW||keys.ArrowUp)fz++;if(keys.KeyS||keys.ArrowDown)fz--;if(assist&&ptrs.size&&!dragMoved)fz++;if(keys.KeyD||keys.ArrowRight)fx++;if(keys.KeyA||keys.ArrowLeft)fx--;
    
@@ -932,7 +932,7 @@ function frame(t){if(!R.xr.isPresenting)requestAnimationFrame(frame);const dt=Ma
  if(R.xr.isPresenting){xrRig.position.set(P.x,P.y-1.1,P.z)}else cam.position.copy(P);
  pg.quaternion.copy(faceQ(fw));pg.position.set(P.x-fw.x*.12,P.y-.3,P.z-fw.z*.12);pg.updateMatrixWorld(true);if(LM){setBlob(LM.blob,P.x,P.y-1.1,P.z,g||hit(V3(P.x,P.y,P.z),DOWN,14));
  arm2(LM,'L',tgt[0],fw,rt);arm2(LM,'R',tgt[1],fw,rt);if((fr&1)==0){handPose(LM,'L',HO[0].d,HO[0].A,HO[0].c);handPose(LM,'R',HO[1].d,HO[1].A,HO[1].c)}}
- fr++;if(gfx>0&&fr%3==0){const ld=V3(30,55,20).normalize(),lr=V3().crossVectors(_Y,ld).normalize(),lu=V3().crossVectors(ld,lr),tx0=40/sun.shadow.mapSize.x,a1=Math.round(P.dot(lr)/tx0)*tx0,a2=Math.round(P.dot(lu)/tx0)*tx0,a3=P.dot(ld),T=V3().addScaledVector(lr,a1).addScaledVector(lu,a2).addScaledVector(ld,a3);sun.target.position.copy(T);sun.position.set(T.x+30,T.y+55,T.z+20);sun.target.updateMatrixWorld();R.shadowMap.needsUpdate=true}
+ fr++;if(gfx>0&&fr%3==0){const ld=V3(30,55,20).normalize(),lr=V3().crossVectors(_Y,ld).normalize(),lu=V3().crossVectors(ld,lr),tx0=40/sun.shadow.mapSize.x,a1=Math.round(P.dot(lr)/tx0)*tx0,a2=Math.round(P.dot(lu)/tx0)*tx0,a3=P.dot(ld),T=V3().addScaledVector(lr,a1).addScaledVector(lu,a2).addScaledVector(ld,a3);sun.target.position.copy(T);sun.position.set(T.x+30,T.y+55,T.z+20);sun.target.updateMatrixWorld();if(!NV_SHADOW.at||Math.abs(a1-NV_SHADOW.a1)>tx0*2||Math.abs(a2-NV_SHADOW.a2)>tx0*2){NV_SHADOW.at=1;NV_SHADOW.a1=a1;NV_SHADOW.a2=a2;R.shadowMap.needsUpdate=true}}
  fa=fa*.95+dt*.05;if(!R.xr.isPresenting&&now-lastAdj>2500){if(fa>.032&&dpr>.5){dpr=Math.max(.5,dpr-.12);lastAdj=now;rs()}else if(fa>.05&&gfx>0&&dpr<=.55){gfx--;dpr=prCap();lastAdj=now;fa=.02;rs();if(gfx<2)mapMeshes.forEach(m=>m.castShadow=false);if(gfx==0){R.shadowMap.enabled=false;sun.castShadow=false}$('gfx').value=gfx}else if(fa<.021&&dpr<prCap()){dpr=Math.min(prCap(),dpr+.08);lastAdj=now;rs()}}
  if(NET.host)hostTick(dt,now);netSend(now);renderRemotes(dt);hudTick(now);
  const want=isIt(me.id);if(lmark!==want){mark(mats,want,color);lmark=want}
@@ -1155,6 +1155,12 @@ const NVLENS = (() => {
 
   return {
     k1: K1, k2: K2, fov: FOV, ipd: IPD, fill: 1, corner: 0, tanTex: TAN_HALF,
+    /**
+     * Se os dois olhos são realmente DIFERENTES. Com 67 mm de IPD são sempre — mas o campo existe
+     * porque `renderPlay` (ver parts/perf.js) consulta isto antes de desenhar o segundo olho, e um
+     * visor/preset que um dia peça monocular (IPD 0) não deve pagar dois `render` iguais.
+     */
+    stereo: IPD > 1e-4,
     /** Ligado quando o jogo está na tela de dois olhos (o modo VR Box do NextVR). */
     on() { return !!vrView && !R.xr.isPresenting; },
     render() {
@@ -1186,6 +1192,213 @@ const NVLENS = (() => {
       cam.updateMatrixWorld(true);
     },
   };
+})();
+// ---------- JANELINHA ESPACIAL DE CARREGAMENTO (2.6.9) ----------
+//
+// Pedido: "o menu de carregando o jogo quero uma janelinha espacial".
+//
+// Hoje, entre o toque em JOGAR e o menu do gorila aparecer, quem está com o visor na cara vê a
+// última cena do NextVR parada (ou o preto da página trocando) — sem nenhuma informação. E há uma
+// segunda espera, mais longa: o mapa do jogo (4 MB de base64 + gzip) e o modelo do gorila levam
+// alguns segundos para montar, e nesse tempo o menu do jogo ainda está vazio.
+//
+// Esta é a janela que cobre as duas. Ela é um canvas desenhado como um painel NO MUNDO, a 1,4 m à
+// frente do olho, com o tamanho de uma folha A5 — não é HTML sobre a tela: no VR Box o HTML da
+// página fica esticado em dois olhos e o texto sai ilegível. Desenhar no mundo resolve isso e é o
+// mesmo caminho que o menu do jogo já usa (`NVIG`).
+//
+// Ela NÃO depende do app: aparece assim que a página carrega (a página só carrega depois que o
+// NextVR abriu a tela do jogo) e se retira sozinha quando o jogo está pronto — mapa montado E modelo
+// do gorila resolvido (deu certo ou falhou de vez). Se a página falhar no arranque, o app mostra a
+// janela de problema dele; esta aqui simplesmente some junto com a página.
+//
+// Regra de honestidade: a barra avança com o que ACONTECEU (mapa pronto = 55 %, modelo = 90 %), não
+// com um relógio. Parada, ela fica parada — e o texto diz o que está faltando.
+(function () {
+  const W = 640, H = 400;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.anisotropy = 1;
+
+  // 1,4 m à frente, 0,62 m de largura: cabe nos dois olhos e as letras ficam legíveis nas lentes.
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.62, 0.62 * H / W),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }),
+  );
+  mesh.renderOrder = 1000;
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+  S.add(mesh);
+
+  const NV_LOADWIN = {
+    ativo: false,
+    desde: 0,
+    /** 0..1 — o que já está pronto de verdade (ver `nvLoadProgress`). */
+    progresso: 0,
+    texto: 'Preparando o jogo…',
+    detalhe: '',
+    frames: 0,
+  };
+  window.__nvLoad = NV_LOADWIN;
+
+  /** Coloca a janelinha à frente do olho, na altura dos olhos e levemente abaixo do centro. */
+  function posicionar() {
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    fwd.y = 0;
+    if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+    fwd.normalize();
+    mesh.position.set(cam.position.x + fwd.x * 1.4, cam.position.y - 0.03, cam.position.z + fwd.z * 1.4);
+    mesh.quaternion.copy(cam.quaternion);
+  }
+
+  function round(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  let lastDraw = 0;
+  function desenhar(now) {
+    // 12 desenhos por segundo bastam: é uma janela com uma barra, não um jogo. Cada desenho sobe
+    // uma textura nova para a GPU, e fazer isso a 60 Hz só para mover uma barra era gasto puro.
+    if (now - lastDraw < 80) return;
+    lastDraw = now;
+    ctx.clearRect(0, 0, W, H);
+    // Corpo de vidro escuro, borda verde do NextVR.
+    round(0, 0, W, H, 34);
+    ctx.fillStyle = 'rgba(5,14,11,.92)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(61,220,132,.85)';
+    ctx.lineWidth = 3;
+    round(2, 2, W - 4, H - 4, 32);
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#3ddc84';
+    ctx.font = 'bold 22px system-ui,sans-serif';
+    ctx.fillText('NEXT VR', 34, 54);
+    ctx.fillStyle = 'rgba(234,255,242,.72)';
+    ctx.font = '20px system-ui,sans-serif';
+    ctx.fillText('GORILLA RUSH', 34, 82);
+
+    ctx.fillStyle = '#eafff2';
+    ctx.font = 'bold 30px system-ui,sans-serif';
+    ctx.fillText('CARREGANDO O JOGO', 34, 150);
+
+    // Barra: o preenchimento é o progresso REAL.
+    const bx = 34, by = 186, bw = W - 68, bh = 16;
+    round(bx, by, bw, bh, 8);
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.fill();
+    const f = Math.max(.02, Math.min(1, NV_LOADWIN.progresso));
+    if (f > 0.001) {
+      round(bx, by, Math.max(16, bw * f), bh, 8);
+      ctx.fillStyle = '#3ddc84';
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(234,255,242,.9)';
+    ctx.font = 'bold 18px system-ui,sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(f * 100) + '%', W - 34, by + bh + 30);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(234,255,242,.92)';
+    ctx.font = '22px system-ui,sans-serif';
+    ctx.fillText(NV_LOADWIN.texto, 34, by + bh + 34);
+    if (NV_LOADWIN.detalhe) {
+      ctx.fillStyle = 'rgba(234,255,242,.55)';
+      ctx.font = '17px system-ui,sans-serif';
+      const d = NV_LOADWIN.detalhe;
+      ctx.fillText(d.length > 54 ? d.slice(0, 53) + '…' : d, 34, by + bh + 66);
+    }
+    // Rodinha: prova de que a página está viva mesmo quando o progresso não anda (mapa grande,
+    // modelo compilando). Sem ela, uma janela parada em 55 % não se distingue de uma travada.
+    const cx = W - 60, cy = 66, r = 16;
+    ctx.strokeStyle = 'rgba(61,220,132,.28)';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    const spin = (now / 420) % (Math.PI * 2);
+    ctx.strokeStyle = '#3ddc84';
+    ctx.beginPath(); ctx.arc(cx, cy, r, spin, spin + 1.4); ctx.stroke();
+
+    texture.needsUpdate = true;
+  }
+
+  /** Abre (ou reabre) a janela. `texto`/`detalhe` são do estado REAL do jogo. */
+  function mostrar(texto, detalhe) {
+    NV_LOADWIN.ativo = true;
+    NV_LOADWIN.desde = performance.now();
+    if (texto) NV_LOADWIN.texto = texto;
+    if (detalhe !== undefined) NV_LOADWIN.detalhe = detalhe || '';
+    mesh.visible = true;
+    posicionar();
+    desenhar(performance.now() + 999);
+  }
+
+  function esconder() {
+    if (!NV_LOADWIN.ativo) return;
+    NV_LOADWIN.ativo = false;
+    mesh.visible = false;
+  }
+
+  window.__nvLoadShow = function (texto, detalhe) { try { mostrar(texto, detalhe); } catch (e) {} };
+  window.__nvLoadHide = function () { try { esconder(); } catch (e) {} };
+  window.__nvLoadSet = function (progresso, texto, detalhe) {
+    try {
+      NV_LOADWIN.progresso = Math.max(0, Math.min(1, +progresso || 0));
+      if (texto) NV_LOADWIN.texto = texto;
+      if (detalhe !== undefined) NV_LOADWIN.detalhe = detalhe || '';
+      if (NV_LOADWIN.ativo) desenhar(performance.now() + 999);
+    } catch (e) {}
+  };
+
+  /**
+   * Progresso a partir do que o jogo já montou. O mapa é ~55 % do tempo de arranque (é ele que
+   * descomprime 4 MB) e o modelo do gorila ~35 %; os dois prontos = 100 %.
+   */
+  function nvLoadProgress() {
+    let p = 0;
+    try { if (typeof mapDone !== 'undefined' && mapDone) p += .55; } catch (e) {}
+    try {
+      if (typeof NV_MODEL !== 'undefined' && NV_MODEL) {
+        if (NV_MODEL.ok) p += .35;
+        else if (NV_MODEL.erro) p += .20;   // falhou de vez: segue, mas sem o modelo
+      }
+    } catch (e) {}
+    if (p >= .9) p = 1;
+    return p;
+  }
+
+  /** Chamado pelo laço de quadro do jogo (`frame`), não por um timer: sem quadro não há janela. */
+  window.__nvLoadTick = function (now) {
+    if (!NV_LOADWIN.ativo) return;
+    NV_LOADWIN.frames++;
+    NV_LOADWIN.progresso = nvLoadProgress();
+    if (NV_LOADWIN.progresso >= 1) {
+      NV_LOADWIN.texto = 'Pronto!';
+      desenhar(now);
+      // Um instante para o "PRONTO" ser visto, depois a janela sai e o menu do jogo aparece.
+      if (now - NV_LOADWIN.desde > 650) esconder();
+      return;
+    }
+    if (NV_LOADWIN.progresso >= .55) { NV_LOADWIN.texto = 'Montando o gorila…'; NV_LOADWIN.detalhe = 'o mapa já está pronto'; }
+    else if (NV_LOADWIN.progresso > 0) { NV_LOADWIN.texto = 'Abrindo o mapa…'; NV_LOADWIN.detalhe = ''; }
+    posicionar();
+    desenhar(now);
+  };
+
+  // A janela abre JÁ no arranque da página. O jogo em si (o mapa) é assíncrono: `loadMap()` só é
+  // chamado no fim do script, e é aí que o laço começa a chamar `__nvLoadTick`.
+  mostrar('Preparando o jogo…', 'abrindo a cena');
 })();
 // ---------- MENU DENTRO DO JOGO (mira pelo giroscópio) ----------
 //

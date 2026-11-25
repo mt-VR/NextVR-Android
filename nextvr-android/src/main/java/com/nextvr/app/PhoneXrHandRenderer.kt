@@ -101,6 +101,18 @@ class PhoneXrHandRenderer {
     private var meshVirtualEnv=false
     private var meshMrGameMode=false
     private val hasStencil=true
+    /**
+     * MÃO DE PALITO (2.6.9): o rastreio entrega uma base RÍGIDA (ver `PhoneXrHands`), com os dedos
+     * recolhidos na linha dos nós. Desenhar cinco cadeias de dedo em cima de tocos sintéticos só
+     * gastava triângulo e fazia a mão parecer uma luva deformada. Com este modo a silhueta é a PÁ:
+     * a palma e o pulso. É o que o usuário pediu ("pode ser de palito mesmo") e é o desenho mais
+     * barato que ainda mostra onde a mão está. Os anéis de toque, o raio e a pinça continuam vindo
+     * dos dedos REAIS (o `pinchX`/`indexX` publicados pelo rastreio), então a interação não mudou.
+     *
+     * A pá continua passando pelo MESMO caminho de desenho (contorno, preenchimento, luva, ambiente),
+     * só sem as cadeias de dedo — é o que mantém as cores, o stencil e a ordem de pintura iguais.
+     */
+    private val STICK_HAND=true
     private var touching=false
     @Volatile var showPointer=false
     @JvmField @Volatile var virtualEnv=false
@@ -584,6 +596,15 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                     // it. Adding r*.72 there made the wrist ~2.4x a real wrist and read as fat.
                     chain(ulnarChain, r * .95f, wristHalf - eh)
                     chain(radialChain, wristHalf - eh, r * 1.12f)
+                    if (STICK_HAND) {
+                        // A "ponta" da pá: um arco na linha dos nós, no lugar das cinco cadeias de
+                        // dedo. O arco fecha a pá de um lado ao outro sem degrau entre nós.
+                        val tipR = r * 1.02f
+                        handDisc(shape, x(9), y(9), tipR + grow)
+                        handBone(shape, x(5), y(5), x(17), y(17), tipR + grow, tipR + grow)
+                        handDisc(shape, x(5), y(5), tipR + grow)
+                        handDisc(shape, x(17), y(17), tipR + grow)
+                    }
                     val scale = floatArrayOf(1f, 1f, 1.03f, .97f, .85f)
                     if (mrGameMode) {
                         // Estilo "luva verde leve com abertura nos dedos" SOMENTE dentro do jogo de tiro ao alvo (mrGameMode):
@@ -609,7 +630,7 @@ private fun drawHandSkeletons(position: Int, fade: Float) {
                                 handDisc(shape, ex, ey, r1 * 0.86f)
                             }
                         }
-                    } else {
+                    } else if (!STICK_HAND) {
                         // Fora do jogo (no NextVR normal e nos ambientes 360): hand tracking 100% liso
                         // sem nenhuma junta aparente nos dedos (cápsulas contínuas suavizadas por stencil).
                         fun smoothSpan(i0: Int, i1: Int, i2: Int, i3: Int, r0: Float, r1: Float, r2: Float, r3: Float) {

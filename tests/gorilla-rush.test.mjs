@@ -395,6 +395,65 @@ test('o ícone do app é a arte nova entregue (árvore, chapéu e presentes)', a
   }
 });
 
+test('o Gorilla Rush ficou mais leve: física, sombra, mãos e o app parando atrás do jogo', () => {
+  const game = read('nextvr-android/src/main/assets/ui/gorilla-rush/game.html');
+  const perf = read('tools/gorilla-rush/parts/perf.js');
+  const camera = read('nextvr-android/src/main/java/com/nextvr/app/PassthroughCamera.java');
+  const renderer = read('nextvr-android/src/main/java/com/nextvr/app/SpatialRenderer.java');
+  const activity = read('nextvr-android/src/main/java/com/nextvr/app/NextVrActivity.java');
+
+  // ---------- página: as três economias medidas, cada uma com âncora verificada ----------
+  assert.ok(perf.includes("export function applyOptimisations(html, must)"),
+    'as otimizações da página vivem num arquivo só, aplicado pelo adapt');
+  assert.ok(game.includes('const ns=Math.min(4,Math.max(1,Math.ceil(vel.length()*dt/.25)));'),
+    'a física usa no máximo 4 subpassos (era 8, com passo de 10 cm)');
+  assert.ok(game.includes('if(!NV_SHADOW.at||Math.abs(a1-NV_SHADOW.a1)>tx0*2'),
+    'a sombra só é refeita quando o jogador sai da célula de texel');
+  assert.ok(game.includes('let last=0,lmark=null,fr=0,fa=.02,lastAdj=0,NV_SHADOW={at:0,a1:0,a2:0};'),
+    'o estado da sombra nasce com o laço (nada de alocar no quadro)');
+  assert.ok(game.includes('if(NV_NATIVE_HANDS){if(hs.length==2){[0,1].forEach(i=>Object.assign(slot[i],{p:hs[i],t:now}))}'),
+    'a página não filtra de novo a mão que o app já filtrou (ponte nativa)');
+  // A ponte nativa tem uma mão só com frequência: ela precisa cair no lado certo sem virar fantasma.
+  assert.ok(game.includes("const d=j=>slot[j].p&&now-slot[j].t<700?Math.hypot(slot[j].p.x-h.x,slot[j].p.y-h.y):9"),
+    'com UMA mão o lado é escolhido pela distância da última posição');
+
+  // ---------- nativo: o app para de desenhar/medir atrás do jogo ----------
+  assert.ok(camera.includes('volatile boolean screenOwned=false;') && renderer.includes('volatile boolean screenOwned = false;'),
+    'os dois lados conhecem o dono da tela');
+  assert.ok(camera.includes('if((!gameHandMode || mrGameMode) && !screenOwned)'),
+    'com o jogo aberto o 6DoF falso não roda (quem mede o movimento é o jogo)');
+  assert.ok(camera.includes('if(!screenOwned && (!gameHandMode || mrGameMode || sessionFrames<=2))'),
+    'e o passthrough não é convertido para ninguém ver');
+  assert.ok(renderer.includes('} else if(!screenOwned && !blackEnv && (!handRenderer.gameHandMode || handRenderer.mrGameMode)) {'),
+    'o renderer não desenha o mundo atrás do jogo');
+  assert.equal(renderer.split('!screenOwned').length - 1, 2, 'nos dois caminhos de olho (normal e tela cheia)');
+  const open = activity.slice(activity.indexOf('private void showCockpitGame'), activity.indexOf('void closeCockpitGame'));
+  assert.ok(open.includes('ownedRenderer.screenOwned=true;') && open.includes('camera.screenOwned=true;'),
+    'abrir a tela do jogo desliga o desenho do app');
+  assert.ok(activity.includes('if(owned!=null) owned.screenOwned=false;') && activity.includes('camera.screenOwned=false;'),
+    'fechar devolve a tela ao app');
+
+  // ---------- a janelinha espacial de carregamento ----------
+  const loadwin = read('tools/gorilla-rush/parts/loadwin.js');
+  const shell = read('web/src/gorilla-rush.js');
+  assert.ok(loadwin.includes('new THREE.Mesh(') && loadwin.includes('new THREE.CanvasTexture(canvas)'),
+    'a janela do jogo é um painel NO MUNDO (canvas), não HTML esticado nos dois olhos');
+  assert.ok(loadwin.includes('window.__nvLoadTick = function (now)'),
+    'e é o laço de quadro do jogo que a mantém viva');
+  assert.ok(game.includes('if(window.__nvLoadTick)try{window.__nvLoadTick(t||performance.now())}catch(e){}'),
+    'o tick entrou no frame do jogo');
+  assert.ok(loadwin.includes('function nvLoadProgress()') && loadwin.includes('p += .55'),
+    'a barra anda pelo que já foi montado (mapa = 55%), não por relógio');
+  assert.ok(shell.includes("const LOADING_ID = 'nextvr-gorilla-loading';"),
+    'a janelinha espacial do app tem id próprio (e fecha sozinha)');
+  assert.ok(shell.includes("openGorillaLoading('Preparando a tela do jogo…');"),
+    'ela nasce no toque em JOGAR, antes de a página existir');
+  assert.ok(shell.includes("if (what === 'aberto') { setGorillaLoadingText('abrindo o jogo…'); setTimeout(closeGorillaLoading, 1500); }"),
+    'sai quando o jogo confirma a tela, com folga para a página desenhar');
+  assert.ok(shell.includes("else if (what === 'falhou' || what === 'saiu') closeGorillaLoading();"),
+    'e sai na hora se o jogo falhar ou for fechado');
+});
+
 test('o boneco: três caminhos de carga, motivo real no aviso e fim do alarme falso de 8 s', async () => {
   const part = read('tools/gorilla-rush/parts/model.js');
   const ingame = read('tools/gorilla-rush/parts/ingame.js');
