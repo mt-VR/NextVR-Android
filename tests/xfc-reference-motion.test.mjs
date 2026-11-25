@@ -6,11 +6,14 @@ import {startXfcServer} from '../xfc-game/serve.mjs';
 import {launchOrSkip} from './support/chromium.mjs';
 import {runningArmPose,runningLegPose,runningFlight} from '../xfc-game/src/match3d/football-actions.js';
 
-test('abertura usa o PNG original enviado, não uma marca redesenhada',async()=>{
-  const data=await readFile(new URL('../xfc-game/assets/ui/quick/loading.png',import.meta.url));
-  assert.equal(createHash('sha256').update(data).digest('hex'),'fe690a585efc0a225faad55aaa2a5c8a99d9fa4347c3f45bd7179306210e84f2');
+test('abertura usa diretamente o GIF original enviado, sem marca redesenhada',async()=>{
+  const data=await readFile(new URL('../xfc-game/assets/brand/xfc-intro-source.gif',import.meta.url));
+  assert.equal(createHash('sha256').update(data).digest('hex'),'3c1f8876a753075df6f442690a2a2d9bffc0e36fc2f255808327db0e0a96042c');
   const source=await readFile(new URL('../xfc-game/src/screens/intro.js',import.meta.url),'utf8');
-  assert.ok(!source.includes('xfcWordmark'));assert.ok(source.includes('assets/ui/quick/loading.png'));
+  assert.ok(!source.includes('xfcWordmark'));
+  assert.ok(source.includes("el('img'"));
+  assert.ok(source.includes('assets/brand/xfc-intro-source.gif'));
+  assert.ok(!source.includes('.mp4'));
 });
 test('andar mantém braços quietos; correr alterna braços, recupera joelho e tem voo',()=>{
   const walk=[],run=[];let air=0,knee=0;

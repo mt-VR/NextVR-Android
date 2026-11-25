@@ -61,9 +61,6 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
-        // A abertura usa um vídeo MP4 local, sem áudio, que precisa começar sem toque.
-        settings.setMediaPlaybackRequiresUserGesture(false);
-
         webView.setWebViewClient(new AssetClient(getAssets()));
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -184,7 +181,7 @@ public class MainActivity extends Activity {
                 // o construtor de seis argumentos).
                 InputStream stream = assets.open(assetPath);
                 String mimeType = mimeTypeOf(path);
-                String encoding = mimeType.equals("video/mp4") ? null : "utf-8";
+                String encoding = mimeType.equals("image/gif") ? null : "utf-8";
                 return new WebResourceResponse(mimeType, encoding, stream);
             } catch (IOException error) {
                 return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
@@ -202,7 +199,6 @@ public class MainActivity extends Activity {
             if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
             if (path.endsWith(".gif")) return "image/gif";
             if (path.endsWith(".webp")) return "image/webp";
-            if (path.endsWith(".mp4")) return "video/mp4";
             if (path.endsWith(".woff2")) return "font/woff2";
             if (path.endsWith(".ico")) return "image/x-icon";
             if (path.endsWith(".md")) return "text/markdown";

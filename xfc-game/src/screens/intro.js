@@ -1,10 +1,9 @@
-// Abertura do XFC: usa a animação enviada pelo usuário, sem redesenhar a arte.
+// Usa diretamente o GIF enviado pelo usuário, sem redesenhar nem converter a arte.
 import { el } from '../ui/dom.js';
 
-const VIDEO_SRC = 'assets/brand/xfc-intro.mp4';
-const POSTER_SRC = 'assets/brand/xfc-intro-poster.jpg';
-const END_HOLD_MS = 850;
-const PLAYBACK_FAILSAFE_MS = 6200;
+const GIF_SRC = 'assets/brand/xfc-intro-source.gif';
+const GIF_LOOP_MS = 3500;
+const LOAD_FAILSAFE_MS = 8000;
 
 export function introScreen(ctx) {
   let advanceTimer = null;
@@ -19,27 +18,27 @@ export function introScreen(ctx) {
     ctx.go('launch');
   };
 
-  const onEnded = () => {
-    clearTimeout(advanceTimer);
-    advanceTimer = setTimeout(advance, END_HOLD_MS);
+  const scheduleAdvance = () => {
+    if (advanced || advanceTimer) return;
+    clearTimeout(failsafeTimer);
+    // O GIF tem nove quadros de 350 ms; deixa uma volta terminar antes de seguir.
+    advanceTimer = setTimeout(advance, GIF_LOOP_MS);
   };
 
-  const onError = () => {
-    clearTimeout(advanceTimer);
-    advanceTimer = setTimeout(advance, 4200);
+  const onImageError = () => {
+    clearTimeout(failsafeTimer);
+    if (!advanceTimer) advanceTimer = setTimeout(advance, 4200);
   };
 
-  const video = el('video', {
-    class: 'intro-reference__video',
-    src: VIDEO_SRC,
-    poster: POSTER_SRC,
-    autoplay: true,
-    muted: true,
-    playsinline: true,
-    preload: 'auto',
-    'aria-hidden': 'true',
-    onEnded,
-    onError
+  const art = el('img', {
+    class: 'intro-reference__art',
+    src: GIF_SRC,
+    alt: 'XFC 27 · animação de abertura',
+    draggable: 'false',
+    decoding: 'sync',
+    fetchpriority: 'high',
+    onLoad: scheduleAdvance,
+    onError: onImageError
   });
 
   const node = el('div', {
@@ -48,13 +47,14 @@ export function introScreen(ctx) {
     tabindex: '0',
     'aria-label': 'Continuar para o XFC',
     onClick: advance
-  }, video);
+  }, art);
 
   return {
     node,
     mount() {
-      // autoplay + muted iniciam o vídeo no WebView sem bloquear a inicialização.
-      failsafeTimer = setTimeout(advance, PLAYBACK_FAILSAFE_MS);
+      // Se a imagem já tiver carregado fora da árvore, complete cobre o load perdido.
+      failsafeTimer = setTimeout(advance, LOAD_FAILSAFE_MS);
+      if (art.complete && art.naturalWidth > 0) scheduleAdvance();
     },
     unmount() {
       clearTimeout(advanceTimer);

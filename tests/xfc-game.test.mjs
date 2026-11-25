@@ -672,26 +672,20 @@ test('as estrelas do cartão de time vão de zero a cinco', () => {
   assert.equal(getTeam('nao-existe'), null);
 });
 
-test('a abertura do XFC inclui o GIF original, o vídeo otimizado e o pôster', async () => {
+test('a abertura serve o GIF original diretamente com o tipo MIME correto', async () => {
   const { server, url } = await startXfcServer({ port: 0 });
   try {
-    const videoResponse = await fetch(`${url}/assets/brand/xfc-intro.mp4`);
-    assert.equal(videoResponse.status, 200);
-    assert.match(videoResponse.headers.get('content-type') || '', /^video\/mp4/);
-    const video = Buffer.from(await videoResponse.arrayBuffer());
-    assert.equal(video.toString('ascii', 4, 8), 'ftyp', 'o clipe é um MP4 válido');
-    assert.ok(video.length < 1_000_000, 'o clipe permanece leve para o app');
-
-    const posterResponse = await fetch(`${url}/assets/brand/xfc-intro-poster.jpg`);
-    assert.equal(posterResponse.status, 200);
-    assert.match(posterResponse.headers.get('content-type') || '', /^image\/jpeg/);
-    assert.ok((await posterResponse.arrayBuffer()).byteLength > 1000);
-
     const gifResponse = await fetch(`${url}/assets/brand/xfc-intro-source.gif`);
     assert.equal(gifResponse.status, 200);
     assert.match(gifResponse.headers.get('content-type') || '', /^image\/gif/);
     const gif = Buffer.from(await gifResponse.arrayBuffer());
-    assert.equal(gif.toString('ascii', 0, 6), 'GIF89a', 'o GIF enviado fica incluído sem alteração');
+    assert.equal(gif.toString('ascii', 0, 6), 'GIF89a', 'a resposta é o GIF original');
+    assert.ok(gif.length > 100_000 && gif.length < 1_000_000, 'o GIF permanece leve para o app');
+
+    const source = await readFile(new URL('../xfc-game/src/screens/intro.js', import.meta.url), 'utf8');
+    assert.match(source, /el\('img'/, 'a tela usa um elemento de imagem, não vídeo');
+    assert.ok(source.includes("assets/brand/xfc-intro-source.gif"), 'a tela aponta para o GIF enviado');
+    assert.ok(!source.includes('.mp4'), 'a abertura não substitui o GIF por vídeo');
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
@@ -734,18 +728,19 @@ test('todo import estático do jogo resolve para um arquivo do pacote', async ()
 
   // O empacotamento do CI não pode mais pular o vendor/ nem o bundle offline.
   const workflow = await readFile(join(root, '.github/workflows/xfc-apk.yml'), 'utf8');
+  const offlineBundle = await readFile(join(gameRoot, 'app.bundle.js'), 'utf8');
+  assert.ok(offlineBundle.includes('assets/brand/xfc-intro-source.gif'),
+    'o bundle file:// precisa usar diretamente o GIF original');
   assert.ok(/zip\s+-r\s+\.\.\/xfc-game\.zip[^\n]*vendor/.test(workflow),
     'o zip do jogo precisa incluir a pasta vendor/');
   assert.ok(workflow.includes('app.bundle.js'),
     'o zip do jogo precisa incluir o app.bundle.js (suporte ao file://)');
   assert.ok(workflow.includes('assets/game/vendor/three'),
     'a checagem do APK precisa exigir o three.js dentro do pacote');
-  assert.ok(workflow.includes('assets/brand/xfc-intro.mp4'),
-    'o APK e o zip precisam levar o vídeo de abertura');
-  assert.ok(workflow.includes('assets/brand/xfc-intro-poster.jpg'),
-    'o APK e o zip precisam levar o pôster de abertura');
   assert.ok(workflow.includes('assets/brand/xfc-intro-source.gif'),
-    'o APK e o zip precisam levar o GIF original enviado pelo usuário');
+    'o APK e o zip precisam levar o GIF original que a abertura usa diretamente');
+  assert.ok(!workflow.includes('assets/brand/xfc-intro.mp4'),
+    'a publicação não deve exigir um vídeo em vez do GIF original');
 });
 
 // Teto de tempo com folga: em paralelo (--test-concurrency) esta navegação
@@ -782,19 +777,25 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // perfis e shaders completos são exercitados em xfc-visual-upgrade.
     await page.evaluate(async()=>{(await import('/src/main.js')).state.profile.graphicsQuality='low';});
 
-    // Intro: reproduz a animação enviada pelo usuário sem áudio; a tecla Enter
-    // permite avançar sem esperar o fim do clipe.
+    // Intro: a própria imagem usa o GIF enviado; Enter permite avançar sem
+    // esperar o fim de uma volta da animação.
     const intro = await page
       .waitForSelector('.screen--intro', { timeout: 15000 })
       .then(() => true)
       .catch(() => false);
     if (intro) {
-      const openingVideo = page.locator('.intro-reference__video');
-      assert.ok(await openingVideo.isVisible(), 'o vídeo original aparece em tela cheia');
-      assert.equal(await openingVideo.getAttribute('src'), 'assets/brand/xfc-intro.mp4');
-      assert.equal(await openingVideo.getAttribute('poster'), 'assets/brand/xfc-intro-poster.jpg');
-      assert.equal(await openingVideo.getAttribute('autoplay'), '');
-      assert.equal(await openingVideo.getAttribute('muted'), '');
+      const openingGif = page.locator('.intro-reference__art');
+      assert.ok(await openingGif.isVisible(), 'o GIF original aparece em tela cheia');
+      assert.equal(await openingGif.evaluate(image => image.tagName), 'IMG');
+      assert.equal(await openingGif.getAttribute('src'), 'assets/brand/xfc-intro-source.gif');
+      await page.waitForFunction(
+        () => {
+          const image = document.querySelector('.intro-reference__art');
+          return image?.complete && image.naturalWidth > 0;
+        },
+        null,
+        { timeout: 5000 }
+      );
       await page.keyboard.press('Enter');
     }
 
