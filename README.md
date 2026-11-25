@@ -1,28 +1,22 @@
-# NextVR — Android/Cardboard passthrough workspace
+# NextVR-Android
 
-NextVR combines the spatial HTML workspace with the latest visual assets from
-**`new_references.zip`** (the primary visual source), native Camera2 passthrough, a hand-tracking
-engine built for this project (`com.nextvr.handtrack`, MediaPipe Tasks Vision), hardware-rendered
-browser surfaces and the existing Google Cardboard SDK (**v1.35.0**).
+Ambiente de trabalho espacial (Spatial Workspace) e Realidade Mista (MR) open source para smartphones Android, construído sobre o SDK do Google Cardboard com recursos avançados de *passthrough* e rastreamento de mãos.
 
-The old artificial room and collectible objects have been removed. A selected panorama (or camera
-passthrough) is the background; the dock, floating windows and keyboard remain independent spatial
-surfaces rendered for both eyes. Cardboard still owns head orientation, eye projection and lens
-distortion. **6 DoF is not included or enabled.**
+## ✨ Principais Recursos
+* **Passthrough Nativo:** Visualização do ambiente real em tempo real utilizando a API `Camera2` do Android.
+* **Hand Tracking (Rastreamento de Mãos):** Interação natural sem controles físicos utilizando *MediaPipe Tasks Vision*.
+* **Janelas Espaciais Flutuantes:** Suporte a múltiplas janelas 3D estereoscópicas, navegador integrado, dock de aplicativos e teclado virtual.
+* **Standalone Mobile:** Roda de forma totalmente independente no smartphone Android, sem necessidade de PC.
 
-> This is an integration with automated UI tests and APK build verification, not a claim of
-> physical-device or pixel-perfect validation. The reference's simulated game-store features
-> remain demonstrations. See [architecture, scope and device checklist](docs/REFERENCE-INTEGRATION.md).
->
-> Use seated. Single-camera passthrough is not depth-correct and is not safe for walking.
+## 🛠️ Tecnologias Utilizadas
+* **Android SDK (Java / Kotlin)**
+* **Google Cardboard SDK**
+* **MediaPipe Tasks Vision**
+* **Android Camera2 API**
 
-## Requirements
-
-- Android Studio compatible with the project's AGP 9.2 / Gradle 9.6.1 configuration
-- JDK **21**, Android SDK **35**, NDK **29.0.14206865**, CMake **3.22.1**
-- Android **8.0/API 26+**, rear camera, gyroscope/accelerometer, Google Cardboard viewer
-- An up-to-date Android System WebView, GLES 3-capable hardware and adequate GPU memory
-- Node **22** only when modifying/building/testing the HTML assets (bundled outputs are checked in)
+## 👤 Autor e Mantenedor
+* **Criado e mantido por:** [@haahaaahhaah-crypto](https://github.com) / [mt-VR](https://github.com)
+* 
 
 ## Build
 
