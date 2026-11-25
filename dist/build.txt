@@ -1,0 +1,3 @@
+XFC APK built by run 45537143995 from commit 7ceb20adc472eb6523fa20f5ec12bf3b4c2b71e7
+size: 70051169 bytes
+md5: 3b06491309ac92705ad8df35c4cb442d
