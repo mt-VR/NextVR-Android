@@ -739,6 +739,8 @@ test('todo import estático do jogo resolve para um arquivo do pacote', async ()
     'a checagem do APK precisa exigir o three.js dentro do pacote');
   assert.ok(workflow.includes('assets/brand/xfc-intro-source.gif'),
     'o APK e o zip precisam levar o GIF original que a abertura usa diretamente');
+  assert.ok(workflow.includes("grep -Fxq 'assets/game/assets/brand/xfc-intro-source.gif'"),
+    'o workflow precisa falhar se o APK não contiver o GIF original');
   assert.ok(!workflow.includes('assets/brand/xfc-intro.mp4'),
     'a publicação não deve exigir um vídeo em vez do GIF original');
 });

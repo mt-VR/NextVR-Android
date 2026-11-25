@@ -110,9 +110,9 @@ jobs:
           test -n "$APK"
           echo "APK: $APK ($(stat -c %s "$APK") bytes)"
           unzip -Z1 "$APK" | grep -E '^assets/game/(index.html|styles/base.css|src/main.js|vendor/three\.module\.min\.js|assets/crests/.*\.png|assets/brand/xfc-intro-source\.gif)$' | sort
-          # O vendor/ é obrigatório: sem o three.js o grafo de módulos do jogo
-          # não carrega e o app abre só com o fundo azul.
+          # O APK precisa conter o Three.js e o GIF original usado pela abertura.
           unzip -Z1 "$APK" | grep -q '^assets/game/vendor/three\.module\.min\.js$'
+          unzip -Z1 "$APK" | grep -Fxq 'assets/game/assets/brand/xfc-intro-source.gif'
 
       - name: Build the offline bundle (file:// support)
         # Gera o app.bundle.js que o index.html injeta quando os módulos ES
