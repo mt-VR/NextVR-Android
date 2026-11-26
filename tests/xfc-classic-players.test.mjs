@@ -80,7 +80,8 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   "src/match3d/hud.js": "43939e6083e8772dfaecd7f0f0ef23192c17e2ef80b6054a4f9c0ae3a8ea0285",
   "src/match3d/controls.js": "9519199c6a3b879b588fc110396e1500f8d86bde76a93b979635d66e2e4b5376",
   // v0.5.89: câmera Pro Zoom/Speed/Swing, elástico/roleta e sprint da IA.
-  "src/match3d/match.js": "85fd5004c02b9a8e04bd1ab4e38002235f199172227609ce609e8e6796c1fa8e",
+  // v0.5.94: escala visual dos atletas de linha em 1,18×; coordenadas e colisões inalteradas.
+  "src/match3d/match.js": "a62466cabcd03e1c50b627964722923dd881252ab049c26705cb1254765b2fe2",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).

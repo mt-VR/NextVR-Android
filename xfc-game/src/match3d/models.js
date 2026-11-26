@@ -171,9 +171,9 @@ function findBone(root, name) {
   return found;
 }
 
-// Ajuste pedido em v0.5.29: mesmo Micah, rig/topologia/UV intactos.
-// Dilatação radial moderada por influência de osso, calculada UMA vez por malha.
-// Não escala o comprimento dos ossos, nem infla cabeça, mãos ou tronco.
+// Ajuste visual do atleta: mesmo Micah, rig/topologia/UV intactos.
+// Volume radial discreto em braços e pernas, calculado UMA vez por malha,
+// sem alterar o comprimento dos ossos nem inflar cabeça, mãos ou tronco.
 const athleticGeometryCache=new WeakMap();
 function athleticLimbs(model){
   model.updateMatrixWorld(true);
@@ -190,7 +190,7 @@ function athleticLimbs(model){
       const child=bone.children.find(b=>b.isBone);if(!child)return null;
       const origin=bone.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
       const end=child.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
-      return {origin,axis:end.sub(origin).normalize(),gain:/Leg$/.test(name)?.13:.07};
+      return {origin,axis:end.sub(origin).normalize(),gain:/Leg$/.test(name)?.16:.09};
     });
     const v=new THREE.Vector3(),radial=new THREE.Vector3(),delta=new THREE.Vector3();
     for(let i=0;i<position.count;i++){
@@ -263,7 +263,9 @@ export function createGltfPlayer(options = {}) {
   const presence = Number(options.pitchPresence) > 0 ? Number(options.pitchPresence) : 1;
   const bodyHeight = options.height ? Math.max(1.70,Math.min(2.05,options.height/100)) : (lowPoly ? 1.90 : 1.88);
   root.userData.targetHeight=bodyHeight;
-  root.userData.limbRadialGain={arms:1.07,legs:1.13};
+  root.userData.pitchPresence=presence;
+  root.userData.visualHeight=bodyHeight*presence;
+  root.userData.limbRadialGain={arms:1.09,legs:1.16};
   const scale = size.y > 0.01 ? (bodyHeight * presence) / size.y : 1;
   model.scale.setScalar(scale);
   if(options.body){const width=({lean:.96,normal:1,strong:1.04}[options.body]||1)*Math.max(.95,Math.min(1.07,1+((options.weight||68)-68)*.002));model.scale.x*=width;model.scale.z*=width;}

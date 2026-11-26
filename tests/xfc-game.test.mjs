@@ -229,7 +229,8 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
         kit,
         number: 10,
         teamName: 'XFC',
-        photo: 'assets/test-player-photo.png'
+        photo: 'assets/test-player-photo.png',
+        pitchPresence: 1.18
       }),
       createPlayer3D({ simplified: true, kit, number: 9, teamName: 'XFC', hairStyle: 'afro' }),
       createPlayer3D({
@@ -271,6 +272,7 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
       assert.equal(model.root.userData.modelId, 'xfc-footballer-v2');
       assert.equal(model.root.userData.rigVersion, 2);
       assert.equal(model.root.userData.detailLevel, index < 2 ? 'mobile' : 'full');
+      assert.equal(model.root.userData.pitchPresence, index === 0 ? 1.18 : 1);
       const shirtMaterial = model.root.getObjectByName('xfc-player-torso').material;
       assert.equal(Boolean(shirtMaterial.isMeshLambertMaterial), index < 2,
         'o perfil móvel mantém tecido econômico e o completo usa reflexo de tecido');
@@ -2300,11 +2302,11 @@ test('os avisos de falta e bola parada saíram da tela e o gol ganhou cartão no
   assert.ok(hudSource.includes('hud__goal-number'), 'o número da camisa aparece no cartão');
 });
 
-test('mata-mata empatado vai para prorrogação e decide nos pênaltis', async () => {
+test('mata-mata empatado vai para prorrogação e decide nos pênaltis', async (t) => {
   // O fluxo completo 90' → 105' → 120' → pênaltis depende de timers reais do
   // motor; aqui o relógio é conduzido à mão para provar as transições sem
   // depender de 20 minutos de jogo simulado.
-  const browser = await launchOrSkip();
+  const browser = await launchOrSkip(t);
   if (!browser) return;
   const { server, url } = await startXfcServer({ port: 0 });
   try {

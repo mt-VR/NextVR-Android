@@ -436,9 +436,9 @@ export function createMatch(options = {}) {
         simplified: options.simplifiedPlayers ?? engine.lowPower,
         // Visual dos jogadores escolhido no perfil (Ajustes › Gráficos).
         playerStyle: options.playerStyle ?? 'modern',
-        // Linha 1,34× (print). Goleiro fica na estatura FIFA: senão tapa a
-        // trave de 2,44 m.
-        pitchPresence: 1.12,
+        // Ampliação uniforme é só visual: coordenadas e colisões do motor
+        // continuam iguais. Goleiros mantêm escala menor diante da trave.
+        pitchPresence: isKeeper ? 1.12 : 1.18,
         skinTone: look.skinTone,
         hairColor: look.hairColor,
         hairStyle: look.hairStyle,

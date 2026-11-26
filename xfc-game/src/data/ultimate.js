@@ -293,7 +293,7 @@ export function ensureUltimate(profile, now = Date.now()) {
 
 const LOGO_MAX = 350000;
 
-/** Nome e brasão do clube UT — o usuário personaliza os dois. */
+/** Identidade visual do UT; alterar o brasão não muda clube, elenco ou cartas. */
 export function setUtIdentity(profile, { name, logo } = {}) {
   const u = ensureUltimate(profile);
   if (name !== undefined) {

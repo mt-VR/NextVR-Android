@@ -157,6 +157,35 @@ function projectToStage(camera, position, out = null) {
 }
 
 export function playScreen(ctx, params = {}) {
+  const requestsUltimateTeam = Boolean(params.ultimateMatchId || params.home === 'xfc-ut');
+  const ultimateHome = params.ultimateMatchId
+    ? ultimateMatchTeam(ctx.state.profile, params.ultimateMatchId)
+    : null;
+  if (requestsUltimateTeam && !ultimateHome) {
+    const message = el('div', { class: 'play__loading play__loading--error' },
+      el('b', { text: 'CONFRONTO DO ULTIMATE TEAM NÃO ENCONTRADO' }),
+      el('span', { text: 'Volte ao Ultimate Team para iniciar ou retomar seu elenco.' }),
+      el('button', {
+        class: 'btn btn--primary', type: 'button',
+        onClick: () => ctx.go('ultimate')
+      }, 'VOLTAR AO ULTIMATE TEAM')
+    );
+    const node = el('div', { class: 'screen screen--play' },
+      el('div', { class: 'play__stage' },
+        el('div', { class: 'play__overlay is-visible' }, message)
+      )
+    );
+    return {
+      node,
+      onKey(event) {
+        if (event.key === 'Escape' || event.key === 'Backspace') {
+          ctx.go('ultimate');
+          return true;
+        }
+        return false;
+      }
+    };
+  }
   const career=params.careerMatchId?getCareer(ctx.state.profile,params.careerKind||'player'):null;
   const careerManager=career?.kind==='manager';
   const careerClub=career&&career.pending?.id===params.careerMatchId?plannedTeam(careerRoster(career,careerManager?'manager':'player'),career.plan,careerManager?null:career.player.id):null;
@@ -168,7 +197,7 @@ export function playScreen(ctx, params = {}) {
   // escolhidas na tela de uniformes (o clube de mesmo nome não existe aqui).
   const homePick=kickoffSide(params.home || ctx.state.selection.home, params.homeColors);
   const awayPick=kickoffSide(params.away || ctx.state.selection.away || 'real-madrid', params.awayColors);
-  const home = (careerClub?.id===params.home?careerClub:null) || (params.ultimateMatchId && ultimateMatchTeam(ctx.state.profile,params.ultimateMatchId)) || (careerManager&&managerTeam(career,params.home)) || homePick.team || resolvePlayableTeam(params.home || ctx.state.selection.home);
+  const home = (careerClub?.id===params.home?careerClub:null) || ultimateHome || (careerManager&&managerTeam(career,params.home)) || homePick.team || resolvePlayableTeam(params.home || ctx.state.selection.home);
   const away = (careerClub?.id===params.away?careerClub:null) || (careerManager&&managerTeam(career,params.away)) || awayPick.team || resolvePlayableTeam(params.away || ctx.state.selection.away || 'real-madrid');
   const homeKit = kitForTeam(home, params.homeKit ?? 0);
   const awayKit = kitForTeam(away, params.awayKit ?? 0);
