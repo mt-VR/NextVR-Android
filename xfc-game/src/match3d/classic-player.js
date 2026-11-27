@@ -3,22 +3,38 @@
 import {THREE} from './engine.js';
 const shapes=new Map(),faces=new Map(),textures=new Map();
 export const CLASSIC_HAIR_STYLES=['short','fade','curly','afro','bald','mohawk','side','long','neymar','braids','dreads'];
+const normalizeName=name=>String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const VINICIUS_NAMES=new Set(['viniciusjr','viniciusjunior','vinijr']);
 export function classicIdentity(name='XFC'){
+ // Preserve the pre-existing six-variant roster hash; punctuation remains part
+ // of the seed for everyone except the explicit named face profile below.
  let seed=2166136261;for(const c of String(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase())seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;
  return seed%6;
+}
+/** A named face profile is explicit only where a supplied portrait exists. */
+export function classicFaceProfile(name='XFC'){
+ return VINICIUS_NAMES.has(normalizeName(name))?'vinicius-junior':classicIdentity(name);
 }
 const FACE_SHAPES=[
  {jaw:1,nose:1,chin:0}, {jaw:.88,nose:1.08,chin:-.003},
  {jaw:1.10,nose:.93,chin:.002}, {jaw:.95,nose:1.13,chin:.004},
  {jaw:1.06,nose:1.04,chin:-.004}, {jaw:.92,nose:.90,chin:.001}
 ];
+const NAMED_FACE_SHAPES=Object.freeze({
+ // Protótipo orientado ao retrato local: mandíbula e maçãs um pouco mais
+ // largas, com nariz discretamente mais largo. Continua integrado à malha.
+ 'vinicius-junior':{jaw:1.06,nose:1.07,noseWidth:1.20,cheek:1.08,chin:-.001}
+});
 export function classicFaceGeometry(mesh,identity=0){
  const key=mesh.geometry.uuid+':'+identity;if(faces.has(key))return faces.get(key);
- const g=mesh.geometry.clone(),p=g.attributes.position,shape=FACE_SHAPES[identity%6];
+ const g=mesh.geometry.clone(),p=g.attributes.position,shape=typeof identity==='string'?NAMED_FACE_SHAPES[identity]||FACE_SHAPES[0]:FACE_SHAPES[Math.abs(identity|0)%FACE_SHAPES.length];
+ const cheek=shape.cheek??1,noseWidth=shape.noseWidth??1;
  for(let i=0;i<p.count;i++){
   const x=p.getX(i),y=p.getY(i),z=p.getZ(i);if(y<1.59||y>1.78||Math.abs(x)>.12)continue;
   const jaw=Math.max(0,1-Math.abs(y-1.635)/.055),front=Math.max(0,Math.min(1,(z-.045)/.07));
   const nose=Math.max(0,1-Math.abs(x)/.032)*Math.max(0,1-Math.abs(y-1.689)/.035)*front;
+  const noseWings=Math.max(0,1-Math.abs(y-1.663)/.020)*Math.max(0,1-Math.abs(x)/.055)*front;
+  const cheeks=Math.max(0,1-Math.abs(y-1.649)/.036)*Math.max(0,1-Math.abs(x)/.108)*front;
   // Glabela (entre as sobrancelhas): a malha do GLB tem uma quina viva ali que
   // lê como plástico. Um leve arredondamento puxando z para baixo suaviza a
   // transição testa→nariz sem mexer na silhueta.
@@ -28,11 +44,14 @@ export function classicFaceGeometry(mesh,identity=0){
   const bridge=Math.max(0,1-Math.abs(y-1.672)/.024)*Math.max(0,1-Math.abs(x)/.022)*front;
   const tip=Math.max(0,1-Math.hypot(x/.026,(y-1.664)/.016))*front;
   p.setXYZ(i,
-   x*(1+(shape.jaw-1)*jaw-(bridge*.16)),
+   x*(1+(shape.jaw-1)*jaw+(cheek-1)*cheeks+(noseWidth-1)*noseWings-(bridge*.16)),
    y+shape.chin*jaw*front,
    z+(shape.nose-1)*.055*nose-glabella*.010+bridge*.014+tip*.006);
  }
- g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();g.userData.classicFace=identity;
+ g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();
+ // BufferGeometry.copy shares userData by reference in Three.js. Replace the
+ // object so another roster identity cannot overwrite this player's metadata.
+ g.userData={...g.userData,classicFace:identity};
  faces.set(key,g);return g;
 }
 export function classicHairGeometry(mesh,style='short'){

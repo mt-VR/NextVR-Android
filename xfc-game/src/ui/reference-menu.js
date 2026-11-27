@@ -1,11 +1,36 @@
 // Artes fornecidas pelo usuário; toda área de interação é um botão DOM.
 import { el } from './dom.js';
-export function hotspot(label, rect, onClick, attrs = {}) {
+
+const REFERENCE_SIZE = [1568, 882];
+export const XFC27_SCREEN_SIZE = [1672, 941];
+
+export function hotspot(label, rect, onClick, attrs = {}, referenceSize = REFERENCE_SIZE) {
   const [x,y,w,h] = rect;
+  const [width,height] = referenceSize;
   return el('button', { type:'button', class:'ref-button', 'aria-label':label, title:label,
-    style:{left:`${x/1568*100}%`,top:`${y/882*100}%`,width:`${w/1568*100}%`,height:`${h/882*100}%`},
+    style:{left:`${x/width*100}%`,top:`${y/height*100}%`,width:`${w/width*100}%`,height:`${h/height*100}%`},
     onClick, ...attrs }, el('span',{class:'ref-sr',text:label}));
 }
+
+/** Hotspots measured against the native dimensions of the supplied XFC 27 screenshots. */
+export function xfc27Hotspot(label, rect, onClick, attrs = {}) {
+  return hotspot(label, rect, onClick, attrs, XFC27_SCREEN_SIZE);
+}
+
+/** Full-screen artwork supplied for the XFC 27 menu screens. */
+export function xfc27Screen(className, file, label) {
+  return el('div',{class:`screen ${className} reference-screen xfc27-screen`},
+    el('img',{class:'ref-art',src:`assets/menus/xfc27/${file}.png`,alt:label,draggable:'false'}));
+}
+
+/** The supplied screenshots show separate Select and Back hints in the footer. */
+export function xfc27Footer(node, { select, back }) {
+  node.append(
+    xfc27Hotspot('Selecionar', [48, 810, 152, 54], select, { class: 'ref-button xfc27-action xfc27-footer-action' }),
+    xfc27Hotspot('Voltar', [216, 810, 116, 54], back, { class: 'ref-button xfc27-action xfc27-footer-action' })
+  );
+}
+
 export function referenceMenu(className, file, label) {
   return el('div',{class:`screen ${className} reference-screen`},
     el('img',{class:'ref-art',src:`assets/menus/${file}.jpg`,alt:label,draggable:'false'}));

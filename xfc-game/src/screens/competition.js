@@ -138,8 +138,10 @@ const ART = {
   'brasileirao':'assets/competitions/brasileirao.jpg',
   'copa-do-brasil':'assets/competitions/copa-do-brasil.jpg',
   'uefa-champions-league': 'assets/competitions/ucl.jpg',
+  'uefa-europa-league': 'assets/competitions/ucl.jpg',
   'copa-america': 'assets/competitions/copa-america.jpg',
   'conmebol-libertadores': 'assets/competitions/libertadores.jpg',
+  'conmebol-sudamericana': 'assets/competitions/libertadores.jpg',
   'world-cup': 'assets/competitions/world-cup.jpg'
 };
 
@@ -438,7 +440,7 @@ export function competitionScreen(ctx, params = {}) {
         onClick: returnHome
       },
         iconEl('back'),
-        el('span', { class: 'comp__menu-label', text: returnTo === 'menu' ? 'Voltar ao Menu' : returnTo === 'career' ? 'Voltar à Carreira' : 'Voltar aos Modos' })
+        el('span', { class: 'comp__menu-label', text: returnTo === 'menu' ? 'Voltar ao Menu' : returnTo === 'career' ? 'Voltar à Carreira' : returnTo === 'competitions' ? 'Voltar às Competições' : 'Voltar aos Modos' })
       )
     );
   }

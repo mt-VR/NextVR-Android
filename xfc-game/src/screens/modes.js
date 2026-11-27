@@ -1,41 +1,54 @@
-// Entrada direta de Competições: seis cartões da referência, sem o hub roxo.
-import { el } from '../ui/dom.js';
-import { hotspot, referenceMenu, refNavigation, gridKeys } from '../ui/reference-menu.js';
+// Tela Modos usa integralmente a captura XFC 27 fornecida.
+import { xfc27Footer, xfc27Hotspot, xfc27Screen } from '../ui/reference-menu.js';
+
+function card(node, label, rect, action, option) {
+  const button = xfc27Hotspot(label, rect, action, {
+    class: 'ref-button modes__option xfc27-action',
+    dataset: { option }
+  });
+  node.append(button);
+  return button;
+}
+
 export function modesScreen(ctx) {
-  const node=referenceMenu('screen--modes','tournaments','Menu de torneios XFC');
-  const open=id=>ctx.go('competition',{competitionId:id,returnTo:'modes'});
-  const entries=[
-    ['Liga dos Campeões','uefa-champions-league',[409,135,534,225]],
-    ['Libertadores','conmebol-libertadores',[960,135,550,225]],
-    ['Copa do Mundo','world-cup',[393,384,525,198]],
-    ['Copa do Brasil','copa-do-brasil',[937,384,548,198]],
-    ['Brasileirão','brasileirao',[369,606,523,178]],
-    ['Treino Livre','training',[918,606,546,178]]
-  ];
-  const cards=entries.map(([label,id,rect])=>hotspot(label,rect,()=>id==='training'?ctx.go('training',{drill:'free',returnTo:'modes'}):open(id),
-    {class:'ref-button modes__option',dataset:{option:id}}));
-  node.append(...cards);
-  const back=()=>ctx.go('menu');
-  refNavigation(node,ctx,[['Início',256,80,'menu'],['Jogar',356,86,'kickoff'],['Torneios',451,117,'modes'],['Treino',582,90,'training'],['Competições',685,136,'modes'],['Configurações',837,153,'customise']],back);
-  node.append(hotspot('Torneios',[62,351,262,49],()=>cards[0].focus()),
-    hotspot('Treino',[68,410,245,53],()=>ctx.go('training',{returnTo:'modes'})),
-    hotspot('Copas',[67,466,245,53],()=>extras('Copas')),
-    hotspot('Amistosos',[67,519,245,53],()=>ctx.go('quick',{returnTo:'modes'})),
-    hotspot('Eventos Especiais',[67,575,245,53],()=>extras('Eventos especiais')),
-    hotspot('Selecionar',[46,814,151,61],()=>(cards.find(c=>c.classList.contains('ref-current'))||cards[0]).click()));
-  let dialog=null;
-  function extras(title){
-    dialog?.remove();
-    const rows=[['Copa América',()=>open('copa-america')],['Campanha da Copa',()=>ctx.go('worldcup',{returnTo:'modes'})],
-      ['Final de Copa',()=>ctx.go('kickoff',{competition:{id:'cup-final',title:'Final de Copa',format:'Final única'},returnTo:'modes'})],
-      ['Casa e fora',()=>ctx.go('kickoff',{competition:{id:'home-away',title:'Home & Away',format:'Mandante · visitante'},returnTo:'modes'})],
-      ['Série especial',()=>ctx.go('kickoff',{competition:{id:'best-of-series',title:'Best of Series',format:'Série especial'},returnTo:'modes'})],
-      ['Treino de equipe',()=>ctx.go('training',{drill:'team',returnTo:'modes'})]];
-    dialog=el('section',{class:'ref-dialog',role:'dialog','aria-label':title},el('h2',{text:title}),
-      ...rows.map(([text,action])=>el('button',{type:'button',text,onClick:action})),
-      el('button',{type:'button',text:'Voltar',onClick:()=>{dialog.remove();dialog=null;cards[0].focus();}}));
-    node.append(dialog);dialog.querySelector('button').focus();
-  }
-  const keys=gridKeys(cards,2,back);
-  return {node,onKey(event){if(dialog&&(event.key==='Escape'||event.key==='Backspace')){dialog.remove();dialog=null;return true;}return dialog?false:keys(event);}};
+  const node = xfc27Screen('screen--modes', 'modes', 'Menu de modos XFC 27');
+  const cards = [];
+  let activeCard = 0;
+  const back = () => ctx.go('menu');
+  const select = () => cards[activeCard]?.click();
+
+  // Cabeçalho do screenshot: manter a navegação no próprio fluxo XFC.
+  node.append(
+    xfc27Hotspot('Início', [333, 20, 129, 76], back, { class: 'ref-button xfc27-action' }),
+    xfc27Hotspot('Modos', [465, 20, 139, 76], () => {}, { class: 'ref-button xfc27-action' }),
+    xfc27Hotspot('Personalizar', [607, 20, 186, 76], () => ctx.go('customise'), { class: 'ref-button xfc27-action' }),
+    xfc27Hotspot('Configurações', [790, 20, 202, 76], () => ctx.go('customise'), { class: 'ref-button xfc27-action' }),
+    xfc27Hotspot('Perfil e configurações', [1280, 22, 310, 70], () => ctx.go('customise'), { class: 'ref-button xfc27-action' })
+  );
+
+  cards.push(card(node, 'PvP · jogar contra outras pessoas', [46, 167, 730, 298], () => ctx.go('pvp'), 'pvp'));
+  cards.push(card(node, 'Missões · objetivos do Ultimate Team', [793, 167, 732, 298], () => ctx.go('ultimate', { section: 'objectives' }), 'missions'));
+  cards.push(card(node, 'Futebol feminino', [46, 485, 730, 290], () => ctx.toast('O modo de futebol feminino ainda não está disponível.'), 'women'));
+  cards.push(card(node, 'Desafio · Centro de Treino', [793, 485, 732, 290], () => ctx.go('training', { returnTo: 'modes' }), 'challenge'));
+  cards.forEach((button, index) => button.addEventListener('focus', () => { activeCard = index; }));
+  xfc27Footer(node, { select, back });
+
+  return {
+    node,
+    onKey(event) {
+      if (event.key === 'Escape' || event.key === 'Backspace') { back(); return true; }
+      const delta = { ArrowRight: 1, ArrowDown: 2, ArrowLeft: -1, ArrowUp: -2 }[event.key];
+      if (delta) {
+        const focused = cards.indexOf(document.activeElement);
+        activeCard = ((focused >= 0 ? focused : activeCard) + delta + cards.length) % cards.length;
+        cards[activeCard]?.focus();
+        return true;
+      }
+      if ((event.key === 'Enter' || event.key === ' ') && !document.activeElement?.matches?.('button')) {
+        select();
+        return true;
+      }
+      return false;
+    }
+  };
 }

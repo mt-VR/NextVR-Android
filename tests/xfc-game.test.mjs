@@ -859,28 +859,19 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');
     await page.click('.launch__enter');
 
-    // Hub de futebol da referência: estádio em tela cheia, Kick Off selecionado,
-    // nove atalhos verticais, progressão no topo e ação principal.
+    // O home usa a captura XFC 27 do usuário em tela cheia; carteira e XP
+    // continuam dinâmicos e as ações seguem sendo botões DOM acessíveis.
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
     await imagesReady();
-    const navLabels = await page.locator('.menu__item-label').allTextContents();
-    assert.deepEqual(navLabels, [
-      'JOGO RÁPIDO', 'FC NEWS', 'KICK OFF', 'THE GROUNDS', 'ULTIMATE TEAM', 'CARREIRA DE JOGADOR', 'LEARN TO PLAY',
-      'SEASONS', 'TOURNAMENTS', 'TIME ALEATÓRIO', 'ONLINE FRIENDLIES'
-    ], 'o menu mantém as opções do hub em uma lista vertical');
-    assert.equal(await page.locator('.menu__item.is-focused').getAttribute('data-menu-item'), 'kickoff',
-      'KICK OFF aparece selecionado por padrão');
-    assert.equal(await page.locator('.hub__background').getAttribute('src'), 'assets/bg/menu-hero.jpg',
-      'o menu usa a imagem de estádio em tela cheia');
-    assert.ok(await page.locator('.hub__wordmark svg').count() > 0, 'o menu mostra a marca XFC');
-    assert.ok(await page.locator('.hub__progress').isVisible(), 'a barra de XP aparece no topo');
-    assert.equal(await page.locator('.hub__xp-bar').getAttribute('role'), 'progressbar',
-      'o progresso de XP expõe uma barra acessível');
-    assert.equal(await page.locator('.hub__xp-bar').getAttribute('aria-valuenow'), '3000');
-    assert.equal(await page.locator('.hub__cta-label').textContent(), 'Enter Kick Off',
-      'a ação principal acompanha o modo selecionado');
+    assert.equal(await page.locator('.ref-art').getAttribute('src'), 'assets/menus/xfc27/home.png');
+    assert.equal(await page.locator('.screen--menu').getAttribute('data-coins'), '1250');
+    assert.ok(await page.locator('.xfc27-live-header').isVisible(), 'carteira e nível do perfil continuam visíveis');
+    assert.equal(await page.locator('.xfc27-xp__track').getAttribute('role'), 'progressbar');
+    assert.equal(await page.locator('.xfc27-xp__track').getAttribute('aria-valuenow'), '3000');
+    assert.equal(await page.locator('.menu__item[data-menu-item="career"]').count(), 1,
+      'Carreira continua acessível pela arte de entrada, sem substituir a tela interna');
     assert.equal(await page.locator('.menu__scene3d canvas').count(), 0,
-      'o menu de referência usa arte de estádio em vez da cena 3D antiga');
+      'o menu usa a captura fornecida, sem uma cena 3D adicional');
 
     // Loja do Ultimate Team: compra de carta, desconto de moedas e coleção salva.
     const coinsBeforePurchase = Number(await page.locator('.screen--menu').getAttribute('data-coins'));
@@ -911,7 +902,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--menu');
 
     // Configurações e personalização: grade, diálogos e edição de perfil.
-    await page.locator('.hub__quick-button[data-action="settings"]').click();
+    await page.locator('.xfc27-settings').click();
     await page.waitForSelector('.screen--customise');
     assert.equal(await page.locator('.customise__tile').count(), 8, 'a tela de personalização mostra oito opções');
     await page.locator('.customise__tile[data-tile="profile"]').click();
@@ -922,32 +913,33 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
 
-    // Play Modes: a Copa abre uma tela acessível e o botão Escape volta aos modos.
+    // O seletor de modos usa a segunda captura; a página de competições da
+    // referência é acessada pelo atalho Eventos ao Vivo da tela inicial.
     await page.locator('.menu__item[data-menu-item="tournament"]').click();
     await page.waitForSelector('.screen--modes');
-    assert.equal(await page.locator('.modes__option').count(), 6, 'o menu abre direto nos seis cartões da referência');
-    for (const option of ['uefa-champions-league', 'conmebol-libertadores', 'world-cup', 'copa-do-brasil', 'brasileirao']) {
-      assert.equal(await page.locator(`.modes__option[data-option="${option}"]`).count(), 1,
-        `${option} aparece no carrossel de torneios`);
-    }
-    assert.ok(await page.locator('.modes__option[data-option="training"]').isVisible(),
-      'o Centro de Treino fica acessível pelos modos de jogo');
-    assert.ok(await page.locator('.modes__option[data-option="world-cup"]').isVisible(), 'a Copa aparece como cartão');
-    // A Copa abre o menu próprio da competição (o modo Campanha continua no menu principal).
-    await page.locator('.modes__option[data-option="world-cup"]').click();
+    assert.equal(await page.locator('.ref-art').getAttribute('src'), 'assets/menus/xfc27/modes.png');
+    assert.equal(await page.locator('.modes__option').count(), 4, 'o screenshot apresenta PvP, missões, futebol feminino e desafio');
+    assert.deepEqual(await page.locator('.modes__option').evaluateAll(items => items.map(item => item.dataset.option)),
+      ['pvp', 'missions', 'women', 'challenge']);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+    await page.locator('[data-menu-item="events"]').click();
+    await page.waitForSelector('.screen--competitions');
+    assert.equal(await page.locator('.competitions__option').count(), 6, 'seis torneios aparecem na arte fornecida');
+    await page.locator('.competitions__option[data-competition="world-cup"]').click();
     await page.waitForSelector('.screen--competition[data-competition="world-cup"]');
     assert.equal(await page.locator('.comp__menu-item').count(), 9, 'o menu da Copa lista oito opções e o voltar');
     await page.locator('.comp__menu-item[data-panel="play"]').click();
     await page.locator('.comp__team-card[data-team-id="argentina"]').click();
     await page.locator('.comp__selection-preview .comp__cta').click();
     await page.waitForSelector('.comp__match');
-    // Escape volta do painel para o menu da competição e, de novo, para os modos.
+    // Escape volta do painel para a competição e, em seguida, à captura de seleção.
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--competition[data-competition="world-cup"] .comp__deck');
     await page.keyboard.press('Escape');
-    // A campanha clássica (Seasons) segue intacta a partir do menu principal.
-    await page.waitForSelector('.screen--modes');
+    await page.waitForSelector('.screen--competitions');
     await page.keyboard.press('Escape');
+    // A campanha clássica (Seleções) segue acessível pela arte inicial.
     await page.waitForSelector('.screen--menu');
     await page.locator('.menu__item[data-menu-item="seasons"]').click();
     await page.waitForSelector('.screen--competition[data-competition="world-cup"]');
@@ -1015,16 +1007,19 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
 
-    // Kick Off continua acessível pela tela de modos.
-    await page.locator('.menu__item[data-menu-item="tournament"]').click();
-    await page.waitForSelector('.screen--modes');
-    await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
+    // A Champions abre a partir da seleção de competições; Kick Off continua
+    // diretamente disponível pelo atalho Clubes da home.
+    await page.locator('[data-menu-item="events"]').click();
+    await page.waitForSelector('.screen--competitions');
+    await page.locator('.competitions__option[data-competition="uefa-champions-league"]').click();
     await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
     assert.equal(await page.locator('.comp__menu-item').count(), 7,
       'a Champions abre o menu próprio, com seis opções e o voltar');
     await page.keyboard.press('Escape');
-    await page.waitForSelector('.screen--modes');
-    await page.getByRole('button',{name:'Jogar',exact:true}).click();
+    await page.waitForSelector('.screen--competitions');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+    await page.locator('.menu__item[data-menu-item="kickoff"]').click();
     await page.waitForSelector('.screen--kickoff');
     const teamNames = await page.locator('.team-card__name').allTextContents();
     assert.ok(teamNames.includes('FC Barcelona'), 'Barcelona aparece na escolha de times');
@@ -1974,7 +1969,7 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
     await page.waitForSelector('.screen--menu');
     await page.locator('.menu__item[data-menu-item="tournament"]').click();
     await page.waitForSelector('.screen--modes');
-    await page.getByRole('button',{name:'Treino',exact:true}).first().click();
+    await page.locator('.modes__option[data-option="challenge"]').click();
     await page.waitForSelector('.screen--training-select');
     assert.equal(await page.locator('.training-select__choice').count(), 7,
       'a seleção apresenta os sete cartões novos, sem remover o treino coletivo');
@@ -2026,7 +2021,7 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
 
     await page.locator('.mode-home-button').click();
     await page.waitForSelector('.screen--modes');
-    await page.getByRole('button',{name:'Treino',exact:true}).first().click();
+    await page.locator('.modes__option[data-option="challenge"]').click();
     await page.waitForSelector('.screen--training-select');
     await page.locator('.training-select__choice[data-drill="penalty"]').click();
     await page.waitForSelector('.training__stage[data-drill="penalty"]');
@@ -2048,7 +2043,7 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
 
     await page.locator('.mode-home-button').click();
     await page.waitForSelector('.screen--modes');
-    await page.getByRole('button',{name:'Treino',exact:true}).first().click();
+    await page.locator('.modes__option[data-option="challenge"]').click();
     await page.waitForSelector('.screen--training-select');
     await page.getByRole('button',{name:'Treino de equipe',exact:true}).click();
     await page.waitForSelector('.training__stage[data-drill="team"]');
@@ -2103,7 +2098,7 @@ test('as quatro competições sorteiam grupos, calendário, artilharia e campeã
     recordTournamentResult, simulateRound, nextTournamentFixture, tournamentStatus,
     allGroupTables } = await import('../xfc-game/src/data/tournament.js');
 
-  assert.equal(COMPETITIONS.length, 6, 'as quatro competições originais e duas brasileiras');
+  assert.equal(COMPETITIONS.length, 8, 'as quatro competições originais, duas brasileiras e Europa/Sudamericana');
   assert.deepEqual(COMPETITIONS.slice(0,4).map(item => item.id), [
     'uefa-champions-league', 'copa-america', 'conmebol-libertadores', 'world-cup'
   ]);
@@ -2173,8 +2168,8 @@ test('os menus das competições são próprios e todas as opções abrem telas 
     await page.waitForSelector('.screen--launch', { timeout: 15000 });
     await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
-    await page.locator('.menu__item[data-menu-item="tournament"]').click();
-    await page.waitForSelector('.screen--modes', { timeout: 15000 });
+    await page.locator('[data-menu-item="events"]').click();
+    await page.waitForSelector('.screen--competitions', { timeout: 15000 });
 
     const expected = [
       {
@@ -2201,12 +2196,12 @@ test('os menus das competições são próprios e todas as opções abrem telas 
 
     for (const { option, id, labels } of expected) {
       if(option==='copa-america'){
-        await page.getByRole('button',{name:'Copas',exact:true}).click();
+        await page.locator('.competitions__extras').click();
         await page.getByRole('button',{name:'Copa América',exact:true}).click();
-      }else await page.locator(`.modes__option[data-option="${option}"]`).click();
-        await page.waitForSelector(`.screen--competition[data-competition="${id}"]`, { timeout: 15000 });
+      }else await page.locator(`.competitions__option[data-competition="${option}"]`).click();
+      await page.waitForSelector(`.screen--competition[data-competition="${id}"]`, { timeout: 15000 });
       const menuLabels = (await page.locator('.comp__menu-label').allTextContents()).map(text => text.trim());
-      assert.deepEqual(menuLabels, [...labels, 'Voltar aos Modos'],
+      assert.deepEqual(menuLabels, [...labels, 'Voltar às Competições'],
         `${id}: o menu mostra exatamente as opções próprias da competição`);
       assert.equal(await page.locator(`.screen--competition[data-competition="${id}"] .comp__art`).count(), 1,
         `${id}: a arte da competição (estádio e troféu) aparece no palco`);
@@ -2216,12 +2211,12 @@ test('os menus das competições são próprios e todas as opções abrem telas 
       await page.waitForSelector('.screen--menu', { timeout: 15000 });
       assert.equal(await page.locator('.screen--worldcup').count(), 0,
         `${id}: o atalho de início nunca cai na Copa do Mundo`);
-      await page.locator('.menu__item[data-menu-item="tournament"]').click();
-      await page.waitForSelector('.screen--modes', { timeout: 15000 });
+      await page.locator('[data-menu-item="events"]').click();
+      await page.waitForSelector('.screen--competitions', { timeout: 15000 });
     }
 
     // Champions: escolha do clube, sorteio e painéis funcionais.
-    await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
+    await page.locator('.competitions__option[data-competition="uefa-champions-league"]').click();
     await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
     await page.locator('.comp__menu-item[data-panel="play"]').click();
     assert.equal(await page.locator('.comp__team-card').count(), 32, 'a Champions oferece os 32 clubes do pote sorteado');

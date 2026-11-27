@@ -4,7 +4,8 @@
 import { LAB_HAIR } from './player-customization.js';
 const LAB_STYLES = Object.keys(LAB_HAIR).filter(id => id !== 'lab-none');
 const LOOKS = [
-  [['Vinícius Jr','Vinícius Júnior','Vinicius Junior','Vini Jr.'], '#68402e','lab-afro','#19120e'],
+  [['Vinícius Jr','Vinícius Júnior','Vinicius Junior','Vini Jr.'], '#68402e','lab-high-fade','#19120e',
+    {face:'vinicius-junior',beard:'stubble',moustache:'classic',brows:'thick'}],
   [['Valverde','Federico Valverde'], '#d6a17d','lab-low-fade','#493327'],
   [['Courtois','Thibaut Courtois'], '#d5a580','lab-american','#33261e'],
   [['Carvajal','Daniel Carvajal'], '#c38e66','lab-mid-fade','#302016'],
@@ -82,7 +83,7 @@ function hashedStyle(name) {
   for (let i = 0; i < k.length; i += 1) h = Math.imul(h ^ k.charCodeAt(i), 16777619);
   return LAB_STYLES[(h >>> 0) % LAB_STYLES.length];
 }
-const profiles = new Map(LOOKS.flatMap(([names,skinTone,hairStyle,hairColor])=>names.map(name=>[key(name),{skinTone,hairStyle,hairColor}])));
+const profiles = new Map(LOOKS.flatMap(([names,skinTone,hairStyle,hairColor,details={}])=>names.map(name=>[key(name),{skinTone,hairStyle,hairColor,...details}])));
 export function appearanceFor(player={}) {
   const known=profiles.get(key(player.fullName)) || profiles.get(key(player.name));
   return { careerHair:true,skinTone:'#ad7955',hairStyle:hashedStyle(player.fullName||player.name||'xfc'),hairColor:'#2b1d14',

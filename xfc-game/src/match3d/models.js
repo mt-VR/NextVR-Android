@@ -1,6 +1,6 @@
 import {labHairGeometry,labHairMaterial,CAREER_HAIR_ALIAS} from './hair-lab.js';
 import {addPlayerAccessories} from './player-accessories.js';
-import {classicIdentity,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
+import {classicFaceProfile,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
 import {attachLowPolySilhouette} from './low-poly.js';
 import {anthemMouth,anthemSway} from './prematch.js';
 // Adaptação low poly clássica do Micah CC0; roupa/rig/UVs preservados.
@@ -231,7 +231,9 @@ export function createGltfPlayer(options = {}) {
   root.userData.modelId = 'xfc-footballer-glb';
   root.userData.detailLevel = simplified ? 'mobile' : 'full';
   root.userData.visualStyle=lowPoly?'low-poly-psp':'classic-ps2';
-  const identity=classicIdentity(options.name);root.userData.faceVariant=identity;
+  const identity=classicFaceProfile(options.name);root.userData.faceVariant=identity;
+  root.userData.faceReference=identity==='vinicius-junior'?'assets/players/vinicius-junior.jpg':null;
+  root.userData.facePrototype=identity==='vinicius-junior'?'integrated-mesh-profile-and-subtle-facial-pigment':null;
 
   const model = cloneSkeleton(pack.scene);
   model.name = 'xfc-footballer-glb-body';
