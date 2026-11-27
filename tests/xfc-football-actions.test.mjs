@@ -3,11 +3,53 @@ import assert from 'node:assert/strict';
 import {
   runningLegPose,
   penaltyTarget,
-  choosePenaltyLane, rainbowProfile, rainbowPoint
+  choosePenaltyLane, rainbowProfile, rainbowPoint, aerialHeaderAllowed
 } from '../xfc-game/src/match3d/football-actions.js';
 import { PITCH } from '../xfc-game/src/match3d/constants.js';
 import { launchOrSkip } from './support/chromium.mjs';
 import { startXfcServer } from '../xfc-game/serve.mjs';
+import { lateralPassCurve } from '../xfc-game/src/match3d/controls.js';
+import { createGamepad } from '../xfc-game/src/ui/gamepad.js';
+
+test('gamepad expõe carga de chute enquanto Y está pressionado e limpa ao soltar', () => {
+  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const buttons = Array.from({ length: 17 }, () => ({ pressed: false, value: 0 }));
+  const pad = { connected: true, index: 0, id: 'Xbox Controller', axes: [0, 0], buttons };
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true, value: { getGamepads: () => [pad] }
+  });
+  try {
+    const reader = createGamepad();
+    buttons[3] = { pressed: true, value: 1 };
+    const held = reader.poll();
+    assert.ok(held.charging > 0, 'Y segurado alimenta o controle de cabeceio manual');
+    buttons[3] = { pressed: false, value: 0 };
+    const released = reader.poll();
+    assert.ok(released.charging > 0, 'a última carga acompanha o comando de chute');
+    assert.equal(released.commands[0]?.name, 'shoot');
+    assert.equal(reader.poll().charging, 0, 'a carga volta a zero depois da soltura');
+  } finally {
+    if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
+    else delete globalThis.navigator;
+  }
+});
+
+test('passe e enfiada convertem arraste lateral em curva leve e limitada', () => {
+  assert.equal(lateralPassCurve(100, 126), 0, 'gesto curto não aciona a curva');
+  assert.ok(lateralPassCurve(100, 150) > 0, 'arrastar à direita curva para um lado');
+  assert.ok(lateralPassCurve(100, 50) < 0, 'arrastar à esquerda inverte a curva');
+  assert.equal(lateralPassCurve(100, 300), 0.4, 'a intensidade máxima continua moderada');
+  assert.equal(lateralPassCurve(100, -300), -0.4, 'a curva contrária também fica limitada');
+  assert.equal(lateralPassCurve(NaN, 30), 0, 'coordenada inválida não injeta sidespin');
+});
+
+test('IA disputa bolas aéreas; o jogador controlado exige chute segurado e uma tentativa por carga', () => {
+  assert.equal(aerialHeaderAllowed({ isControlled: false }), true,
+    'companheiros e adversários controlados pela IA podem cabecear');
+  assert.equal(aerialHeaderAllowed({ isControlled: true }), false);
+  assert.equal(aerialHeaderAllowed({ isControlled: true, shotCharge: 0.5 }), true);
+  assert.equal(aerialHeaderAllowed({ isControlled: true, shotCharge: 0.5, alreadyTriggered: true }), false);
+});
 
 test('passadas: tornozelo segue trajetória limitada, joelho não lança pé para trás', () => {
   let last;

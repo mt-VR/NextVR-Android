@@ -78,10 +78,12 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "43939e6083e8772dfaecd7f0f0ef23192c17e2ef80b6054a4f9c0ae3a8ea0285",
-  "src/match3d/controls.js": "9519199c6a3b879b588fc110396e1500f8d86bde76a93b979635d66e2e4b5376",
+  // v0.5.95: gestos laterais em passe/enfiada, além da carga compartilhada do cabeceio manual.
+  "src/match3d/controls.js": "8275e265ed885cbb8e3b0b7ef7458473e884212ebf5619b742b857c70e1365ba",
   // v0.5.89: câmera Pro Zoom/Speed/Swing, elástico/roleta e sprint da IA.
   // v0.5.94: escala visual dos atletas de linha em 1,18×; coordenadas e colisões inalteradas.
-  "src/match3d/match.js": "a62466cabcd03e1c50b627964722923dd881252ab049c26705cb1254765b2fe2",
+  // v0.5.95: câmera segue o jogador, não a bola; cabeceio manual/IA, física de curva e espaçamento.
+  "src/match3d/match.js": "f033887c04bcecb74e55de0b51dd1ecdce7f3d62f0e1ce0fba7792994ab408c0",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).

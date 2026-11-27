@@ -14,6 +14,16 @@ const STICK_BASE = 128;   // diâmetro da base, em px do palco
 const STICK_RADIUS = 44;  // alcance do knob, em px do palco
 const DEAD_ZONE = 0.16;
 
+/** Maps a horizontal swipe on a pass/through button to a restrained sidespin. */
+export function lateralPassCurve(startX, endX) {
+  const from = Number(startX), to = Number(endX);
+  if (![from, to].every(Number.isFinite)) return 0;
+  const dx = to - from;
+  const amount = Math.abs(dx);
+  if (amount < 28) return 0;
+  return Math.sign(dx) * Math.min(0.4, ((amount - 28) / 105) * 0.4);
+}
+
 const BUTTONS = [
   { id: 'pass', label: 'PASS', className: 'ctrl-btn--pass' },
   { id: 'shoot', label: 'SHOOT', className: 'ctrl-btn--shoot' },
@@ -103,7 +113,11 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
         ? 'Chute: segure até completar a carga para superchute; para cima curvado, para baixo colocado'
         : item.id === 'tackle'
           ? 'Carrinho: toque para tentar desarmar o adversário próximo'
-          : item.id === 'sprint' ? 'Correr: segure; arraste para cima para chapéu ou para baixo para pedalada' : item.label
+          : item.id === 'pass'
+            ? 'Passe: segure para carregar; arraste para cima para levantar ou para o lado para dar curva leve'
+            : item.id === 'lob'
+              ? 'Enfiada: segure para carregar; arraste para o lado para dar curva leve'
+              : item.id === 'sprint' ? 'Correr: segure; arraste para cima para chapéu ou para baixo para pedalada' : item.label
     },
       item.id === 'sprint'
         ? el('span', { class: 'ctrl-btn__stack' },
@@ -177,6 +191,10 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
         if (item.id !== 'pass' || !charge || event?.clientY === undefined) return 'normal';
         return event.clientY - charge.startY < -30 ? 'lob' : 'normal';
       };
+      const curveFrom = (event, charge) => {
+        if (!['pass', 'lob'].includes(item.id) || !charge) return 0;
+        return lateralPassCurve(charge.startX, event?.clientX);
+      };
       button.addEventListener('pointerdown', event => {
         event.preventDefault();
         event.stopPropagation();
@@ -201,7 +219,8 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
         const payload = {
           strength: Math.max(minStrength, charge.strength),
           lob: item.id === 'pass' && charge.kind === 'lob',
-          kind: charge.kind
+          kind: charge.kind,
+          curve: curveFrom(event, charge)
         };
         holdActions.delete(item.id);
         ui(0, 'normal', false);
@@ -373,7 +392,10 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
     keys.add(event.code);
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') onSprint(true);
     if (event.code === 'KeyK' || event.code === 'KeyL') {
-      if (shootKeyStartedAt === null) shootKeyStartedAt = performance.now();
+      if (shootKeyStartedAt === null) {
+        shootKeyStartedAt = performance.now();
+        onCharge(0.15);
+      }
       event.preventDefault();
       return;
     }
@@ -399,6 +421,7 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
         const elapsed = performance.now() - shootKeyStartedAt;
         const strength = Math.max(SHOOT_MIN_STRENGTH, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
         shootKeyStartedAt = null;
+        onCharge(0);
         if (enabled) onCommand('shoot', { strength, placed: false, kind:strength>=1?'power':'normal' });
       }
     }
@@ -417,6 +440,10 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   }
 
   function readKeyboard() {
+    if (shootKeyStartedAt !== null && enabled) {
+      const elapsed = performance.now() - shootKeyStartedAt;
+      onCharge(Math.max(0.15, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130))));
+    }
     // Toque tem prioridade: o timer do teclado não pode zerar o analógico.
     if (pointerId !== null) return;
     if (!enabled) {
@@ -443,12 +470,17 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
     if(!pad||pad.menuMode)return;
     // Sempre com navegação de jogo (menuMode é controlado pelo main.js).
     const result=pad.poll(0.04,{enabled:true});
-    if(!result.connected){if(padMode)setPadMode(false);return;}
+    if(!result.connected){
+      if(padMode)setPadMode(false);
+      if(currentCharging){currentCharging=false;onCharge(0);}
+      return;
+    }
     if(!padMode)setPadMode(true,result.family);
     const magnitude=Math.hypot(result.move.x,result.move.z);
     // Com os controles desligados (pré-jogo/pausa) só o "cutucão" no
     // analógico passa, para tirar o jogador da apresentação.
     if(!enabled){
+      if(currentCharging){currentCharging=false;onCharge(0);}
       if(magnitude>0.2)onMove(result.move.x,result.move.z);
       return;
     }
@@ -461,8 +493,11 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       if(command&&typeof command==='object')onCommand(command.name,command.payload);
       else onCommand(command);
     }
-    const charging=Boolean(result.charging);
-    if(charging!==currentCharging){currentCharging=charging;if(!charging)onCharge(0);}
+    const charging=Math.max(0,Math.min(1,Number(result.charging)||0));
+    if(charging>0||currentCharging){
+      currentCharging=charging>0;
+      onCharge(charging);
+    }
   }
 
   const keyboardTimer = setInterval(()=>{

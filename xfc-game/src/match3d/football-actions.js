@@ -1,6 +1,16 @@
 import { PITCH, GOAL } from './constants.js';
 // Mecânicas pequenas e determinísticas, compartilhadas pelos testes e pelo jogo.
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/**
+ * AI-controlled players on either team contest aerial balls automatically.
+ * Only the human-controlled player must hold shoot, and only once per charge.
+ */
+export function aerialHeaderAllowed({ isControlled = false, shotCharge = 0, alreadyTriggered = false } = {}) {
+  if (!isControlled) return true;
+  return Boolean(Number(shotCharge) > 0 && !alreadyTriggered);
+}
+
 const smoothstep = (x, a, b) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const T_MathUtils_smoothstep = (x, a, b) => smoothstep(x, a, b);
 

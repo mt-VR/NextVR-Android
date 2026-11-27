@@ -31,7 +31,7 @@ const LOOKS = [
   [['Raphinha','Raphael Dias Belloli'], '#b9825a','lab-dreads','#302014'],
   [['Dani Olmo','Olmo'], '#deae87','lab-straight','#745039'],
   [['Ferran Torres','Ferran'], '#d5a17a','lab-low-fade','#493122'],
-  [['Neymar Jr.','Neymar','Neymar da Silva Santos Júnior'], '#bd8868','lab-reference-mohawk','#a98c5e'],
+  [['Neymar Jr.','Neymar','Neymar da Silva Santos Júnior'], '#bd8868','lab-ragnarok','#ffffff'],
   [['Lionel Messi','Messi'], '#d3a07b','lab-low-fade','#463023'],
   [['Cristiano Ronaldo','Ronaldo'], '#c69469','lab-mid-fade','#342218'],
   [['Alisson','Alisson Becker'], '#d1a07a','lab-low-fade','#4c3222'],

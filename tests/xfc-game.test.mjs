@@ -16,6 +16,7 @@ import { applyBallAirForces, curveSpinRate } from '../xfc-game/src/match3d/physi
 import {
   broadcastCameraPose,
   cameraRelativeMovementFromStick,
+  proCameraAreaTarget,
   cornerCameraPose,
   worldMovementFromStick
 } from '../xfc-game/src/match3d/camera.js';
@@ -240,6 +241,10 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
         teamName: 'XFC',
         preferredFoot: 'Left',
         photo: 'assets/test-player-photo.png'
+      }),
+      createPlayer3D({
+        simplified: true, kit, number: 10, teamName: 'Santos',
+        hairStyle: 'lab-ragnarok', hairColor: '#ffffff'
       })
     );
     let jerseyTexture = null;
@@ -271,12 +276,12 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
     for (const [index, model] of models.entries()) {
       assert.equal(model.root.userData.modelId, 'xfc-footballer-v2');
       assert.equal(model.root.userData.rigVersion, 2);
-      assert.equal(model.root.userData.detailLevel, index < 2 ? 'mobile' : 'full');
+      assert.equal(model.root.userData.detailLevel, index === 2 ? 'full' : 'mobile');
       assert.equal(model.root.userData.pitchPresence, index === 0 ? 1.18 : 1);
       const shirtMaterial = model.root.getObjectByName('xfc-player-torso').material;
-      assert.equal(Boolean(shirtMaterial.isMeshLambertMaterial), index < 2,
+      assert.equal(Boolean(shirtMaterial.isMeshLambertMaterial), index !== 2,
         'o perfil móvel mantém tecido econômico e o completo usa reflexo de tecido');
-      assert.equal(Boolean(shirtMaterial.isMeshPhongMaterial), index >= 2,
+      assert.equal(Boolean(shirtMaterial.isMeshPhongMaterial), index === 2,
         'o material do uniforme mantém a paleta do kit com volume no perfil completo');
       assert.equal(model.legs.length, 2, 'o atleta tem duas pernas articuladas');
       assert.equal(model.arms.length, 2, 'o atleta tem dois braços articulados');
@@ -294,6 +299,11 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
       }
       assert.equal(fingerMeshes, 2, 'as duas mãos conservam cinco dedos cada');
     }
+    const ragnarokHair = models[3].root.getObjectByName('xfc-player-hair');
+    assert.ok(ragnarokHair && ragnarokHair.children.length >= 18,
+      'o fallback Ragnarok cobre o couro inteiro com mechas, sem a crista do moicano');
+    assert.equal(ragnarokHair.children[0].material.color.getHexString(), 'ffffff',
+      'o corte Ragnarok de Neymar permanece branco no fallback 3D');
 
     const mobileTorso = models[0].root.getObjectByName('xfc-player-torso');
     const fullTorso = models[2].root.getObjectByName('xfc-player-torso');
@@ -310,7 +320,7 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
       'o nariz 3D não atravessa a superfície do retrato');
     assert.equal(models[0].root.getObjectByName('xfc-player-nose').visible, true,
       'o perfil móvel conserva o nariz 3D quando omite o retrato');
-    assert.equal(jerseyTexture.userData.references, 3);
+    assert.equal(jerseyTexture.userData.references, 4);
 
     models[0].header(0.02);
     models[0].update(0.03, { ownsBall: true, protecting: true, speed: 1 });
@@ -348,10 +358,12 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
     }
 
     models[0].dispose();
-    assert.equal(jerseyTexture.userData.references, 2,
+    assert.equal(jerseyTexture.userData.references, 3,
       'mesmo usando a camisa em várias malhas, cada jogador solta só uma referência');
     models[1].dispose();
     models[2].dispose();
+    assert.equal(jerseyTexture.userData.references, 1);
+    models[3].dispose();
     assert.equal(jerseyTexture.userData.references, 0);
     assert.equal(jerseyTexture.userData.disposed, true,
       'o último jogador libera a textura do kit');
@@ -372,6 +384,10 @@ test('curva da bola é proporcional ao gesto e compartilha gravidade, arrasto e 
     'um comando maior gera mais rotação lateral');
   assert.equal(curveSpinRate(24, 2), curveSpinRate(24, 1),
     'o sidespin é limitado para impedir trajetórias orbitais');
+  assert.ok(Math.abs(curveSpinRate(42, 1)) <= 2.8,
+    'até um chute carregado mantém rotação lateral moderada');
+  assert.ok(Math.abs(curveSpinRate(8, 0.35)) < Math.abs(curveSpinRate(42, 1)),
+    'a curva acompanha a força do chute sem transformar um passe fraco em giro completo');
 
   const straightVelocity = { x: 20, y: 2, z: 0 };
   const straightSpin = { x: 0, y: 0, z: 0 };
@@ -383,6 +399,13 @@ test('curva da bola é proporcional ao gesto e compartilha gravidade, arrasto e 
     'o Magnus desloca a bola lateralmente durante o voo');
   assert.ok(curvedVelocity.x > 0, 'o efeito lateral não inverte a velocidade de avanço');
   assert.ok(curvedVelocity.y < 2, 'a bola sente gravidade durante o voo');
+
+  const flight = { x: 30, y: 10, z: 0 };
+  const flightSpin = { x: 0, y: curveSpinRate(30, 1), z: 0 };
+  for (let frame = 0; frame < 90; frame += 1) applyBallAirForces(flight, flightSpin, 1 / 60);
+  assert.ok(flight.x > 0, 'a curva nunca manda a bola de volta para o chutador');
+  assert.ok(Math.abs(Math.atan2(flight.z, flight.x)) < 0.3,
+    'um voo prolongado continua descrevendo um arco, não uma volta de 360°');
 });
 
 test('previsão do goleiro e linha de bola parada seguem a mesma física curva', () => {
@@ -427,6 +450,12 @@ test('o treino move pelo referencial da câmera sem mudar o analógico da transm
     'o referencial fixo das partidas não muda');
   assert.deepEqual(worldMovementFromStick(0, -1), { x: 0, z: 1 },
     'baixo continua recuando no campo nas partidas comuns');
+  assert.equal(proCameraAreaTarget(0, 0, 1, 60, 41), null,
+    'a câmera acompanha o atleta sem mirar uma área distante');
+  assert.deepEqual(proCameraAreaTarget(45, 24, 1, 60, 41), { x: 50, z: 0 },
+    'na ponta ofensiva, o foco vira para a área central');
+  assert.deepEqual(proCameraAreaTarget(-45, -24, -1, 60, 41), { x: -50, z: 0 },
+    'o enquadramento da ponta também funciona no sentido oposto do ataque');
   const nearCamera = broadcastCameraPose({ x: 0, y: 0.11, z: 22 });
   const farCamera = broadcastCameraPose({ x: 0, y: 0.11, z: -22 });
   assert.ok(nearCamera.position.z > 0 && farCamera.position.z > 0,
@@ -618,7 +647,7 @@ test('todo jogador com retrato tem a imagem disponível no pacote de assets', ()
   assert.ok(semFoto > 0, 'os clubes sem retrato usam as iniciais');
 });
 
-test('os escudos enviados dos clubes brasileiros e o visual low-poly do Neymar estão ligados aos dados', async () => {
+test('os escudos enviados e o cabelo Ragnarok branco do Neymar estão ligados aos dados', async () => {
   const brazilianClubs = [
     ['flamengo', 'assets/crests/flamengo.png'],
     ['palmeiras', 'assets/crests/palmeiras.png'],
@@ -635,8 +664,8 @@ test('os escudos enviados dos clubes brasileiros e o visual low-poly do Neymar e
   const santos = getTeam('santos');
   const neymar = santos.players.find(player => player.name === 'Neymar Jr.');
   assert.deepEqual(neymar.appearance, {
-    skinTone: '#bd8868', hairColor: '#241b15', hairStyle: 'neymar', heightScale: 1.01
-  }, 'Neymar tem um visual low-poly próprio com crista espetada');
+    skinTone: '#bd8868', hairColor: '#ffffff', hairStyle: 'lab-ragnarok', heightScale: 1.01
+  }, 'Neymar usa o cabelo Ragnarok branco, sem o moicano antigo');
   assert.equal(kitsOf('santos').length, 4, 'Santos mantém três kits e recebe a foto da coleção');
 });
 

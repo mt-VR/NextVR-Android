@@ -293,9 +293,9 @@ export function createGltfPlayer(options = {}) {
     // de camisa o material "top" ficava branco nos dois lados da prévia.
     if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name || options.simplified)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
-      // Pontas descoloridas: o moicano de referência (e o corte "neymar" do
-      // elenco) tem raiz escura e ponta clara, como em 2011/12.
-      const hairTip = renderHair==='lab-reference-mohawk' || (options.careerHair && hairStyle==='neymar')
+      // Pontas descoloridas pertencem apenas ao corte de referência moicano;
+      // o alias antigo de Neymar agora usa o Ragnarok branco.
+      const hairTip = renderHair==='lab-reference-mohawk'
         ? (options.hairTip || '#c9a86a') : null;
       const clone = object.name==='short01'?(renderHair.startsWith('lab-')?labHairMaterial(hairColor,hairTip):classicHairMaterial(hairStyle==='lab-shaved'?'bald':hairStyle.startsWith('lab-')?hairStyle.slice(4):hairStyle,hairColor,skinTone)):material.clone();
       const name = String(material.name || '');
@@ -1137,6 +1137,13 @@ export function createGltfPlayer(options = {}) {
         addBoneRotation(bones.rightForeArm,-.18,0,-.08,dribble);
         addBoneRotation(bones.leftArm,-.08,0,.12,dribble);
         addBoneRotation(bones.rightArm,-.06,0,-.12,dribble);
+        // Small preferred-foot taps give ball carrying a distinct rhythm from
+        // an empty sprint without disturbing the planted-foot gait or the ball.
+        const leadSide=preferredFoot==='Left'?'left':'right';
+        const tap=Math.pow(Math.max(0,Math.sin(gaitPhase*Math.PI*2+(leadSide==='left'?Math.PI:0))),5)*dribble;
+        addBoneRotation(bones[leadSide+'UpLeg'],.045*tap,0,0,1);
+        addBoneRotation(bones[leadSide+'Leg'],.09*tap,0,0,1);
+        addBoneRotation(bones[leadSide+'Foot'],-.055*tap,0,0,1);
         addBoneRotation(bones.spine2,.035*effort*Math.sin(breathing*Math.PI*2),shieldWeight*.1,0,1);
         addBoneRotation(bones.leftArm,-.16,0,.32,shieldWeight);
         addBoneRotation(bones.rightArm,-.12,0,-.32,shieldWeight);

@@ -15,4 +15,4 @@ export const GLOVE_LABELS={none:'Sem luvas',black:'Pretas',white:'Brancas',red:'
 // `lab-mohawk` (crista estriada) foi RETIRADO a pedido do usuário; saves que
 // ainda apontam para ele caem no moicano da referência em vez de ficarem
 // carecas (o estilo deixaria de existir no laboratório).
-export const CAREER_HAIR_ALIAS={short:'lab-low-fade',fade:'lab-mid-fade',curly:'lab-curly',afro:'lab-afro',bald:'lab-shaved',mohawk:'lab-reference-mohawk','lab-mohawk':'lab-reference-mohawk',side:'lab-straight',long:'lab-medium',neymar:'lab-reference-mohawk',braids:'lab-braids',dreads:'lab-dreads'};
+export const CAREER_HAIR_ALIAS={short:'lab-low-fade',fade:'lab-mid-fade',curly:'lab-curly',afro:'lab-afro',bald:'lab-shaved',mohawk:'lab-reference-mohawk','lab-mohawk':'lab-reference-mohawk',side:'lab-straight',long:'lab-medium',neymar:'lab-ragnarok',braids:'lab-braids',dreads:'lab-dreads'};

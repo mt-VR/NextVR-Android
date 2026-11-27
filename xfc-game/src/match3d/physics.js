@@ -5,9 +5,11 @@
 export const BALL_GRAVITY = -9.81;
 export const BALL_LINEAR_AIR_DRAG = 0.035;
 export const BALL_QUADRATIC_AIR_DRAG = 0.00135;
-export const BALL_MAGNUS_COEFFICIENT = 0.07;
-export const BALL_MAX_CURVE_ACCELERATION = 20;
-export const BALL_SPIN_DECAY = 0.78;
+// Sidespin affects the path, not the ball's forward speed. Keep it modest:
+// the former 0.07 coefficient could bend a full-power shot into an orbit.
+export const BALL_MAGNUS_COEFFICIENT = 0.045;
+export const BALL_MAX_CURVE_ACCELERATION = 4.5;
+export const BALL_SPIN_DECAY = 0.9;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -16,7 +18,9 @@ export function curveSpinRate(power, curve) {
   const normalizedCurve = clamp(Number(curve) || 0, -1, 1);
   const shotSpeed = clamp(Number(power) || 0, 0, 42);
   if (Math.abs(normalizedCurve) < 0.001 || shotSpeed < 0.1) return 0;
-  return normalizedCurve * (2.2 + shotSpeed * 0.17);
+  // Capped at a believable angular rate so both light and power shots curve
+  // without making a full circle around the player or receiver.
+  return normalizedCurve * clamp(0.45 + shotSpeed * 0.055, 0, 2.8);
 }
 
 /** Aplica gravidade, arrasto do ar e efeito Magnus à velocidade, sem alocar vetores. */

@@ -946,27 +946,38 @@ function buildHair(style, hairMaterial) {
       mohawk.scale.set(0.42, 0.9, 1.02);
       return mohawk;
     }
-    case 'neymar': {
-      // Topo baixo com laterais raspadas e crista de cones facetados — uma
-      // silhueta low-poly inspirada no moicano espetado do Santos de 2014.
-      const crest = new THREE.Group();
+    case 'neymar':
+    case 'lab-ragnarok': {
+      // Ragnarok: cobertura por todo o couro cabeludo, volume penteado para
+      // trás e mechas irregulares no topo; não forma uma crista moicana.
+      const ragnarok = new THREE.Group();
       const cap = new THREE.Mesh(
-        new THREE.SphereGeometry(0.116, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.48),
+        new THREE.SphereGeometry(0.12, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.57),
         hairMaterial
       );
-      cap.position.set(0, 0.035, -0.008);
-      cap.scale.set(0.9, 0.9, 0.98);
-      crest.add(cap);
-      for (let index = 0; index < 8; index += 1) {
-        const z = 0.043 - index * 0.023;
-        const height = 0.072 + (index % 3) * 0.018;
-        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.023, height, 5), hairMaterial);
-        spike.position.set(index % 2 ? -0.008 : 0.008, 0.095 + height * 0.22, z);
-        spike.rotation.x = 0.28;
-        spike.rotation.z = (index % 2 ? -1 : 1) * 0.08;
-        crest.add(spike);
+      cap.position.set(0, 0.052, -0.012);
+      cap.scale.set(1.02, 0.96, 1.04);
+      ragnarok.add(cap);
+      const lockGeometry = new THREE.SphereGeometry(1, 8, 6);
+      for (let index = 0; index < 13; index += 1) {
+        const across = (index - 6) / 6;
+        const lock = new THREE.Mesh(lockGeometry, hairMaterial);
+        lock.position.set(across * 0.047, 0.106 + (index % 3) * 0.006, -0.015 - (index % 4) * 0.012);
+        lock.scale.set(0.018, 0.036 + (index % 3) * 0.004, 0.052);
+        lock.rotation.x = -0.16;
+        lock.rotation.y = across * 0.3;
+        ragnarok.add(lock);
       }
-      return crest;
+      // Mechas frontais elevadas que se inclinam para a nuca, em vez de picos.
+      for (let index = 0; index < 7; index += 1) {
+        const across = (index - 3) / 3;
+        const lock = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.068 + (index % 2) * 0.012, 5), hairMaterial);
+        lock.position.set(across * 0.025, 0.137 + (index % 2) * 0.005, 0.031);
+        lock.rotation.x = -Math.PI / 3;
+        lock.rotation.z = across * 0.28;
+        ragnarok.add(lock);
+      }
+      return ragnarok;
     }
     case 'side': {
       const side = new THREE.Mesh(new THREE.SphereGeometry(0.114, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), hairMaterial);
@@ -1008,7 +1019,7 @@ function buildHair(style, hairMaterial) {
  * @param {boolean} options.isKeeper usa a roupa do goleiro
  * @param {boolean} [options.simplified] reduz a tesselação sem trocar a anatomia do rig
  * @param {string} [options.photo] retrato do atleta (os jogadores reais)
- * @param {string} [options.hairStyle] penteado (short, curly, afro, mohawk, neymar, side, bob, bald)
+ * @param {string} [options.hairStyle] penteado (short, curly, afro, mohawk, lab-ragnarok, side, bob, bald)
  * @param {boolean} [options.stylized] rosto 3D (olhos, sobrancelhas, boca) — padrão para todo o elenco
  * @param {number} [options.heightScale] variação de altura (0.98–1.07)
  */

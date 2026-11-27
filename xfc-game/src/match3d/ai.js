@@ -69,7 +69,7 @@ export function createTeamAI({ side, world, tempo = 1 }) {
 
     // A largura do 4-3-3 é preservada: a bola desloca o bloco apenas alguns
     // metros lateralmente em vez de puxar onze atletas para o mesmo corredor.
-    const lateralShift = Math.max(-3.2, Math.min(3.2, (ball.z - base.z) * 0.12));
+    const lateralShift = Math.max(-4, Math.min(4, (ball.z - base.z) * 0.15));
     z += lateralShift;
     if (hasPossession && !player.tacticalCustom && ['LW', 'RW'].includes(base.role)) {
       z = Math.sign(base.z || 1) * Math.max(17.5, Math.abs(z));
@@ -116,7 +116,9 @@ export function createTeamAI({ side, world, tempo = 1 }) {
       const dx = target.x - mate.x;
       const dz = target.z - mate.z;
       const d = Math.hypot(dx, dz);
-      const minGap = mate === chaser ? 3.8 : 4.8;
+      // Keep passing lanes visually open; only the active ball winner may close
+      // the gap, the rest hold a more natural 5.3 m support distance.
+      const minGap = mate === chaser ? 4 : 5.3;
       if (d >= minGap) continue;
       const strength = (minGap - d) / minGap;
       const safeDistance = Math.max(0.2, d);

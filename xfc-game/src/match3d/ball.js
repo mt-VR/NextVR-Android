@@ -322,13 +322,13 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
             if (d > reach) continue;
             if (!best || d < best.distance) best = { player, distance: d };
           }
-          if (best) {
+          if (best && onAerialTouch({ player: best.player, height: headY, from: state.lastIntentionalTouch }) === true) {
+            // A denied/automatic request must not arm the cooldown: the human
+            // may still be holding shoot as the cross enters heading range.
             state.headerLock = 0.65;
-            if (onAerialTouch({ player: best.player, height: headY, from: state.lastIntentionalTouch }) === true) {
-              mesh.position.copy(position);
-              shadow.position.set(position.x, 0.02, position.z);
-              return null;
-            }
+            mesh.position.copy(position);
+            shadow.position.set(position.x, 0.02, position.z);
+            return null;
           }
         }
       }

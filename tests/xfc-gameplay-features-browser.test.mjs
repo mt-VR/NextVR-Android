@@ -3,6 +3,39 @@ import assert from 'node:assert/strict';
 import { launchOrSkip } from './support/chromium.mjs';
 import { startXfcServer } from '../xfc-game/serve.mjs';
 
+test('cabeceio recusado não ativa cooldown antes de o usuário segurar chute', { timeout: 90000 }, async t => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) { server.close(); return; }
+  try {
+    const page = await browser.newPage();
+    await page.goto(url);
+    const result = await page.evaluate(async () => {
+      const { THREE } = await import('/src/match3d/engine.js');
+      const { createBall } = await import('/src/match3d/ball.js');
+      const scene = new THREE.Scene();
+      let attempts = 0;
+      const ball = createBall(scene, {
+        lowPower: true,
+        onAerialTouch: () => ++attempts > 1
+      });
+      const player = { active: true, isKeeper: false, x: 0, z: 0, reach: .52,
+        reachHeight: 1.8, root: { position: { x: 0, z: 0 } } };
+      ball.state.position.set(0, 2.1, 0);
+      ball.state.velocity.set(0, 0, 0);
+      ball.update(1 / 120, [player]);
+      const lockAfterDeniedRequest = ball.state.headerLock;
+      ball.update(1 / 120, [player]);
+      const lockAfterAcceptedRequest = ball.state.headerLock;
+      ball.dispose();
+      return { attempts, lockAfterDeniedRequest, lockAfterAcceptedRequest };
+    });
+    assert.equal(result.attempts, 2, 'a bola continua oferecendo a janela de cabeceio');
+    assert.equal(result.lockAfterDeniedRequest, 0, 'pedido ainda não iniciado: sem cooldown');
+    assert.ok(result.lockAfterAcceptedRequest > 0.6, 'cooldown começa após o cabeceio acionado');
+  } finally { await browser.close(); server.close(); }
+});
+
 test('bola parada: ninguém gruda na barreira/goleiro, só rebate, e depois volta ao normal', { timeout: 90000 }, async t => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
@@ -185,6 +218,103 @@ async function careerMatchPage(page, url) {
     return { hero: m.controlled[m.world.userSide]?.rosterId };
   });
 }
+
+test('passe fraco e forte aceitam curva leve sem gerar spin excessivo', { timeout: 120000 }, async t => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) { server.close(); return; }
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    await careerMatchPage(page, url);
+    const result = await page.evaluate(() => {
+      const m = window.__xfcMatch;
+      const side = m.world.userSide;
+      const hero = m.controlled[side];
+      const mate = m.teams[side].players.find(p => p.active && p !== hero && !p.isKeeper);
+      for (const player of [...m.teams.home.players, ...m.teams.away.players]) player.active = player === hero || player === mate;
+      hero.x = 0; hero.z = 0; hero.vx = hero.vz = 0;
+      mate.x = side === 'home' ? 15 : -15; mate.z = 0; mate.vx = mate.vz = 0;
+      const kick = (name, strength) => {
+        m.ball.reset(0, 0);
+        m.ball.attachTo(hero);
+        const accepted = m.world.command(name, { strength, curve: 0.4 });
+        return { accepted, spin: m.ball.state.spin.y };
+      };
+      return {
+        weak: kick('pass', 0.12), strong: kick('pass', 1),
+        throughWeak: kick('lob', 0.12), throughStrong: kick('lob', 1)
+      };
+    });
+    for (const shot of Object.values(result)) assert.equal(shot.accepted, true);
+    assert.ok(result.weak.spin > 0 && result.strong.spin > result.weak.spin,
+      'o sidespin segue a força do passe normal de modo previsível');
+    assert.ok(result.throughWeak.spin > 0 && result.throughStrong.spin > result.throughWeak.spin,
+      'a enfiada também aceita sidespin proporcional à carga');
+    assert.ok(result.strong.spin < 0.7 && result.throughStrong.spin < 1,
+      'mesmo passe carregado mantém curva moderada');
+  } finally { await browser.close(); server.close(); }
+});
+
+test('cabeceio aéreo do atleta controlado exige segurar o botão de chute', { timeout: 120000 }, async t => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  const browser = await launchOrSkip(t);
+  if (!browser) { server.close(); return; }
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    await careerMatchPage(page, url);
+    const result = await page.evaluate(() => {
+      const m = window.__xfcMatch;
+      const hero = m.controlled[m.world.userSide];
+      for (const player of [...m.teams.home.players, ...m.teams.away.players]) player.active = player === hero;
+      hero.x = 0; hero.z = 0; hero.vx = hero.vz = 0;
+      let headers = 0;
+      const header = hero.model.header.bind(hero.model);
+      hero.model.header = (...args) => { headers += 1; return header(...args); };
+      const resetAerial = () => {
+        m.ball.state.position.set(0, 2.1, 0);
+        m.ball.state.velocity.set(0, 0, 0);
+        m.ball.state.lastIntentionalTouch = null;
+        m.ball.state.lastShotKind = null;
+        m.ball.state.flightTime = 1;
+        m.ball.state.headerLock = 0;
+      };
+      m.ball.reset(0, 0);
+      resetAerial();
+      m.world.setShotCharge(0);
+      m.world.tick(1 / 120);
+      const withoutInput = { kind: m.ball.state.lastShotKind, lock: m.ball.state.headerLock, headers };
+      m.world.setShotCharge(.5);
+      m.world.tick(1 / 120);
+      const whileHeld = { kind: m.ball.state.lastShotKind, lock: m.ball.state.headerLock,
+        triggered: m.world.input.headerTriggered, headers };
+
+      // Recreate a second aerial opportunity without releasing the charge.
+      resetAerial();
+      m.world.tick(1 / 120);
+      const sameCharge = { triggered: m.world.input.headerTriggered, headers };
+      m.world.setShotCharge(0);
+      const afterRelease = m.world.input.headerTriggered;
+      resetAerial();
+      m.world.setShotCharge(.5);
+      m.world.tick(1 / 120);
+      const afterRecharge = { kind: m.ball.state.lastShotKind,
+        triggered: m.world.input.headerTriggered, headers };
+      return { withoutInput, whileHeld, sameCharge, afterRelease, afterRecharge };
+    });
+    assert.equal(result.withoutInput.kind, null, 'a bola não cabeceia sozinha');
+    assert.equal(result.withoutInput.lock, 0);
+    assert.equal(result.withoutInput.headers, 0);
+    assert.equal(result.whileHeld.kind, 'header', 'segurar chute aciona o cabeceio aéreo');
+    assert.ok(result.whileHeld.lock > .6);
+    assert.equal(result.whileHeld.triggered, true);
+    assert.equal(result.sameCharge.kind, null, 'a mesma carga não dispara outro cabeceio');
+    assert.equal(result.sameCharge.headers, 1);
+    assert.equal(result.sameCharge.triggered, true);
+    assert.equal(result.afterRelease, false, 'soltar chute rearma o cabeceio');
+    assert.equal(result.afterRecharge.kind, 'header');
+    assert.equal(result.afterRecharge.headers, 2, 'uma nova carga permite outro cabeceio');
+  } finally { await browser.close(); server.close(); }
+});
 
 /** Um carrinho real do herói sobre o dono da bola, com falta atrás. */
 async function commitHeroFoul(page, { dangerous }) {
@@ -458,7 +588,7 @@ test('gol real: a rede do estádio deforma (animação conectada à física da b
   } finally { await browser.close(); server.close(); }
 });
 
-test('carreira Pro: câmera acompanha a bola quando ela fica atrás do atleta', { timeout: 120000 }, async t => {
+test('carreira Pro: segue o atleta, ignora a bola e vira para a área quando chega pela ponta', { timeout: 120000 }, async t => {
   const { server, url } = await startXfcServer({ port: 0 });
   const browser = await launchOrSkip(t);
   if (!browser) { server.close(); return; }
@@ -467,41 +597,50 @@ test('carreira Pro: câmera acompanha a bola quando ela fica atrás do atleta', 
     const errors = [];
     page.on('pageerror', e => errors.push(String(e.message || e)));
     await careerMatchPage(page, url);
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const m = window.__xfcMatch;
+      const { attackSign } = await import('/src/match3d/sides.js');
+      const { THREE } = await import('/src/match3d/engine.js');
       m.stop(); m.world.setPaused(false);
       m.phase.name = 'play'; m.phase.restart = null;
       m.world.setCameraMode('pro');
       m.world.input.moveX = 0; m.world.input.moveZ = 0;
-      const side = m.world.userSide, hero = m.controlled[side];
+      const side = m.world.userSide, sign = attackSign(side), hero = m.controlled[side];
       const mate = m.teams[side].players.find(p => p !== hero && p.active && !p.isKeeper);
+      for (const player of [...m.teams.home.players, ...m.teams.away.players]) player.active = player === hero || player === mate;
       hero.x = 0; hero.z = 0; hero.vx = 0; hero.vz = 0;
-      // Bola 15 m ATRÁS do eixo de ataque (+x) do time da casa.
-      mate.x = -15; mate.z = 0; mate.vx = 0; mate.vz = 0;
-      m.ball.reset(-15, 0);
+      // A bola fica 15 m atrás do atleta e não deve puxar a câmera.
+      const ballX = -sign * 15;
+      mate.x = ballX; mate.z = 0; mate.vx = 0; mate.vz = 0;
+      m.ball.reset(ballX, 0);
       m.ball.attachTo(mate);
-      m.ball.state.owner = mate;
       const pinBall = () => {
-        mate.x = -15; mate.z = 0; mate.vx = 0; mate.vz = 0;
+        mate.x = ballX; mate.z = 0; mate.vx = 0; mate.vz = 0;
         m.ball.attachTo(mate);
-        m.ball.state.owner = mate;
-        m.ball.state.position.set(-15, m.ball.state.position.y, 0);
+        m.ball.state.position.set(ballX, m.ball.state.position.y, 0);
         m.ball.mesh.position.copy(m.ball.state.position);
       };
       for (let i = 0; i < 4; i++) { pinBall(); m.world.tick(1 / 60); pinBall(); }
       const initial = m.engine.camera.position.x;
-      for (let i = 0; i < 90; i++) {
-        pinBall();
-        m.world.tick(1 / 60);
-        pinBall();
-      }
-      return { mode: m.world.cameraMode, initial, final: m.engine.camera.position.x,
-        ballX: m.ball.state.position.x, heroX: hero.x, mateX: mate.x };
+      for (let i = 0; i < 90; i++) { pinBall(); m.world.tick(1 / 60); pinBall(); }
+      const resting = { final: m.engine.camera.position.x, heroX: hero.x };
+
+      // Corredor largo perto do fim ofensivo: a câmera passa a mirar o centro da área.
+      hero.x = sign * (m.world.pitch.halfLength - 25);
+      hero.z = 24; hero.vx = hero.vz = 0;
+      for (let i = 0; i < 120; i++) { pinBall(); m.world.tick(1 / 60); pinBall(); }
+      const area = new THREE.Vector3(sign * (m.world.pitch.halfLength - 10), 1.2, 0);
+      const view = m.engine.camera.getWorldDirection(new THREE.Vector3());
+      const towardArea = area.sub(m.engine.camera.position).normalize();
+      return { mode: m.world.cameraMode, initial, ...resting, ballX: m.ball.state.position.x,
+        wideFocusDot: view.dot(towardArea) };
     });
     assert.equal(result.mode, 'pro');
-    assert.ok(result.ballX < -8, 'bola permanece atrás do atleta');
-    assert.ok(result.final > result.initial + 6,
-      `câmera virou para acompanhar a bola: ${result.initial.toFixed(1)} → ${result.final.toFixed(1)}`);
+    assert.ok(result.ballX < -8, 'a bola continua atrás do atleta');
+    assert.ok(Math.abs(result.final - result.initial) < 0.35,
+      `câmera não acompanha a bola distante: ${result.initial.toFixed(1)} → ${result.final.toFixed(1)}`);
+    assert.ok(Math.abs(result.heroX) < 0.1, 'o atleta controlado fica no centro do acompanhamento');
+    assert.ok(result.wideFocusDot > 0.995, 'na ponta, a lente vira para o meio da área');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); server.close(); }
 });

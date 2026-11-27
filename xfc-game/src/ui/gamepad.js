@@ -229,6 +229,7 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
     if (edge('START')) commands.push('pause');
     const sprint = isDown(pad, STANDARD.RT) || isDown(pad, STANDARD.RB);
     // Chute carregado: Y pressionado e a força cresce no tempo.
+    let shotCharge = 0;
     const yDown = isDown(pad, STANDARD.Y);
     if (yDown && !state.shootStarted) {
       state.shootStarted = performance.now();
@@ -237,6 +238,7 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
     if (state.shootStarted && !state.shootFired) {
       const elapsed = performance.now() - state.shootStarted;
       const charge = Math.max(0.25, Math.min(1, (elapsed - 120) / 760));
+      shotCharge = charge;
       if (typeof onActivity === 'function') onActivity({ charging: charge });
       if (!yDown) {
         state.shootFired = true;
@@ -244,7 +246,7 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
         commands.push({ name: 'shoot', payload: { strength: charge, kind: charge >= 1 ? 'power' : 'normal' } });
       }
     }
-    return { connected: true, family, move: { x, z }, sprint, commands };
+    return { connected: true, family, move: { x, z }, sprint, commands, charging: shotCharge };
   }
 
   return {

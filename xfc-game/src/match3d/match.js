@@ -10,7 +10,7 @@ import {directionalPassTarget} from './directional-pass.js';
 // O módulo é agnóstico da interface: avisa o que aconteceu por `onEvent` e
 // recebe os comandos do jogador por `world.command`.
 
-import { penaltyTarget, choosePenaltyLane, rainbowProfile, rainbowPoint, shotGoalTargetZ } from './football-actions.js';
+import { penaltyTarget, choosePenaltyLane, rainbowProfile, rainbowPoint, shotGoalTargetZ, aerialHeaderAllowed } from './football-actions.js';
 import { createEngine, THREE } from './engine.js';
 import { buildStadium } from './stadium.js';
 import { createBall } from './ball.js';
@@ -44,6 +44,7 @@ import {
   setBroadcastCameraLayout,
   broadcastCameraPose,
   cameraRelativeMovementFromStick,
+  proCameraAreaTarget,
   cornerCameraPose,
   worldMovementFromStick
 } from './camera.js';
@@ -203,7 +204,7 @@ export function createMatch(options = {}) {
     conceding: 'away'
   };
 
-  const input = { moveX: 0, moveZ: 0, sprint: false, shotCharge:0 };
+  const input = { moveX: 0, moveZ: 0, sprint: false, shotCharge:0, headerTriggered:false };
   const controlled = { home: null, away: null };
   let penaltyRunup=null;
   let refereeDecision = null;
@@ -230,8 +231,8 @@ export function createMatch(options = {}) {
   let goalCelebrationStyle = 'classic';
   let goalCelebrationIndex = 0;
   let trainingCameraReady = false;
-  // Câmera Pro da carreira: eixo suavizado que VIra para a bola (atrás/lados).
-  // Também orienta o analógico para continuar coerente com a imagem.
+  // Câmera Pro da carreira: eixo suavizado atrás do atleta controlado; o
+  // analógico mantém o mesmo referencial visual mesmo quando a câmera gira.
   let careerCameraForward = null;
   const setPieceOptions = {
     aim: 0,
@@ -605,12 +606,16 @@ export function createMatch(options = {}) {
     const strength = Number.isFinite(Number(opts.strength)) ? Math.max(0, Math.min(1, Number(opts.strength))) : null;
     const lob = Boolean(opts.lob || opts.kind === 'lob');
     const power = strength == null ? fallbackPower : 7 + strength * 22;
-    return { power, lob, lift: lob ? 0.26 + (strength ?? 0.5) * 0.2 : undefined };
+    const curve = Number.isFinite(Number(opts.curve))
+      ? clampSetPiece(Number(opts.curve), -0.4, 0.4) : 0;
+    return { power, lob, curve, lift: lob ? 0.26 + (strength ?? 0.5) * 0.2 : undefined };
   }
 
   function throughKickOptions(opts = {}, fallbackPower = 23) {
     const strength = Number.isFinite(Number(opts.strength)) ? Math.max(0, Math.min(1, Number(opts.strength))) : null;
-    return { through: true, power: strength == null ? fallbackPower : 11 + strength * 18 };
+    const curve = Number.isFinite(Number(opts.curve))
+      ? clampSetPiece(Number(opts.curve), -0.4, 0.4) : 0;
+    return { through: true, curve, power: strength == null ? fallbackPower : 11 + strength * 18 };
   }
 
   function kickBall(player, target, { power = 18, lob = false, through = false, targetPoint = null, curve = 0, lift = null, requested = false } = {}) {
@@ -645,7 +650,7 @@ export function createMatch(options = {}) {
     const flightLift = lift ?? (requested ? .02 : lob ? 0.42 : through ? 0.04 : 0.03);
     ball.kick(direction, speed, flightLift, {
       guide,
-      curve: 0
+      curve: clampSetPiece(curve, -0.4, 0.4)
     });
     ball.state.throughPass = Boolean(through);
     ball.state.offside=offsidePlayers.length?{side:player.side,players:offsidePlayers}:null;
@@ -718,6 +723,13 @@ export function createMatch(options = {}) {
    */
   function aerialHeader({ player, height, from }) {
     if (!player?.active || paused) return false;
+    const isUserSide = player.side === userSide;
+    const isControlled = player === controlled[userSide];
+    if (!aerialHeaderAllowed({
+      isControlled,
+      shotCharge: input.shotCharge,
+      alreadyTriggered: input.headerTriggered
+    })) return false;
     const sign = attackSign(player.side);
     const ownGoal = ball.state.position.x * sign < -PITCH.halfLength + 18;
     // Defesa: zera para a lateral/longe do gol. Ataque: mira o gol.
@@ -748,8 +760,8 @@ export function createMatch(options = {}) {
     ball.state.lastShotKind = 'header';
     ball.state.headerLock = 0.7;
     ball.state.offside = null;
-    if (player.side === userSide) player.model.header(0.34);
-    else player.model.header(0.34);
+    if (isControlled) input.headerTriggered = true;
+    player.model.header(0.34);
     emit({ type: 'header', team: player.side, player, dangerous: !ownGoal });
     if (training.enabled && player.side === userSide) {
       training.player = player; training.passChain = 0;
@@ -2499,7 +2511,10 @@ export function createMatch(options = {}) {
       if(!player||!Number.isFinite(base.x))return false;
       player.tacticalBase={...player.tacticalBase,...base};player.tacticalCustom=true;return true;
     },
-    setShotCharge(value){input.shotCharge=Math.max(0,Math.min(1,Number(value)||0));},
+    setShotCharge(value){
+      input.shotCharge=Math.max(0,Math.min(1,Number(value)||0));
+      if(input.shotCharge===0)input.headerTriggered=false;
+    },
     /**
      * Aplica a leitura de um controle (Xbox/PlayStation) no motor: analógico
      * vira movimento, RT vira corrida e os comandos entram no mesmo caminho
@@ -2669,6 +2684,7 @@ export function createMatch(options = {}) {
         // Nenhum comando residual do analógico/botão permanece ao assistir.
         input.moveX = input.moveZ = 0;
         input.shotCharge = 0;
+        input.headerTriggered = false;
       }
     },
 
@@ -2690,6 +2706,7 @@ export function createMatch(options = {}) {
     /** Pausa a simulação (intervalo, pausa do jogador) sem parar o desenho. */
     setPaused(value) {
       paused = Boolean(value);
+      if(paused){input.shotCharge=0;input.headerTriggered=false;}
     },
     isPaused() {
       return paused;
@@ -3138,40 +3155,41 @@ export function createMatch(options = {}) {
     const camera = engine.camera;
     const speed = playerSpeed(player);
     let cameraForward;
+    let proAreaTarget = null;
     if (training.enabled) {
       // Treino: eixo fixo, sem girar o analógico (comportamento preservado).
       cameraForward = training.cameraForward || { x: 1, z: 0 };
     } else {
-      // Pro 360°: sempre atrás do atleta, orbitando o yaw completo. Sem trava
-      // no eixo de ataque. Bola longe só puxa o olhar; a órbita é por ângulo
-      // (lerp de vetor colapsa em 180°).
-      const ballDx = ball.state.position.x - player.x;
-      const ballDz = ball.state.position.z - player.z;
-      const ballDistance = Math.hypot(ballDx, ballDz);
+      // Câmera Pro enquadra sempre o atleta controlado; a posição da bola não
+      // move a lente nem puxa o olhar. O eixo acompanha o jogador em movimento.
       const faceLen = Math.hypot(player.facing.x, player.facing.z) || 1;
       const stickMag = Math.hypot(input.moveX, input.moveZ);
       if (!careerCameraForward) careerCameraForward = { x: attackSign(userSide), z: 0 };
       let aimX = careerCameraForward.x;
       let aimZ = careerCameraForward.z;
       if (stickMag >= 0.12 || speed >= 0.55) {
-        // Analógico: órbita 360° atrás do facing. A bola não gira a
-        // câmera no meio da corrida (o stick é relativo à câmera).
         aimX = player.facing.x / faceLen;
         aimZ = player.facing.z / faceLen;
-      } else if (ballDistance > 4.5) {
-        const swing = PRO_CAMERA.swing / 20;
-        const ballMix = 0.48 + swing * 0.32;
-        aimX = aimX * (1 - ballMix) + (ballDx / ballDistance) * ballMix;
-        aimZ = aimZ * (1 - ballMix) + (ballDz / ballDistance) * ballMix;
-        const aimLen = Math.hypot(aimX, aimZ) || 1;
-        aimX /= aimLen; aimZ /= aimLen;
+      }
+      // Ao chegar pela ponta na faixa ofensiva, vira suavemente para a área
+      // central. Assim o jogador e o espaço de cruzamento continuam no quadro.
+      proAreaTarget = proCameraAreaTarget(
+        player.x, player.z, attackSign(player.side), PITCH.halfLength, PITCH.halfWidth
+      );
+      if (proAreaTarget) {
+        const dx = proAreaTarget.x - player.x;
+        const dz = proAreaTarget.z - player.z;
+        const length = Math.hypot(dx, dz) || 1;
+        aimX = dx / length;
+        aimZ = dz / length;
       }
       const currentAng = Math.atan2(careerCameraForward.z, careerCameraForward.x);
       const targetAng = Math.atan2(aimZ, aimX);
       let delta = targetAng - currentAng;
       if (delta > Math.PI) delta -= Math.PI * 2;
       if (delta < -Math.PI) delta += Math.PI * 2;
-      const turn = 1 - Math.exp(-dt * (2.2 + PRO_CAMERA.speed * 0.16));
+      const turnRate = 2.2 + PRO_CAMERA.speed * 0.16 + (proAreaTarget ? PRO_CAMERA.swing * 0.035 : 0);
+      const turn = 1 - Math.exp(-dt * turnRate);
       const ang = currentAng + delta * turn;
       careerCameraForward = { x: Math.cos(ang), z: Math.sin(ang) };
       cameraForward = careerCameraForward;
@@ -3220,18 +3238,24 @@ export function createMatch(options = {}) {
     const desiredY = followHeight + Math.min(0.3, speed * 0.035);
     const desiredZ = player.z - forwardZ * cameraDistance;
 
-    const ballDx = ball.state.position.x - player.x;
-    const ballDz = ball.state.position.z - player.z;
-    const ballAhead = ballDx * forwardX + ballDz * forwardZ;
-    const ballLateral = ballDx * rightX + ballDz * rightZ;
-    // No treino o foco é fixo à frente; na carreira mira na própria bola.
+    let ballAhead = 0, ballLateral = 0;
+    if (training.enabled) {
+      const ballDx = ball.state.position.x - player.x;
+      const ballDz = ball.state.position.z - player.z;
+      ballAhead = ballDx * forwardX + ballDz * forwardZ;
+      ballLateral = ballDx * rightX + ballDz * rightZ;
+    }
     const lead = training.enabled
       ? Math.max(7.5, Math.min(13, 8.8 + ballAhead * 0.2))
-      : Math.max(5.5, Math.min(13, ballAhead));
-    const lateral = Math.max(-1.4, Math.min(1.4, ballLateral * 0.12));
-    const targetX = player.x + forwardX * lead + rightX * lateral;
-    const targetY = 1.2 + Math.min(0.45, Math.max(0, ball.state.position.y - 0.7) * 0.08);
-    const targetZ = player.z + forwardZ * lead + rightZ * lateral;
+      : 8.5;
+    const lateral = training.enabled
+      ? Math.max(-1.4, Math.min(1.4, ballLateral * 0.12))
+      : 0;
+    const targetX = proAreaTarget?.x ?? (player.x + forwardX * lead + rightX * lateral);
+    const targetY = training.enabled
+      ? 1.2 + Math.min(0.45, Math.max(0, ball.state.position.y - 0.7) * 0.08)
+      : 1.2;
+    const targetZ = proAreaTarget?.z ?? (player.z + forwardZ * lead + rightZ * lateral);
     const targetFov = training.shotActive ? 56 : 52;
 
     if (!trainingCameraReady) {
@@ -3940,9 +3964,11 @@ export function createMatch(options = {}) {
           const dx = b.x - a.x;
           const dz = b.z - a.z;
           const distance = Math.hypot(dx, dz);
-          if (distance > 0.001 && distance < 0.78 && detectIllegalBodyContact(a, b, distance)) break;
-          if (distance < 0.66) {
-            const overlap = (0.66 - distance) * 0.5;
+          if (distance > 0.001 && distance < 0.82 && detectIllegalBodyContact(a, b, distance)) break;
+          // Player models are scaled up for the mobile camera; keep a matching
+          // physical shoulder gap so two kits do not visibly clip together.
+          if (distance < 0.74) {
+            const overlap = (0.74 - distance) * 0.5;
             const nx = distance>.001?dx/distance:1;
             const nz = distance>.001?dz/distance:0;
             a.x -= nx * overlap;
