@@ -3160,14 +3160,18 @@ export function createMatch(options = {}) {
       // Treino: eixo fixo, sem girar o analógico (comportamento preservado).
       cameraForward = training.cameraForward || { x: 1, z: 0 };
     } else {
-      // Câmera Pro enquadra sempre o atleta controlado; a posição da bola não
-      // move a lente nem puxa o olhar. O eixo acompanha o jogador em movimento.
+      // Câmera Pro enquadra o atleta controlado; a bola nunca puxa o olhar.
+      // No avanço, o eixo acompanha a orientação; no strafe ele fica estável.
       const faceLen = Math.hypot(player.facing.x, player.facing.z) || 1;
       const stickMag = Math.hypot(input.moveX, input.moveZ);
+      const forwardIntent = Math.abs(input.moveZ) >= 0.12;
       if (!careerCameraForward) careerCameraForward = { x: attackSign(userSide), z: 0 };
       let aimX = careerCameraForward.x;
       let aimZ = careerCameraForward.z;
-      if (stickMag >= 0.12 || speed >= 0.55) {
+      // Keep the camera axis stable for a lateral-only stick input. Chasing
+      // the athlete's changing facing while it strafes creates a feedback
+      // loop that slowly spins the view and bends a straight sidestep.
+      if (forwardIntent || (stickMag < 0.12 && speed >= 0.55)) {
         aimX = player.facing.x / faceLen;
         aimZ = player.facing.z / faceLen;
       }

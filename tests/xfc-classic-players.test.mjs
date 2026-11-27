@@ -83,7 +83,8 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   // v0.5.89: câmera Pro Zoom/Speed/Swing, elástico/roleta e sprint da IA.
   // v0.5.94: escala visual dos atletas de linha em 1,18×; coordenadas e colisões inalteradas.
   // v0.5.95: câmera segue o jogador, não a bola; cabeceio manual/IA, física de curva e espaçamento.
-  "src/match3d/match.js": "f033887c04bcecb74e55de0b51dd1ecdce7f3d62f0e1ce0fba7792994ab408c0",
+  // v0.5.96: gesto lateral não faz a câmera orbitar e desviar a corrida.
+  "src/match3d/match.js": "283e0029e47f38fdbfb9ff744479889df60e369d9b66e91ef7cfa41042f99272",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).

@@ -271,32 +271,33 @@ test('cabeceio aéreo do atleta controlado exige segurar o botão de chute', { t
       const header = hero.model.header.bind(hero.model);
       hero.model.header = (...args) => { headers += 1; return header(...args); };
       const resetAerial = () => {
+        m.ball.reset(0, 0);
         m.ball.state.position.set(0, 2.1, 0);
         m.ball.state.velocity.set(0, 0, 0);
-        m.ball.state.lastIntentionalTouch = null;
-        m.ball.state.lastShotKind = null;
         m.ball.state.flightTime = 1;
-        m.ball.state.headerLock = 0;
+        m.ball.state.lastShotKind = null;
       };
-      m.ball.reset(0, 0);
-      resetAerial();
       m.world.setShotCharge(0);
-      m.world.tick(1 / 120);
+      resetAerial();
+      m.ball.update(1 / 60, [hero]);
       const withoutInput = { kind: m.ball.state.lastShotKind, lock: m.ball.state.headerLock, headers };
       m.world.setShotCharge(.5);
-      m.world.tick(1 / 120);
+      resetAerial();
+      m.ball.update(1 / 60, [hero]);
       const whileHeld = { kind: m.ball.state.lastShotKind, lock: m.ball.state.headerLock,
-        triggered: m.world.input.headerTriggered, headers };
+        triggered: m.world.input.headerTriggered, headers,
+        charge: m.world.input.shotCharge, controlled: m.controlled[m.world.userSide] === hero };
 
       // Recreate a second aerial opportunity without releasing the charge.
       resetAerial();
-      m.world.tick(1 / 120);
-      const sameCharge = { triggered: m.world.input.headerTriggered, headers };
+      m.ball.update(1 / 60, [hero]);
+      const sameCharge = { kind: m.ball.state.lastShotKind,
+        triggered: m.world.input.headerTriggered, headers };
       m.world.setShotCharge(0);
       const afterRelease = m.world.input.headerTriggered;
-      resetAerial();
       m.world.setShotCharge(.5);
-      m.world.tick(1 / 120);
+      resetAerial();
+      m.ball.update(1 / 60, [hero]);
       const afterRecharge = { kind: m.ball.state.lastShotKind,
         triggered: m.world.input.headerTriggered, headers };
       return { withoutInput, whileHeld, sameCharge, afterRelease, afterRecharge };
@@ -304,7 +305,10 @@ test('cabeceio aéreo do atleta controlado exige segurar o botão de chute', { t
     assert.equal(result.withoutInput.kind, null, 'a bola não cabeceia sozinha');
     assert.equal(result.withoutInput.lock, 0);
     assert.equal(result.withoutInput.headers, 0);
-    assert.equal(result.whileHeld.kind, 'header', 'segurar chute aciona o cabeceio aéreo');
+    assert.equal(result.whileHeld.kind, 'header',
+      `segurar chute aciona o cabeceio aéreo (${JSON.stringify(result.whileHeld)})`);
+    assert.equal(result.whileHeld.charge, 0.5);
+    assert.equal(result.whileHeld.controlled, true);
     assert.ok(result.whileHeld.lock > .6);
     assert.equal(result.whileHeld.triggered, true);
     assert.equal(result.sameCharge.kind, null, 'a mesma carga não dispara outro cabeceio');
@@ -506,6 +510,13 @@ test('corrida da carreira: o pé de apoio quase não escorrega ao correr de lado
       m.stop(); world.setPaused(false); world.phase.name = 'play'; world.phase.restart = null;
       const THREE = (await import('/src/match3d/engine.js')).THREE;
       const hero = m.controlled[world.userSide];
+      for (const player of [...m.teams.home.players, ...m.teams.away.players]) player.active = player === hero;
+      hero.x = 0; hero.z = 0; hero.vx = hero.vz = 0;
+      hero.facingAngle = Math.PI / 2; hero.facing = { x: 1, z: 0 };
+      world.setCameraMode('pro');
+      world.ball.reset(-24, -30);
+      world.input.moveX = world.input.moveZ = 0;
+      world.input.sprint = false;
       let skel = null;
       for (let attempt = 0; attempt < 60 && !skel; attempt++) {
         hero.root.traverse(o => { if (o.isSkinnedMesh && !skel) skel = o.skeleton; });
@@ -539,7 +550,7 @@ test('corrida da carreira: o pé de apoio quase não escorrega ao correr de lado
       return { bodySpeed: +bodySpeed.toFixed(2), footSlip: avg == null ? null : +avg.toFixed(2), contacts: slips.length };
     });
     assert.equal(r.error, undefined, r.error);
-    assert.ok(r.bodySpeed > 4, 'o atleta realmente corre de lado');
+    assert.ok(r.bodySpeed > 4, `o atleta realmente corre de lado: ${r.bodySpeed} m/s`);
     // No CI o esqueleto importado às vezes entrega poucos apoios, ou o pé
     // viaja com o root (patina no mesmo ritmo do corpo). A corrida em si já
     // prova o movimento; o plantio só é medido quando o pé realmente para.
