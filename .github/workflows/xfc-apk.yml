@@ -125,7 +125,7 @@ jobs:
         run: |
           set -e
           cd xfc-game
-          zip -r ../xfc-game.zip index.html styles src assets vendor serve.mjs README.md app.bundle.js -x '*.DS_Store'
+          zip -r ../xfc-game.zip index.html styles src assets vendor serve.mjs online-server.mjs package.json package-lock.json README.md app.bundle.js -x '*.DS_Store'
           cd ..
           ls -l xfc-game.zip
 
@@ -134,6 +134,7 @@ jobs:
           set -e
           for required in index.html src/main.js styles/base.css \
                           vendor/three.module.min.js app.bundle.js \
+                          serve.mjs online-server.mjs package.json package-lock.json \
                           assets/brand/xfc-icon.svg \
                           assets/brand/xfc-intro-source.gif \
                           assets/brand/xfc-intro-smooth-once.gif \

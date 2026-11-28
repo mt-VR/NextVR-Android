@@ -40,6 +40,40 @@ const STAGE_WIDTH = 1280;
 const STAGE_HEIGHT = 720;
 const projection = new THREE.Vector3();
 
+function serializeOnlineValue(value, depth=0) {
+  if(value==null||typeof value==='string'||typeof value==='number'||typeof value==='boolean')return value;
+  if(depth>4)return undefined;
+  if(Array.isArray(value))return value.map(item=>serializeOnlineValue(item,depth+1)).filter(item=>item!==undefined);
+  if(typeof value!=='object')return undefined;
+  if(typeof value.id==='string'&&typeof value.side==='string'&&typeof value.x==='number'){
+    return {id:value.id,name:value.name,fullName:value.fullName,side:value.side,number:value.number,ovr:value.ovr,rosterId:value.rosterId,role:value.role};
+  }
+  const result={};
+  for(const [key,item] of Object.entries(value)){
+    if(['root','model','facing','engine','scene','mesh'].includes(key)||typeof item==='function')continue;
+    const safe=serializeOnlineValue(item,depth+1);
+    if(safe!==undefined)result[key]=safe;
+  }
+  return result;
+}
+
+function serializeOnlineEvent(event) {
+  const safe=serializeOnlineValue(event);
+  if(!safe||typeof safe.type!=='string'||safe.type.startsWith('entrance-'))return null;
+  return safe;
+}
+
+function hydrateOnlineEvent(event, match) {
+  if(!event||typeof event!=='object')return event;
+  const hydrated={...event};
+  for(const [key,value] of Object.entries(hydrated)){
+    if(value&&typeof value==='object'&&!Array.isArray(value)&&typeof value.id==='string'&&typeof value.side==='string'){
+      hydrated[key]=match?.world.playerById(value.id)||value;
+    }
+  }
+  return hydrated;
+}
+
 const NATIONAL_COLORS = {
   brazil: { primary: '#f6d61b', secondary: '#16733b', trim: '#ffffff', keeperPrimary: '#246bd1', keeperSecondary: '#10274b', shorts: '#183891', socks: '#ffffff' },
   argentina: { primary: '#1e4e8c', secondary: '#ffffff', trim: '#0a1f44', keeperPrimary: '#293444', keeperSecondary: '#f4c542', shorts: '#1a1a1a', socks: '#ffffff' },
@@ -157,6 +191,16 @@ function projectToStage(camera, position, out = null) {
 }
 
 export function playScreen(ctx, params = {}) {
+  const online = params.online?.connection ? params.online : null;
+  const onlineRole = online?.role || null;
+  const onlineConnection = online?.connection || null;
+  let onlineUnsubscribe = null;
+  let pendingRemoteSnapshot = null;
+  let pendingRemoteInput = null;
+  let onlineHostReady = onlineRole !== 'guest';
+  const pendingGuestActions = [];
+  const pendingRemoteActions = [];
+  const pendingRemoteEvents = [];
   const requestsUltimateTeam = Boolean(params.ultimateMatchId || params.home === 'xfc-ut');
   const ultimateHome = params.ultimateMatchId
     ? ultimateMatchTeam(ctx.state.profile, params.ultimateMatchId)
@@ -241,6 +285,7 @@ export function playScreen(ctx, params = {}) {
   const node = el('div', { class: 'screen screen--play' }, stageBox);
 
   function setPauseButtonVisible(visible) {
+    visible=Boolean(visible&&!onlineRole);
     pauseButton.classList.toggle('is-visible', visible);
     pauseButton.disabled = !visible;
     pauseButton.setAttribute('aria-hidden', String(!visible));
@@ -373,6 +418,49 @@ export function playScreen(ctx, params = {}) {
   // Limpezas de listeners da partida (gamepad, etc.).
   const unsubscribers = [];
 
+  function showOnlineDisconnect(message) {
+    if(!onlineRole||unmounted||stage==='result'||stage==='disconnected')return;
+    stage='disconnected';paused=true;
+    match?.world.setPaused(true);match?.stop();controls?.setEnabled(false);
+    setPauseButtonVisible(false);
+    overlay.replaceChildren(el('div',{class:'pause'},
+      el('h2',{class:'pause__title',text:'CONEXÃO ENCERRADA'}),
+      el('p',{class:'pause__text',text:message}),
+      el('button',{class:'btn btn--primary',type:'button',text:'VOLTAR AO PvP',onClick:()=>ctx.go('pvp')})
+    ));
+    overlay.classList.add('is-visible');
+  }
+
+  function onOnlineMessage(message) {
+    if(!onlineRole||unmounted)return;
+    if(message.type==='remote-input'&&onlineRole==='host'){
+      pendingRemoteInput=message.input;
+      match?.world.setControlInputForSide('away',message.input);
+    }else if(message.type==='remote-action'&&onlineRole==='host'){
+      if(match)match.world.commandForSide('away',message.name,message.payload||{});
+      else pendingRemoteActions.push(message);
+    }else if(message.type==='remote-piece-options'&&onlineRole==='host'){
+      match?.world.setPieceOptionsForSide('away',message.options||{});
+    }else if(message.type==='state'&&onlineRole==='guest'){
+      pendingRemoteSnapshot=message.state;
+      match?.world.applyRemoteSnapshot(message.state);
+      if(!onlineHostReady){
+        onlineHostReady=true;
+        for(const action of pendingGuestActions.splice(0))onlineConnection?.sendAction(action.name,action.payload);
+      }
+    }else if(message.type==='event'&&onlineRole==='guest'){
+      if(match)handleEvent(hydrateOnlineEvent(message.event,match));
+      else pendingRemoteEvents.push(message.event);
+    }else if(message.type==='peer-left'||message.type==='host-left'||message.type==='room-expired'){
+      showOnlineDisconnect(message.type==='peer-left'?'O outro jogador saiu da sala.':'O anfitrião ou servidor encerrou a conexão.');
+    }else if(message.type==='disconnected'){
+      showOnlineDisconnect('A conexão com a sala foi interrompida.');
+    }else if(message.type==='error'){
+      ctx.toast(message.message||'Falha na conexão PvP.',{variant:'warn',duration:4500});
+    }
+  }
+  if(onlineConnection)onlineUnsubscribe=onlineConnection.subscribe(onOnlineMessage);
+
   function buildMatch() {
     // Mata-mata = competição eliminatória. Nesses jogos, empate em 90' leva a
     // prorrogação (105'/120') e, persistindo, aos pênaltis. Liga/amistoso
@@ -398,7 +486,16 @@ export function playScreen(ctx, params = {}) {
       minutes,
       difficulty,
       userSide,
-      onEvent: handleEvent,
+      onlineHost: onlineRole === 'host',
+      onlinePlayback: onlineRole === 'guest',
+      seed: online?.config?.seed,
+      onEvent: event => {
+        handleEvent(event);
+        if(onlineRole==='host'){
+          const shared=serializeOnlineEvent(event);
+          if(shared)onlineConnection?.send({type:'event',event:shared});
+        }
+      },
       gamePlans:{home:home.plan || ctx.state.profile.gamePlans?.[home.id],away:away.plan || ctx.state.profile.gamePlans?.[away.id]},
       stadium: stadiumIndex,
       largePitch: Boolean(careerClub)
@@ -410,14 +507,20 @@ export function playScreen(ctx, params = {}) {
       away,
       userSide,
       careerRating: isPlayerCareer,
-      onSetPieceChange: options => match?.world.setPieceOptions(options)
+      onSetPieceChange: options => {
+        match?.world.setPieceOptions(options);
+        if(onlineRole==='guest')onlineConnection?.sendPieceOptions(options);
+      }
     });
     hud?.setRating(rating ? rating.value : 6);
     controls = createControls({
       playerCareer:!!careerClub&&!careerManager,
       padGamepad:gamepad,
       root: stageBox,
-      onCharge:value=>match?.world.setShotCharge(value),
+      onCharge:value=>{
+        match?.world.setShotCharge(value);
+        if(onlineRole==='guest'&&match)onlineConnection?.sendInput(match.world.input);
+      },
       onCommand: (name, payload) => {
         // Start/Options no controle abre o mesmo menu de pausa.
         if (name === 'pause') {
@@ -430,6 +533,14 @@ export function playScreen(ctx, params = {}) {
         if (name === 'pass') kickSound(0.5);
         else if (name === 'lob') kickSound(0.65);
         else if (name === 'shoot') kickSound(0.9);
+        if(onlineRole==='guest'){
+          if(!onlineHostReady){
+            if(pendingGuestActions.length<8)pendingGuestActions.push({name,payload:payload||{}});
+            return;
+          }
+          if(!onlineConnection?.sendAction(name,payload||{}))ctx.toast('Conexão com o anfitrião perdida.',{variant:'warn'});
+          return;
+        }
         match.world.command(name, payload);
       },
       onMove: (x, z) => {
@@ -441,10 +552,12 @@ export function playScreen(ctx, params = {}) {
         if (paused || stage !== 'live') return;
         match.world.input.moveX = x;
         match.world.input.moveZ = z;
+        if(onlineRole==='guest')onlineConnection?.sendInput(match.world.input);
       },
       onSprint: value => {
         if (stage !== 'live') return;
         match.world.input.sprint = value;
+        if(onlineRole==='guest')onlineConnection?.sendInput(match.world.input);
       }
     });
     // Os controles só entram depois do pré-jogo.
@@ -467,6 +580,13 @@ export function playScreen(ctx, params = {}) {
     // software cairia no vazio — e travaria o fio de eventos da página.
     match.world.setPaused(true);
     match.engine.stop();
+    if(onlineRole==='host'){
+      if(pendingRemoteInput)match.world.setControlInputForSide('away',pendingRemoteInput);
+      for(const action of pendingRemoteActions.splice(0))match.world.commandForSide('away',action.name,action.payload||{});
+    }else if(onlineRole==='guest'&&pendingRemoteSnapshot){
+      match.world.applyRemoteSnapshot(pendingRemoteSnapshot);
+      for(const event of pendingRemoteEvents.splice(0))handleEvent(hydrateOnlineEvent(event,match));
+    }
     // Gancho de testes: permite inspecionar o motor da partida no navegador.
     window.__xfcMatch = match;
     // O estádio escolhido envolve o 3D (atrás da arquibancada).
@@ -474,7 +594,7 @@ export function playScreen(ctx, params = {}) {
   }
 
   function creditMatch(event) {
-    if (rewarded) return;
+    if (onlineRole || rewarded) return;
     rewarded = true;
     const userGoals = userSide === 'home' ? event.score[0] : event.score[1];
     const rivalGoals = userSide === 'home' ? event.score[1] : event.score[0];
@@ -632,7 +752,7 @@ export function playScreen(ctx, params = {}) {
       case 'halftime':
         whistle('double');
         hud.showBanner('INTERVALO', 'info', 2600);
-        match?.world.setPaused(true);
+        if(onlineRole!=='guest')match?.world.setPaused(true);
         setTimeout(() => {
           if (stage !== 'result' && stage !== 'paused') showHalftime(event);
         }, 1200);
@@ -656,6 +776,13 @@ export function playScreen(ctx, params = {}) {
 
   function startMatch() {
     if (stage !== 'prematch') return;
+    if(onlineRole==='guest'){
+      stage='live';paused=false;
+      match?.world.setPaused(false);
+      match?.engine.start();
+      beginLive();
+      return;
+    }
     whistle('triple');
     stage = 'entrance';
     paused = false;
@@ -734,7 +861,7 @@ export function playScreen(ctx, params = {}) {
   function showHalftime(event) {
     stage = 'halftime';
     setPauseButtonVisible(false);
-    match?.world.setPaused(true);
+    if(onlineRole!=='guest')match?.world.setPaused(true);
     controls?.setEnabled(false);
     overlay.replaceChildren(el('div', { class: 'pause' },
       el('h2', { class: 'pause__title', text: 'INTERVALO' }),
@@ -756,7 +883,7 @@ export function playScreen(ctx, params = {}) {
         onClick: () => {
           stage = 'live';
           setPauseButtonVisible(true);
-          match?.world.setPaused(false);
+          if(onlineRole!=='guest')match?.world.setPaused(false);
           overlay.replaceChildren();
           controls?.setEnabled(true);
         }
@@ -910,6 +1037,7 @@ export function playScreen(ctx, params = {}) {
 
   let pausePanel=null;
   function showPause() {
+    if(onlineRole){ctx.toast('Partida online: a pausa local não interrompe o adversário.',{variant:'warn'});return;}
     stage='paused';paused=true;setPauseButtonVisible(false);
     match?.world.setPaused(true);match?.stop();controls?.setEnabled(false);
     if(match)Object.assign(match.world.input,{moveX:0,moveZ:0,sprint:false});
@@ -1059,6 +1187,10 @@ export function playScreen(ctx, params = {}) {
     if (!match) return;
     const snapshot = match.world.snapshot();
     lastSnapshot = snapshot;
+    if(onlineRole==='host'&&['live','halftime'].includes(stage)&&onlineConnection?.isOpen){
+      const state=match.world.networkSnapshot();
+      if(state)onlineConnection.send({type:'state',state});
+    }
     // Etiquetas sobre a cabeça de TODOS os atletas (como no eFootball/FC Mobile).
     // Os objetos e o vetor de projeção são reaproveitados entre quadros: a HUD
     // agora desenha 8x por segundo e recriar 22 objetos por quadro (com um
@@ -1122,6 +1254,7 @@ export function playScreen(ctx, params = {}) {
             overlay.replaceChildren(prematchShowcase());
             hud?.node.classList.remove('is-visible');
             timer = setInterval(frame, 120);
+            if(onlineRole==='guest')startMatch();
           } catch (error) {
             console.error('XFC: não foi possível preparar a partida 3D', error);
             overlay.replaceChildren(el('div', { class: 'play__loading play__loading--error' },
@@ -1169,6 +1302,9 @@ export function playScreen(ctx, params = {}) {
       clearInterval(timer);
       for (const off of unsubscribers) off?.();
       unsubscribers.length = 0;
+      onlineUnsubscribe?.();
+      onlineUnsubscribe=null;
+      if(onlineConnection){onlineConnection.send({type:'leave'});onlineConnection.close();}
       dome?.dispose();
       controls?.dispose();
       hud?.dispose();

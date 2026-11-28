@@ -39,6 +39,13 @@
 .xfc27-room-code {font:800 25px/1 monospace;letter-spacing:.12em;color:#a4fa2b;}
 .xfc27-room-label {display:flex;flex-direction:column;gap:7px;font-weight:700;}
 .xfc27-room-input {min-height:44px;box-sizing:border-box;padding:8px 12px;border:1px solid #8297b4;border-radius:7px;background:#050a14;color:white;font:700 22px monospace;letter-spacing:.25em;}
+.xfc27-room-server,.xfc27-room-select {width:100%;min-height:42px;box-sizing:border-box;padding:9px 11px;border:1px solid #8297b4;border-radius:7px;background:#050a14;color:#fff;font:600 15px Arial,sans-serif;}
+.xfc27-room-server::placeholder {color:#91a2bc;}
+.xfc27-room-actions {display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.xfc27-room-teams {display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.xfc27-dialog__footnote {font-size:12px!important;line-height:1.45!important;color:#95a6c0!important;}
+.xfc27-dialog__status.is-error {border-left-color:#ff687c;color:#ffdce1;}
+.xfc27-dialog button:disabled {opacity:.45;cursor:wait;}
 .competitions__extras {position:absolute;margin:0;padding:0;border:0;background:transparent;cursor:pointer;}
 .xfc27-screen .competitions__extras:hover,.xfc27-screen .competitions__extras:focus-visible {outline:3px solid #fff;outline-offset:-3px;box-shadow:0 0 18px #397bff;background:#ffffff12;}
 .ref-profile{position:absolute;left:83.8%;top:3.7%;width:13%;height:5.4%;z-index:3;background:#111725;color:#fff;text-align:left;border:0;font:16px Arial;display:flex;flex-direction:column;justify-content:center;gap:3px;cursor:pointer;}

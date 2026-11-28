@@ -67,12 +67,12 @@ test('home, modes, PvP, competitions references and career exception route corre
     const input = page.getByLabel('Código da sala · 5 dígitos');
     await input.fill('12a34');
     assert.equal(await input.inputValue(), '1234', 'non-digit characters are rejected at input');
-    await input.fill('01234');
-    await page.getByRole('button', { name: 'Validar e entrar', exact: true }).click();
-    assert.match(await page.locator('.xfc27-dialog__status').textContent(), /não há serviço de pareamento conectado/);
-    await page.getByRole('button', { name: 'Gerar código de demonstração', exact: true }).click();
-    assert.match(await page.locator('.xfc27-room-code').textContent(), /^\d{5}$/);
-    assert.match(await page.locator('.xfc27-dialog__status').textContent(), /não é publicado em um servidor/);
+    await input.fill('1234');
+    await page.getByRole('button', { name: 'Entrar na sala', exact: true }).click();
+    assert.match(await page.locator('.xfc27-dialog__status').textContent(), /exatamente cinco números/);
+    await page.getByRole('button', { name: 'Criar sala online', exact: true }).click();
+    await page.waitForFunction(() => /^\d{5}$/.test(document.querySelector('.xfc27-room-code')?.textContent || ''), null, { timeout: 10000 });
+    assert.match(await page.locator('.xfc27-dialog__status').textContent(), /criada no servidor/);
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--modes');

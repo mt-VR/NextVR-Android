@@ -80,6 +80,38 @@ com esbuild). O bundle é mantido junto do código e regenerado no CI antes de
 ser incluído no zip. Na falta dele, a página mostra instruções em vez de ficar
 numa tela azul.
 
+## PvP online (salas reais)
+
+O PvP de sala personalizada usa o relay incluído em `serve.mjs` e uma conexão
+WebSocket. Instale a dependência de produção e suba o servidor:
+
+```bash
+cd xfc-game
+npm ci
+npm start                         # HTTP :8080; /healthz e WebSocket /ws
+```
+
+Para jogar pela internet, publique esse serviço em um servidor acessível pelos
+dois aparelhos e termine TLS no próprio serviço ou num proxy reverso. O jogo
+usa `wss://.../ws` em páginas HTTPS e no APK. Configure
+`XFC_ONLINE_ALLOWED_ORIGINS` como uma lista separada por vírgulas quando a
+origem do jogo for diferente da origem do servidor (no APK, a origem virtual é
+`https://xfc.local`). O proxy precisa encaminhar upgrade WebSocket em `/ws` e
+preservar o tráfego de longa duração.
+
+No navegador servido pelo mesmo domínio, a tela PvP detecta automaticamente o
+servidor. No APK, abra PvP → Sala Personalizada, informe a URL WSS pública e
+salve-a; depois um jogador cria a sala, compartilha o código de cinco dígitos e
+o outro entra. O anfitrião escolhe os dois times e inicia. O anfitrião executa
+a simulação; o outro aparelho envia controles e recebe posições, placar e
+eventos. O relay não armazena contas, senhas ou perfis; a sala expira se ficar
+sem atividade. Ranqueamento e ranking global não fazem parte deste serviço.
+
+O código de sala tem somente cinco dígitos e não substitui autenticação de uma
+plataforma competitiva. O relay limita tentativas de entrada por IP e usa o
+anfitrião como autoridade da simulação; para uso público, mantenha TLS e limite
+o acesso ao serviço por origem e infraestrutura de hospedagem.
+
 ## App Android (APK)
 
 `xfc-game/android/` é uma casca Android que embute o jogo no APK e o roda
@@ -124,7 +156,9 @@ Na partida: mova com `WASD` ou setas; `J`/`Espaço` passe, segure `K` ou `L` par
 ```
 xfc-game/
 ├── index.html            casca da página
-├── serve.mjs             servidor estático (também usado pelos testes)
+├── serve.mjs             HTTP estático, healthcheck e endpoint de sala `/ws`
+├── online-server.mjs     relay WebSocket para salas, inputs e snapshots
+├── package.json          dependência de produção do relay (`ws`)
 ├── styles/               base.css (palco, tipografia, botões) e screens.css (telas)
 ├── src/
 │   ├── main.js           roteador de telas + teclado global

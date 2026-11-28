@@ -11,6 +11,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { attachOnlineRooms } from './online-server.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 
@@ -32,9 +33,14 @@ const MIME = {
 
 /** Cria o servidor que serve a pasta do jogo. */
 export function createXfcServer(root = ROOT) {
-  return createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
+      if (url.pathname === '/healthz') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ ok: true, service: 'xfc-online-relay' }));
+        return;
+      }
       const requested = decodeURIComponent(url.pathname);
       const relative = normalize(requested === '/' ? '/index.html' : requested).replace(/^([/\\])+/, '');
       if (relative.split(sep).includes('..')) throw new Error('forbidden');
@@ -52,6 +58,8 @@ export function createXfcServer(root = ROOT) {
       res.end('404');
     }
   });
+  attachOnlineRooms(server);
+  return server;
 }
 
 /** Sobe o servidor e devolve a URL base. */

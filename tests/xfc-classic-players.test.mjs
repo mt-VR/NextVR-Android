@@ -84,7 +84,8 @@ test('HUD, controles, gameplay e menus preservados; ligação de aquecimento iso
   // v0.5.94: escala visual dos atletas de linha em 1,18×; coordenadas e colisões inalteradas.
   // v0.5.95: câmera segue o jogador, não a bola; cabeceio manual/IA, física de curva e espaçamento.
   // v0.5.96: gesto lateral não faz a câmera orbitar e desviar a corrida.
-  "src/match3d/match.js": "283e0029e47f38fdbfb9ff744479889df60e369d9b66e91ef7cfa41042f99272",
+  // PvP online: controles e bolas paradas separados por lado, com snapshots autoritativos do anfitrião.
+  "src/match3d/match.js": "ceb5ed262f0a31ea9290cf2b9c0c78b7a1acab4f78b3172a732385b7449fe0d1",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).

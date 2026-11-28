@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- O jogo roda offline: todo o conteúdo vem do próprio APK, sem internet.
-         E deitado: o XFC é um jogo de futebol em paisagem, como nas referências. -->
+    <!-- O jogo continua offline; INTERNET é usada apenas quando o jogador
+         escolhe conectar uma partida PvP online por WebSocket seguro. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
 
     <application
         android:allowBackup="true"

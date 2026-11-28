@@ -17,5 +17,8 @@
     "meshoptimizer": "0.24.0",
     "simple-icons": "11.15.0",
     "three": "0.160.0"
+  },
+  "dependencies": {
+    "ws": "^8.23.1"
   }
 }
