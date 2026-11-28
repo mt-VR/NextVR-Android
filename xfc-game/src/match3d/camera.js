@@ -39,6 +39,23 @@ export function cameraRelativeMovementFromStick(moveX = 0, moveZ = 0, forwardX =
 }
 
 /**
+ * Área-alvo da câmera Pro quando o atleta chega pela ponta: enquadrar a área
+ * central (em vez de girar para seguir a bola) ao avançar pelo corredor largo.
+ */
+export function proCameraAreaTarget(playerX, playerZ, attack = 1, halfLength = PITCH.halfLength, halfWidth = PITCH.halfWidth) {
+  const x = Number(playerX);
+  const z = Number(playerZ);
+  const length = Number(halfLength);
+  const width = Number(halfWidth);
+  if (![x, z, length, width].every(Number.isFinite) || length <= 0 || width <= 0) return null;
+  const sign = attack < 0 ? -1 : 1;
+  const remaining = length - sign * x;
+  const wideLane = Math.abs(z) >= width * 0.42;
+  if (!wideLane || remaining > 25) return null;
+  return { x: sign * (length - 10), z: 0 };
+}
+
+/**
  * Câmera de transmissão — o modelo do eFootball (print e pedido do usuário).
  *
  * Como a câmera de transmissão do eFootball/PES funciona, de acordo com a

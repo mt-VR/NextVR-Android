@@ -6,7 +6,7 @@ name: XFC APK
 
 on:
   push:
-    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android", "arena/5d087ee3-nextvr-android", "arena/79ef9c3b-nextvr-android" ]
+    branches: [ "main", "arena/c478325b-nextvr-android", "arena/1d5a221b-nextvr-android", "arena/5d087ee3-nextvr-android", "arena/79ef9c3b-nextvr-android", "arena/beee7429-nextvr-android" ]
   workflow_dispatch:
     inputs:
       publish:
@@ -55,7 +55,7 @@ jobs:
         run: |
           # O shell Bash do Actions usa -e por padrão; desative-o para capturar a saída do pipeline.
           set +e
-          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,career-market,career-office-evolve,leagues,gameplay-features,gameplay-features-browser,v060-ut-laliga-keeper}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
+          node --test --test-concurrency=2 tests/xfc-{game,prematch-ceremony,animation,footballer-regression,football-actions,net-physics,reference-menus,xfc27-menus,online-rooms,pause-gestures-plan,ultimate,expanded,visual-upgrade,motion-continuity,assets-performance,reference-motion,career-penalty,season,reception-offside,classic-players,customization-lab,career-presentations,career-upgrade,career-market,career-office-evolve,leagues,gameplay-features,gameplay-features-browser,v060-ut-laliga-keeper}.test.mjs 2>&1 | tee /tmp/xfc-tests.log
           TEST_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit=${TEST_EXIT}" >> "$GITHUB_OUTPUT"
@@ -65,6 +65,7 @@ jobs:
       # (que roda no workflow da Android CI) está instável.
       - name: Publish the XFC test report
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -108,10 +109,12 @@ jobs:
           APK=$(find xfc-game/android/app/build/outputs/apk -name '*.apk' -print -quit)
           test -n "$APK"
           echo "APK: $APK ($(stat -c %s "$APK") bytes)"
-          unzip -Z1 "$APK" | grep -E '^assets/game/(index.html|styles/base.css|src/main.js|vendor/three\.module\.min\.js|assets/crests/.*\.png)$' | sort
-          # O vendor/ é obrigatório: sem o three.js o grafo de módulos do jogo
-          # não carrega e o app abre só com o fundo azul.
+          unzip -Z1 "$APK" | grep -E '^assets/game/(index.html|styles/base.css|src/main.js|vendor/three\.module\.min\.js|assets/crests/.*\.png|assets/brand/xfc-intro-source\.gif|assets/brand/xfc-intro-smooth-once\.gif|assets/brand/xfc-intro-poster\.jpg)$' | sort
+          # O APK precisa conter o Three.js, os dois GIFs e o pôster estático de início.
           unzip -Z1 "$APK" | grep -q '^assets/game/vendor/three\.module\.min\.js$'
+          unzip -Z1 "$APK" | grep -Fxq 'assets/game/assets/brand/xfc-intro-source.gif'
+          unzip -Z1 "$APK" | grep -Fxq 'assets/game/assets/brand/xfc-intro-smooth-once.gif'
+          unzip -Z1 "$APK" | grep -Fxq 'assets/game/assets/brand/xfc-intro-poster.jpg'
 
       - name: Build the offline bundle (file:// support)
         # Gera o app.bundle.js que o index.html injeta quando os módulos ES
@@ -122,7 +125,7 @@ jobs:
         run: |
           set -e
           cd xfc-game
-          zip -r ../xfc-game.zip index.html styles src assets vendor serve.mjs README.md app.bundle.js -x '*.DS_Store'
+          zip -r ../xfc-game.zip index.html styles src assets vendor serve.mjs online-server.mjs package.json package-lock.json README.md app.bundle.js -x '*.DS_Store'
           cd ..
           ls -l xfc-game.zip
 
@@ -131,7 +134,11 @@ jobs:
           set -e
           for required in index.html src/main.js styles/base.css \
                           vendor/three.module.min.js app.bundle.js \
-                          assets/brand/xfc-icon.svg; do
+                          serve.mjs online-server.mjs package.json package-lock.json \
+                          assets/brand/xfc-icon.svg \
+                          assets/brand/xfc-intro-source.gif \
+                          assets/brand/xfc-intro-smooth-once.gif \
+                          assets/brand/xfc-intro-poster.jpg; do
             if ! unzip -Z1 xfc-game.zip | grep -Fxq "$required"; then
               echo "::error::faltando no xfc-game.zip: $required"
               exit 1
@@ -171,7 +178,7 @@ jobs:
           echo "published: branch xfc-dist, paths dist/xfc.apk and dist/xfc-game.zip"
 
       - name: Publish the release with the direct download links
-        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && (github.ref_name == 'arena/5d087ee3-nextvr-android' || github.ref_name == 'arena/79ef9c3b-nextvr-android') && contains(github.event.head_commit.message, '[publish-apk]'))
+        if: (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'arena/c478325b-nextvr-android')) || inputs.publish_release || (github.event_name == 'push' && (github.ref_name == 'arena/5d087ee3-nextvr-android' || github.ref_name == 'arena/79ef9c3b-nextvr-android' || github.ref_name == 'arena/beee7429-nextvr-android') && contains(github.event.head_commit.message, '[publish-apk]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -184,17 +191,17 @@ jobs:
             exit 0
           fi
           APK=$(find "$GITHUB_WORKSPACE/xfc-game/android/app/build/outputs/apk" -name '*.apk' -print -quit)
-          TAG=xfc-gameplay-v0.5.74
+          TAG=xfc-gameplay-v0.5.93
           NOTES=$(printf '%s\n' \
-            "XFC 27 v0.5.74 (versionCode 80), commit ${GITHUB_SHA}." \
+            "XFC 27 v0.5.93 (versionCode 99), commit ${GITHUB_SHA}." \
             "" \
-            "Eden Arena: textura JPEG no WebView, sem parede cinza." \
-            "Detalhes: xfc-game/docs/v0.5.74.md.")
+            "Abertura reproduz uma vez o GIF suavizado a 30 fps; o original permanece no APK." \
+            "Detalhes: xfc-game/docs/v0.5.93.md.")
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "XFC 27 — Eden Arena textura v0.5.74" \
+            gh release create "$TAG" --title "XFC 27 — GIF fluido de reprodução única v0.5.93" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           else
-            gh release edit "$TAG" --title "XFC 27 — Eden Arena textura v0.5.74" \
+            gh release edit "$TAG" --title "XFC 27 — GIF fluido de reprodução única v0.5.93" \
               --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
             # --target não move uma tag existente; manter fonte e APK alinhados.
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" \

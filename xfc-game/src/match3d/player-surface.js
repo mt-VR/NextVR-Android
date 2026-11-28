@@ -70,7 +70,12 @@ export function jerseyTexture({kit,number,name,crest,sponsor,brand,simplified=fa
     c.fillStyle=primary;c.fillRect(0,0,1024,512);
     for(let face=0;face<2;face++){
       const offset=face*512;c.save();c.translate(offset,0);
-      if(kit.pattern==='stripes') {c.fillStyle=secondary;for(let x=0;x<512;x+=120)c.fillRect(x,0,56,512);}
+      if(kit.pattern==='stripes') {
+        const bands = kit.stripeCount || 8;
+        const band = 512 / bands;
+        c.fillStyle=secondary;
+        for(let i=1;i<bands;i+=2)c.fillRect(i*band,0,band,512);
+      }
       if(kit.pattern==='halves'){c.fillStyle=secondary;c.fillRect(256,0,256,512);}
       if(kit.pattern==='hoops') {c.fillStyle=secondary;for(let y=0;y<512;y+=100)c.fillRect(0,y,512,48);}
       if(kit.pattern==='sash'){c.strokeStyle=secondary;c.lineWidth=65;c.beginPath();c.moveTo(70,0);c.lineTo(420,512);c.stroke();}
@@ -150,17 +155,25 @@ export function applyCareerSurface(material,look){
   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvCareerBind=position; vCareerNormal=normal;');
   shader.fragmentShader='varying vec3 vCareerBind; varying vec3 vCareerNormal;\n'+shader.fragmentShader;
   const beard=look.beard==='full'?1:look.beard==='stubble'?.55:look.beard==='goatee'?.9:0;
+  const beardTexture=look.beard==='stubble'?`
+    float stubbleNoise=fract(sin(dot(floor(vCareerBind.xy*380.),vec2(127.1,311.7)))*43758.5453);
+    float beardPigment=jaw*mix(.008,.12,smoothstep(.64,.98,stubbleNoise));
+  `:`float beardPigment=jaw*${beard.toFixed(2)};`;
+  const jawTop=look.beard==='stubble'?'1.62,1.65':'1.66,1.69';
+  const jawBottom=look.beard==='stubble'?'1.48,1.53':'1.57,1.60';
+  const jawWidth=look.beard==='stubble'?'.032,.060':look.beard==='goatee'?'.025,.04':'.07,.095';
   const mask=body?`
     float faceFront=smoothstep(.15,.6,vCareerNormal.z);
-    float jaw=(1.-smoothstep(1.66,1.69,vCareerBind.y))*smoothstep(1.57,1.60,vCareerBind.y)*(1.-smoothstep(${look.beard==='goatee'?'.025,.04':'.07,.095'},abs(vCareerBind.x)));
-    float moustache=(1.-smoothstep(.025,.045,abs(vCareerBind.x)))*(1.-smoothstep(.006,.012,abs(vCareerBind.y-1.685)))*${look.moustache==='classic'?'1.':'0.'};
+    float jaw=(1.-smoothstep(${jawTop},vCareerBind.y))*smoothstep(${jawBottom},vCareerBind.y)*(1.-smoothstep(${jawWidth},abs(vCareerBind.x)));
+    float moustache=(1.-smoothstep(.025,.045,abs(vCareerBind.x)))*(1.-smoothstep(.006,.012,abs(vCareerBind.y-1.558)))*${look.moustache==='classic'?'1.':'0.'};
     float brows=smoothstep(.012,.022,abs(vCareerBind.x))*(1.-smoothstep(.06,.075,abs(vCareerBind.x)))*(1.-smoothstep(.003,.008,abs(vCareerBind.y-1.741)))*${look.brows==='thick'?'1.':'0.'};
-    float pigment=clamp(jaw*${beard.toFixed(2)}+moustache+brows,0.,.92)*faceFront;
+    ${beardTexture}
+    float pigment=clamp(beardPigment+moustache+brows,0.,.82)*faceFront;
     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(${hair.r.toFixed(4)},${hair.g.toFixed(4)},${hair.b.toFixed(4)}),pigment);
   `:`diffuseColor.rgb=mix(diffuseColor.rgb,vec3(${skin.r.toFixed(4)},${skin.g.toFixed(4)},${skin.b.toFixed(4)}),smoothstep(.30,.315,vCareerBind.y));`;
   shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n'+mask);
  };
- material.customProgramCacheKey=()=>JSON.stringify({careerSurface:3,body,beard:look.beard,moustache:look.moustache,brows:look.brows,skin:look.skinTone,socks:look.socks});
+ material.customProgramCacheKey=()=>JSON.stringify({careerSurface:4,body,beard:look.beard,moustache:look.moustache,brows:look.brows,skin:look.skinTone,socks:look.socks});
 }
 
 // ------------------------------------------------------------- olho pintado --

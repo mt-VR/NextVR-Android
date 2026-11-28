@@ -80,6 +80,40 @@ com esbuild). O bundle é mantido junto do código e regenerado no CI antes de
 ser incluído no zip. Na falta dele, a página mostra instruções em vez de ficar
 numa tela azul.
 
+## PvP online (salas privadas por senha)
+
+O XFC usa um relay WebSocket para conectar jogadores pela internet; eles não
+precisam estar na mesma rede. O anfitrião cria uma sala com uma senha de 8 a 64
+caracteres e compartilha a mesma senha com o convidado. Não há código numérico,
+conta ou senha de plataforma: a senha compartilhada identifica a sala. Uma
+senha só pode identificar uma sala ativa por vez. O relay mantém salas em
+memória, guarda apenas o SHA-256 da senha como chave e nunca envia a senha de
+volta; tentativas de entrada são limitadas por IP.
+
+Para rodar localmente:
+
+```bash
+cd xfc-game
+npm ci
+npm start                         # HTTP :8080; /healthz e WebSocket /ws
+```
+
+Para jogar de redes diferentes, publique este serviço num host Node.js que
+aceite WebSocket e termine TLS. O mesmo servidor serve o jogo e o endpoint
+`/ws`; em HTTPS o cliente usa `wss://`. Em hospedagem com proxy reverso, o
+servidor compara a origem com `Host`/`X-Forwarded-Host`. A origem virtual do
+APK (`https://xfc.local`) já é permitida por padrão; use
+`XFC_ONLINE_ALLOWED_ORIGINS` apenas para acrescentar origens específicas.
+
+No Render, conecte a branch `arena/beee7429-nextvr-android`, use o diretório
+`xfc-game`, build `npm ci`, start `npm start` e health check `/healthz`; o
+servidor respeita a variável `PORT` do host. Depois do deploy, abra PvP → Sala Personalizada no APK, informe
+`wss://<domínio-publicado>/ws` e salve. Um jogador cria a sala com a senha, o
+outro entra usando exatamente a mesma; o anfitrião escolhe os times e inicia.
+O anfitrião executa a simulação e o convidado envia controles e recebe estado,
+placar e eventos. Salas sem partida expiram em dois minutos e partidas em até
+30 minutos de inatividade. Ranking global não faz parte deste serviço.
+
 ## App Android (APK)
 
 `xfc-game/android/` é uma casca Android que embute o jogo no APK e o roda
@@ -124,7 +158,9 @@ Na partida: mova com `WASD` ou setas; `J`/`Espaço` passe, segure `K` ou `L` par
 ```
 xfc-game/
 ├── index.html            casca da página
-├── serve.mjs             servidor estático (também usado pelos testes)
+├── serve.mjs             HTTP estático, healthcheck e endpoint de sala `/ws`
+├── online-server.mjs     relay WebSocket para salas, inputs e snapshots
+├── package.json          dependência de produção do relay (`ws`)
 ├── styles/               base.css (palco, tipografia, botões) e screens.css (telas)
 ├── src/
 │   ├── main.js           roteador de telas + teclado global

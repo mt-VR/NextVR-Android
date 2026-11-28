@@ -1,0 +1,14 @@
+{
+  "name": "xfc-game-relay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.23.1"
+  }
+}

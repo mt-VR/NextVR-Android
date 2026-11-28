@@ -11,6 +11,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { attachOnlineRooms } from './online-server.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 
@@ -24,6 +25,7 @@ const MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.woff2': 'font/woff2',
   '.md': 'text/markdown; charset=utf-8'
@@ -31,9 +33,14 @@ const MIME = {
 
 /** Cria o servidor que serve a pasta do jogo. */
 export function createXfcServer(root = ROOT) {
-  return createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
+      if (url.pathname === '/healthz') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ ok: true, service: 'xfc-online-relay' }));
+        return;
+      }
       const requested = decodeURIComponent(url.pathname);
       const relative = normalize(requested === '/' ? '/index.html' : requested).replace(/^([/\\])+/, '');
       if (relative.split(sep).includes('..')) throw new Error('forbidden');
@@ -51,6 +58,8 @@ export function createXfcServer(root = ROOT) {
       res.end('404');
     }
   });
+  attachOnlineRooms(server);
+  return server;
 }
 
 /** Sobe o servidor e devolve a URL base. */
@@ -64,7 +73,10 @@ export async function startXfcServer({ port = 0, host = '127.0.0.1' } = {}) {
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
   const portArg = process.argv.indexOf('--port');
-  const port = portArg > -1 ? Number(process.argv[portArg + 1]) : 8080;
+  const envPort = Number(process.env.PORT);
+  const port = portArg > -1
+    ? Number(process.argv[portArg + 1])
+    : Number.isSafeInteger(envPort) && envPort > 0 ? envPort : 8080;
   const hostArg = process.argv.indexOf('--host');
   const host = hostArg > -1 ? process.argv[hostArg + 1] : '0.0.0.0';
   const { url } = await startXfcServer({ port, host });

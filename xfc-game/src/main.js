@@ -20,6 +20,8 @@ import { playScreen } from './screens/play.js';
 import { stadiumsScreen } from './screens/stadiums.js';
 import { worldCupScreen } from './screens/worldcup.js';
 import { modesScreen } from './screens/modes.js';
+import { pvpScreen } from './screens/pvp.js';
+import { competitionsScreen } from './screens/competitions.js';
 import { customiseScreen } from './screens/customise.js';
 import { ultimateTeamScreen } from './screens/ultimate.js';
 import { trainingScreen } from './screens/training.js';
@@ -60,6 +62,8 @@ const registry = {
   play: playScreen,
   stadiums: stadiumsScreen,
   modes: modesScreen,
+  pvp: pvpScreen,
+  competitions: competitionsScreen,
   customise: customiseScreen,
   'asset-library':assetLibraryScreen,
   worldcup: worldCupScreen,

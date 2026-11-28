@@ -170,11 +170,15 @@ test('carreira no menu principal e câmera Pro atrás do atleta em casa/fora, co
     for(const player of [...m.teams.home.players,...m.teams.away.players])if(player!==hero)player.active=false;
     hero.x=0;hero.z=0;hero.vx=hero.vz=0;m.ball.attachTo(hero);
     for(let i=0;i<300;i++)m.world.tick(1/60);
-    const resting={behind:(m.engine.camera.position.x-hero.x)*sign,lateral:m.engine.camera.position.z-hero.z,height:m.engine.camera.position.y,fov:m.engine.camera.fov};
-    const startX=hero.x;m.world.input.moveZ=1;for(let i=0;i<45;i++)m.world.tick(1/60);
-    const forward=(hero.x-startX)*sign;m.world.input.moveZ=0;
-    const startZ=hero.z;m.world.input.moveX=1;for(let i=0;i<45;i++)m.world.tick(1/60);
-    const right=(hero.z-startZ)*sign;m.world.input.moveX=0;
+    const cam=m.engine.camera.position;
+    const ox=cam.x-hero.x,oz=cam.z-hero.z,dist=Math.hypot(ox,oz)||1;
+    const fwdX=-ox/dist,fwdZ=-oz/dist,rightX=-fwdZ,rightZ=fwdX;
+    const resting={behind:dist,lateral:ox*rightX+oz*rightZ,height:cam.y,fov:m.engine.camera.fov};
+    const startX=hero.x,startZ=hero.z;m.world.input.moveZ=1;for(let i=0;i<45;i++)m.world.tick(1/60);
+    const forward=(hero.x-startX)*fwdX+(hero.z-startZ)*fwdZ;m.world.input.moveZ=0;
+    const midX=hero.x,midZ=hero.z;m.world.input.moveX=1;for(let i=0;i<45;i++)m.world.tick(1/60);
+    // 360°: o stick direito orbita com o atleta — mede o deslocamento, não o eixo do campo.
+    const right=Math.hypot(hero.x-midX,hero.z-midZ);m.world.input.moveX=0;
     m.world.setPaused(true);const camera=m.engine.camera.position.toArray();m.world.tick(1);const paused=m.engine.camera.position.toArray();m.world.setPaused(false);
     // A bola distante não troca o protagonista nem puxa a posição da câmera.
     const mate=m.teams[m.world.userSide].players.find(x=>x!==hero&&!x.isKeeper);mate.x=sign*28;mate.z=20;m.ball.attachTo(mate);
@@ -184,7 +188,7 @@ test('carreira no menu principal e câmera Pro atrás do atleta em casa/fora, co
     return{side:m.world.userSide,mode:m.world.cameraMode,id:m.controlled[m.world.userSide].rosterId,resting,forward,right,camera,paused,distance};
    });
    assert.equal(result.side,round===0?'away':'home');assert.equal(result.mode,'pro');assert.equal(result.id,'career-player');
-   assert.ok(Math.abs(result.resting.behind+7)<.05,JSON.stringify(result));assert.ok(Math.abs(result.resting.lateral)<.05);assert.ok(Math.abs(result.resting.height-4.15)<.05);assert.ok(Math.abs(result.resting.fov-52)<.05);
+   assert.ok(Math.abs(result.resting.behind-7)<.05,JSON.stringify(result));assert.ok(Math.abs(result.resting.lateral)<.05);assert.ok(Math.abs(result.resting.height-4.15)<.05);assert.ok(Math.abs(result.resting.fov-52)<.05);
    assert.ok(result.forward>1);assert.ok(result.right>1);assert.deepEqual(result.camera,result.paused);assert.ok(result.distance<12);
   }
   assert.deepEqual(errors,[]);

@@ -13,11 +13,11 @@ test('identidade clássica é estável por nome, com seis formatos e todos os co
 });
 test('pacote clássico mantém rig/animações, tem menos de 10 mil triângulos e hash reproduzível',async()=>{
  const bytes=await readFile('xfc-game/assets/players/models/footballer.glb'),manifest=JSON.parse(await readFile('xfc-game/assets/players/models/footballer.source.json','utf8'));
- assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.outputSha256);assert.ok(bytes.length<600000);
+ assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.outputSha256);assert.ok(bytes.length<800000);
  const json=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
  const triangles=json.meshes.flatMap(m=>m.primitives).reduce((n,p)=>n+json.accessors[p.indices].count/3,0);
  assert.ok(triangles<10000&&triangles>3000,`triângulos: ${triangles}`);assert.equal(json.skins[0].joints.length,22);
- assert.deepEqual(json.animations.map(a=>a.name),['idle','walk','run']);
+ assert.deepEqual(json.animations.map(a=>a.name),['idle','walk','run','sprint','dive','catch','miss','throw-in']);
  for(const m of json.meshes)for(const p of m.primitives){assert.ok(p.attributes.JOINTS_0!==undefined&&p.attributes.WEIGHTS_0!==undefined&&p.attributes.TEXCOORD_0!==undefined);}
 });
 test('cortes sólidos distintos, rostos, UVs, orçamento e animações no renderer real',{timeout:90000},async t=>{
@@ -78,13 +78,18 @@ test('cortes sólidos distintos, rostos, UVs, orçamento e animações no render
 test('HUD, controles, gameplay e menus preservados; ligação de aquecimento isolada',async()=>{
  const baseline={
   "src/match3d/hud.js": "43939e6083e8772dfaecd7f0f0ef23192c17e2ef80b6054a4f9c0ae3a8ea0285",
-  "src/match3d/controls.js": "4d00a932872d40f2914c68e6de11415743d6dc866532bf2c3aa570bd32764665",
-  // v0.5.70: falta (barreira/corredor) e recepção do treino coletivo.
-  "src/match3d/match.js": "5eec6de6a279986813acbffeb919f84dbed87472ac25d486ddf27e0e869fbee8",
+  // v0.5.95: gestos laterais em passe/enfiada, além da carga compartilhada do cabeceio manual.
+  "src/match3d/controls.js": "8275e265ed885cbb8e3b0b7ef7458473e884212ebf5619b742b857c70e1365ba",
+  // v0.5.89: câmera Pro Zoom/Speed/Swing, elástico/roleta e sprint da IA.
+  // v0.5.94: escala visual dos atletas de linha em 1,18×; coordenadas e colisões inalteradas.
+  // v0.5.95: câmera segue o jogador, não a bola; cabeceio manual/IA, física de curva e espaçamento.
+  // v0.5.96: gesto lateral não faz a câmera orbitar e desviar a corrida.
+  // PvP online: controles e bolas paradas separados por lado, com snapshots autoritativos do anfitrião.
+  "src/match3d/match.js": "ceb5ed262f0a31ea9290cf2b9c0c78b7a1acab4f78b3172a732385b7449fe0d1",
   "src/screens/career-reference.js": "1583463367c4d7110e059b61ec7adc44457c86493bf3470e22e8d3b78e5bff37",
   "styles/career-reference.css": "ff684a5e88fb8bfd185dd509fc65d6d0a47ae7adf58c5293dbcb9121a0f71c3b",
   // v0.5.57: tela de resultado no estilo EA FC (CASA/FORA, placar, overlay).
-  "styles/match3d.css": "a97f4a4d3601979c6ad1841594cd0ae906dd6bdff8d4f3b54d528f3e30cb2ac2"
+  "styles/match3d.css": "33b3098bfeffe264e63cc911af4cde3dd8607b336f79a3d97145d5834c9d046b"
  };
  for(const [path,hash]of Object.entries(baseline))assert.equal(createHash('sha256').update((await readFile('xfc-game/'+path,'utf8')).replace('    warmupTeams:[{team:home,kit:homeKit},{team:away,kit:awayKit}],\n','')).digest('hex'),hash,path);
 });

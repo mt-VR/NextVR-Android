@@ -206,6 +206,44 @@ test(
           await p.locator('.ut-ref-more nav').getByRole('button',{name,exact:true}).click();
         }else await p.locator('.ut-nav').getByRole('button',{name,exact:true}).click();
       }
+      await navigate("Meu Clube");
+      const starter = await p.evaluate(() => {
+        const ut = JSON.parse(localStorage.getItem("xfc.profile.v1")).ut;
+        return {
+          name: ut.clubName,
+          slots: [...ut.squads.find((s) => s.id === ut.active).slots],
+          cards: ut.inventory.map(({ uid, cardId }) => [uid, cardId])
+        };
+      });
+      await p.getByRole("button", { name: "Brasão Brasil", exact: true }).click();
+      const crestOnly = await p.evaluate(() => {
+        const ut = JSON.parse(localStorage.getItem("xfc.profile.v1")).ut;
+        return {
+          name: ut.clubName,
+          logo: ut.clubLogo,
+          slots: [...ut.squads.find((s) => s.id === ut.active).slots],
+          cards: ut.inventory.map(({ uid, cardId }) => [uid, cardId])
+        };
+      });
+      assert.equal(crestOnly.logo, "assets/crests/nations/br.png");
+      assert.equal(crestOnly.name, starter.name);
+      assert.deepEqual(crestOnly.slots, starter.slots);
+      assert.deepEqual(crestOnly.cards, starter.cards);
+
+      // Um confronto UT ausente nunca deve cair no fallback de seleção do Brasil.
+      await p.evaluate(async () => {
+        const m = await import("/src/main.js");
+        m.state.selection.home = "brazil";
+        m.go("play", { home: "xfc-ut", ultimateMatchId: "missing-ut-match" });
+      });
+      await p.waitForSelector(".play__loading--error");
+      assert.equal(
+        await p.locator(".play__loading--error b").textContent(),
+        "CONFRONTO DO ULTIMATE TEAM NÃO ENCONTRADO",
+      );
+      await p.evaluate(async () => (await import("/src/main.js")).go("ultimate"));
+      await p.waitForSelector(".ut-main");
+
       for (const name of [
         "Meu Clube",
         "Elenco",
@@ -283,14 +321,44 @@ test(
       await p.waitForSelector(".showcase__enter");
       await p.click(".showcase__enter");
       await p.waitForSelector(".hud.is-visible");
-      const actual = await p.evaluate(() =>
-        __xfcMatch.teams.home.players.map((x) => x.rosterId),
-      );
+      const matchHome = await p.evaluate(() => {
+        const home = __xfcMatch.teams.home;
+        return {
+          id: home.info.id,
+          name: home.info.name,
+          crest: home.info.crest,
+          national: Boolean(home.info.isNationalTeam),
+          colors: home.info.colors,
+          sourceTeams: [...new Set(home.info.players.map((player) => player.teamId))],
+          roster: home.players.map((player) => player.rosterId),
+          visuals: home.players.map((player) => ({
+            isKeeper: player.isKeeper,
+            presence: player.model.root.userData.pitchPresence,
+            atWorldPosition: player.model.root.position.x === player.x
+              && player.model.root.position.z === player.z
+          }))
+        };
+      });
       const wanted = await p.evaluate(
         () =>
           JSON.parse(localStorage.getItem("xfc.profile.v1")).ut.pending.uids,
       );
-      assert.deepEqual([...actual].sort(), [...wanted].sort());
+      assert.equal(matchHome.id, "xfc-ut");
+      assert.equal(matchHome.name, starter.name);
+      assert.equal(matchHome.crest, "assets/crests/nations/br.png");
+      assert.equal(matchHome.national, false);
+      assert.equal(matchHome.colors.primary, "#5620a8");
+      assert.deepEqual(matchHome.sourceTeams, ["fc-barcelona"]);
+      assert.deepEqual([...matchHome.roster].sort(), [...starter.slots].sort());
+      assert.deepEqual([...matchHome.roster].sort(), [...wanted].sort());
+      assert.ok(matchHome.visuals.every((player) => player.atWorldPosition),
+        "a escala visual não altera coordenadas da simulação");
+      assert.ok(matchHome.visuals.filter((player) => !player.isKeeper)
+        .every((player) => player.presence === 1.18),
+      "jogadores de linha ficam maiores apenas na renderização");
+      assert.ok(matchHome.visuals.filter((player) => player.isKeeper)
+        .every((player) => player.presence === 1.12),
+      "goleiros mantêm escala proporcional à trave");
       await p.evaluate(() => {
         const m = __xfcMatch;
         m.world.setPaused(false);

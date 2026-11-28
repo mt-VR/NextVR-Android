@@ -1,0 +1,325 @@
+import { el } from '../ui/dom.js';
+import { isValidRoomPassword, normalizeRoomPassword, openOnlineConnection, resolveOnlineServerUrl, saveOnlineServerUrl } from '../data/online-rooms.js';
+import { TEAMS } from '../data/teams.js';
+import { xfc27Footer, xfc27Hotspot, xfc27Screen } from '../ui/reference-menu.js';
+
+export function pvpScreen(ctx) {
+  const node = xfc27Screen('screen--pvp', 'pvp', 'Menu PvP XFC 27');
+  const buttons = [];
+  let activeButton = 0;
+  let overlay = null;
+  let connection = null;
+  let unsubscribe = null;
+  let handedOff = false;
+  let connecting = false;
+  let role = null;
+  let pendingConfig = null;
+
+  const top = [
+    ['Início', [333, 20, 129, 76], () => ctx.go('menu')],
+    ['Modos', [465, 20, 139, 76], () => ctx.go('modes')],
+    ['Personalizar', [607, 20, 186, 76], () => ctx.go('customise')],
+    ['Configurações', [790, 20, 202, 76], () => ctx.go('customise')]
+  ];
+  for (const [label, rect, run] of top) node.append(xfc27Hotspot(label, rect, run, { class: 'ref-button xfc27-action' }));
+  node.append(xfc27Hotspot('Perfil e configurações', [1280, 22, 310, 70], () => ctx.go('customise'), { class: 'ref-button xfc27-action' }));
+
+  const showStatus = title => ctx.toast(`${title}: esse serviço ainda não está disponível. Use uma sala online para jogar com um amigo.`, { variant: 'warn', duration: 4200 });
+  const openRoom = () => {
+    close(false);
+    const backdrop = el('div', { class: 'xfc27-dialog-backdrop' });
+    const roomStatus = el('output', { class: 'xfc27-room-status', 'aria-label': 'Estado da sala online', text: 'Desconectado' });
+    const passwordInput = el('input', {
+      class: 'xfc27-room-input',
+      type: 'text',
+      autoComplete: 'off',
+      maxLength: 64,
+      minLength: 8,
+      'aria-label': 'Senha da sala (8 a 64 caracteres)',
+      placeholder: 'Crie uma senha para compartilhar',
+      onInput(event) { event.target.value = event.target.value.slice(0, 64); }
+    });
+    const savedUrl = resolveOnlineServerUrl();
+    const serverInput = el('input', {
+      class: 'xfc27-room-server',
+      type: 'url',
+      autoComplete: 'url',
+      'aria-label': 'Endereço do servidor online',
+      placeholder: 'wss://seu-servidor.example/ws',
+      value: savedUrl
+    });
+    const status = el('p', { class: 'xfc27-dialog__status', role: 'status', 'aria-live': 'polite', text: savedUrl
+      ? 'Escolha uma senha de 8 a 64 caracteres. O anfitrião cria a sala e o amigo entra com a mesma senha; não precisam estar na mesma rede.'
+      : 'Informe o endereço WSS do servidor público. No APK, xfc.local é apenas a origem local do jogo, não um servidor acessível pela internet.' });
+    const roomLabel = el('span', { text: 'Conexão da sala' });
+    const createButton = el('button', {
+      class: 'xfc27-dialog__action',
+      type: 'button',
+      onClick: () => connect('create')
+    }, 'Criar sala com senha');
+    const joinButton = el('button', {
+      class: 'xfc27-dialog__action',
+      type: 'button',
+      onClick: () => connect('join')
+    }, 'Entrar com senha');
+    const startButton = el('button', {
+      class: 'xfc27-dialog__action',
+      type: 'button',
+      disabled: true,
+      onClick: startOnlineMatch
+    }, 'Iniciar partida');
+    const homeSelect = teamSelect('Mandante', ctx.state.selection?.home || TEAMS[0]?.id);
+    const awayDefault = ctx.state.selection?.away && ctx.state.selection.away !== homeSelect.value
+      ? ctx.state.selection.away : TEAMS.find(team => team.id !== homeSelect.value)?.id;
+    const awaySelect = teamSelect('Visitante', awayDefault);
+    const teamFields = el('div', { class: 'xfc27-room-teams' },
+      el('label', { class: 'xfc27-room-label' }, 'Seu time (mandante)', homeSelect),
+      el('label', { class: 'xfc27-room-label' }, 'Adversário (visitante)', awaySelect));
+    overlay = el('section', { class: 'xfc27-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Conectar partida PvP' },
+      el('button', { class: 'xfc27-dialog__close-icon', type: 'button', 'aria-label': 'Fechar', onClick: () => close(true) }, '×'),
+      el('p', { class: 'xfc27-dialog__eyebrow', text: 'XFC 27 · PvP online' }),
+      el('h2', { text: 'Conectar com um amigo' }),
+      el('p', { class: 'xfc27-dialog__copy', text: 'Crie uma sala protegida por senha e compartilhe a senha com seu amigo. Os dois podem jogar pela internet, mesmo em redes diferentes.' }),
+      el('label', { class: 'xfc27-room-label' }, 'Servidor online (WSS)', serverInput),
+      el('div', { class: 'xfc27-room-preview' }, roomLabel, roomStatus),
+      el('label', { class: 'xfc27-room-label' }, 'Senha da sala (8 a 64 caracteres)', passwordInput),
+      el('div', { class: 'xfc27-room-actions' }, createButton, joinButton),
+      teamFields,
+      startButton,
+      status,
+      el('p', { class: 'xfc27-dialog__footnote', text: 'A senha identifica e protege a sala; não use senha de conta pessoal. O relay não guarda a senha em texto. O anfitrião executa a simulação da partida.' }),
+      el('button', { class: 'xfc27-dialog__close', type: 'button', text: 'Voltar', onClick: () => close(true) })
+    );
+    backdrop.append(overlay);
+    node.append(backdrop);
+    passwordInput.focus();
+
+    function teamSelect(label, selectedId) {
+      return el('select', {
+        class: 'xfc27-room-select',
+        'aria-label': label,
+        onChange() {
+          if (homeSelect && awaySelect && homeSelect.value === awaySelect.value) {
+            const alternative = TEAMS.find(team => team.id !== homeSelect.value);
+            if (label === 'Mandante' && alternative) awaySelect.value = alternative.id;
+            else if (alternative) homeSelect.value = alternative.id;
+          }
+        }
+      }, ...TEAMS.map(team => el('option', {
+        value: team.id,
+        selected: team.id === selectedId,
+        text: team.name
+      })));
+    }
+
+    function setStatus(message, error = false) {
+      status.textContent = message;
+      status.classList.toggle('is-error', error);
+    }
+
+    function restoreActions() {
+      connecting = false;
+      createButton.disabled = false;
+      joinButton.disabled = false;
+      passwordInput.disabled = false;
+      serverInput.disabled = false;
+    }
+
+    async function connect(action) {
+      if (connecting || connection) return;
+      if (!isValidRoomPassword(passwordInput.value)) {
+        setStatus('Use uma senha de 8 a 64 caracteres para proteger a sala.', true);
+        passwordInput.focus();
+        return;
+      }
+      const password = normalizeRoomPassword(passwordInput.value);
+      passwordInput.value = password;
+      const url = resolveOnlineServerUrl(serverInput.value);
+      if (!url) {
+        setStatus('Endereço inválido. Use wss://domínio-do-servidor/ws; páginas HTTPS e o APK exigem WSS seguro.', true);
+        serverInput.focus();
+        return;
+      }
+      saveOnlineServerUrl(serverInput.value || url);
+      connecting = true;
+      role = action === 'create' ? 'host' : 'guest';
+      createButton.disabled = true;
+      joinButton.disabled = true;
+      serverInput.disabled = true;
+      setStatus('Conectando ao servidor online…');
+      try {
+        connection = openOnlineConnection(url);
+        unsubscribe = connection.subscribe(onMessage);
+        await connection.opened;
+        const request = action === 'create'
+          ? { type: 'create-room', password }
+          : { type: 'join-room', password };
+        if (!connection.send(request)) throw new Error('A conexão fechou antes de enviar o pedido.');
+        roomStatus.textContent = 'Conectando…';
+        passwordInput.disabled = true;
+        serverInput.disabled = true;
+        createButton.disabled = true;
+        joinButton.disabled = true;
+        connecting = false;
+        setStatus(action === 'create'
+          ? 'Pedido enviado. Aguarde a confirmação da sala protegida…'
+          : 'Pedido enviado. Validando a senha da sala…');
+      } catch (error) {
+        connection?.close();
+        connection = null;
+        unsubscribe?.();
+        unsubscribe = null;
+        restoreActions();
+        setStatus(error.message || 'Falha ao conectar. Confira o servidor e tente novamente.', true);
+      }
+    }
+
+    function onMessage(message) {
+      if (!overlay || handedOff) return;
+      if (message.type === 'room-created') {
+        role = 'host';
+        roomStatus.textContent = 'Sala protegida';
+        setStatus('Sala criada. Compartilhe a senha com seu amigo e aguarde a entrada dele.');
+      } else if (message.type === 'joined') {
+        role = 'guest';
+        roomStatus.textContent = 'Conectado';
+        setStatus('Senha aceita. Aguardando o anfitrião iniciar a partida.');
+      } else if (message.type === 'peer-joined') {
+        startButton.disabled = false;
+        roomStatus.textContent = 'Dois jogadores';
+        setStatus('Seu amigo entrou. Escolha os times e inicie a partida.');
+      } else if (message.type === 'peer-left') {
+        startButton.disabled = true;
+        setStatus('O outro jogador se desconectou. A sala continua aberta para uma nova entrada.', true);
+      } else if (message.type === 'start-accepted' && role === 'host') {
+        launchOnlineMatch('host', message.config);
+      } else if (message.type === 'match-start' && role === 'guest') {
+        launchOnlineMatch('guest', message.config);
+      } else if (message.type === 'room-expired') {
+        roomStatus.textContent = 'Expirada';
+        setStatus('A sala expirou. Crie outra com senha e tente novamente.', true);
+        startButton.disabled = true;
+      } else if (message.type === 'host-left') {
+        setStatus('O anfitrião saiu da sala.', true);
+        startButton.disabled = true;
+      } else if (message.type === 'error') {
+        if (['room-not-found', 'room-full', 'room-exists', 'rate-limited', 'invalid-password'].includes(message.code)) {
+          const stale=connection;
+          unsubscribe?.();unsubscribe=null;connection=null;role=null;
+          stale?.close();
+        }
+        restoreActions();
+        roomStatus.textContent = 'Falha';
+        setStatus(message.message || 'O servidor recusou o pedido.', true);
+      } else if (message.type === 'disconnected') {
+        if (!handedOff) {
+          restoreActions();
+          setStatus('Conexão encerrada. Confira a rede ou o servidor e tente de novo.', true);
+        }
+      } else if (message.type === 'transport-error') {
+        setStatus('Falha na conexão WebSocket. Verifique o endereço WSS e a disponibilidade do servidor.', true);
+      }
+    }
+
+    function startOnlineMatch() {
+      if (role !== 'host' || !connection?.isOpen || startButton.disabled) return;
+      if (homeSelect.value === awaySelect.value) {
+        setStatus('Escolha dois times diferentes.', true);
+        return;
+      }
+      const seedBytes = new Uint32Array(1);
+      if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(seedBytes);
+      else seedBytes[0] = Math.floor(Math.random() * 0xffffffff);
+      pendingConfig = {
+        home: homeSelect.value,
+        away: awaySelect.value,
+        homeKit: Number(ctx.state.kits?.[homeSelect.value]) || 0,
+        awayKit: Number(ctx.state.kits?.[awaySelect.value]) || 0,
+        minutes: 3,
+        difficulty: 'normal',
+        stadium: 0,
+        seed: seedBytes[0]
+      };
+      startButton.disabled = true;
+      setStatus('Preparando a partida para os dois jogadores…');
+      if (!connection.send({ type: 'start-match', config: pendingConfig })) {
+        startButton.disabled = false;
+        setStatus('A conexão caiu antes de iniciar. Tente novamente.', true);
+      }
+    }
+  };
+
+  function launchOnlineMatch(matchRole, config) {
+    if (handedOff || !connection) return;
+    handedOff = true;
+    unsubscribe?.();
+    unsubscribe = null;
+    const matchConfig = config || pendingConfig;
+    ctx.go('play', {
+      ...matchConfig,
+      userSide: matchRole === 'host' ? 'home' : 'away',
+      online: { role: matchRole, connection, config: matchConfig }
+    });
+  }
+
+  function close(disconnect = true) {
+    overlay?.closest('.xfc27-dialog-backdrop')?.remove();
+    overlay = null;
+    if (disconnect && !handedOff) {
+      connection?.send({ type: 'leave' });
+      connection?.close();
+      connection = null;
+      unsubscribe?.();
+      unsubscribe = null;
+    }
+  }
+
+  const buttonsSpec = [
+    ['Jogar Online', [46, 367, 437, 70], openRoom, 'ranked'],
+    ['Amistoso Online', [47, 438, 438, 66], openRoom, 'friendly'],
+    ['Ranking', [47, 505, 438, 68], () => showStatus('Ranking'), 'ranking'],
+    ['Modo Ranqueado', [28, 606, 512, 149], () => showStatus('Modo Ranqueado'), 'ranked-card'],
+    ['Partida Rápida PvP', [554, 606, 492, 149], openRoom, 'quick'],
+    ['Sala Personalizada', [1053, 606, 478, 149], openRoom, 'custom-room']
+  ];
+  for (const [label, rect, run, option] of buttonsSpec) {
+    const button = xfc27Hotspot(label, rect, run, { class: 'ref-button xfc27-action pvp__option', dataset: { option } });
+    node.append(button);
+    buttons.push(button);
+    button.addEventListener('focus', () => { activeButton = buttons.length - 1; });
+  }
+  xfc27Footer(node, {
+    select: () => buttons[activeButton]?.click(),
+    back: () => ctx.go('modes')
+  });
+
+  return {
+    node,
+    onKey(event) {
+      if (overlay && ['Escape', 'Backspace'].includes(event.key)) { close(true); return true; }
+      if (overlay && event.key === 'Tab') {
+        const focusable = [...overlay.querySelectorAll('button,input,select')];
+        const current = focusable.indexOf(document.activeElement);
+        const next = (current + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
+        focusable[next]?.focus();
+        return true;
+      }
+      if (event.key === 'Escape' || event.key === 'Backspace') { ctx.go('modes'); return true; }
+      const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+      if (delta) {
+        const focused = buttons.indexOf(document.activeElement);
+        activeButton = ((focused >= 0 ? focused : activeButton) + delta + buttons.length) % buttons.length;
+        buttons[activeButton]?.focus();
+        return true;
+      }
+      if ((event.key === 'Enter' || event.key === ' ') && !document.activeElement?.matches?.('button,input,select')) {
+        buttons[activeButton]?.click();
+        return true;
+      }
+      return false;
+    },
+    unmount() {
+      if (!handedOff) close(true);
+    }
+  };
+}

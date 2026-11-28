@@ -1,6 +1,6 @@
 /* Arte original inteira na abertura; sem recortes/gradientes/logos por cima. */
-.screen--intro.intro-reference{padding:0;background:#02172f;cursor:pointer}
-.intro-reference__art{display:block;width:100%;height:100%;object-fit:fill}
+.screen--intro.intro-reference{padding:0;background:#02172f;cursor:pointer;overflow:hidden}
+.intro-reference__art{display:block;width:100%;height:100%;object-fit:fill;pointer-events:none}
 .selection-reference{padding:0;background:#050d12;isolation:isolate}
 .selection-reference::before,.selection-reference::after{display:none}
 .selection-reference>.ref-art{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;z-index:-1}

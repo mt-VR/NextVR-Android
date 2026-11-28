@@ -1,6 +1,6 @@
 import {labHairGeometry,labHairMaterial,CAREER_HAIR_ALIAS} from './hair-lab.js';
 import {addPlayerAccessories} from './player-accessories.js';
-import {classicIdentity,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
+import {classicFaceProfile,classicFaceGeometry,classicHairGeometry,classicHairMaterial,classicMaterial} from './classic-player.js';
 import {attachLowPolySilhouette} from './low-poly.js';
 import {anthemMouth,anthemSway} from './prematch.js';
 // Adaptação low poly clássica do Micah CC0; roupa/rig/UVs preservados.
@@ -103,7 +103,10 @@ export function preloadFootballerPack() {
   packPromise = (async () => {
     const gltf = await loadGlb(MODEL_URL);
     const library = new Map();
-    const aliases = { idle: 'idle', walk: 'jog', jog: 'jog', run: 'run' };
+    const aliases = {
+      idle: 'idle', walk: 'jog', jog: 'jog', run: 'run', sprint: 'sprint',
+      dive: 'dive', catch: 'catch', miss: 'miss', 'throw-in': 'throw-in'
+    };
     for (const animation of gltf.animations || []) {
       const name = aliases[animation.name.toLowerCase()] || animation.name;
       library.set(name, animation);
@@ -168,9 +171,9 @@ function findBone(root, name) {
   return found;
 }
 
-// Ajuste pedido em v0.5.29: mesmo Micah, rig/topologia/UV intactos.
-// Dilatação radial moderada por influência de osso, calculada UMA vez por malha.
-// Não escala o comprimento dos ossos, nem infla cabeça, mãos ou tronco.
+// Ajuste visual do atleta: mesmo Micah, rig/topologia/UV intactos.
+// Volume radial discreto em braços e pernas, calculado UMA vez por malha,
+// sem alterar o comprimento dos ossos nem inflar cabeça, mãos ou tronco.
 const athleticGeometryCache=new WeakMap();
 function athleticLimbs(model){
   model.updateMatrixWorld(true);
@@ -187,7 +190,7 @@ function athleticLimbs(model){
       const child=bone.children.find(b=>b.isBone);if(!child)return null;
       const origin=bone.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
       const end=child.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
-      return {origin,axis:end.sub(origin).normalize(),gain:/Leg$/.test(name)?.13:.07};
+      return {origin,axis:end.sub(origin).normalize(),gain:/Leg$/.test(name)?.16:.09};
     });
     const v=new THREE.Vector3(),radial=new THREE.Vector3(),delta=new THREE.Vector3();
     for(let i=0;i<position.count;i++){
@@ -228,7 +231,9 @@ export function createGltfPlayer(options = {}) {
   root.userData.modelId = 'xfc-footballer-glb';
   root.userData.detailLevel = simplified ? 'mobile' : 'full';
   root.userData.visualStyle=lowPoly?'low-poly-psp':'classic-ps2';
-  const identity=classicIdentity(options.name);root.userData.faceVariant=identity;
+  const identity=classicFaceProfile(options.name);root.userData.faceVariant=identity;
+  root.userData.faceReference=identity==='vinicius-junior'?'assets/players/vinicius-junior.jpg':null;
+  root.userData.facePrototype=identity==='vinicius-junior'?'integrated-mesh-profile-and-subtle-facial-pigment':null;
 
   const model = cloneSkeleton(pack.scene);
   model.name = 'xfc-footballer-glb-body';
@@ -260,7 +265,9 @@ export function createGltfPlayer(options = {}) {
   const presence = Number(options.pitchPresence) > 0 ? Number(options.pitchPresence) : 1;
   const bodyHeight = options.height ? Math.max(1.70,Math.min(2.05,options.height/100)) : (lowPoly ? 1.90 : 1.88);
   root.userData.targetHeight=bodyHeight;
-  root.userData.limbRadialGain={arms:1.07,legs:1.13};
+  root.userData.pitchPresence=presence;
+  root.userData.visualHeight=bodyHeight*presence;
+  root.userData.limbRadialGain={arms:1.09,legs:1.16};
   const scale = size.y > 0.01 ? (bodyHeight * presence) / size.y : 1;
   model.scale.setScalar(scale);
   if(options.body){const width=({lean:.96,normal:1,strong:1.04}[options.body]||1)*Math.max(.95,Math.min(1.07,1+((options.weight||68)-68)*.002));model.scale.x*=width;model.scale.z*=width;}
@@ -288,9 +295,9 @@ export function createGltfPlayer(options = {}) {
     // de camisa o material "top" ficava branco nos dois lados da prévia.
     if (materialList(object).some(m => m.name === 'Micah | top') && (options.crest || options.name || options.simplified)) object.geometry = shirtGeometry(object);
     const list = materialList(object).map(material => {
-      // Pontas descoloridas: o moicano de referência (e o corte "neymar" do
-      // elenco) tem raiz escura e ponta clara, como em 2011/12.
-      const hairTip = renderHair==='lab-reference-mohawk' || (options.careerHair && hairStyle==='neymar')
+      // Pontas descoloridas pertencem apenas ao corte de referência moicano;
+      // o alias antigo de Neymar agora usa o Ragnarok branco.
+      const hairTip = renderHair==='lab-reference-mohawk'
         ? (options.hairTip || '#c9a86a') : null;
       const clone = object.name==='short01'?(renderHair.startsWith('lab-')?labHairMaterial(hairColor,hairTip):classicHairMaterial(hairStyle==='lab-shaved'?'bald':hairStyle.startsWith('lab-')?hairStyle.slice(4):hairStyle,hairColor,skinTone)):material.clone();
       const name = String(material.name || '');
@@ -466,18 +473,25 @@ export function createGltfPlayer(options = {}) {
     'carry-ball': .8,
     'place-ball': .9,
     'pick-ball': .9,
-    stepover: .6,
-    rainbow: .55,
-    catch: .8
+    stepover: .62,
+    rainbow: .58,
+    elastico: .55,
+    roulette: .7,
+    catch: .8,
+    miss: 1.07
   };
 
   function startGesture(name, duration, opts = {}) {
     if (!GESTURES[name]) return null;
+    if (gesture.clip && gesture.name) fadeAction(gesture.name, 0, { fade: 0.08, mask: 'full' });
     gesture.name = name;
     gesture.maskName = opts.mask || 'full';
     gesture.mask = mixamoMask(gesture.maskName);
     gesture.weight = Math.max(0, Math.min(1, opts.weight ?? 1));
     gesture.time = 0;
+    // Clip Mixamo neste rig torce braço/perna (repouso diferente). Gestos
+    // continuam nos ossos. Os clipes ficam no GLB para retarget futuro.
+    gesture.clip = false;
     gesture.duration = Number.isFinite(duration) ? duration : GESTURES[name];
     return name;
   }
@@ -501,10 +515,16 @@ export function createGltfPlayer(options = {}) {
     if (!gesture.name) return;
     gesture.time += step;
     if (gesture.time >= gesture.duration) {
+      if (gesture.clip) fadeAction(gesture.name, 0, { fade: 0.12, mask: 'full' });
       gesture.name = null;
+      gesture.clip = false;
       return;
     }
     applyingGesture = true;
+    if (gesture.clip) {
+      applyingGesture = false;
+      return;
+    }
     const p = gesture.time / gesture.duration;
     const w = gestureEnvelope();
     const dir = gesture.dir >= 0 ? 1 : -1;
@@ -542,16 +562,38 @@ export function createGltfPlayer(options = {}) {
         break;
       }
       case 'stepover': {
-        const circle=p*Math.PI*4;
-        addBoneRotation(bones.rightUpLeg,-.48*Math.sin(Math.PI*p),.36*Math.sin(circle),.32*Math.cos(circle)*wave,w);
-        addBoneRotation(bones.rightLeg,.48*wave,0,0,w);
-        addBoneRotation(bones.spine2,0,.12*Math.sin(circle),-.12*Math.sin(circle),w);
+        const circle=p*Math.PI*5;
+        addBoneRotation(bones.rightUpLeg,-.62*Math.sin(Math.PI*p),.48*Math.sin(circle),.42*Math.cos(circle)*wave,w);
+        addBoneRotation(bones.rightLeg,.62*wave,0,0,w);
+        addBoneRotation(bones.leftUpLeg,-.12*wave,0,0,w);
+        addBoneRotation(bones.spine2,.06*wave,.18*Math.sin(circle),-.16*Math.sin(circle),w);
+        addBoneRotation(bones.leftArm,-.2*wave,0,.25*wave,w);
+        addBoneRotation(bones.rightArm,-.15*wave,0,-.2*wave,w);
+        break;
+      }
+      case 'elastico': {
+        const whip=Math.sin(p*Math.PI*2);
+        addBoneRotation(bones.rightUpLeg,-.5*wave,.62*whip,.3*wave,w);
+        addBoneRotation(bones.rightLeg,.58*wave,0,0,w);
+        addBoneRotation(bones.spine2,0,.28*whip,-.2*whip,w);
+        addBoneRotation(bones.leftArm,-.18*wave,0,.22*wave,w);
+        break;
+      }
+      case 'roulette': {
+        addBoneRotation(bones.hips,0,p*Math.PI*2,0,w);
+        addBoneRotation(bones.rightUpLeg,-.38*wave,.42*wave,0,w);
+        addBoneRotation(bones.leftUpLeg,-.22*wave,-.28*wave,0,w);
+        addBoneRotation(bones.spine2,.1*wave,0,0,w);
+        addBoneRotation(bones.leftArm,-.28*wave,0,.35*wave,w);
+        addBoneRotation(bones.rightArm,-.22*wave,0,-.3*wave,w);
         break;
       }
       case 'rainbow': {
-        addBoneRotation(bones.rightUpLeg,-.8*wave,0,.12*wave,w);
-        addBoneRotation(bones.rightLeg,.7*wave,0,0,w);
-        addBoneRotation(bones.leftUpLeg,.15*wave,0,0,w);
+        addBoneRotation(bones.rightUpLeg,-1.05*wave,0,.18*wave,w);
+        addBoneRotation(bones.rightLeg,.95*wave,0,0,w);
+        addBoneRotation(bones.leftUpLeg,.22*wave,0,0,w);
+        addBoneRotation(bones.spine2,-.12*wave,0,0,w);
+        bones.hips.position.y+=.04*wave*w;
         break;
       }
       case 'receive': {
@@ -774,7 +816,7 @@ export function createGltfPlayer(options = {}) {
     speed: 1,
     mask: 'full',
     locomotion: 'idle',
-    locomotionWeights: { idle: 1, jog: 0, run: 0 },
+    locomotionWeights: { idle: 1, jog: 0, run: 0, sprint: 0 },
     gestures: new Map(),
     lastDistance: 0,
     shadowEnabled: true
@@ -822,7 +864,7 @@ export function createGltfPlayer(options = {}) {
     }
     const blend=1-Math.exp(-dt*12);
     const targets={idle,jog,run};
-    const lowPose=['dive','tackle','fall'].includes(gesture.name) && gesture.maskName==='full';
+    const lowPose=['dive','tackle','fall','miss','catch','throw-in'].includes(gesture.name) && gesture.maskName==='full';
     const locomotionGain=lowPose?1-gestureEnvelope()*gesture.weight:1;
     // Fase compartilhada evita pernas opostas ao misturar trote e corrida.
     const cycle=runningCycle(state.locomotionWeights.run,model.scale.y,number);
@@ -919,7 +961,10 @@ export function createGltfPlayer(options = {}) {
     carryBall(duration=.8){return startGesture('carry-ball',duration,{mask:'upper'});},
     pickBall(duration=.9){return startGesture('pick-ball',duration);},
     placeBall(duration=.9){return startGesture('place-ball',duration);},
-    skill(name='stepover'){return startGesture(name==='rainbow'?'rainbow':'stepover');},
+    skill(name='stepover'){
+      const known=name==='rainbow'||name==='elastico'||name==='roulette'||name==='stepover';
+      return startGesture(known?name:'stepover');
+    },
     kick(type = 'shot') {
       gesture.kind=type;
       const result=startGesture(type==='volley'?'volley':'kick');
@@ -1088,9 +1133,19 @@ export function createGltfPlayer(options = {}) {
       if(!gesture.name){
         // Condução clássica: ombros contrabalançam toques curtos sem mudar o pé/bola.
         const dribble=dribbleWeight;
-        addBoneRotation(bones.spine2,.025,Math.sin(gaitPhase*Math.PI*2)*.055,0,dribble);
-        addBoneRotation(bones.leftForeArm,-.12,0,0,dribble);
-        addBoneRotation(bones.rightForeArm,-.12,0,0,dribble);
+        addBoneRotation(bones.spine2,.04,Math.sin(gaitPhase*Math.PI*2)*.09,0,dribble);
+        addBoneRotation(bones.hips,0,Math.sin(gaitPhase*Math.PI*2)*.03,0,dribble);
+        addBoneRotation(bones.leftForeArm,-.18,0,.08,dribble);
+        addBoneRotation(bones.rightForeArm,-.18,0,-.08,dribble);
+        addBoneRotation(bones.leftArm,-.08,0,.12,dribble);
+        addBoneRotation(bones.rightArm,-.06,0,-.12,dribble);
+        // Small preferred-foot taps give ball carrying a distinct rhythm from
+        // an empty sprint without disturbing the planted-foot gait or the ball.
+        const leadSide=preferredFoot==='Left'?'left':'right';
+        const tap=Math.pow(Math.max(0,Math.sin(gaitPhase*Math.PI*2+(leadSide==='left'?Math.PI:0))),5)*dribble;
+        addBoneRotation(bones[leadSide+'UpLeg'],.045*tap,0,0,1);
+        addBoneRotation(bones[leadSide+'Leg'],.09*tap,0,0,1);
+        addBoneRotation(bones[leadSide+'Foot'],-.055*tap,0,0,1);
         addBoneRotation(bones.spine2,.035*effort*Math.sin(breathing*Math.PI*2),shieldWeight*.1,0,1);
         addBoneRotation(bones.leftArm,-.16,0,.32,shieldWeight);
         addBoneRotation(bones.rightArm,-.12,0,-.32,shieldWeight);

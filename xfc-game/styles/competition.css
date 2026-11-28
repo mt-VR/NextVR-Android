@@ -38,6 +38,40 @@
   --comp-card-bg-b: rgba(3, 9, 24, 0.96);
 }
 
+.screen--competition.theme--europa {
+  --comp-accent: #f47524;
+  --comp-ink: #fff5ed;
+  --comp-muted: rgba(255, 232, 214, 0.68);
+  --comp-panel: rgba(33, 15, 5, 0.84);
+  --comp-line: rgba(244, 117, 36, 0.34);
+  --comp-card-border: rgba(244, 117, 36, 0.52);
+  --comp-card-label: #ffd0a6;
+  --comp-card-bg-a: rgba(35, 15, 5, 0.9);
+  --comp-card-bg-b: rgba(14, 6, 2, 0.96);
+  --comp-active-a: #ed6a19;
+  --comp-active-b: #a8410a;
+  --comp-active-border: rgba(255, 216, 172, 0.95);
+  --comp-active-glow: rgba(244, 117, 36, 0.5);
+  --comp-active-icon: #321503;
+}
+
+.screen--competition.theme--sudamericana {
+  --comp-accent: #39d770;
+  --comp-ink: #effff3;
+  --comp-muted: rgba(224, 255, 232, 0.68);
+  --comp-panel: rgba(5, 30, 18, 0.84);
+  --comp-line: rgba(57, 215, 112, 0.32);
+  --comp-card-border: rgba(57, 215, 112, 0.5);
+  --comp-card-label: #a8f5bb;
+  --comp-card-bg-a: rgba(5, 27, 15, 0.9);
+  --comp-card-bg-b: rgba(2, 13, 7, 0.96);
+  --comp-active-a: #21b957;
+  --comp-active-b: #107638;
+  --comp-active-border: rgba(179, 255, 196, 0.94);
+  --comp-active-glow: rgba(57, 215, 112, 0.48);
+  --comp-active-icon: #032810;
+}
+
 .screen--competition.theme--libertadores {
   --comp-accent: #e7b850;
   --comp-ink: #fbf3df;

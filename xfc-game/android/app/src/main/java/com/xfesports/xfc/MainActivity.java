@@ -61,8 +61,6 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
-        settings.setMediaPlaybackRequiresUserGesture(true);
-
         webView.setWebViewClient(new AssetClient(getAssets()));
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -182,7 +180,9 @@ public class MainActivity extends Activity {
                 // InputStream e status 200 (os cabeçalhos customizados exigiriam
                 // o construtor de seis argumentos).
                 InputStream stream = assets.open(assetPath);
-                return new WebResourceResponse(mimeTypeOf(path), "utf-8", stream);
+                String mimeType = mimeTypeOf(path);
+                String encoding = mimeType.equals("image/gif") ? null : "utf-8";
+                return new WebResourceResponse(mimeType, encoding, stream);
             } catch (IOException error) {
                 return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
                         new HashMap<String, String>(), null);
@@ -197,6 +197,7 @@ public class MainActivity extends Activity {
             if (path.endsWith(".svg")) return "image/svg+xml";
             if (path.endsWith(".png")) return "image/png";
             if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
+            if (path.endsWith(".gif")) return "image/gif";
             if (path.endsWith(".webp")) return "image/webp";
             if (path.endsWith(".woff2")) return "font/woff2";
             if (path.endsWith(".ico")) return "image/x-icon";

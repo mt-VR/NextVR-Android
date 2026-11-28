@@ -48,11 +48,12 @@ test('a leitura acompanha o efeito lateral e rejeita bolas fora da moldura', () 
   }, 52.5);
   const wide = predictGoalkeeperIntercept({
     ...base,
-    spin: { x: 0, y: 20, z: 0 }
+    position: { ...base.position, z: 3 },
+    spin: { x: 0, y: -20, z: 0 }
   }, 52.5);
 
-  assert.ok(curlLeft.z < -1.2);
-  assert.ok(curlRight.z > 1.2);
+  assert.ok(curlLeft.z < -0.7, 'curva reduzida ainda muda a leitura do goleiro');
+  assert.ok(curlRight.z > 0.7);
   assert.ok(high.y > 2.44 && !high.onTarget, 'um chute acima do travessão não provoca mergulho');
   assert.ok(Math.abs(wide.z) > 3.66 && !wide.insideMouth,
     'uma bola ao lado do poste não é confundida com chute no alvo');

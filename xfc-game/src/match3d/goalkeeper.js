@@ -108,9 +108,10 @@ export function predictGoalkeeperIntercept(ballState, goalX, maxTime = MAX_PREDI
 /** Posição de base: cobre o ângulo sem abandonar a linha do gol. */
 export function goalkeeperPositionTarget(ballPosition, ownGoalX, attackSign, prediction = null) {
   const distanceToGoal = Math.max(1.5, Math.abs(ballPosition.x - ownGoalX));
+  // Fica na linha: sair 2–3 m adiantava o goleiro e abria o gol.
   const depth = prediction?.onTarget
-    ? clamp(1.2 + prediction.time * 0.72, 1.2, 2.85)
-    : clamp(1.15 + Math.max(0, 22 - distanceToGoal) * 0.075, 1.15, 2.8);
+    ? clamp(0.7 + prediction.time * 0.35, 0.7, 1.55)
+    : clamp(0.65 + Math.max(0, 16 - distanceToGoal) * 0.04, 0.65, 1.5);
   const lateral = prediction?.onTarget
     ? prediction.z
     : ballPosition.z * (depth / distanceToGoal);

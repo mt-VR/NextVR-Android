@@ -90,7 +90,7 @@ export const NATIONAL_TEAMS = [
     ['Aaron Ramsey', 10, 'CM', 78], ['Harry Wilson', 8, 'CM', 76], ['Gareth Bale', 11, 'RW', 82],
     ['Kieffer Moore', 13, 'ST', 75], ['Daniel James', 20, 'LW', 77]
   ]),
-  nation('argentina', 'Argentina', 'ar', 5, { ATT: 88, MID: 89, DEF: 84 }, ['#79c6e8', '#ffffff', '#1a4f91'], [
+  nation('argentina', 'Argentina', 'ar', 5, { ATT: 88, MID: 89, DEF: 84 }, ['#1e4e8c', '#ffffff', '#0a1f44'], [
     ['Emiliano Martínez', 23, 'GK', 86], ['Nahuel Molina', 26, 'RB', 80], ['Cristian Romero', 13, 'CB', 84],
     ['Nicolás Otamendi', 19, 'CB', 83], ['Marcos Acuña', 8, 'LB', 82], ['Leandro Paredes', 5, 'CDM', 82],
     ['Rodrigo De Paul', 7, 'CM', 84], ['Alexis Mac Allister', 20, 'CM', 83], ['Lionel Messi', 10, 'RW', 92],

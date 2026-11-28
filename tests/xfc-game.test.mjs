@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { TEAMS, FORMATION_433, getTeam, starSlots } from '../xfc-game/src/data/teams.js';
 import { NATIONAL_TEAMS, GROUP_NAMES, createWorldCupCampaign, campaignStandings, nextCampaignMatch, recordCampaignMatchResult, getNationalTeam } from '../xfc-game/src/data/worldcup.js';
 import { kitsOf, defaultKit, kitSvg } from '../xfc-game/src/data/kits.js';
+import { nationKits } from '../xfc-game/src/data/nation-kits.js';
 import { attackSign, defendSign, ownGoalX, attackedGoalX, insidePenaltyAreaFor, insideGoalAreaFor } from '../xfc-game/src/match3d/sides.js';
 import { PITCH } from '../xfc-game/src/match3d/constants.js';
 import { qualityStepsFor, rendererProfileFor } from '../xfc-game/src/match3d/engine.js';
@@ -15,6 +16,7 @@ import { applyBallAirForces, curveSpinRate } from '../xfc-game/src/match3d/physi
 import {
   broadcastCameraPose,
   cameraRelativeMovementFromStick,
+  proCameraAreaTarget,
   cornerCameraPose,
   worldMovementFromStick
 } from '../xfc-game/src/match3d/camera.js';
@@ -112,6 +114,55 @@ test('a IA preserva largura, cria opções de passe e recompõe o bloco sem a bo
     'a ponta recua para recompor o bloco defensivo quando o adversário recupera a bola');
 });
 
+test('o rival chuta quando chega na área, em vez de só tocar pra frente', () => {
+  const makePlayer = (side, index, slot) => ({
+    id: `${side}-${index}`,
+    side,
+    index,
+    role: slot.role,
+    isKeeper: slot.role === 'GK',
+    isGK: slot.role === 'GK',
+    active: true,
+    x: slot.x * (side === 'home' ? 1 : -1),
+    z: slot.z,
+    vx: 0,
+    vz: 0,
+    facingAngle: side === 'home' ? Math.PI / 2 : -Math.PI / 2,
+    facing: { x: side === 'home' ? 1 : -1, z: 0 },
+    root: { rotation: { y: 0 } },
+    sprint: false
+  });
+  const home = MATCH_FORMATION_433.map((slot, index) => makePlayer('home', index, slot));
+  const away = MATCH_FORMATION_433.map((slot, index) => makePlayer('away', index, slot));
+  const striker = home.find(player => player.role === 'ST');
+  striker.x = 48;
+  striker.z = 4;
+  const world = {
+    ball: {
+      state: {
+        position: { x: 48, y: 0.11, z: 4 },
+        velocity: { x: 0, y: 0, z: 0 },
+        owner: striker
+      }
+    },
+    members: side => (side === 'home' ? home : away).filter(player => player.active),
+    isUserControlled: () => false,
+    isPlayable: () => true,
+    openSpace: () => 10,
+    rng: () => 0.5,
+    kicks: [],
+    shots: [],
+    kickBall(...args) { this.kicks.push(args); },
+    shootBall(...args) { this.shots.push(args); },
+    tackle() {},
+    diveKeeper() {}
+  };
+  const ai = createTeamAI({ side: 'home', world });
+  for (let frame = 0; frame < 12; frame += 1) ai.update(1 / 60);
+  assert.ok(world.shots.length >= 1, 'na área o atacante finaliza');
+  assert.equal(world.kicks.length, 0, 'não troca o chute por passe na área');
+});
+
 test('qualidade gráfica móvel fica fixa para não piscar ao redimensionar o buffer WebGL', () => {
   assert.deepEqual(qualityStepsFor(1), [1, 0.85, 0.7, 0.6],
     'desktop ainda pode descer a resolução, nunca saltar para 1,25');
@@ -179,7 +230,8 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
         kit,
         number: 10,
         teamName: 'XFC',
-        photo: 'assets/test-player-photo.png'
+        photo: 'assets/test-player-photo.png',
+        pitchPresence: 1.18
       }),
       createPlayer3D({ simplified: true, kit, number: 9, teamName: 'XFC', hairStyle: 'afro' }),
       createPlayer3D({
@@ -189,6 +241,10 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
         teamName: 'XFC',
         preferredFoot: 'Left',
         photo: 'assets/test-player-photo.png'
+      }),
+      createPlayer3D({
+        simplified: true, kit, number: 10, teamName: 'Santos',
+        hairStyle: 'lab-ragnarok', hairColor: '#ffffff'
       })
     );
     let jerseyTexture = null;
@@ -220,11 +276,12 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
     for (const [index, model] of models.entries()) {
       assert.equal(model.root.userData.modelId, 'xfc-footballer-v2');
       assert.equal(model.root.userData.rigVersion, 2);
-      assert.equal(model.root.userData.detailLevel, index < 2 ? 'mobile' : 'full');
+      assert.equal(model.root.userData.detailLevel, index === 2 ? 'full' : 'mobile');
+      assert.equal(model.root.userData.pitchPresence, index === 0 ? 1.18 : 1);
       const shirtMaterial = model.root.getObjectByName('xfc-player-torso').material;
-      assert.equal(Boolean(shirtMaterial.isMeshLambertMaterial), index < 2,
+      assert.equal(Boolean(shirtMaterial.isMeshLambertMaterial), index !== 2,
         'o perfil móvel mantém tecido econômico e o completo usa reflexo de tecido');
-      assert.equal(Boolean(shirtMaterial.isMeshPhongMaterial), index >= 2,
+      assert.equal(Boolean(shirtMaterial.isMeshPhongMaterial), index === 2,
         'o material do uniforme mantém a paleta do kit com volume no perfil completo');
       assert.equal(model.legs.length, 2, 'o atleta tem duas pernas articuladas');
       assert.equal(model.arms.length, 2, 'o atleta tem dois braços articulados');
@@ -242,6 +299,11 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
       }
       assert.equal(fingerMeshes, 2, 'as duas mãos conservam cinco dedos cada');
     }
+    const ragnarokHair = models[3].root.getObjectByName('xfc-player-hair');
+    assert.ok(ragnarokHair && ragnarokHair.children.length >= 18,
+      'o fallback Ragnarok cobre o couro inteiro com mechas, sem a crista do moicano');
+    assert.equal(ragnarokHair.children[0].material.color.getHexString(), 'ffffff',
+      'o corte Ragnarok de Neymar permanece branco no fallback 3D');
 
     const mobileTorso = models[0].root.getObjectByName('xfc-player-torso');
     const fullTorso = models[2].root.getObjectByName('xfc-player-torso');
@@ -258,7 +320,7 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
       'o nariz 3D não atravessa a superfície do retrato');
     assert.equal(models[0].root.getObjectByName('xfc-player-nose').visible, true,
       'o perfil móvel conserva o nariz 3D quando omite o retrato');
-    assert.equal(jerseyTexture.userData.references, 3);
+    assert.equal(jerseyTexture.userData.references, 4);
 
     models[0].header(0.02);
     models[0].update(0.03, { ownsBall: true, protecting: true, speed: 1 });
@@ -296,10 +358,12 @@ test('o atleta humanoide conserva a anatomia nos perfis móvel e completo e anim
     }
 
     models[0].dispose();
-    assert.equal(jerseyTexture.userData.references, 2,
+    assert.equal(jerseyTexture.userData.references, 3,
       'mesmo usando a camisa em várias malhas, cada jogador solta só uma referência');
     models[1].dispose();
     models[2].dispose();
+    assert.equal(jerseyTexture.userData.references, 1);
+    models[3].dispose();
     assert.equal(jerseyTexture.userData.references, 0);
     assert.equal(jerseyTexture.userData.disposed, true,
       'o último jogador libera a textura do kit');
@@ -320,6 +384,10 @@ test('curva da bola é proporcional ao gesto e compartilha gravidade, arrasto e 
     'um comando maior gera mais rotação lateral');
   assert.equal(curveSpinRate(24, 2), curveSpinRate(24, 1),
     'o sidespin é limitado para impedir trajetórias orbitais');
+  assert.ok(Math.abs(curveSpinRate(42, 1)) <= 2.8,
+    'até um chute carregado mantém rotação lateral moderada');
+  assert.ok(Math.abs(curveSpinRate(8, 0.35)) < Math.abs(curveSpinRate(42, 1)),
+    'a curva acompanha a força do chute sem transformar um passe fraco em giro completo');
 
   const straightVelocity = { x: 20, y: 2, z: 0 };
   const straightSpin = { x: 0, y: 0, z: 0 };
@@ -331,6 +399,13 @@ test('curva da bola é proporcional ao gesto e compartilha gravidade, arrasto e 
     'o Magnus desloca a bola lateralmente durante o voo');
   assert.ok(curvedVelocity.x > 0, 'o efeito lateral não inverte a velocidade de avanço');
   assert.ok(curvedVelocity.y < 2, 'a bola sente gravidade durante o voo');
+
+  const flight = { x: 30, y: 10, z: 0 };
+  const flightSpin = { x: 0, y: curveSpinRate(30, 1), z: 0 };
+  for (let frame = 0; frame < 90; frame += 1) applyBallAirForces(flight, flightSpin, 1 / 60);
+  assert.ok(flight.x > 0, 'a curva nunca manda a bola de volta para o chutador');
+  assert.ok(Math.abs(Math.atan2(flight.z, flight.x)) < 0.3,
+    'um voo prolongado continua descrevendo um arco, não uma volta de 360°');
 });
 
 test('previsão do goleiro e linha de bola parada seguem a mesma física curva', () => {
@@ -375,6 +450,12 @@ test('o treino move pelo referencial da câmera sem mudar o analógico da transm
     'o referencial fixo das partidas não muda');
   assert.deepEqual(worldMovementFromStick(0, -1), { x: 0, z: 1 },
     'baixo continua recuando no campo nas partidas comuns');
+  assert.equal(proCameraAreaTarget(0, 0, 1, 60, 41), null,
+    'a câmera acompanha o atleta sem mirar uma área distante');
+  assert.deepEqual(proCameraAreaTarget(45, 24, 1, 60, 41), { x: 50, z: 0 },
+    'na ponta ofensiva, o foco vira para a área central');
+  assert.deepEqual(proCameraAreaTarget(-45, -24, -1, 60, 41), { x: -50, z: 0 },
+    'o enquadramento da ponta também funciona no sentido oposto do ataque');
   const nearCamera = broadcastCameraPose({ x: 0, y: 0.11, z: 22 });
   const farCamera = broadcastCameraPose({ x: 0, y: 0.11, z: -22 });
   assert.ok(nearCamera.position.z > 0 && farCamera.position.z > 0,
@@ -446,6 +527,11 @@ test('Copa inclui as 32 seleções de 2022 com XI nacional jogável', () => {
     'Neymar é o 10 do Brasil');
   assert.ok(getNationalTeam('argentina').players.some(player => player.name === 'Lionel Messi'),
     'a Argentina usa nomes da geração de 2022');
+  const argentinaKit = nationKits(getNationalTeam('argentina'))[0];
+  assert.equal(argentinaKit.pattern, 'stripes', 'a camisa da Argentina é listrada');
+  assert.equal(argentinaKit.stripeCount, 10, 'as listras da Albiceleste atravessam o peito');
+  assert.equal(argentinaKit.colors.primary, '#1e4e8c');
+  assert.equal(argentinaKit.colors.secondary, '#ffffff');
 });
 
 test('campanha da Copa sorteia a seleção escolhida em um grupo e avança por toda a chave', () => {
@@ -561,7 +647,7 @@ test('todo jogador com retrato tem a imagem disponível no pacote de assets', ()
   assert.ok(semFoto > 0, 'os clubes sem retrato usam as iniciais');
 });
 
-test('os escudos enviados dos clubes brasileiros e o visual low-poly do Neymar estão ligados aos dados', async () => {
+test('os escudos enviados e o cabelo Ragnarok branco do Neymar estão ligados aos dados', async () => {
   const brazilianClubs = [
     ['flamengo', 'assets/crests/flamengo.png'],
     ['palmeiras', 'assets/crests/palmeiras.png'],
@@ -578,8 +664,8 @@ test('os escudos enviados dos clubes brasileiros e o visual low-poly do Neymar e
   const santos = getTeam('santos');
   const neymar = santos.players.find(player => player.name === 'Neymar Jr.');
   assert.deepEqual(neymar.appearance, {
-    skinTone: '#bd8868', hairColor: '#241b15', hairStyle: 'neymar', heightScale: 1.01
-  }, 'Neymar tem um visual low-poly próprio com crista espetada');
+    skinTone: '#bd8868', hairColor: '#ffffff', hairStyle: 'lab-ragnarok', heightScale: 1.01
+  }, 'Neymar usa o cabelo Ragnarok branco, sem o moicano antigo');
   assert.equal(kitsOf('santos').length, 4, 'Santos mantém três kits e recebe a foto da coleção');
 });
 
@@ -615,6 +701,38 @@ test('as estrelas do cartão de time vão de zero a cinco', () => {
   assert.deepEqual(starSlots(4.5), ['full', 'full', 'full', 'full', 'half']);
   assert.deepEqual(starSlots(3.2), ['full', 'full', 'full', 'empty', 'empty']);
   assert.equal(getTeam('nao-existe'), null);
+});
+
+test('a abertura serve o GIF suavizado sem loop e preserva o GIF de origem', async () => {
+  const { server, url } = await startXfcServer({ port: 0 });
+  try {
+    for (const asset of ['xfc-intro-source.gif', 'xfc-intro-smooth-once.gif']) {
+      const response = await fetch(`${url}/assets/brand/${asset}`);
+      assert.equal(response.status, 200, `${asset} está disponível no pacote`);
+      assert.match(response.headers.get('content-type') || '', /^image\/gif/);
+      const gif = Buffer.from(await response.arrayBuffer());
+      assert.equal(gif.toString('ascii', 0, 6), 'GIF89a');
+      if (asset === 'xfc-intro-smooth-once.gif') {
+        assert.equal(gif.indexOf(Buffer.from('NETSCAPE2.0')), -1, 'o GIF suavizado não repete');
+        assert.ok(gif.length > 1_000_000 && gif.length < 8_000_000, 'o GIF suavizado fica num tamanho razoável');
+      } else {
+        assert.ok(gif.length > 100_000 && gif.length < 1_000_000, 'o original permanece inalterado e leve');
+      }
+    }
+    const poster = await fetch(`${url}/assets/brand/xfc-intro-poster.jpg`);
+    assert.equal(poster.status, 200, 'a tela estática de bootstrap está incluída');
+    assert.match(poster.headers.get('content-type') || '', /^image\/jpeg/);
+
+    const index = await readFile(new URL('../xfc-game/index.html', import.meta.url), 'utf8');
+    assert.ok(index.includes('src="assets/brand/xfc-intro-poster.jpg"'),
+      'o HTML inicial usa um pôster estático para não reiniciar a animação');
+    const source = await readFile(new URL('../xfc-game/src/screens/intro.js', import.meta.url), 'utf8');
+    assert.match(source, /el\('img'/, 'a tela usa uma imagem GIF, não vídeo');
+    assert.ok(source.includes('assets/brand/xfc-intro-smooth-once.gif'), 'a tela usa o GIF de 30 fps');
+    assert.ok(!source.includes('.mp4'), 'a abertura não substitui o GIF por vídeo');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 });
 
 test('todo import estático do jogo resolve para um arquivo do pacote', async () => {
@@ -654,12 +772,29 @@ test('todo import estático do jogo resolve para um arquivo do pacote', async ()
 
   // O empacotamento do CI não pode mais pular o vendor/ nem o bundle offline.
   const workflow = await readFile(join(root, '.github/workflows/xfc-apk.yml'), 'utf8');
+  const offlineBundle = await readFile(join(gameRoot, 'app.bundle.js'), 'utf8');
+  assert.ok(offlineBundle.includes('assets/brand/xfc-intro-smooth-once.gif'),
+    'o bundle file:// precisa usar o GIF suavizado de reprodução única');
   assert.ok(/zip\s+-r\s+\.\.\/xfc-game\.zip[^\n]*vendor/.test(workflow),
     'o zip do jogo precisa incluir a pasta vendor/');
   assert.ok(workflow.includes('app.bundle.js'),
     'o zip do jogo precisa incluir o app.bundle.js (suporte ao file://)');
   assert.ok(workflow.includes('assets/game/vendor/three'),
     'a checagem do APK precisa exigir o three.js dentro do pacote');
+  assert.ok(workflow.includes('assets/brand/xfc-intro-source.gif'),
+    'o APK e o zip precisam preservar o GIF original');
+  assert.ok(workflow.includes('assets/brand/xfc-intro-smooth-once.gif'),
+    'o APK e o zip precisam levar o GIF fluido que a tela usa');
+  assert.ok(workflow.includes('assets/brand/xfc-intro-poster.jpg'),
+    'o APK e o zip precisam levar o pôster estático de bootstrap');
+  assert.ok(workflow.includes("grep -Fxq 'assets/game/assets/brand/xfc-intro-source.gif'"),
+    'o workflow precisa falhar se o APK não contiver o GIF original');
+  assert.ok(workflow.includes("grep -Fxq 'assets/game/assets/brand/xfc-intro-smooth-once.gif'"),
+    'o workflow precisa falhar se o APK não contiver o GIF de reprodução única');
+  assert.ok(workflow.includes("grep -Fxq 'assets/game/assets/brand/xfc-intro-poster.jpg'"),
+    'o workflow precisa falhar se o APK não contiver o pôster estático');
+  assert.ok(!workflow.includes('assets/brand/xfc-intro.mp4'),
+    'a publicação não deve exigir um vídeo em vez do GIF original');
 });
 
 // Teto de tempo com folga: em paralelo (--test-concurrency) esta navegação
@@ -696,47 +831,47 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     // perfis e shaders completos são exercitados em xfc-visual-upgrade.
     await page.evaluate(async()=>{(await import('/src/main.js')).state.profile.graphicsQuality='low';});
 
-    // Intro: selo da XF Esports e o logotipo XFC. A intro avança sozinha depois de
-    // alguns segundos, então o teste aceita os dois desfechos: pular a intro com o
-    // Enter ou esperar ela passar e seguir direto do menu.
+    // Intro: a própria imagem usa o GIF enviado; Enter permite avançar sem
+    // esperar o fim de uma volta da animação.
     const intro = await page
       .waitForSelector('.screen--intro', { timeout: 15000 })
       .then(() => true)
       .catch(() => false);
     if (intro) {
-      assert.ok(await page.locator('.intro-reference__art').isVisible(), 'a própria arte XF Esportes/XFC aparece na intro');
-      assert.match(await page.locator('.intro-reference__art').getAttribute('src'), /loading.png$/);
+      const openingGif = page.locator('.intro-reference__art');
+      assert.ok(await openingGif.isVisible(), 'o GIF original aparece em tela cheia');
+      assert.equal(await openingGif.evaluate(image => image.tagName), 'IMG');
+      assert.equal(await openingGif.getAttribute('src'), 'assets/brand/xfc-intro-smooth-once.gif');
+      await page.waitForFunction(
+        () => {
+          const image = document.querySelector('.intro-reference__art');
+          return image?.complete && image.naturalWidth > 0;
+        },
+        null,
+        { timeout: 5000 }
+      );
       await page.keyboard.press('Enter');
     }
 
-    // Tela de abertura (Neymar): "Entrar" leva ao menu principal.
+    // Tela de abertura do XFC 27: "Entrar" leva ao menu principal.
     await page.waitForSelector('.screen--launch', { timeout: 15000 });
     assert.ok(await page.locator('.launch__art').isVisible(), 'a arte da tela de abertura aparece');
     assert.ok(await page.locator('.launch__enter').isVisible(), 'o botão Entrar está na tela');
     await page.click('.launch__enter');
 
-    // Hub de futebol da referência: estádio em tela cheia, Kick Off selecionado,
-    // nove atalhos verticais, progressão no topo e ação principal.
+    // O home usa a captura XFC 27 do usuário em tela cheia; carteira e XP
+    // continuam dinâmicos e as ações seguem sendo botões DOM acessíveis.
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
     await imagesReady();
-    const navLabels = await page.locator('.menu__item-label').allTextContents();
-    assert.deepEqual(navLabels, [
-      'JOGO RÁPIDO', 'FC NEWS', 'KICK OFF', 'THE GROUNDS', 'ULTIMATE TEAM', 'CARREIRA DE JOGADOR', 'LEARN TO PLAY',
-      'SEASONS', 'TOURNAMENTS', 'TIME ALEATÓRIO', 'ONLINE FRIENDLIES'
-    ], 'o menu mantém as opções do hub em uma lista vertical');
-    assert.equal(await page.locator('.menu__item.is-focused').getAttribute('data-menu-item'), 'kickoff',
-      'KICK OFF aparece selecionado por padrão');
-    assert.equal(await page.locator('.hub__background').getAttribute('src'), 'assets/bg/menu-hero.jpg',
-      'o menu usa a imagem de estádio em tela cheia');
-    assert.ok(await page.locator('.hub__wordmark svg').count() > 0, 'o menu mostra a marca XFC');
-    assert.ok(await page.locator('.hub__progress').isVisible(), 'a barra de XP aparece no topo');
-    assert.equal(await page.locator('.hub__xp-bar').getAttribute('role'), 'progressbar',
-      'o progresso de XP expõe uma barra acessível');
-    assert.equal(await page.locator('.hub__xp-bar').getAttribute('aria-valuenow'), '3000');
-    assert.equal(await page.locator('.hub__cta-label').textContent(), 'Enter Kick Off',
-      'a ação principal acompanha o modo selecionado');
+    assert.equal(await page.locator('.ref-art').getAttribute('src'), 'assets/menus/xfc27/home.png');
+    assert.equal(await page.locator('.screen--menu').getAttribute('data-coins'), '1250');
+    assert.ok(await page.locator('.xfc27-live-header').isVisible(), 'carteira e nível do perfil continuam visíveis');
+    assert.equal(await page.locator('.xfc27-xp__track').getAttribute('role'), 'progressbar');
+    assert.equal(await page.locator('.xfc27-xp__track').getAttribute('aria-valuenow'), '3000');
+    assert.equal(await page.locator('.menu__item[data-menu-item="career"]').count(), 1,
+      'Carreira continua acessível pela arte de entrada, sem substituir a tela interna');
     assert.equal(await page.locator('.menu__scene3d canvas').count(), 0,
-      'o menu de referência usa arte de estádio em vez da cena 3D antiga');
+      'o menu usa a captura fornecida, sem uma cena 3D adicional');
 
     // Loja do Ultimate Team: compra de carta, desconto de moedas e coleção salva.
     const coinsBeforePurchase = Number(await page.locator('.screen--menu').getAttribute('data-coins'));
@@ -767,7 +902,7 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.waitForSelector('.screen--menu');
 
     // Configurações e personalização: grade, diálogos e edição de perfil.
-    await page.locator('.hub__quick-button[data-action="settings"]').click();
+    await page.locator('.xfc27-settings').click();
     await page.waitForSelector('.screen--customise');
     assert.equal(await page.locator('.customise__tile').count(), 8, 'a tela de personalização mostra oito opções');
     await page.locator('.customise__tile[data-tile="profile"]').click();
@@ -778,32 +913,33 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
 
-    // Play Modes: a Copa abre uma tela acessível e o botão Escape volta aos modos.
+    // O seletor de modos usa a segunda captura; a página de competições da
+    // referência é acessada pelo atalho Eventos ao Vivo da tela inicial.
     await page.locator('.menu__item[data-menu-item="tournament"]').click();
     await page.waitForSelector('.screen--modes');
-    assert.equal(await page.locator('.modes__option').count(), 6, 'o menu abre direto nos seis cartões da referência');
-    for (const option of ['uefa-champions-league', 'conmebol-libertadores', 'world-cup', 'copa-do-brasil', 'brasileirao']) {
-      assert.equal(await page.locator(`.modes__option[data-option="${option}"]`).count(), 1,
-        `${option} aparece no carrossel de torneios`);
-    }
-    assert.ok(await page.locator('.modes__option[data-option="training"]').isVisible(),
-      'o Centro de Treino fica acessível pelos modos de jogo');
-    assert.ok(await page.locator('.modes__option[data-option="world-cup"]').isVisible(), 'a Copa aparece como cartão');
-    // A Copa abre o menu próprio da competição (o modo Campanha continua no menu principal).
-    await page.locator('.modes__option[data-option="world-cup"]').click();
+    assert.equal(await page.locator('.ref-art').getAttribute('src'), 'assets/menus/xfc27/modes.png');
+    assert.equal(await page.locator('.modes__option').count(), 4, 'o screenshot apresenta PvP, missões, futebol feminino e desafio');
+    assert.deepEqual(await page.locator('.modes__option').evaluateAll(items => items.map(item => item.dataset.option)),
+      ['pvp', 'missions', 'women', 'challenge']);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+    await page.locator('[data-menu-item="events"]').click();
+    await page.waitForSelector('.screen--competitions');
+    assert.equal(await page.locator('.competitions__option').count(), 6, 'seis torneios aparecem na arte fornecida');
+    await page.locator('.competitions__option[data-competition="world-cup"]').click();
     await page.waitForSelector('.screen--competition[data-competition="world-cup"]');
     assert.equal(await page.locator('.comp__menu-item').count(), 9, 'o menu da Copa lista oito opções e o voltar');
     await page.locator('.comp__menu-item[data-panel="play"]').click();
     await page.locator('.comp__team-card[data-team-id="argentina"]').click();
     await page.locator('.comp__selection-preview .comp__cta').click();
     await page.waitForSelector('.comp__match');
-    // Escape volta do painel para o menu da competição e, de novo, para os modos.
+    // Escape volta do painel para a competição e, em seguida, à captura de seleção.
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--competition[data-competition="world-cup"] .comp__deck');
     await page.keyboard.press('Escape');
-    // A campanha clássica (Seasons) segue intacta a partir do menu principal.
-    await page.waitForSelector('.screen--modes');
+    await page.waitForSelector('.screen--competitions');
     await page.keyboard.press('Escape');
+    // A campanha clássica (Seleções) segue acessível pela arte inicial.
     await page.waitForSelector('.screen--menu');
     await page.locator('.menu__item[data-menu-item="seasons"]').click();
     await page.waitForSelector('.screen--competition[data-competition="world-cup"]');
@@ -871,16 +1007,19 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--menu');
 
-    // Kick Off continua acessível pela tela de modos.
-    await page.locator('.menu__item[data-menu-item="tournament"]').click();
-    await page.waitForSelector('.screen--modes');
-    await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
+    // A Champions abre a partir da seleção de competições; Kick Off continua
+    // diretamente disponível pelo atalho Clubes da home.
+    await page.locator('[data-menu-item="events"]').click();
+    await page.waitForSelector('.screen--competitions');
+    await page.locator('.competitions__option[data-competition="uefa-champions-league"]').click();
     await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
     assert.equal(await page.locator('.comp__menu-item').count(), 7,
       'a Champions abre o menu próprio, com seis opções e o voltar');
     await page.keyboard.press('Escape');
-    await page.waitForSelector('.screen--modes');
-    await page.getByRole('button',{name:'Jogar',exact:true}).click();
+    await page.waitForSelector('.screen--competitions');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+    await page.locator('.menu__item[data-menu-item="kickoff"]').click();
     await page.waitForSelector('.screen--kickoff');
     const teamNames = await page.locator('.team-card__name').allTextContents();
     assert.ok(teamNames.includes('FC Barcelona'), 'Barcelona aparece na escolha de times');
@@ -969,17 +1108,17 @@ test('fluxo do XFC: intro → menu → kick off → escolha de times → elenco'
     assert.deepEqual(stickStyle, ['76px', '92px'], 'o joystick usa a posição da nova referência de controles');
     const passBox = await page.locator('.ctrl-btn--pass').boundingBox();
     const runBox = await page.locator('.ctrl-btn--sprint').boundingBox();
-    // v0.5.52: o controle virou dois arcos limpos — PASSE (principal) embaixo,
-    // CHUTE em cima, com ENFIADA/CORRER como satélites. O importante é o alvo
-    // do dedo: nenhum botão abaixo de 96 px no palco (>= ~60 px reais).
-    // As caixas vêm em px de tela (o palco escala: 1600×900 → fator 1,25), por
-    // isso a checagem é proporcional ao fator do palco.
+    const shootBox = await page.locator('.ctrl-btn--shoot').boundingBox();
+    const throughBox = await page.locator('.ctrl-btn--lob').boundingBox();
+    // Losango FC Mobile: THROUGH/SHOOT em cima, PASS/SPRINT embaixo.
     const stageScale = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.stage')).getPropertyValue('--stage-scale')) || 1);
     const px = v => v * stageScale;
-    assert.ok(passBox && runBox && passBox.width >= px(100) && passBox.width <= px(125) && runBox.width >= px(86) && runBox.width <= px(105),
-      `PASSE e CORRER mantêm alvos proporcionais sem ocupar o campo (${passBox?.width}/${runBox?.width} px, escala ${stageScale})`);
-    assert.ok(runBox.x < passBox.x && passBox.x - runBox.x < px(170),
-      'CORRER fica ao lado esquerdo do PASSE, no mesmo arco');
+    assert.ok(passBox && runBox && passBox.width >= px(100) && passBox.width <= px(125) && runBox.width >= px(100) && runBox.width <= px(125),
+      `PASS e SPRINT mantêm alvos grandes (${passBox?.width}/${runBox?.width} px, escala ${stageScale})`);
+    assert.ok(passBox.x < runBox.x && runBox.x - passBox.x < px(170),
+      'PASS fica à esquerda de SPRINT, como no FC Mobile');
+    assert.ok(shootBox && throughBox && throughBox.x < shootBox.x,
+      'THROUGH fica à esquerda de SHOOT');
     const allButtons = await page.evaluate(() => [...document.querySelectorAll('.ctrl-btn')].map(b => {
       const r = b.getBoundingClientRect(); return { id: b.dataset.command, w: Math.round(r.width), h: Math.round(r.height) };
     }));
@@ -1830,7 +1969,7 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
     await page.waitForSelector('.screen--menu');
     await page.locator('.menu__item[data-menu-item="tournament"]').click();
     await page.waitForSelector('.screen--modes');
-    await page.getByRole('button',{name:'Treino',exact:true}).first().click();
+    await page.locator('.modes__option[data-option="challenge"]').click();
     await page.waitForSelector('.screen--training-select');
     assert.equal(await page.locator('.training-select__choice').count(), 7,
       'a seleção apresenta os sete cartões novos, sem remover o treino coletivo');
@@ -1882,7 +2021,7 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
 
     await page.locator('.mode-home-button').click();
     await page.waitForSelector('.screen--modes');
-    await page.getByRole('button',{name:'Treino',exact:true}).first().click();
+    await page.locator('.modes__option[data-option="challenge"]').click();
     await page.waitForSelector('.screen--training-select');
     await page.locator('.training-select__choice[data-drill="penalty"]').click();
     await page.waitForSelector('.training__stage[data-drill="penalty"]');
@@ -1904,7 +2043,7 @@ test('Centro de Treino integra bola parada, pênalti, jogo coletivo e retorno di
 
     await page.locator('.mode-home-button').click();
     await page.waitForSelector('.screen--modes');
-    await page.getByRole('button',{name:'Treino',exact:true}).first().click();
+    await page.locator('.modes__option[data-option="challenge"]').click();
     await page.waitForSelector('.screen--training-select');
     await page.getByRole('button',{name:'Treino de equipe',exact:true}).click();
     await page.waitForSelector('.training__stage[data-drill="team"]');
@@ -1959,7 +2098,7 @@ test('as quatro competições sorteiam grupos, calendário, artilharia e campeã
     recordTournamentResult, simulateRound, nextTournamentFixture, tournamentStatus,
     allGroupTables } = await import('../xfc-game/src/data/tournament.js');
 
-  assert.equal(COMPETITIONS.length, 6, 'as quatro competições originais e duas brasileiras');
+  assert.equal(COMPETITIONS.length, 8, 'as quatro competições originais, duas brasileiras e Europa/Sudamericana');
   assert.deepEqual(COMPETITIONS.slice(0,4).map(item => item.id), [
     'uefa-champions-league', 'copa-america', 'conmebol-libertadores', 'world-cup'
   ]);
@@ -2029,8 +2168,8 @@ test('os menus das competições são próprios e todas as opções abrem telas 
     await page.waitForSelector('.screen--launch', { timeout: 15000 });
     await page.click('.launch__enter');
     await page.waitForSelector('.screen--menu', { timeout: 15000 });
-    await page.locator('.menu__item[data-menu-item="tournament"]').click();
-    await page.waitForSelector('.screen--modes', { timeout: 15000 });
+    await page.locator('[data-menu-item="events"]').click();
+    await page.waitForSelector('.screen--competitions', { timeout: 15000 });
 
     const expected = [
       {
@@ -2057,12 +2196,12 @@ test('os menus das competições são próprios e todas as opções abrem telas 
 
     for (const { option, id, labels } of expected) {
       if(option==='copa-america'){
-        await page.getByRole('button',{name:'Copas',exact:true}).click();
+        await page.locator('.competitions__extras').click();
         await page.getByRole('button',{name:'Copa América',exact:true}).click();
-      }else await page.locator(`.modes__option[data-option="${option}"]`).click();
-        await page.waitForSelector(`.screen--competition[data-competition="${id}"]`, { timeout: 15000 });
+      }else await page.locator(`.competitions__option[data-competition="${option}"]`).click();
+      await page.waitForSelector(`.screen--competition[data-competition="${id}"]`, { timeout: 15000 });
       const menuLabels = (await page.locator('.comp__menu-label').allTextContents()).map(text => text.trim());
-      assert.deepEqual(menuLabels, [...labels, 'Voltar aos Modos'],
+      assert.deepEqual(menuLabels, [...labels, 'Voltar às Competições'],
         `${id}: o menu mostra exatamente as opções próprias da competição`);
       assert.equal(await page.locator(`.screen--competition[data-competition="${id}"] .comp__art`).count(), 1,
         `${id}: a arte da competição (estádio e troféu) aparece no palco`);
@@ -2072,12 +2211,12 @@ test('os menus das competições são próprios e todas as opções abrem telas 
       await page.waitForSelector('.screen--menu', { timeout: 15000 });
       assert.equal(await page.locator('.screen--worldcup').count(), 0,
         `${id}: o atalho de início nunca cai na Copa do Mundo`);
-      await page.locator('.menu__item[data-menu-item="tournament"]').click();
-      await page.waitForSelector('.screen--modes', { timeout: 15000 });
+      await page.locator('[data-menu-item="events"]').click();
+      await page.waitForSelector('.screen--competitions', { timeout: 15000 });
     }
 
     // Champions: escolha do clube, sorteio e painéis funcionais.
-    await page.locator('.modes__option[data-option="uefa-champions-league"]').click();
+    await page.locator('.competitions__option[data-competition="uefa-champions-league"]').click();
     await page.waitForSelector('.screen--competition[data-competition="uefa-champions-league"]');
     await page.locator('.comp__menu-item[data-panel="play"]').click();
     assert.equal(await page.locator('.comp__team-card').count(), 32, 'a Champions oferece os 32 clubes do pote sorteado');
@@ -2187,11 +2326,11 @@ test('os avisos de falta e bola parada saíram da tela e o gol ganhou cartão no
   assert.ok(hudSource.includes('hud__goal-number'), 'o número da camisa aparece no cartão');
 });
 
-test('mata-mata empatado vai para prorrogação e decide nos pênaltis', async () => {
+test('mata-mata empatado vai para prorrogação e decide nos pênaltis', async (t) => {
   // O fluxo completo 90' → 105' → 120' → pênaltis depende de timers reais do
   // motor; aqui o relógio é conduzido à mão para provar as transições sem
   // depender de 20 minutos de jogo simulado.
-  const browser = await launchOrSkip();
+  const browser = await launchOrSkip(t);
   if (!browser) return;
   const { server, url } = await startXfcServer({ port: 0 });
   try {

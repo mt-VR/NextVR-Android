@@ -9,19 +9,14 @@
 .season-plan-layout>.season-panel:first-child{flex:0 0 23%}.season-plan-layout>.season-panel:nth-child(2){flex:1.6;padding:13px;display:flex;flex-direction:column;overflow:hidden}.season-plan-layout>.season-panel:last-child{flex:0 0 24%}.season-plan-layout>.season-panel:first-child button{display:block;width:100%;text-align:left;margin:0 0 9px;padding:14px 12px}.season-plan-layout label{margin:12px 0}.season-plan-layout p{font-size:12px}.season-plan-layout h2{font-size:18px;margin-bottom:12px}.season-plan-layout h3{font-size:13px;margin:8px 0}.season-plan-pitch{position:relative;flex:1;min-height:280px;background:repeating-linear-gradient(0deg,#284529 0px,#284529 36px,#223e25 36px,#223e25 72px);border:2px solid #b5c6aa8a;margin:0 24px;touch-action:none}.season-plan-pitch:before{content:'';position:absolute;inset:0 25% 83%;border:1px solid #b5c6aa8a}.season-plan-pitch:after{content:'';position:absolute;inset:83% 25% 0;border:1px solid #b5c6aa8a}.season-pitch-circle{position:absolute;left:0;right:0;top:50%;height:1px;background:#b5c6aa8a}.season-pitch-circle:before{content:'';position:absolute;left:calc(50% - 34px);top:-34px;width:68px;height:68px;border:1px solid #b5c6aa8a;border-radius:50%}.season-plan-pitch .football-card{position:absolute;z-index:2;width:55px;height:64px;font-size:8px;transform:translate(-50%,-50%);padding:0;border:1px solid #cfcfcf;border-radius:5px;background:linear-gradient(145deg,#e1e6e5,#a1b5b3);color:#101820;touch-action:none}.season-plan-pitch .football-card__portrait{height:40px;width:32px;object-fit:contain;position:absolute;left:11px;bottom:12px}.season-plan-pitch .football-card__rating{font-size:13px;position:absolute;left:3px;top:2px}.season-plan-pitch .football-card__role{position:absolute;left:3px;top:18px;font-size:8px}.season-plan-pitch .football-card__initials{font-size:18px;position:absolute;left:14px;top:21px}.season-plan-pitch .football-card__crest{width:13px;height:15px;position:absolute;right:3px;top:2px;object-fit:contain}.season-plan-pitch .football-card__name{position:absolute;bottom:3px;left:0;width:100%;text-align:center;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.season-plan-pitch .football-card.is-selected{outline:3px solid #fff;outline-offset:2px}.season-plan-pitch .football-card.is-dragging{z-index:10;cursor:grabbing}.season-plan-bench{display:flex;gap:6px;overflow:auto;min-height:48px;max-height:55px;padding:3px}.season-plan-bench button{flex:0 0 120px;font-size:10px;padding:5px}
 @media(prefers-reduced-motion:reduce){.season-screen button{transition:none}}
 /* Somente comandos/analógico. Nenhuma regra do placar, relógio ou HUD. */
-.screen--play .controls__buttons{width:392px;height:376px;right:18px;bottom:34px}
-.screen--play .ctrl-btn{background:radial-gradient(circle at 38% 25%,#52634bd6,#0a170df2);border-width:3px;box-shadow:inset 0 2px 5px #ffffff2b,0 3px 8px #0007;font-size:14px;font-weight:600;letter-spacing:0;text-shadow:0 1px 2px #000b}
-/* Arco de ação: CHUTE grande em cima, PASSE grande embaixo (o polegar faz o
-   movimento natural de cima/baixo sem trocar de coluna). ENFIADA e CORRER
-   ficam como satélites à esquerda, cada um com o seu espaço. Nada se sobrepõe:
-   com o layout antigo ENFIADA (bottom:0) encostava no CORRER e CARRINHO
-   flutuava solto 199 px acima, o que trocava o comando no meio da jogada. */
-.screen--play .ctrl-btn--shoot{width:118px;height:118px;right:2px;bottom:216px;border-color:#d8c887}
-.screen--play .ctrl-btn--pass{width:110px;height:110px;right:8px;bottom:86px;border-color:#529dce}
-.screen--play .ctrl-btn--lob{width:96px;height:96px;right:132px;bottom:250px;border-color:#6fc86b}
-.screen--play .ctrl-btn--sprint{width:96px;height:96px;right:138px;bottom:94px;border-color:#d5d9c9}
-.screen--play .ctrl-btn--tackle{width:86px;height:86px;right:244px;bottom:160px;border-color:#c4c7be;font-size:9px}
-.screen--play .ctrl-btn--switch{width:80px;height:80px;right:252px;bottom:48px;border-radius:50%;border-color:#c4c7be;font-size:10px}
+.screen--play .controls__buttons{width:420px;height:380px;right:6px;bottom:22px}
+.screen--play .ctrl-btn{border-width:3.5px;border-color:var(--ring);background:radial-gradient(circle at 50% 38%,#2a3126 0%,#121612 58%,#0b0d0b 100%);box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.04em}
+.screen--play .ctrl-btn--shoot{width:104px;height:104px;right:22px;bottom:228px;--ring:#e07040;font-size:15px}
+.screen--play .ctrl-btn--lob{width:98px;height:98px;right:152px;bottom:208px;--ring:#d4b43a;font-size:12px}
+.screen--play .ctrl-btn--pass{width:102px;height:102px;right:168px;bottom:78px;--ring:#4a9adf;font-size:14px}
+.screen--play .ctrl-btn--sprint{width:124px;height:124px;right:8px;bottom:52px;--ring:#3dbe62;font-size:13px}
+.screen--play .ctrl-btn--tackle{width:76px;height:76px;right:300px;bottom:150px;--ring:#c8c3a8;font-size:10px}
+.screen--play .ctrl-btn--switch{width:76px;height:76px;right:308px;bottom:42px;--ring:#c8c3a8;font-size:10px}
 .screen--play .ctrl-btn__gesture{font-size:6px;letter-spacing:0;bottom:20px}.screen--play .ctrl-btn--shoot>.ctrl-btn__gesture{bottom:23px}
 .screen--play .controls__stick{left:76px;bottom:92px;width:152px;height:152px}
 .screen--play .controls__stick-base{border:2px solid #b5c19b89;background:#0c230e55;box-shadow:inset 0 1px 8px #fff1}

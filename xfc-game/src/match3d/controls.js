@@ -14,13 +14,23 @@ const STICK_BASE = 128;   // diâmetro da base, em px do palco
 const STICK_RADIUS = 44;  // alcance do knob, em px do palco
 const DEAD_ZONE = 0.16;
 
+/** Maps a horizontal swipe on a pass/through button to a restrained sidespin. */
+export function lateralPassCurve(startX, endX) {
+  const from = Number(startX), to = Number(endX);
+  if (![from, to].every(Number.isFinite)) return 0;
+  const dx = to - from;
+  const amount = Math.abs(dx);
+  if (amount < 28) return 0;
+  return Math.sign(dx) * Math.min(0.4, ((amount - 28) / 105) * 0.4);
+}
+
 const BUTTONS = [
-  { id: 'pass', label: 'PASSE', className: 'ctrl-btn--pass' },
-  { id: 'shoot', label: 'CHUTE', className: 'ctrl-btn--shoot' },
-  { id: 'lob', label: 'ENFIADA', className: 'ctrl-btn--lob' },
-  { id: 'tackle', label: 'CARRINHO', className: 'ctrl-btn--tackle' },
-  { id: 'switch', label: 'TROCAR', className: 'ctrl-btn--switch' },
-  { id: 'sprint', label: 'CORRER', className: 'ctrl-btn--sprint' }
+  { id: 'pass', label: 'PASS', className: 'ctrl-btn--pass' },
+  { id: 'shoot', label: 'SHOOT', className: 'ctrl-btn--shoot' },
+  { id: 'lob', label: 'THROUGH', className: 'ctrl-btn--lob' },
+  { id: 'tackle', label: 'SLIDE', className: 'ctrl-btn--tackle' },
+  { id: 'switch', label: 'SWITCH', className: 'ctrl-btn--switch' },
+  { id: 'sprint', label: 'SPRINT', className: 'ctrl-btn--sprint' }
 ];
 
 export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, root, playerCareer=false, padGamepad=null }) {
@@ -39,6 +49,7 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   let shootPointerId = null;
   let cancelActiveShot = () => {};
   const cancelActiveActions = [];
+  const holdActions = new Map();
   let movementVector = { x: 0, z: 0 };
   let enabled = true;
   // ------------------------------------------------------------ gamepad --
@@ -49,15 +60,20 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   let padFamily = 'generic';
   let currentCharging = false;
 
-  function shootUi(button, strength, kind, charging) {
-    onCharge(charging?Math.max(.15,strength):0);
+  function chargeRing(button, strength, charging, kind = 'normal') {
     button.style.setProperty('--charge', String(charging ? 0.25 + strength * 0.75 : 0));
     button.classList.toggle('is-charging', Boolean(charging));
+    button.classList.toggle('is-lob', Boolean(charging && kind === 'lob'));
     for (const shotKind of ['placed', 'curved', 'power']) {
       button.classList.toggle(`is-${shotKind}`, Boolean(charging && kind === shotKind));
     }
     if (charging) button.dataset.shotType = kind || 'normal';
     else delete button.dataset.shotType;
+  }
+
+  function shootUi(button, strength, kind, charging) {
+    onCharge(charging?Math.max(.15,strength):0);
+    chargeRing(button, strength, charging, kind);
   }
 
   function shotGesture(shot, event) {
@@ -88,7 +104,7 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
   }
 
   const buttons = BUTTONS.map(original => {
-    const item=playerCareer&&original.id==='switch'?{...original,id:'request-pass',label:'PEDIR PASSE'}:original;
+    const item=playerCareer&&original.id==='switch'?{...original,id:'request-pass',label:'CALL'}:original;
     const button = el('button', {
       class: `ctrl-btn ${item.className}`,
       type: 'button',
@@ -97,11 +113,18 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
         ? 'Chute: segure até completar a carga para superchute; para cima curvado, para baixo colocado'
         : item.id === 'tackle'
           ? 'Carrinho: toque para tentar desarmar o adversário próximo'
-          : item.id === 'sprint' ? 'Correr: segure; arraste para cima para chapéu ou para baixo para pedalada' : item.label
+          : item.id === 'pass'
+            ? 'Passe: segure para carregar; arraste para cima para levantar ou para o lado para dar curva leve'
+            : item.id === 'lob'
+              ? 'Enfiada: segure para carregar; arraste para o lado para dar curva leve'
+              : item.id === 'sprint' ? 'Correr: segure; arraste para cima para chapéu ou para baixo para pedalada' : item.label
     },
-      el('span', { text: item.label }),
-      item.id === 'shoot' && el('small', { class: 'ctrl-btn__gesture', text: 'SEGURE: SUPERCHUTE' }),
-      item.id === 'sprint' && el('small', { class: 'ctrl-btn__gesture', text: '↑ CHAPÉU · ↓ PEDALADA' })
+      item.id === 'sprint'
+        ? el('span', { class: 'ctrl-btn__stack' },
+            el('b', { text: 'SPRINT' }),
+            el('i', { text: '&' }),
+            el('b', { text: 'SKILL' }))
+        : el('span', { text: item.label })
     );
 
     if (item.id === 'shoot') {
@@ -161,6 +184,65 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       return button;
     }
 
+    if (item.id === 'pass' || item.id === 'lob') {
+      const minStrength = item.id === 'pass' ? 0.12 : 0.22;
+      const ui = (strength, kind, charging) => chargeRing(button, strength, charging, kind);
+      const kindFrom = (event, charge) => {
+        if (item.id !== 'pass' || !charge || event?.clientY === undefined) return 'normal';
+        return event.clientY - charge.startY < -30 ? 'lob' : 'normal';
+      };
+      const curveFrom = (event, charge) => {
+        if (!['pass', 'lob'].includes(item.id) || !charge) return 0;
+        return lateralPassCurve(charge.startX, event?.clientX);
+      };
+      button.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!enabled || holdActions.has(item.id)) return;
+        button.setPointerCapture?.(event.pointerId);
+        const charge = { startX: event.clientX, startY: event.clientY, startedAt: performance.now(), strength: 0, kind: 'normal', pointerId: event.pointerId, button };
+        holdActions.set(item.id, charge);
+        ui(0, 'normal', true);
+      });
+      button.addEventListener('pointermove', event => {
+        const charge = holdActions.get(item.id);
+        if (!charge || event.pointerId !== charge.pointerId) return;
+        charge.strength = Math.max(0, Math.min(1, (performance.now() - charge.startedAt - 130) / (SHOOT_FULL_MS - 130)));
+        charge.kind = kindFrom(event, charge);
+        ui(charge.strength, charge.kind, true);
+      });
+      const release = event => {
+        const charge = holdActions.get(item.id);
+        if (!charge || (event?.pointerId !== undefined && event.pointerId !== charge.pointerId)) return;
+        charge.strength = Math.max(0, Math.min(1, (performance.now() - charge.startedAt - 130) / (SHOOT_FULL_MS - 130)));
+        charge.kind = kindFrom(event, charge);
+        const payload = {
+          strength: Math.max(minStrength, charge.strength),
+          lob: item.id === 'pass' && charge.kind === 'lob',
+          kind: charge.kind,
+          curve: curveFrom(event, charge)
+        };
+        holdActions.delete(item.id);
+        ui(0, 'normal', false);
+        if (enabled) onCommand(item.id, payload);
+      };
+      const cancel = event => {
+        const charge = holdActions.get(item.id);
+        if (!charge) return;
+        if (event && event.pointerId !== charge.pointerId) return;
+        holdActions.delete(item.id);
+        if (!event && button.hasPointerCapture?.(charge.pointerId)) {
+          button.releasePointerCapture?.(charge.pointerId);
+        }
+        ui(0, 'normal', false);
+      };
+      cancelActiveActions.push(cancel);
+      button.addEventListener('pointerup', release);
+      button.addEventListener('pointercancel', cancel);
+      button.addEventListener('lostpointercapture', cancel);
+      return button;
+    }
+
     let actionPointerId = null;
     let sprintGesture=null;
     const cancelAction = () => {
@@ -193,7 +275,8 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       if(item.id!=='sprint'||actionPointerId!==event.pointerId||!sprintGesture)return;
       const scale=button.getBoundingClientRect().height/(button.offsetHeight||1);
       const dy=(event.clientY-sprintGesture.y)/Math.max(.2,scale),dx=(event.clientX-sprintGesture.x)/Math.max(.2,scale);
-      sprintGesture.action=Math.abs(dy)>=28&&Math.abs(dy)>Math.abs(dx)?(dy<0?'rainbow':'dribble'):null;
+      sprintGesture.action=Math.abs(dy)>=28&&Math.abs(dy)>Math.abs(dx)?(dy<0?'rainbow':'dribble')
+        :Math.abs(dx)>=28&&Math.abs(dx)>Math.abs(dy)?(dx<0?'elastico':'roulette'):null;
       // Prévia do gesto não solta CORRER: só pointerup/cancel encerra o sprint.
       // Caso contrário, um desvio do dedo desligava a corrida até outro toque.
     });
@@ -296,21 +379,29 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
 
   const keys = new Set();
   const KEY_COMMANDS = {
-    KeyJ: 'pass',
-    Space: 'pass',
-    KeyE: 'lob',
     KeyF: 'tackle',
     Tab: 'switch',
     KeyQ: 'switch'
   };
   let shootKeyStartedAt = null;
+  const keyHolds = { pass: null, lob: null };
+  const KEY_HOLDS = { KeyJ: 'pass', Space: 'pass', KeyE: 'lob' };
 
   function onKeyDown(event) {
     if (!enabled || event.repeat) return;
     keys.add(event.code);
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') onSprint(true);
     if (event.code === 'KeyK' || event.code === 'KeyL') {
-      if (shootKeyStartedAt === null) shootKeyStartedAt = performance.now();
+      if (shootKeyStartedAt === null) {
+        shootKeyStartedAt = performance.now();
+        onCharge(0.15);
+      }
+      event.preventDefault();
+      return;
+    }
+    const hold = KEY_HOLDS[event.code];
+    if (hold) {
+      if (!keyHolds[hold]) keyHolds[hold] = performance.now();
       event.preventDefault();
       return;
     }
@@ -330,12 +421,29 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
         const elapsed = performance.now() - shootKeyStartedAt;
         const strength = Math.max(SHOOT_MIN_STRENGTH, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
         shootKeyStartedAt = null;
+        onCharge(0);
         if (enabled) onCommand('shoot', { strength, placed: false, kind:strength>=1?'power':'normal' });
       }
+    }
+    const hold = KEY_HOLDS[event.code];
+    if (hold && keyHolds[hold] !== null) {
+      const other = hold === 'pass'
+        ? (event.code === 'KeyJ' ? keys.has('Space') : keys.has('KeyJ'))
+        : false;
+      if (other) return;
+      const elapsed = performance.now() - keyHolds[hold];
+      const minStrength = hold === 'pass' ? 0.12 : 0.22;
+      const strength = Math.max(minStrength, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130)));
+      keyHolds[hold] = null;
+      if (enabled) onCommand(hold, { strength, lob: false, kind: 'normal' });
     }
   }
 
   function readKeyboard() {
+    if (shootKeyStartedAt !== null && enabled) {
+      const elapsed = performance.now() - shootKeyStartedAt;
+      onCharge(Math.max(0.15, Math.min(1, (elapsed - 130) / (SHOOT_FULL_MS - 130))));
+    }
     // Toque tem prioridade: o timer do teclado não pode zerar o analógico.
     if (pointerId !== null) return;
     if (!enabled) {
@@ -362,12 +470,17 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
     if(!pad||pad.menuMode)return;
     // Sempre com navegação de jogo (menuMode é controlado pelo main.js).
     const result=pad.poll(0.04,{enabled:true});
-    if(!result.connected){if(padMode)setPadMode(false);return;}
+    if(!result.connected){
+      if(padMode)setPadMode(false);
+      if(currentCharging){currentCharging=false;onCharge(0);}
+      return;
+    }
     if(!padMode)setPadMode(true,result.family);
     const magnitude=Math.hypot(result.move.x,result.move.z);
     // Com os controles desligados (pré-jogo/pausa) só o "cutucão" no
     // analógico passa, para tirar o jogador da apresentação.
     if(!enabled){
+      if(currentCharging){currentCharging=false;onCharge(0);}
       if(magnitude>0.2)onMove(result.move.x,result.move.z);
       return;
     }
@@ -380,8 +493,11 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       if(command&&typeof command==='object')onCommand(command.name,command.payload);
       else onCommand(command);
     }
-    const charging=Boolean(result.charging);
-    if(charging!==currentCharging){currentCharging=charging;if(!charging)onCharge(0);}
+    const charging=Math.max(0,Math.min(1,Number(result.charging)||0));
+    if(charging>0||currentCharging){
+      currentCharging=charging>0;
+      onCharge(charging);
+    }
   }
 
   const keyboardTimer = setInterval(()=>{
@@ -392,6 +508,10 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
     if(shootCharge){
       shootCharge.strength=Math.max(0,Math.min(1,(performance.now()-shootCharge.startedAt-130)/(SHOOT_FULL_MS-130)));
       shootUi(buttons.find(b=>b.dataset.command==='shoot'),shootCharge.strength,shootCharge.strength>=1?'power':shootCharge.kind,true);
+    }
+    for (const [id, charge] of holdActions) {
+      charge.strength = Math.max(0, Math.min(1, (performance.now() - charge.startedAt - 130) / (SHOOT_FULL_MS - 130)));
+      chargeRing(charge.button, charge.strength, true, charge.kind);
     }
   },40);
 
@@ -411,6 +531,8 @@ export function createControls({ onCommand, onMove, onSprint, onCharge=()=>{}, r
       for (const cancelAction of cancelActiveActions) cancelAction();
       keys.clear();
       shootKeyStartedAt = null;
+      keyHolds.pass = keyHolds.lob = null;
+      holdActions.clear();
       movementVector = { x: 0, z: 0 };
       onMove(0, 0);
       onSprint(false);

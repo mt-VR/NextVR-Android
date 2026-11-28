@@ -32,6 +32,8 @@ export const EUROPEAN_CLUBS=TEAMS
 // melhores europeus. Com as ligas completas o catálogo europeu é grande demais
 // para caber num torneio de grupos, então a Libertadores mantém o tamanho.
 const MIXED_LIBERTADORES=[...BRAZILIAN_CLUBS,...EUROPEAN_CLUBS.slice(0,40)];
+const EUROPA_LEAGUE_CLUBS=EUROPEAN_CLUBS.slice(18);
+const SOUTH_AMERICAN_CLUBS=TEAMS.filter(team=>['Brasil','Argentina','Chile'].includes(team.country)).map(team=>team.id);
 const COPA_AMERICA_NATIONS=NATIONAL_TEAMS.filter(t=>t.confederation==='CONMEBOL').map(t=>t.id);
 
 const THEMES = {
@@ -58,6 +60,18 @@ const THEMES = {
     trophy: 'world-cup',
     tagline: 'A maior Copa do Mundo da história!',
     menuLabel: 'FIFA WORLD CUP™'
+  },
+  europa: {
+    mark: '✦',
+    trophy: 'ucl',
+    tagline: 'Mostre seu futebol na Europa.',
+    menuLabel: 'UEFA EUROPA LEAGUE'
+  },
+  sudamericana: {
+    mark: '☀',
+    trophy: 'libertadores',
+    tagline: 'Busque o título continental.',
+    menuLabel: 'CONMEBOL SUDAMERICANA'
   }
 };
 
@@ -134,7 +148,9 @@ export const COMPETITIONS = [
 // Edições compactas com os clubes brasileiros disponíveis no elenco local.
 COMPETITIONS.push(
   {id:'copa-do-brasil',theme:'brasil',name:'Copa do Brasil',shortName:'Copa do Brasil',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:BRAZILIAN_CLUBS,groupCount:1,bestThirds:0,format:'knockout',stageTitle:'Mata-mata · todos os brasileiros',stadiumIndex:0,mark:'🏆',trophy:'libertadores',tagline:`Mata-mata com ${BRAZILIAN_CLUBS.length} clubes brasileiros`,menuLabel:'COPA DO BRASIL'},
-  {id:'brasileirao',theme:'brasil',name:'Brasileirão',shortName:'Brasileirão',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:BRAZILIAN_CLUBS,groupCount:1,bestThirds:0,format:'league',stageTitle:'Pontos corridos · edição XFC',stadiumIndex:0,mark:'★',trophy:'libertadores',tagline:`Turno e returno com ${BRAZILIAN_CLUBS.length} clubes brasileiros`,menuLabel:'BRASILEIRÃO'}
+  {id:'brasileirao',theme:'brasil',name:'Brasileirão',shortName:'Brasileirão',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:BRAZILIAN_CLUBS,groupCount:1,bestThirds:0,format:'league',stageTitle:'Pontos corridos · edição XFC',stadiumIndex:0,mark:'★',trophy:'libertadores',tagline:`Turno e returno com ${BRAZILIAN_CLUBS.length} clubes brasileiros`,menuLabel:'BRASILEIRÃO'},
+  {id:'uefa-europa-league',theme:'europa',name:'UEFA Europa League',shortName:'Europa League',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2026/27',pool:EUROPA_LEAGUE_CLUBS,potSize:32,groupCount:8,bestThirds:0,stageTitle:'Fase de grupos · edição XFC',stadiumIndex:5,...THEMES.europa},
+  {id:'conmebol-sudamericana',theme:'sudamericana',name:'CONMEBOL Sudamericana',shortName:'Sudamericana',kind:'clubs',entityLabel:'Clubes',entitySingular:'clube',year:'2027',pool:SOUTH_AMERICAN_CLUBS,potSize:24,groupCount:6,bestThirds:0,stageTitle:'Fase de grupos · clubes sul-americanos do catálogo XFC',stadiumIndex:4,...THEMES.sudamericana}
 );
 
 export const GROUP_LETTERS = Object.freeze(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);

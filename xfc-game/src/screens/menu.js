@@ -1,279 +1,113 @@
-import {libraryProfileIcon} from '../data/asset-library.js';
-// Menu inicial do XFC 27, seguindo a referência do hub de futebol:
-// estádio em tela cheia, navegação vertical à esquerda e destaque de Kick Off.
-
-import { el, svg, ICONS } from '../ui/dom.js';
-import { xfcWordmark } from '../ui/brand.js';
+// Início do XFC 27: a captura fornecida é a arte integral; ações DOM acessíveis
+// ficam por cima dela. Carreira, seleção e estádios continuam nas telas próprias.
+import { el } from '../ui/dom.js';
 import { formatXp } from '../state.js';
+import { xfc27Footer, xfc27Hotspot, xfc27Screen } from '../ui/reference-menu.js';
 
-const MENU_ITEMS = [
-  {id:'friendly',label:'JOGO RÁPIDO',headline:'Entre direto em campo',subtitle:'O menu clássico do Jogo Rápido.',action:'Jogar',target:'friendly'},
-  {
-    id: 'news',
-    label: 'FC NEWS',
-    headline: 'The latest from XFC',
-    subtitle: 'News, updates and stories from around the game.',
-    action: 'Open FC News',
-    notice: 'FC News is coming soon.'
-  },
-  {
-    id: 'kickoff',
-    label: 'KICK OFF',
-    headline: 'Dive straight into the action',
-    subtitle: 'Quick matches  ·  Couch Co-op  ·  Customise settings',
-    action: 'Enter Kick Off',
-    target: 'kickoff'
-  },
-  {
-    id: 'grounds',
-    label: 'THE GROUNDS',
-    headline: 'Find your home ground',
-    subtitle: 'Choose the stadium that sets the scene.',
-    action: 'Explore The Grounds',
-    target: 'stadiums',
-    params: { returnTo: 'menu' }
-  },
-  {
-    id: 'ultimate',
-    label: 'ULTIMATE TEAM',
-    headline: 'Build your Ultimate Team',
-    subtitle: 'Sign players, shape your squad and take it onto the pitch.',
-    action: 'Enter Ultimate Team',
-    target: 'ultimate'
-  },
-  {
-    id: 'career',
-    label: 'CARREIRA DE JOGADOR',
-    headline: 'Sua carreira. Seu jogador.',
-    subtitle: 'Escolha seu clube, evolua seu atleta e entre em campo com a câmera Pro.',
-    action: 'Entrar na carreira',
-    target: 'career'
-  },
-  {
-    id: 'learn',
-    label: 'LEARN TO PLAY',
-    headline: 'Make every touch count',
-    subtitle: 'Pratique faltas, pênaltis, passes e jogadas coletivas no Centro de Treino.',
-    action: 'Choose Training',
-    target: 'training',
-    params: { returnTo: 'menu' }
-  },
-  {
-    id: 'seasons',
-    label: 'SEASONS',
-    headline: 'Your season starts now',
-    subtitle: 'Lead Brazil through the World Cup campaign.',
-    action: 'Enter Seasons',
-    target: 'worldcup',
-    params: { returnTo: 'menu' }
-  },
-  {
-    id: 'tournament',
-    label: 'TOURNAMENTS',
-    headline: 'Compete for the trophy',
-    subtitle: 'Choose a competition and make your run to the final.',
-    action: 'Browse Tournaments',
-    target: 'modes'
-  },
-  {
-    id: 'quick',
-    label: 'TIME ALEATÓRIO',
-    headline: 'Um novo confronto a cada sorteio',
-    subtitle: 'Sorteie dois clubes, escolha o uniforme e entre em campo.',
-    action: 'Sortear times',
-    target: 'quick'
-  },
-  {
-    id: 'online-friendlies',
-    label: 'ONLINE FRIENDLIES',
-    headline: 'Challenge a friend',
-    subtitle: 'Set up a friendly and settle it on the pitch.',
-    action: 'Find a Match',
-    target: 'quick'
-  }
-];
+const COIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#f4c846" stroke="#9c7621"/><path d="M14.5 8.4c-2.8-1.2-5 .2-5 2.2 0 2.8 5 2 5 4.3 0 1.8-2.2 2.8-4.8 1.4" fill="none" stroke="#725014" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const GEM = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10l4 6-9 12L3 9z" fill="#33dc78"/><path d="M7 3 5.5 9h13L17 3z" fill="#8affad"/><path d="M12 21 5.5 9h13z" fill="#18a950"/></svg>';
 
-const QUICK_ACTIONS = [
-  { id: 'settings', label: 'Settings', icon: 'gear', target: 'customise' },
-  { id: 'accessibility', label: 'Accessibility', icon: 'accessibility', target: 'customise', params: { panel: 'accessibility' } },
-  { id: 'online', label: 'Online', icon: 'friends', target: 'modes' }
-];
+function action(node, label, rect, run, { id = '', className = '', text = label } = {}) {
+  const button = xfc27Hotspot(label, rect, run, {
+    class: `ref-button xfc27-action${id ? ' menu__item' : ''}${className ? ` ${className}` : ''}`,
+    ...(id ? { dataset: { menuItem: id } } : {})
+  });
+  button.replaceChildren(el('span', { class: 'ref-sr menu__item-label', text }));
+  node.append(button);
+  return button;
+}
+
+function liveProfile(ctx) {
+  const profile = ctx.state.profile;
+  const xp = Math.max(0, Number(profile.xp) || 0);
+  const xpMax = Math.max(1, Number(profile.xpMax) || 100);
+  const level = Math.max(1, Number(profile.level) || 1);
+  const wallet = el('div', { class: 'xfc27-live-header', 'aria-label': 'Carteira e progresso do jogador' },
+    el('div', { class: 'xfc27-wallet' },
+      el('span', { class: 'xfc27-wallet__item', 'aria-label': `${profile.coins ?? 0} moedas` },
+        el('span', { class: 'xfc27-wallet__icon', html: COIN }),
+        el('b', { text: String(profile.coins ?? 0) })),
+      el('span', { class: 'xfc27-wallet__item', 'aria-label': `${profile.gems ?? 0} gemas` },
+        el('span', { class: 'xfc27-wallet__icon', html: GEM }),
+        el('b', { text: String(profile.gems ?? 0) }))
+    ),
+    el('button', { class: 'xfc27-profile', type: 'button', 'aria-label': 'Abrir perfil e configurações', onClick: () => ctx.go('customise') },
+      el('span', { class: 'xfc27-profile__badge', text: 'XFC' }),
+      el('span', { class: 'xfc27-profile__copy' },
+        el('b', { text: `Nível ${level}` }),
+        el('span', { class: 'xfc27-xp' },
+          el('span', { class: 'xfc27-xp__track', role: 'progressbar', 'aria-label': `${formatXp(xp)} de ${formatXp(xpMax)} XP`, 'aria-valuemin': '0', 'aria-valuemax': String(xpMax), 'aria-valuenow': String(Math.min(xp, xpMax)) },
+            el('span', { class: 'xfc27-xp__fill', style: { width: `${Math.min(100, Math.round(xp / xpMax * 100))}%` } })),
+          el('small', { text: `${formatXp(xp)} / ${formatXp(xpMax)} XP` }))
+      )
+    ),
+    el('button', { class: 'xfc27-settings', type: 'button', 'aria-label': 'Configurações', onClick: () => ctx.go('customise') }, '⚙')
+  );
+  return wallet;
+}
 
 export function menuScreen(ctx) {
-  const { profile } = ctx.state;
-  let focusIndex = MENU_ITEMS.findIndex(item=>item.id==='kickoff');
-  const xp = Math.max(0, Number(profile.xp) || 0);
-  const xpMax = Math.max(1, Number(profile.xpMax) || 3000);
-  const xpPercent = Math.min(100, Math.round((xp / xpMax) * 100));
+  const node = xfc27Screen('screen--menu', 'home', 'Menu inicial XFC 27');
+  node.dataset.coins = String(ctx.state.profile.coins ?? 0);
+  node.append(liveProfile(ctx));
 
-  const brand = el('div', { class: 'hub__brand', 'aria-label': 'XF Esportes XFC' },
-    el('span', { class: 'hub__esports-mark' },
-      el('b', { text: 'XF' }),
-      el('small', { text: 'ESPORTES' })
-    ),
-    el('span', { class: 'hub__brand-divider', 'aria-hidden': 'true' }),
-    el('span', { class: 'hub__wordmark', html: xfcWordmark({ title: 'XFC' }) })
-  );
+  const actions = el('nav', { class: 'xfc27-home-actions hub__menu', 'aria-label': 'Menu inicial' });
+  node.append(actions);
+  const targets = [];
 
-  const topProgress = el('div', { class: 'hub__progress' },
-    el('div', {
-      class: 'hub__xp-bar',
-      role: 'progressbar',
-      'aria-label': `${formatXp(xp)} of ${formatXp(xpMax)} XP`,
-      'aria-valuemin': '0',
-      'aria-valuemax': String(xpMax),
-      'aria-valuenow': String(Math.min(xp, xpMax))
-    },
-      el('span', { class: 'hub__xp-fill', style: { width: `${xpPercent}%` } })
-    ),
-    el('span', { class: 'hub__level', text: `LVL ${profile.level || 6}` }),
-    el('span', { class: 'hub__xp-badge', 'aria-label': 'Experience points', text: 'XP' }),
-    el('span', { class: 'hub__xp-value', text: `${formatXp(xp)}/${formatXp(xpMax)}` })
-  );
+  // Navegação superior da referência.
+  targets.push(action(actions, 'Início', [333, 20, 129, 76], () => ctx.go('menu'), { className: 'xfc27-nav-action', text: 'HOME' }));
+  targets.push(action(actions, 'Modos', [465, 20, 139, 76], () => ctx.go('modes'), { id: 'tournament', className: 'xfc27-nav-action', text: 'TOURNAMENTS' }));
+  targets.push(action(actions, 'Personalizar', [607, 20, 186, 76], () => ctx.go('customise'), { className: 'xfc27-nav-action', text: 'CUSTOMISE' }));
+  targets.push(action(actions, 'Configurações', [790, 20, 202, 76], () => ctx.go('customise'), { className: 'xfc27-nav-action', text: 'SETTINGS' }));
 
-  const topbar = el('header', { class: 'hub__topbar' }, brand, topProgress);
+  // Os dois destaques de carreira chegam à entrada original de Carreira; ela
+  // continua sendo renderizada por careerScreen, sem arte de referência nova.
+  const manager = action(actions, 'Carreira de time · Entrar', [39, 150, 737, 339], () => ctx.go('career', { kind: 'manager' }), { id: 'career', className: 'xfc27-feature xfc27-feature--manager', text: 'CARREIRA DE JOGADOR' });
+  manager.append(el('span', { class: 'hub__cta-label ref-sr', text: 'Entrar na carreira' }));
+  targets.push(manager);
+  targets.push(action(actions, 'CARREIRA DE JOGADOR', [788, 163, 425, 324], () => ctx.go('career', { kind: 'player' }), { className: 'xfc27-feature xfc27-feature--legend', text: 'CARREIRA DE JOGADOR' }));
 
-  const quickRail = el('nav', { class: 'hub__quick-rail', 'aria-label': 'Quick settings' },
-    el('div', { class: 'hub__quick-stack' }, ...QUICK_ACTIONS.map(action =>
-      el('button', {
-        class: 'hub__quick-button',
-        type: 'button',
-        dataset: { action: action.id },
-        'aria-label': action.label,
-        title: action.label,
-        onClick() { ctx.go(action.target, action.params || {}); }
-      }, svg(ICONS[action.icon] || ICONS.gear))
-    )),
-    el('button', {
-      class: 'hub__quick-button hub__quick-button--single',
-      type: 'button',
-      dataset: { action: 'profile' },
-      'aria-label': 'Open profile and kits',
-      title: 'Profile and kits',
-      onClick() { ctx.go('kits'); }
-    }, libraryProfileIcon()?el('img',{src:libraryProfileIcon(),alt:'Ícone do perfil',style:{width:'32px',height:'32px',objectFit:'contain'}}):svg(ICONS.profile))
-  );
+  // O cartão Amistoso abre a seleção normal; o ícone à direita mantém o atalho
+  // de Jogo Rápido aleatório que já existia no menu anterior.
+  targets.push(action(actions, 'Amistoso · escolher times', [47, 501, 286, 162], () => ctx.go('friendly', { returnTo: 'menu' }), { id: 'friendly', className: 'xfc27-tile-action', text: 'JOGO RÁPIDO' }));
+  targets.push(action(actions, 'Jogo rápido aleatório', [333, 501, 101, 162], () => ctx.go('quick', { returnTo: 'menu' }), { id: 'quick', className: 'xfc27-tile-action', text: 'TIME ALEATÓRIO' }));
+  targets.push(action(actions, 'Loja do Ultimate Team', [447, 501, 376, 162], () => ctx.go('ultimate', { section: 'store' }), { id: 'ultimate', className: 'xfc27-tile-action', text: 'ULTIMATE TEAM' }));
+  targets.push(action(actions, 'Missões', [836, 501, 376, 162], () => ctx.go('ultimate', { section: 'objectives' }), { id: 'news', className: 'xfc27-tile-action', text: 'FC NEWS' }));
 
-  const featureTitle = el('h1', { class: 'hub__headline', text: MENU_ITEMS[focusIndex].headline });
-  const featureSubtitle = el('p', { class: 'hub__subtitle', text: MENU_ITEMS[focusIndex].subtitle });
-  const actionLabel = el('span', { class: 'hub__cta-label', text: MENU_ITEMS[focusIndex].action });
-  const featureAction = el('button', {
-    class: 'hub__cta',
-    type: 'button',
-    onClick() { openSelected(); }
-  },
-    el('span', { class: 'hub__cta-key', 'aria-hidden': 'true' }, '×'),
-    actionLabel
-  );
-  const feature = el('section', { class: 'hub__feature', 'aria-live': 'polite' },
-    featureTitle,
-    featureSubtitle,
-    featureAction
-  );
+  // Atalhos inferiores da referência. Os nomes visíveis são parte da imagem;
+  // os botões seguem alinhados às mesmas áreas do screenshot.
+  targets.push(action(actions, 'Clubes · seleção de times', [28, 688, 218, 119], () => ctx.go('kickoff'), { id: 'kickoff', className: 'xfc27-bottom-action', text: 'KICK OFF' }));
+  targets.push(action(actions, 'Seleções · Copa do Mundo', [252, 688, 235, 119], () => ctx.go('worldcup', { returnTo: 'menu' }), { id: 'seasons', className: 'xfc27-bottom-action', text: 'SEASONS' }));
+  targets.push(action(actions, 'Desafios · Centro de Treino', [493, 688, 259, 119], () => ctx.go('training', { returnTo: 'menu' }), { id: 'learn', className: 'xfc27-bottom-action', text: 'LEARN TO PLAY' }));
+  targets.push(action(actions, 'Futebol feminino', [764, 688, 210, 119], () => ctx.toast('O modo de futebol feminino ainda não está disponível.'), { className: 'xfc27-bottom-action', text: 'FUTEBOL FEMININO' }));
+  targets.push(action(actions, 'PvP', [983, 688, 208, 119], () => ctx.go('pvp'), { id: 'online-friendlies', className: 'xfc27-bottom-action', text: 'ONLINE FRIENDLIES' }));
+  targets.push(action(actions, 'Eventos ao vivo · competições', [1191, 688, 350, 119], () => ctx.go('competitions'), { id: 'events', className: 'xfc27-bottom-action', text: 'TOURNAMENTS' }));
 
-  const nav = el('nav', { class: 'menu__nav hub__menu', 'aria-label': 'Main menu' });
-  const navButtons = MENU_ITEMS.map((item, index) => {
-    const button = el('button', {
-      class: `menu__item${index === focusIndex ? ' is-focused' : ''}`,
-      type: 'button',
-      dataset: { menuItem: item.id },
-      'aria-pressed': index === focusIndex ? 'true' : 'false',
-      onMouseMove() { setSelection(index); },
-      onFocus() { setSelection(index); },
-      onClick() { activate(index); }
-    }, el('span', { class: 'menu__item-label', text: item.label }));
-    nav.appendChild(button);
-    return button;
+  xfc27Footer(node, {
+    select: () => manager.click(),
+    back: () => ctx.go('launch')
   });
 
-  const objective = el('button', {
-    class: 'hub__objective',
-    type: 'button',
-    onClick() { ctx.toast('Season Pass objectives are coming soon.'); }
-  },
-    el('span', { class: 'hub__objective-icon', 'aria-hidden': 'true' }, svg(ICONS.camera)),
-    el('span', { text: 'Check out the Season Pass Objectives!' })
-  );
-
-  const footer = el('footer', { class: 'hub__footer' },
-    el('div', { class: 'hub__footer-hints' },
-      el('span', { class: 'hub__pad hub__pad--x', 'aria-hidden': 'true' }, '×'),
-      el('span', { text: 'Select' }),
-      el('span', { class: 'hub__pad hub__pad--circle', 'aria-hidden': 'true' }, '○'),
-      el('span', { text: 'Back' })
-    ),
-    el('div', { class: 'hub__footer-social' },
-      el('span', { class: 'hub__fc-hub' }, svg(ICONS.hub), el('span', { text: 'FC HUB' })),
-      el('span', { class: 'hub__footer-icon hub__r2', text: 'R2' }),
-      el('span', { class: 'hub__footer-icon hub__speaker', 'aria-label': 'Audio', text: '◖' }),
-      el('b', { class: 'hub__online-count', text: '1' }),
-      el('span', { class: 'hub__friends', 'aria-label': 'Friends online' }, svg(ICONS.friends), el('span', { text: '1' }))
-    )
-  );
-
-  const node = el('div', {
-    class: 'screen screen--menu screen--xfc-home',
-    'data-coins': String(profile.coins || 0)
-  },
-    el('img', {
-      class: 'hub__background',
-      src: 'assets/bg/menu-hero.jpg',
-      alt: 'Jogador em campo diante de um estádio cheio'
-    }),
-    topbar,
-    quickRail,
-    nav,
-    feature,
-    objective,
-    footer
-  );
-
-  function setSelection(index) {
-    focusIndex = (index + MENU_ITEMS.length) % MENU_ITEMS.length;
-    const item = MENU_ITEMS[focusIndex];
-    navButtons.forEach((button, buttonIndex) => {
-      const selected = buttonIndex === focusIndex;
-      button.classList.toggle('is-focused', selected);
-      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
-    featureTitle.textContent = item.headline;
-    featureSubtitle.textContent = item.subtitle;
-    actionLabel.textContent = item.action;
-  }
-
-  function openSelected() {
-    const item = MENU_ITEMS[focusIndex];
-    if (item.target) {
-      ctx.go(item.target, item.params || {});
-    } else {
-      ctx.toast(item.notice || 'This mode is coming soon.');
-    }
-  }
-
-  function activate(index) {
-    setSelection(index);
-    openSelected();
-  }
-
   function onKey(event) {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'j') {
-      setSelection(focusIndex + 1);
-      return true;
-    }
-    if (event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'k') {
-      setSelection(focusIndex - 1);
-      return true;
-    }
-    if (event.key === 'Enter' || event.key === ' ') {
-      openSelected();
-      return true;
-    }
     if (event.key === 'Escape' || event.key === 'Backspace') {
       ctx.go('launch');
       return true;
     }
+    if (event.key === 'Enter' || event.key === ' ') {
+      const active = document.activeElement;
+      if (active?.matches?.('.xfc27-action')) { active.click(); return true; }
+      targets[0]?.focus();
+      return true;
+    }
+    const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    if (delta) {
+      const active = document.activeElement;
+      const index = targets.indexOf(active);
+      targets[(index + delta + targets.length) % targets.length]?.focus();
+      return true;
+    }
     return false;
   }
-
   return { node, onKey };
 }

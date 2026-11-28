@@ -39,6 +39,7 @@ try {
     }, null, { polling: 50, timeout: 15000 });
     const shot = async name => {
       await waitForVisibleScreen();
+      await page.mouse.move(2, 2);
       await page.waitForTimeout(100);
       await page.screenshot({ path: `${outDir}${viewport.name}-${name}.png` });
       console.log(`capturado: ${viewport.name}-${name}`);
@@ -53,12 +54,12 @@ try {
     await page.waitForSelector('.screen--menu');
     await waitForVisibleScreen();
     await page.waitForFunction(() => {
-      const image = document.querySelector('.hub__background');
+      const image = document.querySelector('.ref-art');
       return image?.complete && image.naturalWidth > 0;
     });
     await shot('03-menu');
 
-    await page.click('.hub__quick-button[data-action="settings"]');
+    await page.click('.xfc27-settings');
     await page.waitForSelector('.screen--customise');
     await shot('04-customise');
     await page.click('.customise__tile[data-tile="settings"]');
@@ -72,36 +73,40 @@ try {
     await page.waitForSelector('.screen--modes');
     await waitForVisibleScreen();
     await shot('06-modes');
-    await page.click('.modes__cta');
-    await page.waitForSelector('.screen--worldcup');
-    await shot('07-worldcup');
+    await page.locator('.modes__option[data-option="pvp"]').click();
+    await page.waitForSelector('.screen--pvp');
+    await shot('07-pvp');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--modes');
-    await waitForVisibleScreen();
-    await page.locator('.modes__option[data-option="online"]').click();
-    await page.click('.modes__cta');
-    await page.waitForSelector('.screen--quick');
-    await shot('08-quickmatch');
     await page.keyboard.press('Escape');
-    await waitForVisibleScreen();
-
-    await page.click('.menu__item[data-menu-item="tournament"]');
-    await page.waitForSelector('.screen--modes');
-    await waitForVisibleScreen();
-    await page.locator('.modes__option[data-option="worldcup-kickoff"]').click();
-    await page.click('.modes__cta');
+    await page.waitForSelector('.screen--menu');
+    await page.click('[data-menu-item="events"]');
+    await page.waitForSelector('.screen--competitions');
+    await shot('08-competitions');
+    await page.locator('.competitions__option[data-competition="uefa-europa-league"]').click();
+    await page.waitForSelector('.screen--competition[data-competition="uefa-europa-league"]');
+    await shot('09-europa-league');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--competitions');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.screen--menu');
+    await page.click('.menu__item[data-menu-item="kickoff"]');
     await page.waitForSelector('.screen--kickoff');
-    await shot('09-kickoff');
+    await shot('10-kickoff');
     await page.click('.continue-btn');
+    await page.waitForSelector('.screen--kits');
+    await page.getByLabel('Confirmar uniforme (mandante)', { exact: true }).click();
+    await page.getByLabel('Confirmar uniforme (visitante)', { exact: true }).click();
+    await page.getByRole('button', { name: 'Continuar →', exact: true }).click();
     await page.waitForSelector('.screen--stadiums');
-    await shot('10-stadiums');
+    await shot('11-stadiums');
     await page.click('.stadiums__card:first-child', { noWaitAfter: true });
     await page.waitForSelector('.screen--play');
-    await shot('11-prematch');
+    await shot('12-prematch');
     await page.click('.showcase__enter');
     await page.waitForSelector('.hud.is-visible');
     await page.waitForSelector('.ctrl-btn--switch');
-    await shot('12-match3d');
+    await shot('13-match3d');
 
     await browser.close();
   }

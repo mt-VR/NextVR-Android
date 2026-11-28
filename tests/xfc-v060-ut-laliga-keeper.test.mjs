@@ -30,6 +30,32 @@ test('partida UT usa o nome e o brasão escolhidos', () => {
   assert.equal(team.crest, 'assets/crests/real-madrid.png');
 });
 
+test('brasão do Brasil no UT altera só a identidade visual, não o elenco inicial', () => {
+  const profile = { coins: 8000 };
+  const u = ensureUltimate(profile);
+  const squad = u.squads.find((entry) => entry.id === u.active);
+  const initialSlots = [...squad.slots];
+  const initialCards = u.inventory.map(({ uid, cardId }) => [uid, cardId]);
+  const initialName = u.clubName;
+
+  setUtIdentity(profile, { logo: 'assets/crests/nations/br.png' });
+
+  assert.equal(u.clubLogo, 'assets/crests/nations/br.png');
+  assert.equal(u.clubName, initialName);
+  assert.deepEqual(squad.slots, initialSlots);
+  assert.deepEqual(u.inventory.map(({ uid, cardId }) => [uid, cardId]), initialCards);
+
+  const started = beginUtMatch(profile, 'battles');
+  assert.equal(started.ok, true);
+  const team = ultimateMatchTeam(profile, started.match.id);
+  assert.equal(team.id, 'xfc-ut');
+  assert.equal(team.name, initialName);
+  assert.equal(team.crest, 'assets/crests/nations/br.png');
+  assert.notEqual(team.isNationalTeam, true);
+  assert.deepEqual(team.players.map((player) => player.id), initialSlots);
+  assert.ok(team.players.every((player) => player.teamId === 'fc-barcelona'));
+});
+
 test('dois clubes da Espanha disparam o placar LaLiga', async () => {
   const { readFile } = await import('node:fs/promises');
   const hud = await readFile('xfc-game/src/match3d/hud.js', 'utf8');

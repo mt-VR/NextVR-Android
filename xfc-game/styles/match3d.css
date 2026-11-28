@@ -187,9 +187,9 @@
 .training__stage .ctrl-btn--lob,
 .training__stage .ctrl-btn--tackle,
 .training__stage .ctrl-btn--switch { display: none; }
-.training__stage .ctrl-btn--shoot { right: 18px; bottom: 204px; }
-.training__stage .ctrl-btn--dribble { right: 119px; bottom: 211px; }
-.training__stage .ctrl-btn--sprint { right: 34px; bottom: 128px; }
+.training__stage .ctrl-btn--shoot { right: 8px; bottom: 210px; width: 128px; height: 128px; }
+.training__stage .ctrl-btn--dribble { right: 148px; bottom: 220px; }
+.training__stage .ctrl-btn--sprint { right: 12px; bottom: 62px; width: 116px; height: 116px; }
 
 @media (max-width: 760px) {
   .training__header { left: 9px; right: 9px; grid-template-columns: auto 1fr auto; gap: 6px; }
@@ -495,8 +495,8 @@
 /* Placar LaLiga — a foto do print. Números ao vivo por cima, sem caixas CSS.
    Especificidade alta: reference-broadcast.css e frontend.css vêm depois. */
 .hud__scoreboard.hud__scoreboard--laliga {
-  left: 14px;
-  top: 12px;
+  left: 68px;
+  top: 16px;
   right: auto;
   transform: none;
   z-index: 6;
@@ -586,9 +586,9 @@
   line-height: 1;
 }
 .hud__scoreboard.hud__scoreboard--laliga .laliga-board__added {
-  left: -32px;
+  left: -40px;
   top: 50%;
-  width: 30px;
+  width: 38px;
   height: 50%;
   background: #111;
   color: #fff;
@@ -928,36 +928,56 @@
 
 .controls__buttons {
   position: absolute;
-  right: 14px;
-  bottom: 74px;
-  width: 340px;
-  height: 344px;
+  right: 6px;
+  bottom: 22px;
+  width: 420px;
+  height: 380px;
   pointer-events: none;
+  overflow: visible;
 }
 
 .ctrl-btn {
+  --ring: #c8c3a8;
   position: absolute;
   pointer-events: auto;
   touch-action: none;
   display: grid;
   place-items: center;
+  box-sizing: border-box;
+  overflow: visible;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.28);
-  background: rgba(7, 24, 37, 0.68);
-  color: #eaf6ff;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.65);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), inset 0 2px 6px rgba(255, 255, 255, 0.08);
-  transition: transform 90ms ease, box-shadow 140ms ease, background 140ms ease;
+  border: 3.5px solid var(--ring);
+  background: radial-gradient(circle at 50% 38%, #2a3126 0%, #121612 58%, #0b0d0b 100%);
+  color: #f4f6f2;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px #000a;
+  box-shadow: none;
+  transition: transform 90ms ease;
+}
+
+/* Anel cinza com tracinhos, igual ao FC Mobile. */
+.ctrl-btn::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: repeating-conic-gradient(
+    from -1deg,
+    rgba(236, 242, 230, 0.82) 0deg 2deg,
+    rgba(186, 196, 180, 0.28) 2.3deg 22.5deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8.5px));
 }
 
 .ctrl-btn:active,
 .ctrl-btn.is-active {
-  transform: scale(0.93);
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), 0 0 22px rgba(46, 240, 168, 0.35);
+  transform: scale(0.94);
+  filter: brightness(1.12);
 }
 
 /* ---------------------------------------------------------- botões ---- */
@@ -968,75 +988,76 @@
    ~40 px reais num aparelho de 915 px de largura). Cada botão agora tem
    diâmetro suficiente para o dedo e uma margem clara dos vizinhos. */
 
-/* CHUTE — ação principal, o maior botão, no alto do grupo */
+/* Print FC Mobile: THROUGH ouro, CLEAR/SHOOT laranja, PASS azul, SPRINT verde maior. */
 .ctrl-btn--shoot {
-  right: 16px;
-  bottom: 232px;
+  --ring: #e07040;
+  right: 22px;
+  bottom: 228px;
   width: 104px;
   height: 104px;
-  font-size: 12px;
-  border-color: rgba(255, 159, 67, 0.95);
-  background: rgba(96, 48, 12, 0.86);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 159, 67, 0.35);
+  font-size: 15px;
+  z-index: 3;
 }
 
-/* ENFIADA — ao lado do CHUTE, no mesmo arco */
 .ctrl-btn--lob {
-  right: 142px;
-  bottom: 276px;
-  width: 82px;
-  height: 82px;
-  font-size: 10px;
-  border-color: rgba(245, 197, 24, 0.95);
-  background: rgba(82, 62, 6, 0.8);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 197, 24, 0.32);
-}
-
-/* PASSE — abaixo do CHUTE, no mesmo prumo (nunca debaixo de outro botão) */
-.ctrl-btn--pass {
-  right: 22px;
-  bottom: 122px;
-  width: 96px;
-  height: 96px;
+  --ring: #d4b43a;
+  right: 152px;
+  bottom: 208px;
+  width: 98px;
+  height: 98px;
   font-size: 12px;
-  border-color: rgba(63, 215, 255, 0.92);
-  background: rgba(10, 48, 84, 0.84);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 18px rgba(63, 215, 255, 0.32);
+  z-index: 2;
 }
 
-/* CARRINHO — desarme, à esquerda do PASSE */
+.ctrl-btn--pass {
+  --ring: #4a9adf;
+  right: 168px;
+  bottom: 78px;
+  width: 102px;
+  height: 102px;
+  font-size: 14px;
+  z-index: 2;
+}
+
+.ctrl-btn--sprint {
+  --ring: #3dbe62;
+  right: 8px;
+  bottom: 52px;
+  width: 124px;
+  height: 124px;
+  font-size: 13px;
+  z-index: 4;
+}
+
 .ctrl-btn--tackle {
-  right: 146px;
-  bottom: 138px;
+  --ring: #c8c3a8;
+  right: 300px;
+  bottom: 150px;
   width: 76px;
   height: 76px;
-  font-size: 9px;
-  border-color: rgba(255, 159, 67, 0.82);
-  background: rgba(78, 38, 12, 0.72);
+  font-size: 10px;
 }
 
-/* TROCAR — utilitário, acima do desarme e longe do analógico */
 .ctrl-btn--switch {
-  right: 150px;
-  bottom: 40px;
-  width: 68px;
-  height: 68px;
-  font-size: 9px;
-  border-color: rgba(255, 255, 255, 0.42);
-  background: rgba(20, 32, 46, 0.78);
+  --ring: #c8c3a8;
+  right: 308px;
+  bottom: 42px;
+  width: 76px;
+  height: 76px;
+  font-size: 10px;
 }
 
-/* CORRER — segurar; fica abaixo do desarme, na coluna do meio */
-.ctrl-btn--sprint {
-  right: 250px;
-  bottom: 96px;
-  width: 74px;
-  height: 74px;
-  font-size: 9px;
-  border-color: rgba(63, 215, 255, 0.88);
-  background: rgba(10, 52, 76, 0.78);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5), 0 0 14px rgba(63, 215, 255, 0.28);
+.ctrl-btn__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.05;
+  pointer-events: none;
+  font-weight: 700;
 }
+.ctrl-btn__stack b { font-weight: 700; font-style: normal; font-size: 13px; }
+.ctrl-btn__stack i { font-style: normal; font-size: 12px; font-weight: 700; }
 
 /* Rotulos secundários ("segure: superchute") não podem roubar a área do dedo. */
 .ctrl-btn__gesture { pointer-events: none; }
@@ -1686,34 +1707,8 @@
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 0 26px rgba(63, 215, 255, 0.14);
 }
 
-/* Botões de ação: profundidade e brilho tátil */
 .ctrl-btn {
-  background: linear-gradient(165deg, rgba(22, 42, 60, 0.82) 0%, rgba(7, 20, 32, 0.82) 100%);
-  backdrop-filter: blur(4px);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), inset 0 2px 2px rgba(255, 255, 255, 0.16), inset 0 -3px 6px rgba(0, 0, 0, 0.4);
-}
-
-.ctrl-btn:active,
-.ctrl-btn.is-active {
-  transform: scale(0.9);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 26px rgba(46, 240, 168, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.2);
-}
-
-.ctrl-btn--shoot {
-  border-color: rgba(255, 255, 255, 0.9);
-  background: linear-gradient(165deg, rgba(66, 80, 98, 0.9) 0%, rgba(28, 36, 48, 0.9) 100%);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 90, 90, 0.35), inset 0 2px 2px rgba(255, 255, 255, 0.2);
-}
-
-.ctrl-btn--pass {
-  background: linear-gradient(165deg, rgba(18, 96, 66, 0.9) 0%, rgba(8, 46, 32, 0.9) 100%);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 20px rgba(46, 240, 168, 0.32), inset 0 2px 2px rgba(255, 255, 255, 0.18);
-}
-
-.ctrl-btn--lob {
-  background: linear-gradient(165deg, rgba(96, 74, 10, 0.9) 0%, rgba(56, 42, 6, 0.9) 100%);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(245, 197, 24, 0.35), inset 0 2px 2px rgba(255, 255, 255, 0.18);
+  border-color: var(--ring);
 }
 
 /* Gols e avisos centrais com mais impacto */
@@ -1729,7 +1724,9 @@
   --charge: 0;
 }
 
-.ctrl-btn--shoot.is-charging::after {
+.ctrl-btn--shoot.is-charging::after,
+.ctrl-btn--pass.is-charging::after,
+.ctrl-btn--lob.is-charging::after {
   content: '';
   position: absolute;
   inset: -7px;
@@ -1742,6 +1739,7 @@
   mask-composite: exclude;
   pointer-events: none;
   animation: ctrl-charge-pulse 0.9s ease-in-out infinite;
+  z-index: 2;
 }
 
 .ctrl-btn--shoot.is-placed::after {
@@ -1751,6 +1749,22 @@
 .ctrl-btn--shoot.is-charging {
   border-color: #ffd54a;
   box-shadow: 0 0 34px rgba(255, 213, 74, 0.45), inset 0 0 18px rgba(255, 213, 74, 0.3);
+}
+
+.ctrl-btn--pass.is-charging::after {
+  background: conic-gradient(#7ec8ff calc(var(--charge) * 1turn), rgba(255, 255, 255, 0.1) 0);
+}
+.ctrl-btn--pass.is-charging {
+  border-color: #7ec8ff;
+}
+.ctrl-btn--pass.is-lob {
+  border-color: #d4b43a;
+}
+.ctrl-btn--lob.is-charging::after {
+  background: conic-gradient(#e6c75a calc(var(--charge) * 1turn), rgba(255, 255, 255, 0.1) 0);
+}
+.ctrl-btn--lob.is-charging {
+  border-color: #e6c75a;
 }
 
 .ctrl-btn--shoot.is-placed {
@@ -1771,16 +1785,10 @@
 .ctrl-btn__gesture { grid-row: 2; }
 .ctrl-btn--shoot > span:first-child { grid-row: 1; }
 
-/* CARRINHO é uma ação defensiva clara, com área de toque maior e separada. */
 .ctrl-btn--tackle {
-  right: 120px;
-  bottom: 32px;
-  width: 76px;
-  height: 76px;
-  font-size: 8px;
-  border-color: rgba(255, 159, 67, .88);
-  background: linear-gradient(165deg, rgba(122, 61, 17, .92), rgba(63, 31, 10, .92));
-  box-shadow: 0 10px 22px rgba(0,0,0,.55), 0 0 18px rgba(255,159,67,.25);
+  border-color: rgba(196, 199, 190, 0.86);
+  background: radial-gradient(circle at 38% 28%, rgba(48, 52, 42, 0.9), rgba(12, 16, 14, 0.92));
+  box-shadow: 0 10px 22px rgba(0,0,0,.55), 0 0 14px rgba(196,199,190,.18);
 }
 .ctrl-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
@@ -2180,9 +2188,10 @@
 .training__stage--team .ctrl-btn--pass,
 .training__stage--team .ctrl-btn--lob,
 .training__stage--team .ctrl-btn--switch { display: grid; }
-.training__stage--team .ctrl-btn--pass { right: 185px; bottom: 62px; }
-.training__stage--team .ctrl-btn--lob { right: 97px; bottom: 180px; }
-.training__stage--team .ctrl-btn--switch { right: 0; bottom: 7px; }
+.training__stage--team .ctrl-btn--dribble { display: none; }
+.training__stage--team .ctrl-btn--pass { right: 128px; bottom: 70px; }
+.training__stage--team .ctrl-btn--lob { right: 136px; bottom: 230px; }
+.training__stage--team .ctrl-btn--switch { right: 258px; bottom: 48px; }
 .training__stage--team .training__instructions { gap: 9px; }
 .training__stage .training__roster { position: absolute; z-index: 10; top: 183px; left: 50%; transform: translateX(-50%); color: rgba(230,247,255,.78); font-size: 7px; font-weight: 900; letter-spacing: .14em; text-shadow: 0 2px 5px #000; pointer-events: none; }
 

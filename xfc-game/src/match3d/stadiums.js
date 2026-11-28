@@ -86,17 +86,11 @@ STADIUMS.push(
     shortName: 'Eden Arena',
     city: 'Praga · Chéquia',
     capacity: '19.370',
-    tag: 'MODELO 3D COMPLETO · A ARENA DE PRAGA',
+    tag: 'A ARENA DE PRAGA',
     file: 'assets/stadiums/eden-arena-menu.jpg',
-    glb: 'assets/stadiums/eden_arena.glb',
-    albedo: 'assets/stadiums/eden_arena.jpg',
-    // Centro do gramado pintado no GLB (não o centro da caixa do complexo).
-    glbFit: {
-      rotateY: Math.PI / 2,
-      innerLength: 105,
-      innerWidth: 68,
-      pitchCenter: { x: -46.34, z: -167.26 }
-    },
+    // Cadeiras vermelhas do modelo da Eden Arena. O GLB inteiro é o
+    // quarteirão (hotel no campo); no jogo entra só a arquibancada texturizada.
+    seats: 'assets/stadiums/eden_seats.jpg',
     model: { roof: 'open', facade: 0xc45c63, led: '#ff4d5a', height: 18, timeOfDay: 'night' }
   }
 );

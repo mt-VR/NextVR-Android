@@ -195,14 +195,41 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
 
     // Jogo: A passe, Y chute (carregado), X enfiada, B carrinho, LB/Tab troca
     // de jogador, RT/R2 corrida.
-    if (edge('A')) commands.push('pass');
-    if (edge('X')) commands.push('lob');
+    const aDown = isDown(pad, STANDARD.A);
+    if (aDown && !state.passStarted) {
+      state.passStarted = performance.now();
+      state.passFired = false;
+    }
+    if (state.passStarted && !state.passFired) {
+      const elapsed = performance.now() - state.passStarted;
+      const charge = Math.max(0.12, Math.min(1, (elapsed - 120) / 760));
+      if (!aDown) {
+        state.passFired = true;
+        state.passStarted = null;
+        commands.push({ name: 'pass', payload: { strength: charge, lob: z > 0.45, kind: z > 0.45 ? 'lob' : 'normal' } });
+      }
+    }
+    const xDown = isDown(pad, STANDARD.X);
+    if (xDown && !state.throughStarted) {
+      state.throughStarted = performance.now();
+      state.throughFired = false;
+    }
+    if (state.throughStarted && !state.throughFired) {
+      const elapsed = performance.now() - state.throughStarted;
+      const charge = Math.max(0.22, Math.min(1, (elapsed - 120) / 760));
+      if (!xDown) {
+        state.throughFired = true;
+        state.throughStarted = null;
+        commands.push({ name: 'lob', payload: { strength: charge } });
+      }
+    }
     if (edge('B')) commands.push('tackle');
     if (edge('LB')) commands.push('switch');
     if (edge('BACK')) commands.push('switch');
     if (edge('START')) commands.push('pause');
     const sprint = isDown(pad, STANDARD.RT) || isDown(pad, STANDARD.RB);
     // Chute carregado: Y pressionado e a força cresce no tempo.
+    let shotCharge = 0;
     const yDown = isDown(pad, STANDARD.Y);
     if (yDown && !state.shootStarted) {
       state.shootStarted = performance.now();
@@ -211,6 +238,7 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
     if (state.shootStarted && !state.shootFired) {
       const elapsed = performance.now() - state.shootStarted;
       const charge = Math.max(0.25, Math.min(1, (elapsed - 120) / 760));
+      shotCharge = charge;
       if (typeof onActivity === 'function') onActivity({ charging: charge });
       if (!yDown) {
         state.shootFired = true;
@@ -218,7 +246,7 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
         commands.push({ name: 'shoot', payload: { strength: charge, kind: charge >= 1 ? 'power' : 'normal' } });
       }
     }
-    return { connected: true, family, move: { x, z }, sprint, commands };
+    return { connected: true, family, move: { x, z }, sprint, commands, charging: shotCharge };
   }
 
   return {
@@ -238,6 +266,10 @@ export function createGamepad({ onMenuCommand = () => {}, onActivity = () => {} 
         state.nav?.clear();
         state.shootStarted = null;
         state.shootFired = false;
+        state.passStarted = null;
+        state.passFired = false;
+        state.throughStarted = null;
+        state.throughFired = false;
       }
     }
   };

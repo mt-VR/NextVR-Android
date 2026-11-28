@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createCareer,careerAppearance,careerTeam} from '../xfc-game/src/data/career.js';
-import {LAB_HAIR} from '../xfc-game/src/data/player-customization.js';
+import {LAB_HAIR,CAREER_HAIR_ALIAS} from '../xfc-game/src/data/player-customization.js';
 import {TEAMS} from '../xfc-game/src/data/teams.js';
 import {startXfcServer} from '../xfc-game/serve.mjs';
 import {launchOrSkip} from './support/chromium.mjs';
@@ -9,6 +9,7 @@ test('catálogo opt-in, cores/pulsos normalizados e elenco não modificado',()=>
  const before=JSON.stringify(TEAMS);assert.equal(Object.keys(LAB_HAIR).filter(k=>k!=='lab-none').length,17,'moicano crista removido');
  assert.equal(Object.hasOwn(LAB_HAIR,'lab-mohawk'),false,'crista não volta ao catálogo');
  assert.equal(Object.hasOwn(LAB_HAIR,'lab-reference-mohawk'),true,'moicano da referência permanece');
+ assert.equal(CAREER_HAIR_ALIAS.neymar,'lab-ragnarok','o corte antigo de Neymar migra para Ragnarok');
  const c=createCareer({appearance:{hairStyle:'lab-dreads',gloves:'red',gloveModel:'pro',wristband:'purple',wristbandSide:'both'}});
  const team=careerTeam(c);assert.equal(team.players.filter(p=>p.appearance?.hairStyle==='lab-dreads').length,1);assert.equal(JSON.stringify(TEAMS),before);
  assert.equal(careerAppearance({wristband:'white'}).wristbandSide,'left');assert.equal(careerAppearance({gloveModel:'invalid',wristbandSide:'invalid'}).gloveModel,'winter');

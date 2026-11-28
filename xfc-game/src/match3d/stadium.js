@@ -151,17 +151,17 @@ function drawPitchBase(context, width, height, lowPower = false) {
     return seed / 4294967296;
   };
 
-  // v0.5.57: o verde estava lavado (quase menta) na câmera de transmissão.
-  // Base mais escura e saturada; as faixas de corte ganham contraste entre si
-  // para o campo continuar "destacado" em vez de virar um tapete chapado.
-  context.fillStyle = '#3d8f3c';
+  // v0.5.89: gramado no contraste Competitive do EA FC 27 (saturação alta,
+  // faixa clara amarelo-verde × faixa escura). Sem hex oficial da EA; a
+  // leitura é da transmissão/Ultimate Team, não do verde menta anterior.
+  context.fillStyle = '#2e8a34';
   context.fillRect(0, 0, width, height);
 
-  // Faixas de corte no verde-amarelado da transmissão (print).
+  // Faixas de corte no verde-amarelado da transmissão FC 27.
   const bands = 14;
   const bandWidth = width / bands;
   for (let band = 0; band < bands; band += 1) {
-    const shade = band % 2 === 0 ? '#4eaa52' : '#3f9344';
+    const shade = band % 2 === 0 ? '#4cbf52' : '#247a2c';
     context.fillStyle = shade;
     context.fillRect(band * bandWidth, 0, bandWidth + 1, height);
     const edge = context.createLinearGradient(band * bandWidth, 0, (band + 1) * bandWidth, 0);
@@ -181,8 +181,8 @@ function drawPitchBase(context, width, height, lowPower = false) {
     const radius = 12 + rand() * 28;
     const alpha = 0.006 + rand() * 0.008;
     context.fillStyle = rand() < 0.62
-      ? `rgba(40,110,48,${alpha})`
-      : `rgba(150,190,90,${alpha * 0.7})`;
+      ? `rgba(36,100,40,${alpha})`
+      : `rgba(168,188,72,${alpha * 0.7})`;
     context.beginPath();
     context.ellipse(x, y, radius * (1.2 + rand()), radius * (0.24 + rand() * 0.12), rand() * Math.PI, 0, Math.PI * 2);
     context.fill();
@@ -199,8 +199,8 @@ function drawPitchBase(context, width, height, lowPower = false) {
     const tint = Math.floor(rand() * 36);
     const alpha = 0.022 + rand() * 0.038;
     context.strokeStyle = rand() < 0.5
-      ? `rgba(${58 + Math.floor(tint * 0.5)},${140 + tint},${52 + Math.floor(tint * 0.25)},${alpha})`
-      : `rgba(${78 + Math.floor(tint * 0.3)},${168 + Math.floor(tint * 0.35)},${62 + Math.floor(tint * 0.2)},${alpha})`;
+      ? `rgba(${48 + Math.floor(tint * 0.45)},${148 + tint},${46 + Math.floor(tint * 0.2)},${alpha})`
+      : `rgba(${72 + Math.floor(tint * 0.35)},${176 + Math.floor(tint * 0.3)},${52 + Math.floor(tint * 0.15)},${alpha})`;
     context.lineWidth = 0.7 + rand() * 0.45;
     context.beginPath();
     context.moveTo(x, y);
@@ -321,9 +321,9 @@ function drawCrowd(context, width, height) {
   context.fillRect(0, height * tierSplit - 8, width, 2);
   context.fillRect(0, height * tierSplit + 6, width, 2);
 
-  const rows = 24;
+  const rows = 40;
   const rowHeight = height / rows;
-  const seats = 88;
+  const seats = 180;
   const seatWidth = width / seats;
   const homeColors = ['#2872b8', '#4388c7', '#dfe9f2', '#1a426e', '#78add5'];
   const awayColors = ['#b92d43', '#d7434b', '#e4b94d', '#eee7d9', '#713447'];
@@ -338,7 +338,7 @@ function drawCrowd(context, width, height) {
     context.fillStyle = row % 2 === 0 ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.14)';
     context.fillRect(0, rowY, width, rowHeight * 0.24);
     for (let seat = 0; seat < seats; seat += 1) {
-      if (rand() < 0.045) continue;
+      if (rand() < 0.018) continue;
       const u = (seat + 0.5) / seats;
       const away = isAwaySection(u);
       const palette = away ? awayColors : homeColors;
@@ -346,20 +346,17 @@ function drawCrowd(context, width, height) {
       const x = (seat + 0.5) * seatWidth + (rand() - 0.5) * 2.4;
       const y = rowY + rowHeight * 0.57;
 
-      // Tronco, mangas e cabeça em camadas formam silhuetas de torcedores,
-      // em vez dos antigos pontos de cor que viravam ruído à distância.
+      const px = Math.round(x - seatWidth * 0.28);
+      const py = Math.round(y - rowHeight * 0.22);
+      const bw = Math.max(2, Math.round(seatWidth * 0.56));
+      const bh = Math.max(2, Math.round(rowHeight * 0.42));
+      const hh = Math.max(2, Math.round(rowHeight * 0.22));
       context.fillStyle = 'rgba(12,19,29,0.62)';
-      context.beginPath();
-      context.ellipse(x, y + rowHeight * 0.2, seatWidth * 0.39, rowHeight * 0.24, 0, 0, Math.PI * 2);
-      context.fill();
+      context.fillRect(px, py + hh, bw, bh);
       context.fillStyle = jersey;
-      context.beginPath();
-      context.ellipse(x, y + rowHeight * 0.15, seatWidth * 0.34, rowHeight * 0.21, 0, 0, Math.PI * 2);
-      context.fill();
+      context.fillRect(px + 1, py + hh, bw - 2, bh - 1);
       context.fillStyle = skinColors[Math.floor(rand() * skinColors.length)];
-      context.beginPath();
-      context.arc(x, y - rowHeight * 0.11, rowHeight * 0.14, 0, Math.PI * 2);
-      context.fill();
+      context.fillRect(px + Math.round(bw * 0.22), py, Math.max(2, bw - Math.round(bw * 0.44)), hh);
 
       // Pequena variação de luz nas camisas sem manchas escuras de alto contraste.
       if (rand() < 0.24) {
@@ -559,33 +556,47 @@ function drawSky(context, width, height, timeOfDay = 'night') {
   }
 }
 
-/** Pequenos espectadores instanciados: silhuetas e roupas em cores variadas. */
-function addStandCrowd(group, width, depth, height, lowPower = false) {
-  const rows = lowPower ? 5 : 8;
-  const columns = Math.max(16, Math.floor(width / (lowPower ? 3.8 : 2.8)));
+/** Torcida em pixel art (blocos) que pula quando sai gol. */
+function addStandCrowd(group, width, depth, height, lowPower = false, crowdBag) {
+  const seatGap = lowPower ? 1.05 : 0.7;
+  const rowGap = lowPower ? 1.2 : 0.82;
+  let columns = Math.max(28, Math.floor(width / seatGap));
+  let rows = Math.max(12, Math.floor(depth * 0.9 / rowGap));
+  const cap = lowPower ? 3200 : 6800;
+  while (rows * columns > cap && rows > 10) rows -= 1;
+  while (rows * columns > cap && columns > 24) columns -= 1;
   const count = rows * columns;
   const bodies = new THREE.InstancedMesh(
-    new THREE.CapsuleGeometry(0.115, 0.23, 1, 5),
-    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10151c }),
+    new THREE.BoxGeometry(0.22, 0.4, 0.14),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }),
     count
   );
   const heads = new THREE.InstancedMesh(
-    new THREE.SphereGeometry(0.105, 5, 4),
-    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x10110f }),
+    new THREE.BoxGeometry(0.16, 0.16, 0.16),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }),
     count
   );
   bodies.name = 'xfc-crowd-simplified-bodies';
   heads.name = 'xfc-crowd-simplified-heads';
   bodies.castShadow = false;
   heads.castShadow = false;
+  bodies.frustumCulled = true;
+  heads.frustumCulled = true;
   const shirts = [0xe8edf0, 0xd54b40, 0x256bd0, 0x21a982, 0xe3b944, 0x30363e, 0xf2f2e8, 0x842f75];
   const skin = [0xe4b995, 0xc98e64, 0x9e6849, 0xf0ccaa, 0x784c37, 0xd6a17b];
   const pose = new THREE.Object3D();
+  const tint = new THREE.Color();
   const slopeAngle = Math.atan2(height-2.4,depth);
   const wallHeight = 2.4;
   const seatHeight = height - wallHeight;
   const slopeCenterY = wallHeight + Math.hypot(depth,seatHeight)*Math.sin(slopeAngle)/2 + .55/Math.cos(slopeAngle);
   const slopeCenterZ = -0.6;
+  const bank = {
+    bodies, heads, count,
+    bodyY: new Float32Array(count),
+    headY: new Float32Array(count),
+    phase: new Float32Array(count)
+  };
   let instance = 0;
   let seed = (Math.round(width * 23) ^ Math.round(depth * 89)) >>> 0;
   const random = () => {
@@ -598,20 +609,28 @@ function addStandCrowd(group, width, depth, height, lowPower = false) {
       - (z - slopeCenterZ) * Math.tan(slopeAngle);
     for (let column = 0; column < columns; column += 1) {
       const spacing = width / columns;
-      const x = -width / 2 + (column + 0.5 + (row % 2) * 0.18) * spacing;
-      pose.position.set(x, surfaceY + 0.24, z);
-      pose.rotation.set(0, (random() - 0.5) * 0.24, 0);
-      pose.scale.set(0.84, 0.9 + random() * 0.16, 0.76);
+      const x = -width / 2 + (column + 0.5 + (row % 2) * 0.42) * spacing;
+      const bodyY = surfaceY + 0.22;
+      const headY = surfaceY + 0.5;
+      const rot = (random() - 0.5) * 0.12;
+      const sx = 0.86 + random() * 0.1, sy = 0.88 + random() * 0.16, sz = 0.8;
+      const headS = 0.9 + random() * 0.12;
+      bank.bodyY[instance] = bodyY;
+      bank.headY[instance] = headY;
+      bank.phase[instance] = random() * Math.PI * 2;
+      pose.position.set(x, bodyY, z);
+      pose.rotation.set(0, rot, 0);
+      pose.scale.set(sx, sy, sz);
       pose.updateMatrix();
       bodies.setMatrixAt(instance, pose.matrix);
-      bodies.setColorAt(instance, new THREE.Color(shirts[Math.floor(random() * shirts.length)]));
+      bodies.setColorAt(instance, tint.setHex(shirts[Math.floor(random() * shirts.length)]));
 
-      pose.position.set(x, surfaceY + 0.61, z - 0.035);
+      pose.position.set(x, headY, z - 0.02);
       pose.rotation.set(0, 0, 0);
-      pose.scale.setScalar(0.92 + random() * 0.16);
+      pose.scale.setScalar(headS);
       pose.updateMatrix();
       heads.setMatrixAt(instance, pose.matrix);
-      heads.setColorAt(instance, new THREE.Color(skin[Math.floor(random() * skin.length)]));
+      heads.setColorAt(instance, tint.setHex(skin[Math.floor(random() * skin.length)]));
       instance += 1;
     }
   }
@@ -619,7 +638,10 @@ function addStandCrowd(group, width, depth, height, lowPower = false) {
   heads.instanceMatrix.needsUpdate = true;
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+  bodies.computeBoundingSphere();
+  heads.computeBoundingSphere();
   group.add(bodies, heads);
+  if (Array.isArray(crowdBag)) crowdBag.push(bank);
 }
 
 /** Banco técnico coberto, com assentos repetidos e estrutura metálica simples. */
@@ -728,7 +750,9 @@ function buildStand(width, depth, height, texture, options = {}) {
   const facadeColor = model.facade ?? 0x2c3a48;
   const facadeMaterial = options.facadeMaterial || null;
 
-  const seatMaterial = new THREE.MeshLambertMaterial({ map: texture, emissive: 0x101a26 });
+  const seatMaterial = options.photoSeats
+    ? new THREE.MeshBasicMaterial({ map: texture, fog: true })
+    : new THREE.MeshLambertMaterial({ map: texture, emissive: 0x101a26 });
   const concreteMaterial = new THREE.MeshLambertMaterial({ color: facadeColor });
   const roofMaterial = new THREE.MeshLambertMaterial({
     color: roofMode === 'arch' ? 0xf4f4f2 : 0x16212c
@@ -750,7 +774,7 @@ function buildStand(width, depth, height, texture, options = {}) {
   slope.position.set(0, slopeCenterY, -0.6);
   slope.rotation.x = angle;
   group.add(slope);
-  addStandCrowd(group, width, depth, height, simple);
+  addStandCrowd(group, width, depth, height, simple, options.crowdBag);
   // Fecha o vão entre a borda inferior inclinada e o muro: antes aparecia
   // o céu/void por baixo das cadeiras, especialmente na câmera de pênalti.
   const supportGeometry=new THREE.BufferGeometry();
@@ -921,10 +945,16 @@ function buildFloodlight(x, z, lampsOn = true) {
 export function buildStadium(scene, options = {}) {
   const group = new THREE.Group();
   const lowPower = Boolean(options.lowPower);
+  const crowdBag = [];
+  let crowdJump = 0;
+  let crowdClock = 0;
+  let crowdWasJumping = false;
+  let crowdHopSkip = 0;
   scene.add(group);
 
   // Modelo do estádio: cobertura, fachada, altura, ambiente e LED mudam por praça.
-  const model = STADIUMS[options.stadium]?.model || {};
+  const stadiumRecord = STADIUMS[options.stadium] || {};
+  const model = stadiumRecord.model || {};
   const standHeight = Math.max(25,(model.height || 17)*1.45);
   const standDepth=36,standOffset=38;
   const timeOfDay = options.timeOfDay || model.timeOfDay || 'night';
@@ -1025,10 +1055,18 @@ export function buildStadium(scene, options = {}) {
   group.add(surround);
 
   // Arquibancadas.
-  const crowdTexture = canvasTexture(1024, 512, drawCrowd);
+  const photoSeats = Boolean(stadiumRecord.seats);
+  const crowdTexture = photoSeats
+    ? new THREE.TextureLoader().load(stadiumRecord.seats, loaded => {
+      loaded.colorSpace = THREE.SRGBColorSpace;
+      loaded.anisotropy = 2;
+    })
+    : canvasTexture(1024, 512, drawCrowd);
+  crowdTexture.colorSpace = THREE.SRGBColorSpace;
   crowdTexture.wrapS = THREE.RepeatWrapping;
   crowdTexture.wrapT = THREE.RepeatWrapping;
-  crowdTexture.repeat.set(3.2, 1.15);
+  crowdTexture.repeat.set(photoSeats ? 2.2 : 3.2, photoSeats ? 1.05 : 1.15);
+  crowdTexture.anisotropy = 2;
   const facadeBase = `#${new THREE.Color(model.facade ?? 0x2c3a48).getHexString()}`;
   const facadeMaterial = new THREE.MeshLambertMaterial({
     map: canvasTexture(512, 256, (context, width, height) =>
@@ -1049,7 +1087,9 @@ export function buildStadium(scene, options = {}) {
       ...option,
       model,
       simple: lowPower,
-      facadeMaterial
+      facadeMaterial,
+      photoSeats,
+      crowdBag
     }));
   }
   group.add(bowl);
@@ -1286,7 +1326,6 @@ export function buildStadium(scene, options = {}) {
   const ambient = new THREE.AmbientLight(0xf5f8ff, lighting.ambientIntensity);
   group.add(ambient);
 
-  const stadiumRecord = STADIUMS[options.stadium];
   const glbMount = stadiumRecord?.glb
     ? mountStadiumGlb(group, stadiumRecord, PITCH)
     : null;
@@ -1312,13 +1351,37 @@ export function buildStadium(scene, options = {}) {
     group.add(floodlight, floodlight.target);
   }
 
+  function updatePixelCrowd(dt) {
+    crowdClock += dt;
+    if (crowdJump > 0) crowdJump = Math.max(0, crowdJump - dt);
+    const hopping = crowdJump > 0;
+    if (!hopping && !crowdWasJumping) return;
+    crowdHopSkip += 1;
+    if (hopping && crowdHopSkip % 2 === 0) return;
+    crowdWasJumping = hopping;
+    for (const bank of crowdBag) {
+      if (!bank?.count) continue;
+      const bodyArr = bank.bodies.instanceMatrix.array;
+      const headArr = bank.heads.instanceMatrix.array;
+      for (let i = 0; i < bank.count; i += 1) {
+        const hop = hopping ? Math.abs(Math.sin(crowdClock * 12 + bank.phase[i])) * 0.7 : 0;
+        const offset = i * 16;
+        bodyArr[offset + 13] = bank.bodyY[i] + hop;
+        headArr[offset + 13] = bank.headY[i] + hop;
+      }
+      bank.bodies.instanceMatrix.needsUpdate = true;
+      bank.heads.instanceMatrix.needsUpdate = true;
+    }
+  }
+
   return {
     group,
     goals,
     warmup,
     dimensions:{standHeight,standDepth,standOffset,pitch:PITCH,goal:GOAL},
     hitNet(event){goals[event.side>0?'away':'home'].userData.net.impact(event);},
-    update(dt){warmup.update(dt);goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);},
+    celebrateGoal(){ crowdJump = 2.6; crowdWasJumping = true; },
+    update(dt){warmup.update(dt);goals.home.userData.net.update(dt);goals.away.userData.net.update(dt);updatePixelCrowd(dt);},
     /** O gol que o time da casa defende fica em -X. */
     dispose() {
       glbMount?.dispose();

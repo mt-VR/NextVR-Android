@@ -9,7 +9,8 @@ import { launchOrSkip } from './support/chromium.mjs';
 
 test('aparência acompanha a identidade, não o índice no elenco; uniformes têm peças independentes',()=>{
   const vini=appearanceFor({name:'Vinícius Jr'}),nation=appearanceFor({fullName:'Vinícius Júnior'}),fede=appearanceFor({name:'Valverde'});
-  assert.equal(vini.skinTone,nation.skinTone);assert.equal(vini.hairStyle,'afro');assert.equal(fede.hairStyle,'short');assert.notEqual(vini.skinTone,fede.skinTone);
+  assert.equal(vini.skinTone,nation.skinTone);assert.equal(vini.hairStyle,'lab-high-fade');assert.equal(fede.hairStyle,'lab-low-fade');assert.notEqual(vini.skinTone,fede.skinTone);
+  assert.equal(vini.careerHair,true);assert.notEqual(vini.hairStyle,fede.hairStyle);
   assert.equal(appearanceFor({name:'Jogador sem referência'}).source,'default-unverified');
   assert.equal(KITS['real-madrid'][0].shorts,'#f7f7f7');assert.equal(KITS['real-madrid'][0].socks,'#f7f7f7');
   assert.equal(KITS['fc-barcelona'][0].pattern,'stripes');assert.equal(KITS.flamengo[0].pattern,'hoops');
@@ -40,13 +41,13 @@ test('texturas de pele são isoladas entre jogadores e cabelo alto não altera a
       const make=name=>createGltfPlayer({...appearanceFor({name}),name,number:name==='Valverde'?15:7,kit:{primary:'#fff',secondary:'#dcae47',shorts:'#fff',socks:'#fff',print:'#123'}});
       const material=(m,n)=>{let out;m.body.traverse(o=>{if(o.isMesh)for(const a of [].concat(o.material))if(a.name===n)out=a;});return out;};
       const skin=m=>material(m,'Micah | anatomical body.body').map;
-      const a=make('Vinícius Jr'),before=skin(a).image.toDataURL();const b=make('Valverde');
-      const c=make('Vinícius Jr');
+      const a=make('Neymar'),before=skin(a).image.toDataURL();const b=make('Rüdiger');
+      const c=make('Neymar');
       const hairHeight=m=>{const g=m.body.getObjectByName('short01').geometry;g.computeBoundingBox();return g.boundingBox.max.y;};
       const result={separate:skin(a).source!==skin(b).source,unchanged:before===skin(a).image.toDataURL(),same:skin(a)===skin(c),difference:before!==skin(b).image.toDataURL(),hairDelta:hairHeight(a)-hairHeight(b),jerseyDifferent:material(a,'Micah | top').map.image.toDataURL()!==material(b,'Micah | top').map.image.toDataURL()};
       a.dispose();b.dispose();c.dispose();return result;
     });
-    assert.equal(r.separate,true);assert.equal(r.unchanged,true);assert.equal(r.same,true);assert.equal(r.difference,true);assert.ok(r.hairDelta>.03);assert.equal(r.jerseyDifferent,true);
+    assert.equal(r.separate,true);assert.equal(r.unchanged,true);assert.equal(r.same,true);assert.equal(r.difference,true);assert.ok(r.hairDelta>.01,'moicano vs raspado');assert.equal(r.jerseyDifferent,true);
   }finally{await b.close();server.close();}
 });
 
@@ -80,17 +81,27 @@ test('sete cartões abrem fundamentos distintos; goleiro é controlável, escant
       await p.click('.training__exit');await p.waitForSelector('.screen--menu');
     }
     await p.click('[data-menu-item="tournament"]');await p.waitForSelector('.screen--modes');
-    assert.equal(await p.locator('.modes__cta').count(),0,'não há o CTA nem o hub roxo intermediário');
+    assert.equal(await p.locator('.ref-art').getAttribute('src'),'assets/menus/xfc27/modes.png');
+    assert.equal(await p.locator('.modes__option').count(),4,'os quatro cartões do screenshot são hotspots reais');
+    await p.keyboard.press('Escape');await p.waitForSelector('.screen--menu');
+    await p.click('[data-menu-item="events"]');await p.waitForSelector('.screen--competitions');
     for(const id of ['copa-do-brasil','brasileirao']){
-      await p.click(`[data-option="${id}"]`);await p.waitForSelector(`.screen--competition[data-competition="${id}"]`);
+      if(id==='brasileirao'){
+        await p.locator('.competitions__extras').click();
+        await p.getByRole('button',{name:'Brasileirão',exact:true}).click();
+      }else await p.locator(`.competitions__option[data-competition="${id}"]`).click();
+      await p.waitForSelector(`.screen--competition[data-competition="${id}"]`);
       assert.ok(await p.locator('.comp__domestic-reference').isVisible());
       assert.match(await p.locator('.comp__art').evaluate(n=>getComputedStyle(n).backgroundImage),new RegExp(id));
-      await p.keyboard.press('Escape');await p.waitForSelector('.screen--modes');
+      await p.keyboard.press('Escape');await p.waitForSelector('.screen--competitions');
     }
-    await p.keyboard.press('Escape');await p.waitForSelector('.screen--menu');await p.click('[data-menu-item="grounds"]');
-    await p.waitForSelector('.screen--stadiums');await p.getByRole('button',{name:'Mais estádios',exact:true}).click();
+    await p.keyboard.press('Escape');await p.waitForSelector('.screen--menu');
+    await p.click('[data-menu-item="quick"]');await p.waitForSelector('.screen--quick');
+    await p.locator('.quick__actions .continue-btn').click();await p.waitForSelector('.screen--stadiums');
+    await p.getByRole('button',{name:'Mais estádios',exact:true}).click();
     assert.ok(await p.getByRole('button',{name:'MorumBis',exact:true}).isVisible(),'os estádios anteriores continuam na segunda página');
-    await p.getByRole('button',{name:'Voltar',exact:true}).click();await p.waitForSelector('.screen--menu');
+    await p.getByRole('button',{name:'Voltar',exact:true}).click();await p.waitForSelector('.screen--quick');
+    await p.keyboard.press('Escape');await p.waitForSelector('.screen--menu');
     assert.deepEqual(errors,[]);
   }finally{await b.close();server.close();}
 });

@@ -187,6 +187,7 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
     state.lastIntentionalTouch = null;
     state.guidance = null;
     state.passTarget=null;state.flightTime=0;state.offside=null;state.reception=null;
+    state.throughPass=false;state.throwInHands=false;
     state.noAttachment=0;state.lastPass=null;state.assistProvider=null;state.headerLock=0;
     mesh.position.copy(state.position);
   }
@@ -215,6 +216,8 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
       state.spin.set(-dz * speed * 0.25, curveSpinRate(speed, curve), dx * speed * 0.25);
       state.guidance = guide ? { ...guide, elapsed: 0 } : null;
       state.passTarget=guide?.receiver||null;state.flightTime=0;
+      state.throughPass=Boolean(guide?.through);
+      state.throwInHands=false;
       state.owner = null;
     },
     /** Coloca a bola no pé de um jogador (domínio). */
@@ -227,6 +230,8 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
       state.lastIntentionalTouch = player;
       state.velocity.set(0, 0, 0);
       state.guidance = null;
+      state.throughPass = false;
+      state.throwInHands = false;
       state.keeperHands = Boolean(player?.isKeeper || player?.isGK);
     },
     /**
@@ -247,11 +252,12 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
         // Goleiro com a bola nas mãos: na altura do peito, à frente do corpo.
         const owner = state.owner;
         const forward = owner.facing || new THREE.Vector3(0, 0, 1);
-        const hands = Boolean(state.keeperHands);
+        const throwIn = Boolean(state.throwInHands);
+        const hands = Boolean(state.keeperHands) || throwIn;
         position.set(
-          (owner.x??owner.root.position.x) + forward.x * (hands ? 0.32 : 0.45),
-          hands ? 1.22 : BALL.radius,
-          (owner.z??owner.root.position.z) + forward.z * (hands ? 0.32 : 0.45)
+          (owner.x??owner.root.position.x) + forward.x * (throwIn ? 0.18 : hands ? 0.32 : 0.45),
+          throwIn ? 1.85 : hands ? 1.22 : BALL.radius,
+          (owner.z??owner.root.position.z) + forward.z * (throwIn ? 0.18 : hands ? 0.32 : 0.45)
         );
         mesh.position.copy(position);
         shadow.position.set(position.x, 0.02, position.z);
@@ -277,7 +283,9 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
           const futureZ = anchorZ + (receiver.vz || 0) * flightTime * 0.45;
           const dx = futureX - position.x;
           const dz = futureZ - position.z;
-          if(!guideBallVelocity(velocity,dx,dz,dt,guide.through?2.1:2.9))state.guidance=null;
+          if (guide.through) {
+            // Enfiada segue reta no espaço; quem estiver no caminho pode interceptar.
+          } else if(!guideBallVelocity(velocity,dx,dz,dt,guide.follow?0.95:1.8))state.guidance=null;
         }
       }
 
@@ -314,13 +322,13 @@ export function createBall(scene, { lowPower = false, onNetImpact = () => {}, on
             if (d > reach) continue;
             if (!best || d < best.distance) best = { player, distance: d };
           }
-          if (best) {
+          if (best && onAerialTouch({ player: best.player, height: headY, from: state.lastIntentionalTouch }) === true) {
+            // A denied/automatic request must not arm the cooldown: the human
+            // may still be holding shoot as the cross enters heading range.
             state.headerLock = 0.65;
-            if (onAerialTouch({ player: best.player, height: headY, from: state.lastIntentionalTouch }) === true) {
-              mesh.position.copy(position);
-              shadow.position.set(position.x, 0.02, position.z);
-              return null;
-            }
+            mesh.position.copy(position);
+            shadow.position.set(position.x, 0.02, position.z);
+            return null;
           }
         }
       }
