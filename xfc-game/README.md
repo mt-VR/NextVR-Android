@@ -80,10 +80,17 @@ com esbuild). O bundle é mantido junto do código e regenerado no CI antes de
 ser incluído no zip. Na falta dele, a página mostra instruções em vez de ficar
 numa tela azul.
 
-## PvP online (salas reais)
+## PvP online (salas privadas por senha)
 
-O PvP de sala personalizada usa o relay incluído em `serve.mjs` e uma conexão
-WebSocket. Instale a dependência de produção e suba o servidor:
+O XFC usa um relay WebSocket para conectar jogadores pela internet; eles não
+precisam estar na mesma rede. O anfitrião cria uma sala com uma senha de 8 a 64
+caracteres e compartilha a mesma senha com o convidado. Não há código numérico,
+conta ou senha de plataforma: a senha compartilhada identifica a sala. Uma
+senha só pode identificar uma sala ativa por vez. O relay mantém salas em
+memória, guarda apenas o SHA-256 da senha como chave e nunca envia a senha de
+volta; tentativas de entrada são limitadas por IP.
+
+Para rodar localmente:
 
 ```bash
 cd xfc-game
@@ -91,26 +98,21 @@ npm ci
 npm start                         # HTTP :8080; /healthz e WebSocket /ws
 ```
 
-Para jogar pela internet, publique esse serviço em um servidor acessível pelos
-dois aparelhos e termine TLS no próprio serviço ou num proxy reverso. O jogo
-usa `wss://.../ws` em páginas HTTPS e no APK. Configure
-`XFC_ONLINE_ALLOWED_ORIGINS` como uma lista separada por vírgulas quando a
-origem do jogo for diferente da origem do servidor (no APK, a origem virtual é
-`https://xfc.local`). O proxy precisa encaminhar upgrade WebSocket em `/ws` e
-preservar o tráfego de longa duração.
+Para jogar de redes diferentes, publique este serviço num host Node.js que
+aceite WebSocket e termine TLS. O mesmo servidor serve o jogo e o endpoint
+`/ws`; em HTTPS o cliente usa `wss://`. Em hospedagem com proxy reverso, o
+servidor compara a origem com `Host`/`X-Forwarded-Host`. A origem virtual do
+APK (`https://xfc.local`) já é permitida por padrão; use
+`XFC_ONLINE_ALLOWED_ORIGINS` apenas para acrescentar origens específicas.
 
-No navegador servido pelo mesmo domínio, a tela PvP detecta automaticamente o
-servidor. No APK, abra PvP → Sala Personalizada, informe a URL WSS pública e
-salve-a; depois um jogador cria a sala, compartilha o código de cinco dígitos e
-o outro entra. O anfitrião escolhe os dois times e inicia. O anfitrião executa
-a simulação; o outro aparelho envia controles e recebe posições, placar e
-eventos. O relay não armazena contas, senhas ou perfis; a sala expira se ficar
-sem atividade. Ranqueamento e ranking global não fazem parte deste serviço.
-
-O código de sala tem somente cinco dígitos e não substitui autenticação de uma
-plataforma competitiva. O relay limita tentativas de entrada por IP e usa o
-anfitrião como autoridade da simulação; para uso público, mantenha TLS e limite
-o acesso ao serviço por origem e infraestrutura de hospedagem.
+No Render, conecte a branch `arena/beee7429-nextvr-android`, use o diretório
+`xfc-game`, build `npm ci`, start `npm start` e health check `/healthz`; o
+servidor respeita a variável `PORT` do host. Depois do deploy, abra PvP → Sala Personalizada no APK, informe
+`wss://<domínio-publicado>/ws` e salve. Um jogador cria a sala com a senha, o
+outro entra usando exatamente a mesma; o anfitrião escolhe os times e inicia.
+O anfitrião executa a simulação e o convidado envia controles e recebe estado,
+placar e eventos. Salas sem partida expiram em dois minutos e partidas em até
+30 minutos de inatividade. Ranking global não faz parte deste serviço.
 
 ## App Android (APK)
 

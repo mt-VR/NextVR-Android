@@ -36,9 +36,9 @@
 .xfc27-dialog__status {padding:11px 12px;border-left:3px solid #a4fa2b;background:#ffffff0c;font-size:14px;}
 .xfc27-room-preview {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border:1px solid #334968;border-radius:8px;background:#050a14;}
 .xfc27-room-preview > span {color:#bfcbe0;font-size:14px;}
-.xfc27-room-code {font:800 25px/1 monospace;letter-spacing:.12em;color:#a4fa2b;}
+.xfc27-room-status {font:800 15px/1.2 Arial,sans-serif;color:#a4fa2b;text-align:right;}
 .xfc27-room-label {display:flex;flex-direction:column;gap:7px;font-weight:700;}
-.xfc27-room-input {min-height:44px;box-sizing:border-box;padding:8px 12px;border:1px solid #8297b4;border-radius:7px;background:#050a14;color:white;font:700 22px monospace;letter-spacing:.25em;}
+.xfc27-room-input {min-height:44px;box-sizing:border-box;padding:8px 12px;border:1px solid #8297b4;border-radius:7px;background:#050a14;color:white;font:600 17px Arial,sans-serif;letter-spacing:.02em;}
 .xfc27-room-server,.xfc27-room-select {width:100%;min-height:42px;box-sizing:border-box;padding:9px 11px;border:1px solid #8297b4;border-radius:7px;background:#050a14;color:#fff;font:600 15px Arial,sans-serif;}
 .xfc27-room-server::placeholder {color:#91a2bc;}
 .xfc27-room-actions {display:grid;grid-template-columns:1fr 1fr;gap:10px;}

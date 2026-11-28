@@ -1,5 +1,5 @@
 import { el } from '../ui/dom.js';
-import { isFiveDigitRoomCode, openOnlineConnection, resolveOnlineServerUrl, saveOnlineServerUrl } from '../data/online-rooms.js';
+import { isValidRoomPassword, normalizeRoomPassword, openOnlineConnection, resolveOnlineServerUrl, saveOnlineServerUrl } from '../data/online-rooms.js';
 import { TEAMS } from '../data/teams.js';
 import { xfc27Footer, xfc27Hotspot, xfc27Screen } from '../ui/reference-menu.js';
 
@@ -28,17 +28,16 @@ export function pvpScreen(ctx) {
   const openRoom = () => {
     close(false);
     const backdrop = el('div', { class: 'xfc27-dialog-backdrop' });
-    const roomCode = el('output', { class: 'xfc27-room-code', 'aria-label': 'Código da sala online', text: '— — — — —' });
-    const roomInput = el('input', {
+    const roomStatus = el('output', { class: 'xfc27-room-status', 'aria-label': 'Estado da sala online', text: 'Desconectado' });
+    const passwordInput = el('input', {
       class: 'xfc27-room-input',
       type: 'text',
-      inputMode: 'numeric',
       autoComplete: 'off',
-      maxLength: 5,
-      pattern: '[0-9]{5}',
-      'aria-label': 'Código da sala · 5 dígitos',
-      placeholder: '12345',
-      onInput(event) { event.target.value = event.target.value.replace(/\D/g, '').slice(0, 5); }
+      maxLength: 64,
+      minLength: 8,
+      'aria-label': 'Senha da sala (8 a 64 caracteres)',
+      placeholder: 'Crie uma senha para compartilhar',
+      onInput(event) { event.target.value = event.target.value.slice(0, 64); }
     });
     const savedUrl = resolveOnlineServerUrl();
     const serverInput = el('input', {
@@ -50,19 +49,19 @@ export function pvpScreen(ctx) {
       value: savedUrl
     });
     const status = el('p', { class: 'xfc27-dialog__status', role: 'status', 'aria-live': 'polite', text: savedUrl
-      ? 'Crie uma sala ou digite o código de quem já criou. Os dois jogadores precisam usar a mesma versão do XFC.'
-      : 'Informe o endereço WSS do servidor online. No APK, xfc.local é apenas a origem local do jogo, não um servidor acessível pela internet.' });
-    const roomLabel = el('span', { text: 'Código da sala online' });
+      ? 'Escolha uma senha de 8 a 64 caracteres. O anfitrião cria a sala e o amigo entra com a mesma senha; não precisam estar na mesma rede.'
+      : 'Informe o endereço WSS do servidor público. No APK, xfc.local é apenas a origem local do jogo, não um servidor acessível pela internet.' });
+    const roomLabel = el('span', { text: 'Conexão da sala' });
     const createButton = el('button', {
       class: 'xfc27-dialog__action',
       type: 'button',
       onClick: () => connect('create')
-    }, 'Criar sala online');
+    }, 'Criar sala com senha');
     const joinButton = el('button', {
       class: 'xfc27-dialog__action',
       type: 'button',
       onClick: () => connect('join')
-    }, 'Entrar na sala');
+    }, 'Entrar com senha');
     const startButton = el('button', {
       class: 'xfc27-dialog__action',
       type: 'button',
@@ -80,20 +79,20 @@ export function pvpScreen(ctx) {
       el('button', { class: 'xfc27-dialog__close-icon', type: 'button', 'aria-label': 'Fechar', onClick: () => close(true) }, '×'),
       el('p', { class: 'xfc27-dialog__eyebrow', text: 'XFC 27 · PvP online' }),
       el('h2', { text: 'Conectar com um amigo' }),
-      el('p', { class: 'xfc27-dialog__copy', text: 'O servidor cria um código real de cinco dígitos. Compartilhe-o; quando o outro jogador entrar, inicie a partida.' }),
+      el('p', { class: 'xfc27-dialog__copy', text: 'Crie uma sala protegida por senha e compartilhe a senha com seu amigo. Os dois podem jogar pela internet, mesmo em redes diferentes.' }),
       el('label', { class: 'xfc27-room-label' }, 'Servidor online (WSS)', serverInput),
-      el('div', { class: 'xfc27-room-preview' }, roomLabel, roomCode),
-      el('label', { class: 'xfc27-room-label' }, 'Código da sala', roomInput),
+      el('div', { class: 'xfc27-room-preview' }, roomLabel, roomStatus),
+      el('label', { class: 'xfc27-room-label' }, 'Senha da sala (8 a 64 caracteres)', passwordInput),
       el('div', { class: 'xfc27-room-actions' }, createButton, joinButton),
       teamFields,
       startButton,
       status,
-      el('p', { class: 'xfc27-dialog__footnote', text: 'A conexão usa WebSocket seguro. O anfitrião executa a simulação e transmite o estado da partida; nenhum perfil ou senha é enviado.' }),
+      el('p', { class: 'xfc27-dialog__footnote', text: 'A senha identifica e protege a sala; não use senha de conta pessoal. O relay não guarda a senha em texto. O anfitrião executa a simulação da partida.' }),
       el('button', { class: 'xfc27-dialog__close', type: 'button', text: 'Voltar', onClick: () => close(true) })
     );
     backdrop.append(overlay);
     node.append(backdrop);
-    roomInput.focus();
+    passwordInput.focus();
 
     function teamSelect(label, selectedId) {
       return el('select', {
@@ -122,17 +121,19 @@ export function pvpScreen(ctx) {
       connecting = false;
       createButton.disabled = false;
       joinButton.disabled = false;
-      roomInput.disabled = false;
+      passwordInput.disabled = false;
       serverInput.disabled = false;
     }
 
     async function connect(action) {
       if (connecting || connection) return;
-      if (action === 'join' && !isFiveDigitRoomCode(roomInput.value)) {
-        setStatus('Digite exatamente cinco números para localizar a sala.', true);
-        roomInput.focus();
+      if (!isValidRoomPassword(passwordInput.value)) {
+        setStatus('Use uma senha de 8 a 64 caracteres para proteger a sala.', true);
+        passwordInput.focus();
         return;
       }
+      const password = normalizeRoomPassword(passwordInput.value);
+      passwordInput.value = password;
       const url = resolveOnlineServerUrl(serverInput.value);
       if (!url) {
         setStatus('Endereço inválido. Use wss://domínio-do-servidor/ws; páginas HTTPS e o APK exigem WSS seguro.', true);
@@ -150,18 +151,19 @@ export function pvpScreen(ctx) {
         connection = openOnlineConnection(url);
         unsubscribe = connection.subscribe(onMessage);
         await connection.opened;
-        if (!connection.send(action === 'create' ? { type: 'create-room' } : { type: 'join-room', code: roomInput.value })) {
-          throw new Error('A conexão fechou antes de enviar o pedido.');
-        }
-        if (action === 'join') roomCode.textContent = roomInput.value;
-        roomInput.disabled = action === 'create';
+        const request = action === 'create'
+          ? { type: 'create-room', password }
+          : { type: 'join-room', password };
+        if (!connection.send(request)) throw new Error('A conexão fechou antes de enviar o pedido.');
+        roomStatus.textContent = 'Conectando…';
+        passwordInput.disabled = true;
         serverInput.disabled = true;
         createButton.disabled = true;
         joinButton.disabled = true;
         connecting = false;
         setStatus(action === 'create'
-          ? 'Pedido enviado. Aguarde o código da nova sala…'
-          : 'Pedido enviado. Aguardando resposta do servidor…');
+          ? 'Pedido enviado. Aguarde a confirmação da sala protegida…'
+          : 'Pedido enviado. Validando a senha da sala…');
       } catch (error) {
         connection?.close();
         connection = null;
@@ -176,16 +178,16 @@ export function pvpScreen(ctx) {
       if (!overlay || handedOff) return;
       if (message.type === 'room-created') {
         role = 'host';
-        roomCode.textContent = message.code;
-        roomCode.value = message.code;
-        setStatus(`Sala ${message.code} criada no servidor. Compartilhe o código e aguarde o outro jogador.`);
+        roomStatus.textContent = 'Sala protegida';
+        setStatus('Sala criada. Compartilhe a senha com seu amigo e aguarde a entrada dele.');
       } else if (message.type === 'joined') {
         role = 'guest';
-        roomCode.textContent = message.code;
-        setStatus(`Entrou na sala ${message.code}. Aguardando o anfitrião iniciar a partida.`);
+        roomStatus.textContent = 'Conectado';
+        setStatus('Senha aceita. Aguardando o anfitrião iniciar a partida.');
       } else if (message.type === 'peer-joined') {
         startButton.disabled = false;
-        setStatus('O outro jogador entrou. Escolha os times e inicie a partida.');
+        roomStatus.textContent = 'Dois jogadores';
+        setStatus('Seu amigo entrou. Escolha os times e inicie a partida.');
       } else if (message.type === 'peer-left') {
         startButton.disabled = true;
         setStatus('O outro jogador se desconectou. A sala continua aberta para uma nova entrada.', true);
@@ -194,18 +196,20 @@ export function pvpScreen(ctx) {
       } else if (message.type === 'match-start' && role === 'guest') {
         launchOnlineMatch('guest', message.config);
       } else if (message.type === 'room-expired') {
-        setStatus('A sala expirou. Crie outra e compartilhe o novo código.', true);
+        roomStatus.textContent = 'Expirada';
+        setStatus('A sala expirou. Crie outra com senha e tente novamente.', true);
         startButton.disabled = true;
       } else if (message.type === 'host-left') {
         setStatus('O anfitrião saiu da sala.', true);
         startButton.disabled = true;
       } else if (message.type === 'error') {
-        if(['room-not-found','room-full','rate-limited','invalid-code'].includes(message.code)){
+        if (['room-not-found', 'room-full', 'room-exists', 'rate-limited', 'invalid-password'].includes(message.code)) {
           const stale=connection;
           unsubscribe?.();unsubscribe=null;connection=null;role=null;
           stale?.close();
         }
         restoreActions();
+        roomStatus.textContent = 'Falha';
         setStatus(message.message || 'O servidor recusou o pedido.', true);
       } else if (message.type === 'disconnected') {
         if (!handedOff) {

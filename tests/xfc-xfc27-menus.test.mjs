@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { COMPETITIONS, createTournament } from '../xfc-game/src/data/tournament.js';
-import { createFiveDigitRoomCode, isFiveDigitRoomCode } from '../xfc-game/src/data/online-rooms.js';
+import { isValidRoomPassword } from '../xfc-game/src/data/online-rooms.js';
 import { startXfcServer } from '../xfc-game/serve.mjs';
 import { launchOrSkip } from './support/chromium.mjs';
 
@@ -17,12 +17,10 @@ test('XFC 27 menu references are packaged at native dimensions', async () => {
   }
 });
 
-test('room-code helper only creates and accepts exactly five decimal digits', () => {
-  assert.equal(isFiveDigitRoomCode('01234'), true);
-  for (const invalid of ['', '1234', '123456', '12a45', 12345]) assert.equal(isFiveDigitRoomCode(invalid), false);
-  assert.equal(createFiveDigitRoomCode(() => 0), '10000');
-  assert.equal(createFiveDigitRoomCode(() => .5), '55000');
-  assert.equal(createFiveDigitRoomCode(() => 1), '99999');
+test('room password accepts 8 to 64 characters after trimming', () => {
+  assert.equal(isValidRoomPassword('XFC-primo-2026'), true);
+  assert.equal(isValidRoomPassword('  XFC-primo-2026  '), true);
+  for (const invalid of ['', '1234567', 'x'.repeat(65), 12345678]) assert.equal(isValidRoomPassword(invalid), false);
 });
 
 test('featured Europa League and Sudamericana tournaments have runnable local draws', () => {
@@ -64,15 +62,14 @@ test('home, modes, PvP, competitions references and career exception route corre
     assert.equal(await page.locator('.ref-art').getAttribute('src'), 'assets/menus/xfc27/pvp.png');
     assert.equal(await page.locator('.screen--pvp .xfc27-footer-action').count(), 2);
     await page.locator('.pvp__option[data-option="custom-room"]').click();
-    const input = page.getByLabel('Código da sala · 5 dígitos');
-    await input.fill('12a34');
-    assert.equal(await input.inputValue(), '1234', 'non-digit characters are rejected at input');
-    await input.fill('1234');
-    await page.getByRole('button', { name: 'Entrar na sala', exact: true }).click();
-    assert.match(await page.locator('.xfc27-dialog__status').textContent(), /exatamente cinco números/);
-    await page.getByRole('button', { name: 'Criar sala online', exact: true }).click();
-    await page.waitForFunction(() => /^\d{5}$/.test(document.querySelector('.xfc27-room-code')?.textContent || ''), null, { timeout: 10000 });
-    assert.match(await page.locator('.xfc27-dialog__status').textContent(), /criada no servidor/);
+    const password = page.getByLabel('Senha da sala (8 a 64 caracteres)');
+    await password.fill('curta');
+    await page.getByRole('button', { name: 'Entrar com senha', exact: true }).click();
+    assert.match(await page.locator('.xfc27-dialog__status').textContent(), /8 a 64 caracteres/);
+    await password.fill('XFC-primo-2026');
+    await page.getByRole('button', { name: 'Criar sala com senha', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('.xfc27-room-status')?.textContent === 'Sala protegida', null, { timeout: 10000 });
+    assert.match(await page.locator('.xfc27-dialog__status').textContent(), /Compartilhe a senha/);
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.waitForSelector('.screen--modes');

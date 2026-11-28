@@ -1,14 +1,13 @@
-// Five-digit room codes are issued by the online relay; these helpers only
-// validate their display format and resolve the relay URL.
-export function isFiveDigitRoomCode(value) {
-  return typeof value === 'string' && /^\d{5}$/.test(value);
+// A room password is both its private join key and its access control. It is
+// never persisted by the client; the relay stores only a one-way digest.
+export function normalizeRoomPassword(value) {
+  if (typeof value !== 'string') return '';
+  const password = value.trim();
+  return password.length >= 8 && password.length <= 64 ? password : '';
 }
 
-// Kept for deterministic UI tests. Production rooms always use the server-issued code.
-export function createFiveDigitRoomCode(random = Math.random) {
-  const sample = Number(random());
-  const normalized = Number.isFinite(sample) ? Math.min(0.999999999, Math.max(0, sample)) : 0;
-  return String(10000 + Math.floor(normalized * 90000));
+export function isValidRoomPassword(value) {
+  return normalizeRoomPassword(value).length > 0;
 }
 
 const SERVER_STORAGE_KEY = 'xfc.onlineServer';

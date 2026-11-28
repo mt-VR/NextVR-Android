@@ -73,7 +73,10 @@ export async function startXfcServer({ port = 0, host = '127.0.0.1' } = {}) {
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
   const portArg = process.argv.indexOf('--port');
-  const port = portArg > -1 ? Number(process.argv[portArg + 1]) : 8080;
+  const envPort = Number(process.env.PORT);
+  const port = portArg > -1
+    ? Number(process.argv[portArg + 1])
+    : Number.isSafeInteger(envPort) && envPort > 0 ? envPort : 8080;
   const hostArg = process.argv.indexOf('--host');
   const host = hostArg > -1 ? process.argv[hostArg + 1] : '0.0.0.0';
   const { url } = await startXfcServer({ port, host });

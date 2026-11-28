@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
 import { startXfcServer } from '../xfc-game/serve.mjs';
-import { resolveOnlineServerUrl, isFiveDigitRoomCode } from '../xfc-game/src/data/online-rooms.js';
+import { resolveOnlineServerUrl, isValidRoomPassword } from '../xfc-game/src/data/online-rooms.js';
 import { launchOrSkip } from './support/chromium.mjs';
 
 class RelayClient {
-  constructor(url) {
-    this.socket = new WebSocket(url);
+  constructor(url, options = {}) {
+    this.socket = new WebSocket(url, options);
     this.messages = [];
     this.waiters = [];
     this.opened = new Promise((resolve, reject) => {
@@ -58,12 +58,13 @@ test('room relay connects two players and forwards authoritative PvP traffic', a
   });
   await Promise.all([host.opened, guest.opened]);
 
-  host.send({ type: 'create-room' });
+  const password = 'XFC-primo-online-2026';
+  host.send({ type: 'create-room', password });
   const created = await host.next('room-created');
-  assert.equal(isFiveDigitRoomCode(created.code), true);
+  assert.deepEqual(created, { type: 'room-created' }, 'the relay never returns the password or a room code');
 
-  guest.send({ type: 'join-room', code: created.code });
-  assert.deepEqual(await guest.next('joined'), { type: 'joined', code: created.code, role: 'guest' });
+  guest.send({ type: 'join-room', password });
+  assert.deepEqual(await guest.next('joined'), { type: 'joined', role: 'guest' });
   await host.next('peer-joined');
 
   host.send({ type: 'start-match', config: {
@@ -95,6 +96,37 @@ test('room relay connects two players and forwards authoritative PvP traffic', a
   assert.deepEqual(await guest.next('event'), { type: 'event', event: { type: 'goal', score: [1, 0] } });
 });
 
+test('room passwords are validated, hashed as room keys and required to join', async t => {
+  assert.equal(isValidRoomPassword('1234567'), false);
+  assert.equal(isValidRoomPassword('  XFC-primo-2026  '), true);
+  assert.equal(isValidRoomPassword(''), false);
+  assert.equal(isValidRoomPassword('x'.repeat(65)), false);
+
+  const { server, url } = await startXfcServer({ port: 0, host: '127.0.0.1' });
+  const wsUrl = resolveOnlineServerUrl('', new URL(url));
+  const host = new RelayClient(wsUrl);
+  const duplicate = new RelayClient(wsUrl);
+  const guest = new RelayClient(wsUrl);
+  t.after(async () => {
+    await Promise.all([host.close(), duplicate.close(), guest.close()]);
+    await new Promise(resolve => server.close(resolve));
+  });
+  await Promise.all([host.opened, duplicate.opened, guest.opened]);
+
+  const password = 'XFC-primo-2026';
+  host.send({ type: 'create-room', password: 'short' });
+  assert.equal((await host.next('error')).code, 'invalid-password');
+  host.send({ type: 'create-room', password });
+  assert.deepEqual(await host.next('room-created'), { type: 'room-created' });
+  duplicate.send({ type: 'create-room', password });
+  assert.equal((await duplicate.next('error')).code, 'room-exists');
+  guest.send({ type: 'join-room', password: 'senha-errada' });
+  assert.equal((await guest.next('error')).code, 'room-not-found');
+  guest.send({ type: 'join-room', password });
+  assert.deepEqual(await guest.next('joined'), { type: 'joined', role: 'guest' });
+  await host.next('peer-joined');
+});
+
 test('relay refuses an Origin outside its same-origin policy', async t => {
   const { server, url } = await startXfcServer({ port: 0, host: '127.0.0.1' });
   const wsUrl = resolveOnlineServerUrl('', new URL(url));
@@ -106,6 +138,22 @@ test('relay refuses an Origin outside its same-origin policy', async t => {
     resolve([response.statusCode]);
   }));
   assert.equal(code, 403);
+});
+
+test('same-origin WebSocket works behind a reverse proxy using X-Forwarded-Host', async t => {
+  const { server, url } = await startXfcServer({ port: 0, host: '127.0.0.1' });
+  const wsUrl = resolveOnlineServerUrl('', new URL(url));
+  const client = new RelayClient(wsUrl, {
+    origin: 'https://xfc-public.example',
+    headers: { 'x-forwarded-host': 'xfc-public.example' }
+  });
+  t.after(async () => {
+    await client.close();
+    await new Promise(resolve => server.close(resolve));
+  });
+  await client.opened;
+  client.send({ type: 'create-room', password: 'XFC-primo-2026' });
+  assert.deepEqual(await client.next('room-created'), { type: 'room-created' });
 });
 
 test('two browser clients play the same live PvP match through the relay', { timeout: 120000 }, async t => {
@@ -133,12 +181,13 @@ test('two browser clients play the same live PvP match through the relay', { tim
   const guest = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   try {
     await Promise.all([openPvp(host), openPvp(guest)]);
-    await host.getByRole('button', { name: 'Criar sala online', exact: true }).click();
-    await host.waitForFunction(() => /^\d{5}$/.test(document.querySelector('.xfc27-room-code')?.textContent || ''), null, { timeout: 10000 });
-    const code = await host.locator('.xfc27-room-code').textContent();
-    await guest.getByLabel('Código da sala · 5 dígitos').fill(code);
-    await guest.getByRole('button', { name: 'Entrar na sala', exact: true }).click();
-    await host.waitForFunction(() => document.querySelector('.xfc27-dialog__status')?.textContent.includes('O outro jogador entrou'), null, { timeout: 10000 });
+    const password = 'XFC-primo-online-2026';
+    await host.getByLabel('Senha da sala (8 a 64 caracteres)').fill(password);
+    await host.getByRole('button', { name: 'Criar sala com senha', exact: true }).click();
+    await host.waitForFunction(() => document.querySelector('.xfc27-room-status')?.textContent === 'Sala protegida', null, { timeout: 10000 });
+    await guest.getByLabel('Senha da sala (8 a 64 caracteres)').fill(password);
+    await guest.getByRole('button', { name: 'Entrar com senha', exact: true }).click();
+    await host.waitForFunction(() => document.querySelector('.xfc27-dialog__status')?.textContent.includes('Seu amigo entrou'), null, { timeout: 10000 });
     await host.getByRole('button', { name: 'Iniciar partida', exact: true }).click();
 
     await Promise.all([

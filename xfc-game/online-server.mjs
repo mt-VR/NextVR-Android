@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 
 const ROOM_TTL_MS = 2 * 60 * 1000;
@@ -21,6 +21,13 @@ function finite(value, fallback = 0) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function roomKeyFromPassword(value) {
+  if (typeof value !== 'string') return '';
+  const password = value.trim();
+  if (password.length < 8 || password.length > 64) return '';
+  return createHash('sha256').update(password, 'utf8').digest('hex');
 }
 
 function send(socket, message) {
@@ -59,17 +66,21 @@ function validPieceOptions(value) {
 }
 
 function allowedOriginsFrom(value) {
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'string') return value.split(',').map(item => item.trim()).filter(Boolean);
-  const fromEnvironment = process.env.XFC_ONLINE_ALLOWED_ORIGINS;
-  return fromEnvironment ? fromEnvironment.split(',').map(item => item.trim()).filter(Boolean) : null;
+  const configured = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',').map(item => item.trim()).filter(Boolean)
+      : String(process.env.XFC_ONLINE_ALLOWED_ORIGINS || '').split(',').map(item => item.trim()).filter(Boolean);
+  // The APK loads its game from this fixed WebView origin and connects to the
+  // public relay; website clients still use strict same-origin verification.
+  return [...new Set(['https://xfc.local', ...configured])];
 }
 
 /**
  * Adds an ephemeral two-player room relay to the static XFC HTTP server.
  * The host's game simulation is authoritative; this service only relays input,
- * events and compact state snapshots. No player accounts or profile data are
- * accepted or stored.
+ * events and compact state snapshots. Rooms are keyed by a one-way digest of
+ * the shared password; no account or password in plaintext is stored.
  */
 export function attachOnlineRooms(server, {
   path = '/ws',
@@ -83,14 +94,6 @@ export function attachOnlineRooms(server, {
   const joinAttempts = new Map();
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024, perMessageDeflate: false });
 
-  function codeForRoom() {
-    for (let attempt = 0; attempt < 90000; attempt += 1) {
-      const code = String(10000 + randomInt(90000));
-      if (!rooms.has(code)) return code;
-    }
-    throw new Error('No room codes are available');
-  }
-
   function roomPeer(room, client) {
     if (!room || !client) return null;
     return room.host === client ? room.guest : room.guest === client ? room.host : null;
@@ -102,7 +105,7 @@ export function attachOnlineRooms(server, {
     const peer = roomPeer(room, client);
     if (client === room.host) {
       if (notify && peer) send(peer, { type: 'host-left' });
-      rooms.delete(room.code);
+      rooms.delete(room.key);
       room.host = null;
       room.guest = null;
     } else if (client === room.guest) {
@@ -118,7 +121,7 @@ export function attachOnlineRooms(server, {
     send(client, { type: 'error', code, message });
   }
 
-  function allowJoin(client) {
+  function allowRoomAttempt(client) {
     const timestamp = now();
     const attempts = (joinAttempts.get(client.ip) || []).filter(item => timestamp - item < JOIN_WINDOW_MS);
     if (attempts.length >= MAX_JOIN_ATTEMPTS) {
@@ -138,28 +141,40 @@ export function attachOnlineRooms(server, {
 
     switch (value.type) {
       case 'create-room': {
+        if (!allowRoomAttempt(client)) {
+          error(client, 'rate-limited', 'Muitas tentativas. Aguarde um minuto antes de tentar novamente.');
+          return;
+        }
+        const key = roomKeyFromPassword(value.password);
+        if (!key) {
+          error(client, 'invalid-password', 'A senha deve ter de 8 a 64 caracteres.');
+          return;
+        }
+        if (rooms.has(key)) {
+          error(client, 'room-exists', 'Já existe uma sala ativa com essa senha. Escolha outra senha ou entre nela.');
+          return;
+        }
         if (client.room) removeClientFromRoom(client, { notify: true });
-        const code = codeForRoom();
-        const room = { code, host: client, guest: null, config: null, started: false, expiresAt: now() + roomTtlMs };
-        rooms.set(code, room);
+        const room = { key, host: client, guest: null, config: null, started: false, expiresAt: now() + roomTtlMs };
+        rooms.set(key, room);
         client.room = room;
         client.role = 'host';
-        send(client, { type: 'room-created', code });
+        send(client, { type: 'room-created' });
         return;
       }
       case 'join-room': {
-        if (!allowJoin(client)) {
-          error(client, 'rate-limited', 'Muitas tentativas. Aguarde um minuto antes de tentar outro código.');
+        if (!allowRoomAttempt(client)) {
+          error(client, 'rate-limited', 'Muitas tentativas. Aguarde um minuto antes de tentar novamente.');
           return;
         }
-        const code = typeof value.code === 'string' ? value.code : '';
-        if (!/^\d{5}$/.test(code)) {
-          error(client, 'invalid-code', 'O código deve ter cinco dígitos.');
+        const key = roomKeyFromPassword(value.password);
+        if (!key) {
+          error(client, 'invalid-password', 'A senha deve ter de 8 a 64 caracteres.');
           return;
         }
-        const room = rooms.get(code);
+        const room = rooms.get(key);
         if (!room?.host || room.host.readyState !== WebSocket.OPEN) {
-          error(client, 'room-not-found', 'Sala não encontrada ou expirada. Confira o código e tente de novo.');
+          error(client, 'room-not-found', 'Senha incorreta ou sala inexistente/expirada. Confira a senha e tente de novo.');
           return;
         }
         if (room.guest && room.guest !== client && room.guest.readyState === WebSocket.OPEN) {
@@ -171,7 +186,7 @@ export function attachOnlineRooms(server, {
         room.expiresAt = now() + (room.started ? matchTtlMs : roomTtlMs);
         client.room = room;
         client.role = 'guest';
-        send(client, { type: 'joined', code, role: 'guest' });
+        send(client, { type: 'joined', role: 'guest' });
         send(room.host, { type: 'peer-joined' });
         if (room.started && room.config) send(client, { type: 'match-start', config: room.config });
         return;
@@ -287,17 +302,14 @@ export function attachOnlineRooms(server, {
       return;
     }
     const origin = request.headers.origin;
-    if (origin && origins) {
-      const allowed = origins.includes('*') || origins.includes(origin);
-      if (!allowed) {
-        socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-    } else if (origin && !origins) {
+    if (origin) {
       let originHost = '';
       try { originHost = new URL(origin).host; } catch { /* rejected below */ }
-      if (!originHost || originHost !== request.headers.host) {
+      const requestHost = String(request.headers.host || '').split(',')[0].trim();
+      const forwardedHost = String(request.headers['x-forwarded-host'] || '').split(',')[0].trim();
+      const sameOrigin = Boolean(originHost && (originHost === requestHost || originHost === forwardedHost));
+      const allowlisted = Boolean(origins && (origins.includes('*') || origins.includes(origin)));
+      if (!allowlisted && !sameOrigin) {
         socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
         socket.destroy();
         return;
@@ -308,7 +320,8 @@ export function attachOnlineRooms(server, {
 
   wss.on('connection', (socket, request) => {
     socket.isAlive = true;
-    socket.ip = request.socket.remoteAddress || 'unknown';
+    socket.ip = String(request.headers['x-forwarded-for'] || '').split(',')[0].trim()
+      || request.socket.remoteAddress || 'unknown';
     socket.room = null;
     socket.role = null;
     socket.on('pong', () => { socket.isAlive = true; });
@@ -325,11 +338,11 @@ export function attachOnlineRooms(server, {
 
   const heartbeat = setInterval(() => {
     const timestamp = now();
-    for (const [code, room] of rooms) {
+    for (const [key, room] of rooms) {
       if (room.expiresAt <= timestamp) {
         send(room.host, { type: 'room-expired' });
         if (room.guest) send(room.guest, { type: 'room-expired' });
-        rooms.delete(code);
+        rooms.delete(key);
       }
     }
     for (const [ip, attempts] of joinAttempts) {
